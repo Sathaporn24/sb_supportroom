@@ -1,26 +1,38 @@
-import type { AnswerResult } from "@/providers/ai/types";
+import type { AnswerStatus } from "@/types/domain";
 
-/** User/demo-triggered intents (what Demo Controls and Chat dispatch). */
-export type TutorUserAction =
-  | { type: "JOIN_ROOM"; teacherName?: string }
-  | { type: "READY" }
-  | { type: "ASK_QUESTION"; question: string }
-  | { type: "NOT_UNDERSTOOD" }
-  | { type: "STILL_NOT_UNDERSTOOD" }
-  | { type: "REVIEW_PREVIOUS" }
+/** User/UI-triggered events. */
+export type TutorUserEvent =
+  | { type: "JOIN" }
+  | { type: "START" }
+  | { type: "PUSH_TO_TALK_START" }
+  | { type: "PUSH_TO_TALK_END" }
   | { type: "PAUSE" }
   | { type: "RESUME" }
-  | { type: "NOISE_OR_MEANINGLESS" }
+  | { type: "END_SESSION" }
   | { type: "TOGGLE_MIC" }
-  | { type: "TOGGLE_CAMERA" }
-  | { type: "LEAVE" }
-  | { type: "DISCONNECT" }
-  | { type: "RECONNECT" };
+  | { type: "TOGGLE_CAMERA" };
 
-/** Internal engine-driven events (dispatched by the hook, never by UI directly). */
-export type TutorInternalAction =
-  | { type: "SPEECH_DONE" }
-  | { type: "SILENCE_TIMEOUT" }
-  | { type: "ANSWER_READY"; result: AnswerResult };
+/** Engine-driven events, dispatched by the hook after an effect settles. */
+export type TutorInternalEvent =
+  | { type: "LESSON_LOADED" }
+  | { type: "LESSON_LOAD_FAILED"; message: string }
+  | { type: "INTRO_TIMEOUT" }
+  | { type: "SLIDE_READY" }
+  /** elapsedMs = actual TTS playback duration, used to compute the remaining video wait. */
+  | { type: "TTS_ENDED"; elapsedMs: number }
+  | { type: "SLIDE_DURATION_ENDED" }
+  | { type: "NO_SPEECH" }
+  | {
+      type: "QUESTION_ANSWERED";
+      transcript: string;
+      answer: string;
+      answerStatus: AnswerStatus;
+      relatedSlideObjectId?: string;
+    }
+  | { type: "QUESTION_FAILED" }
+  | { type: "RESTART_CURRENT_SLIDE" }
+  | { type: "NEXT_SLIDE" }
+  | { type: "FINAL_QUESTION_TIMEOUT" }
+  | { type: "FAIL"; message: string };
 
-export type TutorAction = TutorUserAction | TutorInternalAction;
+export type TutorEvent = TutorUserEvent | TutorInternalEvent;

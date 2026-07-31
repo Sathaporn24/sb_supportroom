@@ -1,189 +1,284 @@
 "use client";
 
-import { useCallback, useEffect, useReducer, useRef } from "react";
-import type { TrainingSession } from "@/types/domain";
-import type { TutorAction, TutorUserAction } from "@/tutor/intents";
+import { useCallback, useEffect, useReducer, useRef, useState } from "react";
+import type { LessonConfig, TeachingSlide, TrainingSession } from "@/types/domain";
+import type { TutorEvent, TutorUserEvent } from "@/tutor/intents";
 import type { TutorEffect, TutorRuntime } from "@/tutor/types";
-import { createInitialRuntime, tutorReducer } from "@/tutor/tutor-reducer";
-import { aiAnswerProvider } from "@/providers/ai";
-import { textToSpeechProvider } from "@/providers/tts";
-import { speechToTextProvider } from "@/providers/stt";
-import { sessionRepository, reportRepository } from "@/providers/data";
-import type { SessionSummary } from "@/types/domain";
+import { createInitialRuntime, tutorReducer, type TutorContext } from "@/tutor/tutor-reducer";
+import * as api from "@/lib/api-client";
 
-function buildInitialRuntime(session: TrainingSession): TutorRuntime {
-  const base = createInitialRuntime(session.id, session.teacherName);
-  if (!session.startedAt) {
-    return base;
-  }
-  const lesson = session.lessonSnapshot;
-  const stepIndex = Math.min(session.lastStepIndex, lesson.steps.length - 1);
-  const step = lesson.steps[stepIndex];
-  const segIndex = Math.min(session.lastSegmentIndex, step.segments.length - 1);
-  const segment = step.segments[segIndex];
-  return {
-    ...base,
-    state: "TEACHING",
-    currentStepIndex: stepIndex,
-    currentSegmentIndex: segIndex,
-    activeMediaId: segment.mediaId,
-    startedAt: session.startedAt,
-    isAiSpeaking: true,
-    pendingUtterance: segment.scriptText,
-    pendingDurationMs: segment.mockSpeakDurationMs,
-    afterSpeech: "ADVANCE_TEACHING",
-  };
-}
+const MIN_RECORDING_MS = 300;
 
 export function useTutorSession(session: TrainingSession) {
-  const lesson = session.lessonSnapshot;
-  const runtimeRef = useRef<TutorRuntime>(buildInitialRuntime(session));
+  const runtimeRef = useRef<TutorRuntime>(createInitialRuntime());
   const [, forceRender] = useReducer((n: number) => n + 1, 0);
-  const ttsAbortRef = useRef<AbortController | null>(null);
-  const silenceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [embedUrl, setEmbedUrl] = useState("");
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  const slidesRef = useRef<TeachingSlide[]>([]);
+  const lessonRef = useRef<LessonConfig | null>(null);
+  const ctxRef = useRef<TutorContext>({
+    slides: [],
+    introWaitMs: 5_000,
+    breathPauseMs: 1_000,
+    finalQuestionWaitMs: 5_000,
+    teacherName: session.teacherName,
+  });
+
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const audioUrlRef = useRef<string | null>(null);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const micStreamRef = useRef<MediaStream | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const recordedChunksRef = useRef<Blob[]>([]);
+  const recordingStartRef = useRef(0);
   const mountedRef = useRef(true);
 
-  const persistProgress = useCallback(() => {
-    const runtime = runtimeRef.current;
-    void sessionRepository.update({
-      ...session,
-      startedAt: runtime.startedAt ?? session.startedAt,
-      lastStepIndex: runtime.currentStepIndex,
-      lastSegmentIndex: runtime.currentSegmentIndex,
-      disconnectedAt: runtime.disconnectedAt,
-    });
-  }, [session]);
+  // Plain closures (not useCallback) - this hook's own effect-runner calls them
+  // directly each render, they are never passed as props needing referential
+  // stability. Only `sendEvent` at the bottom is memoized for consumers.
 
-  const persistSummaryAndEnd = useCallback(() => {
-    const runtime = runtimeRef.current;
-    const summary: SessionSummary = {
-      sessionId: session.id,
-      completedAllSteps: runtime.completedAllSteps,
-      lastStepIndex: runtime.currentStepIndex,
-      lastStepTitle: lesson.steps[runtime.currentStepIndex]?.title,
-      questions: runtime.questions,
-      repeatedPoints: runtime.repeatedPoints,
-      unresolvedItems: runtime.unresolvedItems,
-      startedAt: runtime.startedAt,
-      endedAt: runtime.endedAt ?? new Date().toISOString(),
-    };
-    void reportRepository.save(summary);
-    void sessionRepository.update({
-      ...session,
-      startedAt: runtime.startedAt ?? session.startedAt,
-      endedAt: summary.endedAt,
-      completedAllSteps: runtime.completedAllSteps,
-      lastStepIndex: runtime.currentStepIndex,
-      lastSegmentIndex: runtime.currentSegmentIndex,
-    });
-  }, [session, lesson]);
+  function clearPending() {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.src = "";
+      audioRef.current = null;
+    }
+    if (audioUrlRef.current) {
+      URL.revokeObjectURL(audioUrlRef.current);
+      audioUrlRef.current = null;
+    }
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+  }
 
-  const runEffect = useCallback(
-    (effect: TutorEffect) => {
-      switch (effect.kind) {
-        case "SPEAK": {
-          const controller = new AbortController();
-          ttsAbortRef.current = controller;
-          textToSpeechProvider
-            .speak(effect.text, { signal: controller.signal, durationMs: effect.durationMs })
-            .then(() => {
-              if (!controller.signal.aborted && mountedRef.current) {
-                dispatch({ type: "SPEECH_DONE" });
-              }
-            })
-            .catch(() => {
-              // Superseded by a newer action (pause/interrupt) - nothing to do.
-            });
-          break;
-        }
-        case "WAIT_SILENCE": {
-          silenceTimerRef.current = setTimeout(() => {
+  function dispatch(event: TutorEvent) {
+    clearPending();
+    const { runtime: next, effect } = tutorReducer(runtimeRef.current, event, ctxRef.current);
+    runtimeRef.current = next;
+    forceRender();
+    runEffect(effect);
+  }
+
+  async function playText(text: string) {
+    try {
+      const blob = await api.synthesizeSpeech(text);
+      if (!mountedRef.current) return;
+      const url = URL.createObjectURL(blob);
+      audioUrlRef.current = url;
+      const audio = new Audio(url);
+      audioRef.current = audio;
+      audio.addEventListener("ended", () => {
+        const elapsedMs = Number.isFinite(audio.duration) ? audio.duration * 1000 : 0;
+        dispatch({ type: "TTS_ENDED", elapsedMs });
+      });
+      await audio.play();
+    } catch (err) {
+      dispatch({ type: "FAIL", message: err instanceof Error ? err.message : "แปลงข้อความเป็นเสียงไม่สำเร็จ" });
+    }
+  }
+
+  async function loadSlideAudio(slideIndex: number) {
+    const slide = slidesRef.current[slideIndex];
+    if (!slide) {
+      dispatch({ type: "FAIL", message: "ไม่พบสไลด์ที่ต้องการ" });
+      return;
+    }
+    try {
+      const blob = await api.synthesizeSpeech(slide.speakerNotes);
+      if (!mountedRef.current) return;
+      // Dispatch the state transition FIRST - dispatch() always clears any pending
+      // audio/timer via clearPending(), so building the <audio> element before this
+      // would get its src wiped out by that same clear right before play() runs.
+      dispatch({ type: "SLIDE_READY" });
+      const url = URL.createObjectURL(blob);
+      audioUrlRef.current = url;
+      const audio = new Audio(url);
+      audioRef.current = audio;
+      audio.addEventListener("ended", () => {
+        const elapsedMs = Number.isFinite(audio.duration) ? audio.duration * 1000 : 0;
+        dispatch({ type: "TTS_ENDED", elapsedMs });
+      });
+      await audio.play();
+    } catch (err) {
+      dispatch({ type: "FAIL", message: err instanceof Error ? err.message : "เตรียมเสียงสไลด์ไม่สำเร็จ" });
+    }
+  }
+
+  async function ensureMicStream(): Promise<MediaStream> {
+    if (micStreamRef.current) {
+      return micStreamRef.current;
+    }
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    micStreamRef.current = stream;
+    return stream;
+  }
+
+  async function startRecording() {
+    try {
+      const stream = await ensureMicStream();
+      const recorder = new MediaRecorder(stream);
+      recordedChunksRef.current = [];
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) recordedChunksRef.current.push(e.data);
+      };
+      mediaRecorderRef.current = recorder;
+      recordingStartRef.current = Date.now();
+      recorder.start();
+    } catch (err) {
+      dispatch({ type: "FAIL", message: err instanceof Error ? err.message : "ไม่สามารถเข้าถึงไมโครโฟนได้" });
+    }
+  }
+
+  async function stopRecordingAndSend() {
+    const recorder = mediaRecorderRef.current;
+    const durationMs = Date.now() - recordingStartRef.current;
+    if (!recorder || recorder.state === "inactive") {
+      dispatch({ type: "NO_SPEECH" });
+      return;
+    }
+
+    const audioBlob = await new Promise<Blob>((resolve) => {
+      recorder.addEventListener(
+        "stop",
+        () => resolve(new Blob(recordedChunksRef.current, { type: recorder.mimeType || "audio/webm" })),
+        { once: true },
+      );
+      recorder.stop();
+    });
+    mediaRecorderRef.current = null;
+
+    if (durationMs < MIN_RECORDING_MS) {
+      dispatch({ type: "NO_SPEECH" });
+      return;
+    }
+
+    try {
+      const currentSlide = slidesRef.current[runtimeRef.current.currentSlideIndex];
+      const result = await api.askVoiceQuestion({
+        audioBlob,
+        lessonSlug: session.lessonSlug,
+        sessionId: session.id,
+        currentSlideObjectId: currentSlide?.slideObjectId,
+        durationMs,
+      });
+
+      if (!mountedRef.current) return;
+
+      if (result.answerStatus === "no_speech" || result.answerStatus === "transcription_failed") {
+        dispatch({ type: "NO_SPEECH" });
+        return;
+      }
+
+      dispatch({
+        type: "QUESTION_ANSWERED",
+        transcript: result.transcript,
+        answer: result.answer,
+        answerStatus: result.answerStatus,
+        relatedSlideObjectId: result.relatedSlideObjectId,
+      });
+    } catch {
+      if (mountedRef.current) {
+        dispatch({ type: "QUESTION_FAILED" });
+      }
+    }
+  }
+
+  async function persistEnd(completedAllSlides: boolean) {
+    const lastSlide = slidesRef.current[runtimeRef.current.currentSlideIndex];
+    try {
+      await api.endSession(session.token, { completedAllSlides, lastSlideObjectId: lastSlide?.slideObjectId });
+    } catch {
+      // Best-effort - the room still shows ENDED locally even if persistence fails
+      // (e.g. a transient network issue during a demo).
+    }
+  }
+
+  function runEffect(effect: TutorEffect) {
+    switch (effect.kind) {
+      case "LOAD_LESSON":
+        void (async () => {
+          try {
+            const { lesson, embedUrl: url, slides } = await api.getLessonBySlug(session.lessonSlug);
+            lessonRef.current = lesson;
+            slidesRef.current = slides;
+            ctxRef.current = {
+              slides,
+              introWaitMs: lesson.introWaitMs,
+              breathPauseMs: lesson.breathPauseMs,
+              finalQuestionWaitMs: lesson.finalQuestionWaitMs,
+              teacherName: session.teacherName,
+            };
             if (mountedRef.current) {
-              dispatch({ type: "SILENCE_TIMEOUT" });
+              setEmbedUrl(url);
+              dispatch({ type: "LESSON_LOADED" });
             }
-          }, effect.ms);
-          break;
-        }
-        case "CALL_AI": {
-          aiAnswerProvider
-            .answer({
-              lessonSnapshot: lesson,
-              currentStepIndex: runtimeRef.current.currentStepIndex,
-              currentSegmentIndex: runtimeRef.current.currentSegmentIndex,
-              question: effect.question,
-            })
-            .then((result) => {
-              if (mountedRef.current) {
-                dispatch({ type: "ANSWER_READY", result });
-              }
-            });
-          break;
-        }
-        case "PERSIST_PROGRESS":
-          persistProgress();
-          break;
-        case "PERSIST_SUMMARY":
-          persistSummaryAndEnd();
-          break;
-        case "NONE":
-        default:
-          break;
-      }
-    },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [lesson, persistProgress, persistSummaryAndEnd],
-  );
-
-  const dispatch = useCallback(
-    (action: TutorAction) => {
-      ttsAbortRef.current?.abort();
-      ttsAbortRef.current = null;
-      if (silenceTimerRef.current) {
-        clearTimeout(silenceTimerRef.current);
-        silenceTimerRef.current = null;
-      }
-      const { runtime: next, effect } = tutorReducer(runtimeRef.current, action, lesson);
-      runtimeRef.current = next;
-      forceRender();
-      runEffect(effect);
-      if (next.startedAt && effect.kind !== "PERSIST_PROGRESS" && effect.kind !== "PERSIST_SUMMARY") {
-        persistProgress();
-      }
-    },
-    [lesson, runEffect, persistProgress],
-  );
+          } catch (err) {
+            if (mountedRef.current) {
+              const message = err instanceof Error ? err.message : "โหลดบทเรียนไม่สำเร็จ";
+              setLoadError(message);
+              dispatch({ type: "LESSON_LOAD_FAILED", message });
+            }
+          }
+        })();
+        break;
+      case "SPEAK":
+        void playText(effect.text);
+        break;
+      case "WAIT_READY_TIMEOUT":
+        timerRef.current = setTimeout(() => dispatch({ type: "INTRO_TIMEOUT" }), effect.ms);
+        break;
+      case "LOAD_SLIDE":
+        void loadSlideAudio(effect.slideIndex);
+        break;
+      case "WAIT_REMAINING":
+        timerRef.current = setTimeout(() => dispatch({ type: "SLIDE_DURATION_ENDED" }), effect.ms);
+        break;
+      case "START_RECORDING":
+        void startRecording();
+        break;
+      case "STOP_RECORDING_AND_SEND":
+        void stopRecordingAndSend();
+        break;
+      case "WAIT_FINAL_QUESTION":
+        timerRef.current = setTimeout(() => dispatch({ type: "FINAL_QUESTION_TIMEOUT" }), effect.ms);
+        break;
+      case "PERSIST_END":
+        void persistEnd(effect.completedAllSlides);
+        break;
+      case "NONE":
+      default:
+        break;
+    }
+  }
 
   useEffect(() => {
     mountedRef.current = true;
-    void speechToTextProvider.start((text) => dispatch({ type: "ASK_QUESTION", question: text }));
-
-    if (runtimeRef.current.state === "PRE_JOIN") {
-      dispatch({ type: "JOIN_ROOM", teacherName: session.teacherName });
-    } else if (runtimeRef.current.pendingUtterance) {
-      runEffect({ kind: "SPEAK", text: runtimeRef.current.pendingUtterance, durationMs: runtimeRef.current.pendingDurationMs });
-    }
+    dispatch({ type: "JOIN" });
+    void api.markSessionStarted(session.token).catch(() => undefined);
 
     return () => {
       mountedRef.current = false;
-      ttsAbortRef.current?.abort();
-      if (silenceTimerRef.current) {
-        clearTimeout(silenceTimerRef.current);
-      }
-      void speechToTextProvider.stop();
+      clearPending();
+      mediaRecorderRef.current?.stream.getTracks().forEach((track) => track.stop());
+      micStreamRef.current?.getTracks().forEach((track) => track.stop());
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const sendAction = useCallback((action: TutorUserAction) => dispatch(action), [dispatch]);
-
-  const submitChatMessage = useCallback((text: string) => {
-    speechToTextProvider.pushTranscript(text);
-  }, []);
+  // dispatch/runEffect close over refs + the stable `session` prop only, so freezing
+  // to the mount-time closure here is safe and avoids recreating sendEvent every render.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const sendEvent = useCallback((event: TutorUserEvent) => dispatch(event), []);
 
   return {
     runtime: runtimeRef.current,
-    lesson,
-    sendAction,
-    submitChatMessage,
+    embedUrl,
+    loadError,
+    currentSlide: slidesRef.current[runtimeRef.current.currentSlideIndex],
+    totalSlides: slidesRef.current.length,
+    sendEvent,
   };
 }

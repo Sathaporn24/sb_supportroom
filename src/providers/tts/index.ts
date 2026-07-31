@@ -1,19 +1,16 @@
+import "server-only";
 import { MockTextToSpeechProvider } from "@/providers/tts/mock-tts-provider";
-import { BrowserTextToSpeechProvider } from "@/providers/tts/browser-tts-provider";
-import { ExternalTextToSpeechProvider } from "@/providers/tts/external-tts-provider";
+import { HuggingFaceTextToSpeechProvider } from "@/providers/tts/huggingface-tts-provider";
 import type { TextToSpeechProvider } from "@/providers/tts/types";
-import { providerConfig } from "@/config/tutor-config";
+import { getProviderSelection } from "@/config/env";
 
-function createTextToSpeechProvider(): TextToSpeechProvider {
-  switch (providerConfig.ttsProvider) {
-    case "browser":
-      return new BrowserTextToSpeechProvider();
-    case "external":
-      return new ExternalTextToSpeechProvider();
+export function createTextToSpeechProvider(): TextToSpeechProvider {
+  const { TTS_PROVIDER } = getProviderSelection();
+  switch (TTS_PROVIDER) {
+    case "huggingface":
+      return new HuggingFaceTextToSpeechProvider();
     case "mock":
     default:
       return new MockTextToSpeechProvider();
   }
 }
-
-export const textToSpeechProvider: TextToSpeechProvider = createTextToSpeechProvider();

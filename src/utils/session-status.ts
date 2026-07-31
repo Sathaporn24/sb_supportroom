@@ -1,6 +1,6 @@
-import type { TrainingSession, TrainingSessionStatus } from "@/types/domain";
+import type { SessionStatus, TrainingSession } from "@/types/domain";
 
-export function getSessionStatus(session: TrainingSession, now: Date = new Date()): TrainingSessionStatus {
+export function getSessionStatus(session: TrainingSession, now: Date = new Date()): SessionStatus {
   if (session.endedAt) {
     return "ENDED";
   }
@@ -24,7 +24,7 @@ export function isSessionJoinable(session: TrainingSession, now: Date = new Date
   return new Date(session.expiresAt).getTime() > now.getTime();
 }
 
-export const sessionStatusLabels: Record<TrainingSessionStatus, string> = {
+export const sessionStatusLabels: Record<SessionStatus, string> = {
   NOT_STARTED: "ยังไม่เปิด",
   IN_PROGRESS: "กำลังสอน",
   ENDED: "จบแล้ว",

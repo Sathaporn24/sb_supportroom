@@ -1,80 +1,57 @@
-import type { AnswerResult } from "@/providers/ai/types";
-import type { SummaryQuestion } from "@/types/domain";
+import type { SessionQuestion } from "@/types/domain";
 
 export type TutorState =
-  | "PRE_JOIN"
-  | "GREETING"
-  | "WAITING_READY"
-  | "TEACHING"
-  | "CHECKPOINT"
-  | "INTERRUPTED"
-  | "ANSWERING"
-  | "REVIEWING"
-  | "PAUSED"
-  | "FINAL_QA"
-  | "ENDED"
-  | "EXPIRED";
-
-/** Why the engine entered INTERRUPTED, so SPEECH_DONE/SILENCE_TIMEOUT know what to do next. */
-export type InterruptionReason = "NOISE" | "NOT_UNDERSTOOD" | "STILL_NOT_UNDERSTOOD" | "REVIEW_PREVIOUS" | null;
+  | "idle"
+  | "preparing"
+  | "intro-speaking"
+  | "ready"
+  | "slide-loading"
+  | "slide-speaking"
+  | "waiting-slide-duration"
+  | "push-to-talk-recording"
+  | "processing-question"
+  | "answer-speaking"
+  | "restarting-slide"
+  | "paused"
+  | "final-question-window"
+  | "completed"
+  | "error";
 
 /**
- * Tells the SPEECH_DONE handler what to do once the current pendingUtterance finishes -
- * keeps the reducer a flat switch instead of re-deriving intent from (state, reason) pairs.
+ * Tells the TTS_ENDED handler what to do once the current utterance finishes speaking -
+ * lets "intro-speaking"/"answer-speaking" be reused for several kinds of AI utterances
+ * (greeting, final-question prompt, closing, answers) without adding more states.
  */
 export type AfterSpeechAction =
-  | "ENTER_WAITING_READY"
-  | "ADVANCE_TEACHING"
-  | "WAIT_CHECKPOINT_SILENCE"
-  | "ADVANCE_AFTER_CHECKPOINT"
-  | "WAIT_NOISE_CLARIFY"
-  | "RESUME_SEGMENT"
-  | "WAIT_STILL_NOT_UNDERSTOOD_REPLY"
-  | "WAIT_FINAL_QA_SILENCE"
-  | "END_SESSION_AFTER_CLOSING"
+  | "ENTER_READY"
+  | "WAIT_SLIDE_DURATION"
+  | "RESTART_SLIDE"
+  | "WAIT_FINAL_QUESTION"
+  | "FINISH_SESSION"
   | null;
 
 export type TutorRuntime = {
   state: TutorState;
-  sessionId: string;
-  currentStepIndex: number;
-  currentSegmentIndex: number;
-  resumeStepIndex?: number;
-  resumeSegmentIndex?: number;
-  activeMediaId?: string;
-  isAiSpeaking: boolean;
-  isUserSpeaking: boolean;
+  currentSlideIndex: number;
   isMicEnabled: boolean;
   isCameraEnabled: boolean;
-
-  // Extra bookkeeping beyond the spec's minimum runtime shape.
-  pendingUtterance: string | null;
-  pendingDurationMs?: number;
+  isAiSpeaking: boolean;
   afterSpeech: AfterSpeechAction;
-  resumeIsCheckpoint?: boolean;
-  answerReturnMode: "TEACHING" | "FINAL_QA" | null;
-  pendingQuestionText: string | null;
-  interruptionReason: InterruptionReason;
-  notUnderstoodCount: number;
-  reviewStepIndex?: number;
-  pausedFromState: TutorState | null;
-  lastAnswer: AnswerResult | null;
-  teacherName?: string;
-  startedAt?: string;
-  endedAt?: string;
-  completedAllSteps: boolean;
-  questions: SummaryQuestion[];
-  repeatedPoints: string[];
-  unresolvedItems: string[];
-  connectionStatus: "connected" | "disconnected";
-  disconnectedAt?: string;
+  questions: SessionQuestion[];
+  pausedFrom: TutorState | null;
+  errorMessage: string | null;
+  completedAllSlides: boolean;
 };
 
-/** Effects the reducer asks the hook to perform - keeps the reducer pure/testable. */
 export type TutorEffect =
   | { kind: "NONE" }
-  | { kind: "SPEAK"; text: string; durationMs?: number }
-  | { kind: "WAIT_SILENCE"; ms: number }
-  | { kind: "CALL_AI"; question: string }
-  | { kind: "PERSIST_PROGRESS" }
-  | { kind: "PERSIST_SUMMARY" };
+  | { kind: "LOAD_LESSON" }
+  /** Generic "speak this text" - context for what happens after comes from afterSpeech. */
+  | { kind: "SPEAK"; text: string }
+  | { kind: "WAIT_READY_TIMEOUT"; ms: number }
+  | { kind: "LOAD_SLIDE"; slideIndex: number }
+  | { kind: "WAIT_REMAINING"; ms: number }
+  | { kind: "START_RECORDING" }
+  | { kind: "STOP_RECORDING_AND_SEND" }
+  | { kind: "WAIT_FINAL_QUESTION"; ms: number }
+  | { kind: "PERSIST_END"; completedAllSlides: boolean };

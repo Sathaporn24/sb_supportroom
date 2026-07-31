@@ -1,10 +1,13 @@
-export type SpeakOptions = {
-  signal?: AbortSignal;
-  /** Optional explicit duration override (e.g. a Segment's mockSpeakDurationMs). */
-  durationMs?: number;
+export type TtsInput = {
+  text: string;
+  voice?: string;
+};
+
+export type TtsResult = {
+  audio: Buffer;
+  mimeType: string;
 };
 
 export interface TextToSpeechProvider {
-  speak(text: string, options?: SpeakOptions): Promise<void>;
-  stop(): void;
+  synthesize(input: TtsInput): Promise<TtsResult>;
 }

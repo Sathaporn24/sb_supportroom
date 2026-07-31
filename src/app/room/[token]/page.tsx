@@ -2,21 +2,20 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { sessionRepository } from "@/providers/data";
+import * as api from "@/lib/api-client";
 import { isSessionJoinable } from "@/utils/session-status";
-import { tutorConfig, providerConfig } from "@/config/tutor-config";
 import { useTutorSession } from "@/hooks/use-tutor-session";
 import { useLocalMedia } from "@/hooks/use-local-media";
-import { getMediaById } from "@/mocks/media.mock";
 import { AiTile } from "@/components/meeting/AiTile";
 import { TeacherTile } from "@/components/meeting/TeacherTile";
-import { SharedMedia } from "@/components/meeting/SharedMedia";
+import { SlidesEmbed } from "@/components/meeting/SlidesEmbed";
 import { ControlBar } from "@/components/meeting/ControlBar";
 import { ChatDrawer } from "@/components/meeting/ChatDrawer";
-import { DemoControlsDrawer } from "@/components/meeting/DemoControlsDrawer";
+import { Button } from "@/components/ui/Button";
+import type { PushToTalkStatus } from "@/components/meeting/PushToTalkButton";
 import type { TrainingSession } from "@/types/domain";
 
-type LoadState = "loading" | "ready" | "blocked";
+type LoadState = "loading" | "ready";
 
 export default function RoomPage() {
   const params = useParams<{ token: string }>();
@@ -27,26 +26,22 @@ export default function RoomPage() {
   useEffect(() => {
     let active = true;
     void (async () => {
-      const found = await sessionRepository.getByToken(params.token);
-      if (!active) return;
-      if (!found || found.endedAt || (!found.startedAt && !isSessionJoinable(found))) {
-        router.replace(found?.endedAt ? "/session-ended" : "/link-expired");
-        return;
-      }
-      if (found.disconnectedAt) {
-        const elapsed = Date.now() - new Date(found.disconnectedAt).getTime();
-        if (elapsed > tutorConfig.reconnectGraceMs) {
+      try {
+        const { session: found } = await api.getSessionByToken(params.token);
+        if (!active) return;
+        if (found.status === "ENDED") {
           router.replace("/session-ended");
           return;
         }
-        const reconnected = { ...found, disconnectedAt: undefined };
-        await sessionRepository.update(reconnected);
-        setSession(reconnected);
+        if (!isSessionJoinable(found)) {
+          router.replace("/link-expired");
+          return;
+        }
+        setSession(found);
         setLoadState("ready");
-        return;
+      } catch {
+        if (active) router.replace("/link-expired");
       }
-      setSession(found);
-      setLoadState("ready");
     })();
     return () => {
       active = false;
@@ -63,53 +58,69 @@ export default function RoomPage() {
   return <RoomContent session={session} />;
 }
 
+const PUSH_TO_TALK_ENABLED_STATES = ["slide-speaking", "waiting-slide-duration", "final-question-window"];
+
 function RoomContent({ session }: { session: TrainingSession }) {
   const router = useRouter();
-  const { runtime, sendAction, submitChatMessage } = useTutorSession(session);
+  const { runtime, embedUrl, loadError, currentSlide, totalSlides, sendEvent } = useTutorSession(session);
   const media = useLocalMedia();
   const [chatOpen, setChatOpen] = useState(false);
-  const [demoControlsOpen, setDemoControlsOpen] = useState(false);
-  const [teacherSpeaking, setTeacherSpeaking] = useState(false);
 
   useEffect(() => {
-    if (runtime.state === "ENDED") {
+    if (runtime.state === "completed") {
       router.replace("/session-ended");
     }
   }, [runtime.state, router]);
 
-  const handleAskQuestion = (text: string) => {
-    setTeacherSpeaking(true);
-    submitChatMessage(text);
-    window.setTimeout(() => setTeacherSpeaking(false), 1200);
-  };
+  const isProcessing = runtime.state === "processing-question";
+  const isAnswering = runtime.state === "answer-speaking";
 
-  const activeMedia = runtime.activeMediaId ? getMediaById(runtime.activeMediaId) : undefined;
-  const isThinking = runtime.state === "ANSWERING" && !runtime.isAiSpeaking;
+  const pushToTalkStatus: PushToTalkStatus = (() => {
+    if (runtime.state === "push-to-talk-recording") return "recording";
+    if (isProcessing) return "processing";
+    if (isAnswering) return "answering";
+    if (PUSH_TO_TALK_ENABLED_STATES.includes(runtime.state)) return "idle";
+    return "disabled";
+  })();
+
+  if (runtime.state === "error") {
+    return (
+      <main className="flex min-h-screen flex-col items-center justify-center gap-3 p-6 text-center">
+        <p className="text-room-text">เกิดข้อผิดพลาดระหว่างเตรียมห้องสอน</p>
+        <p className="text-sm text-room-muted">{runtime.errorMessage || loadError}</p>
+      </main>
+    );
+  }
 
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-room-bg">
       <header className="flex shrink-0 items-center justify-between border-b border-room-border bg-room-panel px-4 py-3">
         <p className="text-sm font-semibold text-room-text">School Bright Support</p>
         <p className="text-xs text-room-muted">
-          {runtime.connectionStatus === "connected" ? "เชื่อมต่ออยู่" : "การเชื่อมต่อขาดหาย กำลังพยายามเชื่อมต่อใหม่..."}
-          {runtime.state === "PAUSED" && " · พักการสอนชั่วคราว"}
+          เชื่อมต่ออยู่
+          {runtime.state === "paused" && " · พักการสอนชั่วคราว"}
         </p>
       </header>
 
       <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4 md:flex-row">
-        <div className="min-h-0 flex-1">
-          <SharedMedia media={activeMedia} />
+        <div className="relative min-h-0 flex-1">
+          <SlidesEmbed embedUrl={embedUrl} currentSlide={currentSlide} totalSlides={totalSlides} />
+          {runtime.state === "ready" && (
+            <div className="absolute inset-0 flex items-center justify-center rounded-xl bg-black/40">
+              <Button onClick={() => sendEvent({ type: "START" })}>พร้อมแล้ว เริ่มเรียนเลย</Button>
+            </div>
+          )}
         </div>
         <div className="flex shrink-0 gap-4 md:w-72 md:flex-col">
           <div className="flex-1 md:flex-none">
-            <AiTile speaking={runtime.isAiSpeaking} thinking={isThinking} />
+            <AiTile speaking={runtime.isAiSpeaking} thinking={isProcessing} />
           </div>
           <div className="flex-1 md:flex-none">
             <TeacherTile
               stream={media.stream}
               cameraOn={media.cameraOn}
               micOn={runtime.isMicEnabled}
-              speaking={teacherSpeaking}
+              speaking={runtime.state === "push-to-talk-recording"}
               teacherName={session.teacherName}
             />
           </div>
@@ -119,33 +130,19 @@ function RoomContent({ session }: { session: TrainingSession }) {
       <ControlBar
         micOn={runtime.isMicEnabled}
         cameraOn={runtime.isCameraEnabled && media.cameraOn}
-        onToggleMic={() => {
-          sendAction({ type: "TOGGLE_MIC" });
-          media.toggleMic();
-        }}
+        pushToTalkStatus={pushToTalkStatus}
+        onToggleMic={() => sendEvent({ type: "TOGGLE_MIC" })}
         onToggleCamera={() => {
-          sendAction({ type: "TOGGLE_CAMERA" });
+          sendEvent({ type: "TOGGLE_CAMERA" });
           void media.toggleCamera();
         }}
         onToggleChat={() => setChatOpen((prev) => !prev)}
-        onLeave={() => sendAction({ type: "LEAVE" })}
+        onLeave={() => sendEvent({ type: "END_SESSION" })}
+        onPushToTalkStart={() => sendEvent({ type: "PUSH_TO_TALK_START" })}
+        onPushToTalkEnd={() => sendEvent({ type: "PUSH_TO_TALK_END" })}
       />
 
-      <ChatDrawer
-        open={chatOpen}
-        onClose={() => setChatOpen(false)}
-        questions={runtime.questions}
-        onSubmit={handleAskQuestion}
-      />
-
-      {providerConfig.enableDemoControls && (
-        <DemoControlsDrawer
-          open={demoControlsOpen}
-          onToggle={() => setDemoControlsOpen((prev) => !prev)}
-          sendAction={sendAction}
-          submitChatMessage={handleAskQuestion}
-        />
-      )}
+      <ChatDrawer open={chatOpen} onClose={() => setChatOpen(false)} questions={runtime.questions} />
     </div>
   );
 }

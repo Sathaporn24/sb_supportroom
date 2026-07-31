@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { sessionRepository, resetAllDemoData } from "@/providers/data";
+import * as api from "@/lib/api-client";
 import type { TrainingSession } from "@/types/domain";
 import { SessionsTable } from "@/components/admin/SessionsTable";
 import { Button } from "@/components/ui/Button";
@@ -15,7 +15,7 @@ export default function AdminPage() {
 
   async function reload() {
     setLoading(true);
-    const list = await sessionRepository.list();
+    const { sessions: list } = await api.listSessions();
     setSessions(list);
     setLoading(false);
   }
@@ -28,7 +28,7 @@ export default function AdminPage() {
   async function handleReset() {
     const confirmed = window.confirm("ต้องการรีเซ็ตข้อมูล Demo ทั้งหมดกลับเป็นค่าเริ่มต้นใช่หรือไม่?");
     if (!confirmed) return;
-    await resetAllDemoData();
+    await api.resetDemoData();
     await reload();
   }
 
@@ -37,13 +37,13 @@ export default function AdminPage() {
       <div>
         <h1 className="text-xl font-semibold text-room-text">SupportRoom AI — Admin</h1>
         <p className="mt-1 text-sm text-room-muted">
-          จัดการบทเรียนและสร้างลิงก์ห้องสอนการใช้งานระบบสำหรับคุณครู
+          จัดการบทเรียนจาก Google Slides และสร้างลิงก์ห้องสอนการใช้งานระบบสำหรับคุณครู
         </p>
       </div>
 
       <div className="flex flex-wrap gap-3">
-        <Link href="/admin/lesson">
-          <Button variant="secondary">จัดการบทเรียน Login</Button>
+        <Link href="/admin/lessons">
+          <Button variant="secondary">จัดการบทเรียน</Button>
         </Link>
         <Link href="/admin/sessions/new">
           <Button>สร้างลิงก์การสอน</Button>
@@ -55,13 +55,13 @@ export default function AdminPage() {
 
       <Card className="border-amber-500/30 bg-amber-500/5">
         <p className="text-xs text-amber-700">
-          หมายเหตุ: ในเฟสนี้ Mock Link ใช้งานได้เฉพาะ Browser Profile และเครื่องเดียวกันเท่านั้น
-          เนื่องจากยังไม่มี Backend และฐานข้อมูลจริง
+          หมายเหตุ: ในโหมด Mock ข้อมูลเก็บแบบ In-memory ฝั่งเซิร์ฟเวอร์ (รีเซ็ตเมื่อรีสตาร์ทเซิร์ฟเวอร์) ลิงก์ใช้งานได้ข้ามเบราว์เซอร์/อุปกรณ์ได้
+          ตราบใดที่ยังเรียกไปที่เซิร์ฟเวอร์เดียวกัน — เมื่อสลับไปใช้ Supabase ข้อมูลจะถาวรและใช้งานข้ามอุปกรณ์ได้เต็มรูปแบบ
         </p>
       </Card>
 
       <section className="space-y-3">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-room-muted">รายการ Mock Sessions</h2>
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-room-muted">รายการ Sessions</h2>
         {loading ? (
           <p className="text-sm text-room-muted">กำลังโหลด...</p>
         ) : (

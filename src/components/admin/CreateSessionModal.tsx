@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { sessionRepository } from "@/providers/data";
+import * as api from "@/lib/api-client";
 import { tutorConfig } from "@/config/tutor-config";
 import { addHours } from "@/utils/format";
-import type { Lesson, TrainingSession } from "@/types/domain";
+import type { LessonConfig, TrainingSession } from "@/types/domain";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
@@ -14,7 +14,7 @@ import { LockIcon } from "@/components/ui/icons";
 type Props = {
   open: boolean;
   onClose: () => void;
-  lesson: Lesson | null;
+  lesson: LessonConfig | null;
 };
 
 function toLocalInputValue(iso: string): string {
@@ -29,24 +29,33 @@ export function CreateSessionModal({ open, onClose, lesson }: Props) {
   const [expiresAt, setExpiresAt] = useState("");
   const [created, setCreated] = useState<TrainingSession | null>(null);
   const [origin, setOrigin] = useState("");
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (open) {
       setTeacherName("");
       setSchoolName("");
-      setExpiresAt(toLocalInputValue(addHours(new Date().toISOString(), tutorConfig.defaultLinkExpiryHours)));
+      setExpiresAt(toLocalInputValue(addHours(new Date().toISOString(), tutorConfig.defaultSessionExpiryHours)));
       setCreated(null);
+      setError(null);
       setOrigin(window.location.origin);
     }
   }, [open]);
 
   async function handleCreate() {
-    const session = await sessionRepository.create({
-      teacherName: teacherName || undefined,
-      schoolName: schoolName || undefined,
-      expiresAt: new Date(expiresAt).toISOString(),
-    });
-    setCreated(session);
+    if (!lesson) return;
+    setError(null);
+    try {
+      const { session } = await api.createSession({
+        lessonSlug: lesson.slug,
+        teacherName: teacherName || undefined,
+        schoolName: schoolName || undefined,
+        expiresAt: new Date(expiresAt).toISOString(),
+      });
+      setCreated(session);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "สร้างลิงก์การสอนไม่สำเร็จ");
+    }
   }
 
   return (
@@ -63,7 +72,7 @@ export function CreateSessionModal({ open, onClose, lesson }: Props) {
             </Button>
           </div>
           <p className="text-xs text-room-muted">
-            หมายเหตุ: ลิงก์นี้ใช้งานได้เฉพาะ Browser Profile เดียวกันในเฟสนี้ ลองเปิดในแท็บใหม่ของเบราว์เซอร์เดียวกันได้เลยค่ะ
+            หมายเหตุ: ในโหมด Mock ข้อมูลอยู่ในหน่วยความจำฝั่งเซิร์ฟเวอร์ ลองเปิดลิงก์นี้ในแท็บใหม่ได้เลยค่ะ
           </p>
         </div>
       ) : (
@@ -79,6 +88,8 @@ export function CreateSessionModal({ open, onClose, lesson }: Props) {
               </Badge>
             </div>
           )}
+
+          {error && <p className="text-xs text-red-600">{error}</p>}
 
           <label className="block text-sm">
             <span className="mb-1 block text-room-muted">ชื่อคุณครู (ไม่บังคับ)</span>
@@ -105,7 +116,7 @@ export function CreateSessionModal({ open, onClose, lesson }: Props) {
               className="w-full rounded-lg border border-room-border bg-room-bg px-3 py-2 text-room-text outline-none focus:border-room-accent"
             />
           </label>
-          <Button className="w-full" onClick={handleCreate}>
+          <Button className="w-full" onClick={handleCreate} disabled={!lesson}>
             สร้างลิงก์การสอน
           </Button>
         </div>

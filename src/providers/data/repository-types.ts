@@ -1,28 +1,35 @@
-import type { CreateSessionInput, Lesson, SessionSummary, TrainingSession } from "@/types/domain";
+import type {
+  CreateSessionInput,
+  CreateSessionQuestionInput,
+  EndSessionInput,
+  LessonConfig,
+  SessionQuestion,
+  SessionSummary,
+  TrainingSession,
+} from "@/types/domain";
 
-export const STORAGE_KEYS = {
-  lesson: "supportroom.mock.lesson.v1",
-  sessions: "supportroom.mock.sessions.v1",
-  reports: "supportroom.mock.reports.v1",
-} as const;
-
-export interface LessonRepository {
-  getLoginLesson(): Promise<Lesson>;
-  saveLoginLesson(lesson: Lesson): Promise<Lesson>;
-  resetLoginLesson(): Promise<Lesson>;
+export interface LessonConfigRepository {
+  list(): Promise<LessonConfig[]>;
+  getBySlug(slug: string): Promise<LessonConfig | null>;
+  save(config: LessonConfig): Promise<LessonConfig>;
 }
 
 export interface SessionRepository {
-  list(): Promise<TrainingSession[]>;
   create(input: CreateSessionInput): Promise<TrainingSession>;
-  getById(id: string): Promise<TrainingSession | null>;
   getByToken(token: string): Promise<TrainingSession | null>;
-  update(session: TrainingSession): Promise<TrainingSession>;
-  reset(): Promise<void>;
+  getById(id: string): Promise<TrainingSession | null>;
+  list(): Promise<TrainingSession[]>;
+  markStarted(sessionId: string): Promise<void>;
+  end(sessionId: string, result: EndSessionInput): Promise<void>;
 }
 
-export interface ReportRepository {
+export interface SessionQuestionRepository {
+  add(input: CreateSessionQuestionInput): Promise<SessionQuestion>;
+  listBySession(sessionId: string): Promise<SessionQuestion[]>;
+}
+
+/** Persists the session_results snapshot created once a session ends. */
+export interface SessionSummaryRepository {
   getBySessionId(sessionId: string): Promise<SessionSummary | null>;
   save(summary: SessionSummary): Promise<SessionSummary>;
-  reset(): Promise<void>;
 }

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { sessionRepository } from "@/providers/data";
+import * as api from "@/lib/api-client";
 import { isSessionJoinable } from "@/utils/session-status";
 import { useLocalMedia } from "@/hooks/use-local-media";
 import { Button } from "@/components/ui/Button";
@@ -22,18 +22,25 @@ export default function JoinPage() {
   const params = useParams<{ token: string }>();
   const router = useRouter();
   const [session, setSession] = useState<TrainingSession | null | "loading">("loading");
+  const [lessonTitle, setLessonTitle] = useState("");
   const media = useLocalMedia();
 
   useEffect(() => {
     let active = true;
-    void sessionRepository.getByToken(params.token).then((found) => {
-      if (!active) return;
-      if (!found || !isSessionJoinable(found)) {
-        router.replace("/link-expired");
-        return;
-      }
-      setSession(found);
-    });
+    void api
+      .getSessionByToken(params.token)
+      .then(({ session: found, lessonTitle: title }) => {
+        if (!active) return;
+        if (!isSessionJoinable(found)) {
+          router.replace("/link-expired");
+          return;
+        }
+        setSession(found);
+        setLessonTitle(title);
+      })
+      .catch(() => {
+        if (active) router.replace("/link-expired");
+      });
     return () => {
       active = false;
     };
@@ -49,14 +56,12 @@ export default function JoinPage() {
     return null;
   }
 
-  const lesson = session.lessonSnapshot;
-
   return (
     <main className="flex min-h-screen items-center justify-center p-6">
       <Card className="w-full max-w-lg space-y-5">
         <div>
           <p className="text-xs text-room-muted">ห้องสอนการใช้งานระบบ</p>
-          <h1 className="text-lg font-semibold text-room-text">{lesson.title}</h1>
+          <h1 className="text-lg font-semibold text-room-text">{lessonTitle}</h1>
           <p className="mt-1 text-sm text-room-muted">
             ผู้สอน: School Bright Support
             {session.teacherName ? ` · คุณครู${session.teacherName}` : ""}

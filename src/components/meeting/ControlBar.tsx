@@ -1,18 +1,32 @@
 import { IconButton } from "@/components/ui/IconButton";
 import { CameraIcon, CameraOffIcon, ChatIcon, LeaveIcon, MicIcon, MicOffIcon } from "@/components/ui/icons";
+import { PushToTalkButton, type PushToTalkStatus } from "@/components/meeting/PushToTalkButton";
 
 type Props = {
   micOn: boolean;
   cameraOn: boolean;
+  pushToTalkStatus: PushToTalkStatus;
   onToggleMic: () => void;
   onToggleCamera: () => void;
   onToggleChat: () => void;
   onLeave: () => void;
+  onPushToTalkStart: () => void;
+  onPushToTalkEnd: () => void;
 };
 
-export function ControlBar({ micOn, cameraOn, onToggleMic, onToggleCamera, onToggleChat, onLeave }: Props) {
+export function ControlBar({
+  micOn,
+  cameraOn,
+  pushToTalkStatus,
+  onToggleMic,
+  onToggleCamera,
+  onToggleChat,
+  onLeave,
+  onPushToTalkStart,
+  onPushToTalkEnd,
+}: Props) {
   return (
-    <div className="flex shrink-0 items-center justify-center gap-3 border-t border-room-border bg-room-panel px-4 py-3">
+    <div className="flex shrink-0 flex-wrap items-center justify-center gap-3 border-t border-room-border bg-room-panel px-4 py-3">
       <IconButton
         label={micOn ? "ปิดไมค์" : "เปิดไมค์"}
         active={micOn}
@@ -25,6 +39,7 @@ export function ControlBar({ micOn, cameraOn, onToggleMic, onToggleCamera, onTog
         icon={cameraOn ? <CameraIcon /> : <CameraOffIcon />}
         onClick={onToggleCamera}
       />
+      <PushToTalkButton status={pushToTalkStatus} onStart={onPushToTalkStart} onEnd={onPushToTalkEnd} />
       <IconButton label="แชต" icon={<ChatIcon />} onClick={onToggleChat} />
       <IconButton label="ออกจากห้อง" danger icon={<LeaveIcon />} onClick={onLeave} />
     </div>

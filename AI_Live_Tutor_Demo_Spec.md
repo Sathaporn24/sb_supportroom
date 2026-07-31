@@ -1,16 +1,61 @@
 # SupportRoom AI — Mock-first Demo Specification
 
-> ชื่อโปรเจกต์ชั่วคราว: **SupportRoom AI**
+> ชื่อโปรเจกต์ชั่วคราว: **SupportRoom AI** (ชื่อ Repository จริง: `sb_supportroom`)
 >
-> สถานะเอกสาร: พร้อมใช้เป็นขอบเขตสำหรับสร้าง Mock Demo
+> **⚠️ สถานะเอกสาร: Superseded (เอกสาร Phase 1 — เก็บไว้เป็นบริบทประวัติศาสตร์)**
+> Product Logic ปัจจุบันเปลี่ยนไปมากจากที่เอกสารนี้อธิบาย (เนื้อหาสอนย้ายจาก Mock Lesson
+> Editor แบบ Step/Segment ไปเป็น **Google Slides**, Interruption Logic เปลี่ยนจาก
+> Checkpoint/FAQ-keyword ไปเป็น **Push-to-Talk + Grounded Q&A**, และเพิ่ม Backend จริง
+> ผ่าน Next.js Route Handlers) **อย่ายึดเอกสารนี้เป็น Source of Truth ของสถาปัตยกรรมหรือ
+> Business Logic ปัจจุบันอีกต่อไป** ให้ใช้:
 >
-> Technology หลัก: **Next.js App Router + TypeScript + Tailwind CSS**
+> - [`docs/SYSTEM_LOGIC.md`](./docs/SYSTEM_LOGIC.md) — Business Logic ปัจจุบัน
+> - [`docs/SYSTEM_ARCHITECTURE.md`](./docs/SYSTEM_ARCHITECTURE.md) — สถาปัตยกรรมปัจจุบัน
+> - [`docs/STATE_MACHINE.md`](./docs/STATE_MACHINE.md) — Tutor Engine State Machine ปัจจุบัน
+> - [`CLAUDE.md`](./CLAUDE.md) — จุดเริ่มต้นสำหรับนักพัฒนา/Agent
 >
-> Phase ปัจจุบัน: **UI + Mock Data + Mock Logic**
+> เอกสารนี้ยังคงมีประโยชน์สำหรับ: หลักการ Conversation-first/Meeting-like UX ที่ยังใช้อยู่,
+> เหตุผลเบื้องหลังการออกแบบ Mock-first แต่แรก, และ UI/UX Convention ภาษาไทยที่ยังใช้
+> (เช่น การเลี่ยงคำว่า "เริ่มบทเรียน", "บทที่", "คะแนน")
 >
-> ยังไม่เลือก Database และยังไม่เชื่อม AI, Speech-to-Text หรือ Voice API จริง
+> Technology หลัก: **Next.js App Router + TypeScript + Tailwind CSS** (ยังใช้จริง —
+> เพิ่มเติมคือตอนนี้ Next.js เป็น Backend ด้วยผ่าน Route Handlers)
+>
+> Phase ที่เอกสารนี้อธิบาย: **UI + Mock Data + Mock Logic** (Phase 1 — เสร็จสมบูรณ์แล้ว
+> ก่อนถูก Superseded โดย Phase 2)
 
 ---
+
+## Implementation Status (อัปเดตล่าสุด ณ Phase 2)
+
+ตารางนี้บอกสถานะ **ปัจจุบันจริง** ของแต่ละองค์ประกอบ ตรงกับโค้ดใน Branch นี้ ไม่ใช่สถานะ
+ตอนเขียนเอกสาร Phase 1 ด้านล่างอีกต่อไป — ใช้ตารางนี้แทนเนื้อหา Phase 1 ที่เหลือของไฟล์นี้
+เมื่อต้องการทราบว่า "ตอนนี้ทำอะไรไปแล้วบ้าง"
+
+| องค์ประกอบ | สถานะ | หมายเหตุ |
+|---|---|---|
+| CS Dashboard | Completed | `/admin`, `/admin/lessons`, `/admin/lessons/[slug]`, `/admin/sessions/new`, `/admin/sessions/[token]` — ไม่มี Auth ตามที่ตั้งใจ |
+| Google Slides Config UI | Completed | แทนที่ Step/Segment Editor เดิมทั้งหมด |
+| Slides Sync | Mock Only (Real: Prepared) | `MockSlidesContentProvider` มี Deck จำลอง 6 Slide, `GoogleSlidesContentProvider` เขียนแล้วยังไม่ทดสอบกับ Credential จริง |
+| Shared Screen Embed | Completed (Mock placeholder เมื่อไม่มี Embed URL จริง) | `SlidesEmbed` component, ใช้ `#slide=id.<objectId>` fragment + Force reload |
+| Speaker Notes Parsing | Mock Only (Real: Prepared) | ดูแถว Slides Sync |
+| Tutor Engine | Completed | State Machine 14 states ใหม่ทั้งหมด แทน Checkpoint-based เดิม — ดู `docs/STATE_MACHINE.md` |
+| Push-to-Talk | Completed | แทน Demo Controls/FAQ-keyword เดิมทั้งหมด — ไม่มี VAD |
+| Gemini Voice Question | Mock Only (Real: Prepared — Credentials Required) | Mock กราวด์กับ Speaker Notes จริง, Transcript เป็นค่าคงที่ |
+| Hugging Face TTS | Mock Only (Real: Prepared — Credentials Required) | Mock สร้าง Silent WAV ตามความยาวข้อความจริง |
+| Supabase | Mock Only (Real: Prepared — Credentials Required, Migration ยังไม่ Apply) | In-memory Mock Repository เป็น Default |
+| Session History | Completed (Mock/Supabase-ready) | `training_sessions`, `session_questions` |
+| Session Summary | Completed (Mock/Supabase-ready) | `session_results`, ไม่มีคะแนน |
+| Responsive UI | Completed | Desktop + Mobile |
+| Camera/Microphone | Completed | Camera เป็น Preview เท่านั้น (ไม่วิเคราะห์ภาพ), Microphone ใช้กับ Push-to-Talk |
+| Authentication | Not Included | ตามที่ Prompt Phase 2 ระบุว่ายังไม่ต้องทำ |
+| Multi-device Sync | Not Included | ตามที่ Prompt Phase 2 ระบุว่ายังไม่ต้องทำ |
+
+ดูรายละเอียดสถานะ Integration ภายนอกทั้ง 4 ตัวแบบเต็มใน [`docs/BACKEND_HANDOFF.md`](./docs/BACKEND_HANDOFF.md)
+
+---
+
+## เนื้อหาด้านล่างนี้คือเอกสาร Phase 1 ฉบับเดิม (เก็บไว้อ้างอิงประวัติศาสตร์)
 
 ## 1. แนวคิดของระบบ
 

@@ -1,17 +1,45 @@
-import { LocalStorageLessonRepository } from "@/providers/data/local-storage-lesson-repository";
-import { LocalStorageSessionRepository } from "@/providers/data/local-storage-session-repository";
-import { LocalStorageReportRepository } from "@/providers/data/local-storage-report-repository";
-import type { LessonRepository, ReportRepository, SessionRepository } from "@/providers/data/repository-types";
+import "server-only";
+import { getProviderSelection } from "@/config/env";
+import type {
+  LessonConfigRepository,
+  SessionQuestionRepository,
+  SessionRepository,
+  SessionSummaryRepository,
+} from "@/providers/data/repository-types";
+import { MockLessonConfigRepository } from "@/providers/data/mock/mock-lesson-config-repository";
+import { MockSessionRepository } from "@/providers/data/mock/mock-session-repository";
+import { MockSessionQuestionRepository } from "@/providers/data/mock/mock-session-question-repository";
+import { MockSessionSummaryRepository } from "@/providers/data/mock/mock-session-summary-repository";
+import { resetMockStore } from "@/providers/data/mock/store";
+import { SupabaseLessonConfigRepository } from "@/providers/data/supabase/supabase-lesson-config-repository";
+import { SupabaseSessionRepository } from "@/providers/data/supabase/supabase-session-repository";
+import { SupabaseSessionQuestionRepository } from "@/providers/data/supabase/supabase-session-question-repository";
+import { SupabaseSessionSummaryRepository } from "@/providers/data/supabase/supabase-session-summary-repository";
 
-// Phase 1 only wires the local-storage implementations. Swapping NEXT_PUBLIC_DATA_PROVIDER
-// to a future value should only require adding a case here (e.g. Api* repositories) -
-// UI and tutor code must keep depending on the interfaces, never on this factory's internals.
-export const lessonRepository: LessonRepository = new LocalStorageLessonRepository();
-export const sessionRepository: SessionRepository = new LocalStorageSessionRepository();
-export const reportRepository: ReportRepository = new LocalStorageReportRepository();
+// Single composition point - Route Handlers import these, never a concrete
+// implementation directly. Swapping DATA_PROVIDER=supabase changes every repository
+// at once with no other code changes required.
+function isSupabase(): boolean {
+  return getProviderSelection().DATA_PROVIDER === "supabase";
+}
 
-export async function resetAllDemoData(): Promise<void> {
-  await lessonRepository.resetLoginLesson();
-  await sessionRepository.reset();
-  await reportRepository.reset();
+export function createLessonConfigRepository(): LessonConfigRepository {
+  return isSupabase() ? new SupabaseLessonConfigRepository() : new MockLessonConfigRepository();
+}
+
+export function createSessionRepository(): SessionRepository {
+  return isSupabase() ? new SupabaseSessionRepository() : new MockSessionRepository();
+}
+
+export function createSessionQuestionRepository(): SessionQuestionRepository {
+  return isSupabase() ? new SupabaseSessionQuestionRepository() : new MockSessionQuestionRepository();
+}
+
+export function createSessionSummaryRepository(): SessionSummaryRepository {
+  return isSupabase() ? new SupabaseSessionSummaryRepository() : new MockSessionSummaryRepository();
+}
+
+/** Mock-mode only - resets the in-memory store back to seed data. */
+export function resetMockData(): void {
+  resetMockStore();
 }

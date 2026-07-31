@@ -50,7 +50,7 @@ export function SessionsTable({ sessions, origin }: { sessions: TrainingSession[
                   <div className="flex flex-wrap items-center gap-2">
                     <CopyLinkButton url={`${origin}/join/${session.token}`} />
                     <Link
-                      href={`/admin/sessions/${session.id}`}
+                      href={`/admin/sessions/${session.token}`}
                       className="rounded-md border border-room-border bg-room-panelAlt px-2.5 py-1.5 text-xs text-room-text hover:border-room-accent/60"
                     >
                       ดูสรุป

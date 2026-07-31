@@ -2,29 +2,32 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { lessonRepository } from "@/providers/data";
-import type { Lesson } from "@/types/domain";
-import { teachingTopicsSeed } from "@/mocks/teaching-topics.mock";
+import * as api from "@/lib/api-client";
+import type { LessonConfig } from "@/types/domain";
 import { CreateSessionModal } from "@/components/admin/CreateSessionModal";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 
 export default function NewSessionPage() {
-  const [lesson, setLesson] = useState<Lesson | null>(null);
+  const [lessons, setLessons] = useState<LessonConfig[]>([]);
   const [query, setQuery] = useState("");
+  const [selectedLesson, setSelectedLesson] = useState<LessonConfig | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
 
   useEffect(() => {
-    void lessonRepository.getLoginLesson().then(setLesson);
+    void api.listLessons().then(({ lessons: list }) => setLessons(list));
   }, []);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) {
-      return teachingTopicsSeed;
-    }
-    return teachingTopicsSeed.filter((topic) => topic.title.toLowerCase().includes(q));
-  }, [query]);
+    if (!q) return lessons;
+    return lessons.filter((lesson) => lesson.title.toLowerCase().includes(q));
+  }, [lessons, query]);
+
+  function openModalFor(lesson: LessonConfig) {
+    setSelectedLesson(lesson);
+    setModalOpen(true);
+  }
 
   return (
     <main className="mx-auto max-w-4xl space-y-6 p-6">
@@ -55,12 +58,12 @@ export default function NewSessionPage() {
             </tr>
           </thead>
           <tbody>
-            {filtered.map((topic, index) => (
-              <tr key={topic.id} className="border-t border-room-border">
+            {filtered.map((lesson, index) => (
+              <tr key={lesson.id} className="border-t border-room-border">
                 <td className="px-4 py-3 text-room-muted">{index + 1}</td>
-                <td className="px-4 py-3 font-medium text-room-text">{topic.title}</td>
+                <td className="px-4 py-3 font-medium text-room-text">{lesson.title}</td>
                 <td className="px-4 py-3">
-                  {topic.available ? (
+                  {lesson.isActive ? (
                     <Badge tone="success">
                       <span className="whitespace-nowrap">พร้อมใช้งาน</span>
                     </Badge>
@@ -71,15 +74,14 @@ export default function NewSessionPage() {
                   )}
                 </td>
                 <td className="px-4 py-3">
-                  {topic.available ? (
-                    <Button onClick={() => setModalOpen(true)} className="whitespace-nowrap">
-                      สร้างลิงก์การสอน
-                    </Button>
-                  ) : (
-                    <Button variant="ghost" disabled className="whitespace-nowrap">
-                      สร้างลิงก์การสอน
-                    </Button>
-                  )}
+                  <Button
+                    onClick={() => openModalFor(lesson)}
+                    disabled={!lesson.isActive}
+                    variant={lesson.isActive ? "primary" : "ghost"}
+                    className="whitespace-nowrap"
+                  >
+                    สร้างลิงก์การสอน
+                  </Button>
                 </td>
               </tr>
             ))}
@@ -94,7 +96,7 @@ export default function NewSessionPage() {
         </table>
       </div>
 
-      <CreateSessionModal open={modalOpen} onClose={() => setModalOpen(false)} lesson={lesson} />
+      <CreateSessionModal open={modalOpen} onClose={() => setModalOpen(false)} lesson={selectedLesson} />
     </main>
   );
 }
