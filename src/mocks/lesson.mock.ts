@@ -4,7 +4,7 @@ import { faqSeed } from "@/mocks/faq.mock";
 export const loginLessonSeed: Lesson = {
   id: "lesson-login-app",
   code: "LOGIN_APP",
-  title: "การเข้าสู่ระบบสำหรับคุณครู",
+  title: "วิธีการ Login (mobile)",
   language: "th",
   faqs: faqSeed,
   steps: [

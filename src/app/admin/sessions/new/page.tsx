@@ -1,117 +1,100 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { lessonRepository, sessionRepository } from "@/providers/data";
-import { tutorConfig } from "@/config/tutor-config";
-import { addHours } from "@/utils/format";
-import type { Lesson, TrainingSession } from "@/types/domain";
+import { lessonRepository } from "@/providers/data";
+import type { Lesson } from "@/types/domain";
+import { teachingTopicsSeed } from "@/mocks/teaching-topics.mock";
+import { CreateSessionModal } from "@/components/admin/CreateSessionModal";
 import { Button } from "@/components/ui/Button";
-import { Card } from "@/components/ui/Card";
-import { CopyLinkButton } from "@/components/admin/CopyLinkButton";
+import { Badge } from "@/components/ui/Badge";
 
 export default function NewSessionPage() {
   const [lesson, setLesson] = useState<Lesson | null>(null);
-  const [teacherName, setTeacherName] = useState("");
-  const [schoolName, setSchoolName] = useState("");
-  const [expiresAt, setExpiresAt] = useState("");
-  const [created, setCreated] = useState<TrainingSession | null>(null);
-  const [origin, setOrigin] = useState("");
+  const [query, setQuery] = useState("");
+  const [modalOpen, setModalOpen] = useState(false);
 
   useEffect(() => {
     void lessonRepository.getLoginLesson().then(setLesson);
-    setOrigin(window.location.origin);
-    const defaultExpiry = addHours(new Date().toISOString(), tutorConfig.defaultLinkExpiryHours);
-    setExpiresAt(toLocalInputValue(defaultExpiry));
   }, []);
 
-  if (!lesson) {
-    return <main className="p-6 text-room-muted">กำลังโหลดบทเรียน...</main>;
-  }
-
-  async function handleCreate() {
-    const session = await sessionRepository.create({
-      teacherName: teacherName || undefined,
-      schoolName: schoolName || undefined,
-      expiresAt: new Date(expiresAt).toISOString(),
-    });
-    setCreated(session);
-  }
-
-  if (created) {
-    const url = `${origin}/join/${created.token}`;
-    return (
-      <main className="mx-auto max-w-lg space-y-4 p-6">
-        <Card className="space-y-4">
-          <h1 className="text-lg font-semibold text-room-text">สร้างลิงก์การสอนสำเร็จ</h1>
-          <p className="break-all rounded-lg border border-room-border bg-room-panelAlt px-3 py-2 text-sm text-room-text">
-            {url}
-          </p>
-          <div className="flex flex-wrap gap-2">
-            <CopyLinkButton url={url} />
-            <Link href="/admin">
-              <Button variant="ghost">กลับหน้า Admin</Button>
-            </Link>
-          </div>
-          <p className="text-xs text-room-muted">
-            หมายเหตุ: ลิงก์นี้ใช้งานได้เฉพาะ Browser Profile เดียวกันในเฟสนี้ ลองเปิดในแท็บใหม่ของเบราว์เซอร์เดียวกันได้เลยค่ะ
-          </p>
-        </Card>
-      </main>
-    );
-  }
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) {
+      return teachingTopicsSeed;
+    }
+    return teachingTopicsSeed.filter((topic) => topic.title.toLowerCase().includes(q));
+  }, [query]);
 
   return (
-    <main className="mx-auto max-w-lg space-y-6 p-6">
+    <main className="mx-auto max-w-4xl space-y-6 p-6">
       <div>
         <Link href="/admin" className="text-xs text-room-muted hover:text-room-text">
           ← กลับหน้า Admin
         </Link>
-        <h1 className="mt-1 text-xl font-semibold text-room-text">สร้างลิงก์การสอนใหม่</h1>
+        <h1 className="mt-1 text-xl font-semibold text-room-text">สร้างลิงก์การสอน</h1>
+        <p className="mt-1 text-sm text-room-muted">เลือกสื่อการสอนที่ต้องการสร้างลิงก์ห้องสอนให้คุณครู</p>
       </div>
 
-      <Card className="space-y-2">
-        <p className="text-xs uppercase tracking-wide text-room-muted">บทเรียน (อ่านอย่างเดียว)</p>
-        <p className="text-sm font-medium text-room-text">{lesson.title}</p>
-        <p className="text-xs text-room-muted">{lesson.steps.length} ขั้นตอน</p>
-      </Card>
+      <input
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        placeholder="ค้นหาสื่อการสอน..."
+        aria-label="ค้นหาสื่อการสอน"
+        className="w-full rounded-lg border border-room-border bg-room-bg px-4 py-2.5 text-sm text-room-text outline-none focus:border-room-accent"
+      />
 
-      <Card className="space-y-4">
-        <label className="block text-sm">
-          <span className="mb-1 block text-room-muted">ชื่อคุณครู (ไม่บังคับ)</span>
-          <input
-            value={teacherName}
-            onChange={(e) => setTeacherName(e.target.value)}
-            className="w-full rounded-lg border border-room-border bg-room-bg px-3 py-2 text-room-text outline-none focus:border-room-accent"
-          />
-        </label>
-        <label className="block text-sm">
-          <span className="mb-1 block text-room-muted">โรงเรียน (ไม่บังคับ)</span>
-          <input
-            value={schoolName}
-            onChange={(e) => setSchoolName(e.target.value)}
-            className="w-full rounded-lg border border-room-border bg-room-bg px-3 py-2 text-room-text outline-none focus:border-room-accent"
-          />
-        </label>
-        <label className="block text-sm">
-          <span className="mb-1 block text-room-muted">วันหมดอายุลิงก์</span>
-          <input
-            type="datetime-local"
-            value={expiresAt}
-            onChange={(e) => setExpiresAt(e.target.value)}
-            className="w-full rounded-lg border border-room-border bg-room-bg px-3 py-2 text-room-text outline-none focus:border-room-accent"
-          />
-        </label>
-        <Button className="w-full" onClick={handleCreate}>
-          สร้างลิงก์การสอน
-        </Button>
-      </Card>
+      <div className="overflow-x-auto rounded-xl border border-room-border">
+        <table className="w-full min-w-[520px] text-left text-sm">
+          <thead className="bg-room-panelAlt text-xs uppercase tracking-wide text-room-muted">
+            <tr>
+              <th className="px-4 py-3">ลำดับ</th>
+              <th className="px-4 py-3">สื่อการสอน</th>
+              <th className="px-4 py-3">สถานะ</th>
+              <th className="px-4 py-3">จัดการ</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filtered.map((topic, index) => (
+              <tr key={topic.id} className="border-t border-room-border">
+                <td className="px-4 py-3 text-room-muted">{index + 1}</td>
+                <td className="px-4 py-3 font-medium text-room-text">{topic.title}</td>
+                <td className="px-4 py-3">
+                  {topic.available ? (
+                    <Badge tone="success">
+                      <span className="whitespace-nowrap">พร้อมใช้งาน</span>
+                    </Badge>
+                  ) : (
+                    <Badge>
+                      <span className="whitespace-nowrap">เร็วๆ นี้</span>
+                    </Badge>
+                  )}
+                </td>
+                <td className="px-4 py-3">
+                  {topic.available ? (
+                    <Button onClick={() => setModalOpen(true)} className="whitespace-nowrap">
+                      สร้างลิงก์การสอน
+                    </Button>
+                  ) : (
+                    <Button variant="ghost" disabled className="whitespace-nowrap">
+                      สร้างลิงก์การสอน
+                    </Button>
+                  )}
+                </td>
+              </tr>
+            ))}
+            {filtered.length === 0 && (
+              <tr>
+                <td colSpan={4} className="px-4 py-6 text-center text-room-muted">
+                  ไม่พบสื่อการสอนที่ค้นหา
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      <CreateSessionModal open={modalOpen} onClose={() => setModalOpen(false)} lesson={lesson} />
     </main>
   );
-}
-
-function toLocalInputValue(iso: string): string {
-  const date = new Date(iso);
-  const offsetMs = date.getTimezoneOffset() * 60_000;
-  return new Date(date.getTime() - offsetMs).toISOString().slice(0, 16);
 }
