@@ -12,6 +12,7 @@ import { SlidesEmbed } from "@/components/meeting/SlidesEmbed";
 import { ControlBar } from "@/components/meeting/ControlBar";
 import { ChatDrawer } from "@/components/meeting/ChatDrawer";
 import { Button } from "@/components/ui/Button";
+import { LoadingBlock } from "@/components/ui/LoadingBlock";
 import type { PushToTalkStatus } from "@/components/meeting/PushToTalkButton";
 import type { TrainingSession } from "@/types/domain";
 
@@ -51,7 +52,9 @@ export default function RoomPage() {
 
   if (loadState !== "ready" || !session) {
     return (
-      <main className="flex min-h-screen items-center justify-center p-6 text-room-muted">กำลังโหลดห้องสอน...</main>
+      <main className="flex min-h-screen items-center justify-center p-6">
+        <LoadingBlock label="กำลังโหลดห้องสอน..." />
+      </main>
     );
   }
 
@@ -74,6 +77,7 @@ function RoomContent({ session }: { session: TrainingSession }) {
 
   const isProcessing = runtime.state === "processing-question";
   const isAnswering = runtime.state === "answer-speaking";
+  const isAiPreparing = ["preparing", "slide-loading", "restarting-slide"].includes(runtime.state);
 
   const pushToTalkStatus: PushToTalkStatus = (() => {
     if (runtime.state === "push-to-talk-recording") return "recording";
@@ -104,7 +108,12 @@ function RoomContent({ session }: { session: TrainingSession }) {
 
       <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4 md:flex-row">
         <div className="relative min-h-0 flex-1">
-          <SlidesEmbed embedUrl={embedUrl} currentSlide={currentSlide} totalSlides={totalSlides} />
+          <SlidesEmbed
+            embedUrl={embedUrl}
+            currentSlide={currentSlide}
+            totalSlides={totalSlides}
+            loading={runtime.state === "idle" || runtime.state === "preparing"}
+          />
           {runtime.state === "ready" && (
             <div className="absolute inset-0 flex items-center justify-center rounded-xl bg-black/40">
               <Button onClick={() => sendEvent({ type: "START" })}>พร้อมแล้ว เริ่มเรียนเลย</Button>
@@ -113,7 +122,7 @@ function RoomContent({ session }: { session: TrainingSession }) {
         </div>
         <div className="flex shrink-0 gap-4 md:w-72 md:flex-col">
           <div className="flex-1 md:flex-none">
-            <AiTile speaking={runtime.isAiSpeaking} thinking={isProcessing} />
+            <AiTile speaking={runtime.isAiSpeaking} thinking={isProcessing} loading={isAiPreparing} />
           </div>
           <div className="flex-1 md:flex-none">
             <TeacherTile

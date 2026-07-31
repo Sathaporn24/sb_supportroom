@@ -5,6 +5,7 @@ import Link from "next/link";
 import * as api from "@/lib/api-client";
 import type { LessonConfig } from "@/types/domain";
 import { Badge } from "@/components/ui/Badge";
+import { LoadingBlock } from "@/components/ui/LoadingBlock";
 
 export default function LessonsListPage() {
   const [lessons, setLessons] = useState<LessonConfig[] | null>(null);
@@ -26,7 +27,7 @@ export default function LessonsListPage() {
       </div>
 
       {!lessons ? (
-        <p className="text-sm text-room-muted">กำลังโหลด...</p>
+        <LoadingBlock label="กำลังโหลดรายการบทเรียน..." />
       ) : (
         <div className="overflow-x-auto rounded-xl border border-room-border">
           <table className="w-full min-w-[520px] text-left text-sm">

@@ -7,11 +7,14 @@ import type { TrainingSession } from "@/types/domain";
 import { SessionsTable } from "@/components/admin/SessionsTable";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
+import { LoadingBlock } from "@/components/ui/LoadingBlock";
+import { Spinner } from "@/components/ui/Spinner";
 
 export default function AdminPage() {
   const [sessions, setSessions] = useState<TrainingSession[]>([]);
   const [origin, setOrigin] = useState("");
   const [loading, setLoading] = useState(true);
+  const [resetting, setResetting] = useState(false);
 
   async function reload() {
     setLoading(true);
@@ -28,8 +31,13 @@ export default function AdminPage() {
   async function handleReset() {
     const confirmed = window.confirm("ต้องการรีเซ็ตข้อมูล Demo ทั้งหมดกลับเป็นค่าเริ่มต้นใช่หรือไม่?");
     if (!confirmed) return;
-    await api.resetDemoData();
-    await reload();
+    setResetting(true);
+    try {
+      await api.resetDemoData();
+      await reload();
+    } finally {
+      setResetting(false);
+    }
   }
 
   return (
@@ -48,8 +56,15 @@ export default function AdminPage() {
         <Link href="/admin/sessions/new">
           <Button>สร้างลิงก์การสอน</Button>
         </Link>
-        <Button variant="ghost" onClick={handleReset}>
-          Reset Demo Data
+        <Button variant="ghost" onClick={handleReset} disabled={resetting}>
+          {resetting ? (
+            <>
+              <Spinner className="h-4 w-4" />
+              กำลังรีเซ็ต...
+            </>
+          ) : (
+            "Reset Demo Data"
+          )}
         </Button>
       </div>
 
@@ -62,11 +77,7 @@ export default function AdminPage() {
 
       <section className="space-y-3">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-room-muted">รายการ Sessions</h2>
-        {loading ? (
-          <p className="text-sm text-room-muted">กำลังโหลด...</p>
-        ) : (
-          <SessionsTable sessions={sessions} origin={origin} />
-        )}
+        {loading ? <LoadingBlock label="กำลังโหลดรายการ Session..." /> : <SessionsTable sessions={sessions} origin={origin} />}
       </section>
     </main>
   );

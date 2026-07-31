@@ -8,6 +8,8 @@ import { useLocalMedia } from "@/hooks/use-local-media";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { IconButton } from "@/components/ui/IconButton";
+import { LoadingBlock } from "@/components/ui/LoadingBlock";
+import { Spinner } from "@/components/ui/Spinner";
 import { CameraIcon, CameraOffIcon, MicIcon, MicOffIcon } from "@/components/ui/icons";
 import type { TrainingSession } from "@/types/domain";
 
@@ -49,7 +51,9 @@ export default function JoinPage() {
 
   if (session === "loading") {
     return (
-      <main className="flex min-h-screen items-center justify-center p-6 text-room-muted">กำลังโหลดข้อมูลห้องสอน...</main>
+      <main className="flex min-h-screen items-center justify-center p-6">
+        <LoadingBlock label="กำลังโหลดข้อมูลห้องสอน..." />
+      </main>
     );
   }
   if (!session) {
@@ -70,7 +74,12 @@ export default function JoinPage() {
         </div>
 
         <div className="flex aspect-video items-center justify-center overflow-hidden rounded-xl border border-room-border bg-room-panelAlt">
-          {media.cameraOn && media.stream ? (
+          {media.requesting ? (
+            <div className="flex flex-col items-center gap-2 text-room-muted">
+              <Spinner className="h-6 w-6" />
+              <p className="text-xs">กำลังขอสิทธิ์เข้าถึงกล้อง/ไมโครโฟน...</p>
+            </div>
+          ) : media.cameraOn && media.stream ? (
             <video
               autoPlay
               muted

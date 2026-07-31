@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { CopyLinkButton } from "@/components/admin/CopyLinkButton";
 import { LockIcon } from "@/components/ui/icons";
+import { Spinner } from "@/components/ui/Spinner";
 
 type Props = {
   open: boolean;
@@ -30,6 +31,7 @@ export function CreateSessionModal({ open, onClose, lesson }: Props) {
   const [created, setCreated] = useState<TrainingSession | null>(null);
   const [origin, setOrigin] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [isCreating, setIsCreating] = useState(false);
 
   useEffect(() => {
     if (open) {
@@ -38,6 +40,7 @@ export function CreateSessionModal({ open, onClose, lesson }: Props) {
       setExpiresAt(toLocalInputValue(addHours(new Date().toISOString(), tutorConfig.defaultSessionExpiryHours)));
       setCreated(null);
       setError(null);
+      setIsCreating(false);
       setOrigin(window.location.origin);
     }
   }, [open]);
@@ -45,6 +48,7 @@ export function CreateSessionModal({ open, onClose, lesson }: Props) {
   async function handleCreate() {
     if (!lesson) return;
     setError(null);
+    setIsCreating(true);
     try {
       const { session } = await api.createSession({
         lessonSlug: lesson.slug,
@@ -55,6 +59,8 @@ export function CreateSessionModal({ open, onClose, lesson }: Props) {
       setCreated(session);
     } catch (err) {
       setError(err instanceof Error ? err.message : "สร้างลิงก์การสอนไม่สำเร็จ");
+    } finally {
+      setIsCreating(false);
     }
   }
 
@@ -116,8 +122,15 @@ export function CreateSessionModal({ open, onClose, lesson }: Props) {
               className="w-full rounded-lg border border-room-border bg-room-bg px-3 py-2 text-room-text outline-none focus:border-room-accent"
             />
           </label>
-          <Button className="w-full" onClick={handleCreate} disabled={!lesson}>
-            สร้างลิงก์การสอน
+          <Button className="w-full" onClick={handleCreate} disabled={!lesson || isCreating}>
+            {isCreating ? (
+              <>
+                <Spinner className="h-4 w-4" />
+                กำลังสร้างลิงก์...
+              </>
+            ) : (
+              "สร้างลิงก์การสอน"
+            )}
           </Button>
         </div>
       )}

@@ -9,6 +9,7 @@ import { formatDateTimeTh } from "@/utils/format";
 import type { SessionQuestion, SessionSummary, TrainingSession } from "@/types/domain";
 import { Badge } from "@/components/ui/Badge";
 import { Card } from "@/components/ui/Card";
+import { LoadingBlock } from "@/components/ui/LoadingBlock";
 
 const answerStatusLabel: Record<SessionQuestion["answerStatus"], string> = {
   answered: "ตอบแล้ว",
@@ -39,7 +40,11 @@ export default function SessionSummaryPage() {
   }, [params.token]);
 
   if (session === "loading") {
-    return <main className="p-6 text-room-muted">กำลังโหลดข้อมูล...</main>;
+    return (
+      <main className="p-6">
+        <LoadingBlock label="กำลังโหลดข้อมูลสรุปผลการสอน..." />
+      </main>
+    );
   }
   if (!session) {
     return <main className="p-6 text-room-muted">ไม่พบ Session นี้ค่ะ</main>;

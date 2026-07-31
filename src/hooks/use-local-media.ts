@@ -10,6 +10,7 @@ export function useLocalMedia() {
   const [micOn, setMicOn] = useState(true);
   const [error, setError] = useState<MediaPermissionError>(null);
   const [micLevel, setMicLevel] = useState(0);
+  const [requesting, setRequesting] = useState(false);
   const audioContextRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
   const rafRef = useRef<number | null>(null);
@@ -31,6 +32,7 @@ export function useLocalMedia() {
       setError("unsupported");
       return;
     }
+    setRequesting(true);
     try {
       const nextStream = await navigator.mediaDevices.getUserMedia({
         video: withCamera,
@@ -72,6 +74,8 @@ export function useLocalMedia() {
       } else {
         setError("unknown");
       }
+    } finally {
+      setRequesting(false);
     }
   }, []);
 
@@ -107,5 +111,5 @@ export function useLocalMedia() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  return { stream, cameraOn, micOn, error, micLevel, requestMedia, toggleCamera, toggleMic, stopStream };
+  return { stream, cameraOn, micOn, error, micLevel, requesting, requestMedia, toggleCamera, toggleMic, stopStream };
 }

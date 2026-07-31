@@ -8,6 +8,8 @@ import { ApiClientError } from "@/lib/api-client";
 import type { LessonConfig, SlideConfig } from "@/types/domain";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
+import { LoadingBlock } from "@/components/ui/LoadingBlock";
+import { Spinner } from "@/components/ui/Spinner";
 import { formatDateTimeTh } from "@/utils/format";
 
 type FormState = Omit<LessonConfig, "id" | "presentationId" | "createdAt" | "updatedAt">;
@@ -33,6 +35,7 @@ export default function LessonEditorPage() {
   const [form, setForm] = useState<FormState | null>(null);
   const [syncStatus, setSyncStatus] = useState<string | null>(null);
   const [syncedAt, setSyncedAt] = useState<string | null>(null);
+  const [syncing, setSyncing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [savedAt, setSavedAt] = useState<string | null>(null);
   const [notFound, setNotFound] = useState(false);
@@ -53,11 +56,16 @@ export default function LessonEditorPage() {
     return <main className="p-6 text-room-muted">ไม่พบบทเรียนนี้ค่ะ</main>;
   }
   if (!form) {
-    return <main className="p-6 text-room-muted">กำลังโหลด...</main>;
+    return (
+      <main className="p-6">
+        <LoadingBlock label="กำลังโหลดบทเรียน..." />
+      </main>
+    );
   }
 
   async function handleSync() {
     if (!form) return;
+    setSyncing(true);
     setSyncStatus("กำลังตรวจสอบ...");
     try {
       const resolved = await api.resolveSlides({
@@ -85,6 +93,8 @@ export default function LessonEditorPage() {
       setSyncStatus(resolved.warning ?? `Sync สำเร็จ พบ ${content.slides.length} Slide`);
     } catch (err) {
       setSyncStatus(err instanceof ApiClientError ? err.response.error.message : "Sync ไม่สำเร็จ");
+    } finally {
+      setSyncing(false);
     }
   }
 
@@ -111,6 +121,23 @@ export default function LessonEditorPage() {
     });
   }
 
+  const syncButtonContent = syncing ? (
+    <>
+      <Spinner className="h-4 w-4" />
+      กำลังตรวจสอบ...
+    </>
+  ) : (
+    "ตรวจสอบ/Sync Slides"
+  );
+  const saveButtonContent = saving ? (
+    <>
+      <Spinner className="h-4 w-4" />
+      กำลังบันทึก...
+    </>
+  ) : (
+    "บันทึก"
+  );
+
   return (
     <main className="mx-auto max-w-3xl space-y-6 p-6">
       <div className="flex items-center justify-between">
@@ -121,11 +148,11 @@ export default function LessonEditorPage() {
           <h1 className="mt-1 text-xl font-semibold text-room-text">แก้ไขบทเรียน: {form.title}</h1>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="ghost" onClick={handleSync}>
-            ตรวจสอบ/Sync Slides
+          <Button variant="ghost" onClick={handleSync} disabled={syncing}>
+            {syncButtonContent}
           </Button>
           <Button onClick={handleSave} disabled={saving}>
-            บันทึก
+            {saveButtonContent}
           </Button>
         </div>
       </div>
@@ -241,11 +268,11 @@ export default function LessonEditorPage() {
       </section>
 
       <div className="flex justify-end gap-2">
-        <Button variant="ghost" onClick={handleSync}>
-          ตรวจสอบ/Sync Slides
+        <Button variant="ghost" onClick={handleSync} disabled={syncing}>
+          {syncButtonContent}
         </Button>
         <Button onClick={handleSave} disabled={saving}>
-          บันทึก
+          {saveButtonContent}
         </Button>
       </div>
     </main>
