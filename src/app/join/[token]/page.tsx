@@ -80,7 +80,7 @@ export default function JoinPage() {
           )}
         </div>
 
-        {media.error && <p className="text-sm text-red-400">{errorMessages[media.error]}</p>}
+        {media.error && <p className="text-sm text-red-600">{errorMessages[media.error]}</p>}
 
         <div className="flex items-center gap-3">
           <IconButton

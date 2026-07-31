@@ -87,8 +87,8 @@ function RoomContent({ session }: { session: TrainingSession }) {
   const isThinking = runtime.state === "ANSWERING" && !runtime.isAiSpeaking;
 
   return (
-    <div className="flex min-h-screen flex-col bg-room-bg">
-      <header className="flex items-center justify-between border-b border-room-border bg-room-panel px-4 py-3">
+    <div className="flex h-screen flex-col overflow-hidden bg-room-bg">
+      <header className="flex shrink-0 items-center justify-between border-b border-room-border bg-room-panel px-4 py-3">
         <p className="text-sm font-semibold text-room-text">School Bright Support</p>
         <p className="text-xs text-room-muted">
           {runtime.connectionStatus === "connected" ? "เชื่อมต่ออยู่" : "การเชื่อมต่อขาดหาย กำลังพยายามเชื่อมต่อใหม่..."}
@@ -96,15 +96,15 @@ function RoomContent({ session }: { session: TrainingSession }) {
         </p>
       </header>
 
-      <div className="flex flex-1 flex-col gap-4 p-4 md:flex-row">
-        <div className="min-h-[280px] flex-1">
+      <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4 md:flex-row">
+        <div className="min-h-0 flex-1">
           <SharedMedia media={activeMedia} />
         </div>
-        <div className="flex gap-4 md:w-72 md:flex-col">
-          <div className="flex-1">
+        <div className="flex shrink-0 gap-4 md:w-72 md:flex-col">
+          <div className="flex-1 md:flex-none">
             <AiTile speaking={runtime.isAiSpeaking} thinking={isThinking} />
           </div>
-          <div className="flex-1">
+          <div className="flex-1 md:flex-none">
             <TeacherTile
               stream={media.stream}
               cameraOn={media.cameraOn}

@@ -54,7 +54,7 @@ export default function AdminPage() {
       </div>
 
       <Card className="border-amber-500/30 bg-amber-500/5">
-        <p className="text-xs text-amber-300">
+        <p className="text-xs text-amber-700">
           หมายเหตุ: ในเฟสนี้ Mock Link ใช้งานได้เฉพาะ Browser Profile และเครื่องเดียวกันเท่านั้น
           เนื่องจากยังไม่มี Backend และฐานข้อมูลจริง
         </p>

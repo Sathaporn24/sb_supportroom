@@ -12,7 +12,7 @@ export function IconButton({ active = true, danger = false, label, icon, classNa
     ? "bg-red-600 hover:bg-red-500 text-white"
     : active
       ? "bg-room-panelAlt hover:bg-room-border text-room-text"
-      : "bg-red-500/15 hover:bg-red-500/25 text-red-400";
+      : "bg-red-500/15 hover:bg-red-500/25 text-red-600";
   return (
     <button
       title={label}

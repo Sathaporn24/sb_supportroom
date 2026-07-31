@@ -35,13 +35,13 @@ export function DemoControlsDrawer({ open, onToggle, sendAction, submitChatMessa
     <div className="fixed bottom-24 left-4 z-40 sm:bottom-4">
       <button
         onClick={onToggle}
-        className="rounded-full border border-amber-500/40 bg-amber-500/10 px-3 py-1.5 text-xs font-medium text-amber-300 shadow-lg hover:bg-amber-500/20"
+        className="rounded-full border border-amber-500/40 bg-amber-500/10 px-3 py-1.5 text-xs font-medium text-amber-700 shadow-lg hover:bg-amber-500/20"
       >
         {open ? "ปิด Demo Controls" : "Demo Controls"}
       </button>
       {open && (
         <div className="mt-2 w-72 space-y-3 rounded-xl border border-amber-500/30 bg-room-panel p-4 shadow-2xl">
-          <p className="text-xs font-semibold uppercase tracking-wide text-amber-300">
+          <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">
             จำลองเหตุการณ์ (Development only)
           </p>
           <div className="flex flex-wrap gap-2">
@@ -55,7 +55,7 @@ export function DemoControlsDrawer({ open, onToggle, sendAction, submitChatMessa
               </button>
             ))}
           </div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-amber-300">คำถามตัวอย่าง</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">คำถามตัวอย่าง</p>
           <div className="flex flex-wrap gap-2">
             {questionButtons.map((btn) => (
               <button

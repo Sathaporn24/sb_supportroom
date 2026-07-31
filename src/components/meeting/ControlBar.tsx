@@ -12,7 +12,7 @@ type Props = {
 
 export function ControlBar({ micOn, cameraOn, onToggleMic, onToggleCamera, onToggleChat, onLeave }: Props) {
   return (
-    <div className="flex items-center justify-center gap-3 border-t border-room-border bg-room-panel px-4 py-3">
+    <div className="flex shrink-0 items-center justify-center gap-3 border-t border-room-border bg-room-panel px-4 py-3">
       <IconButton
         label={micOn ? "ปิดไมค์" : "เปิดไมค์"}
         active={micOn}

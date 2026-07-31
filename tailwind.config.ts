@@ -9,18 +9,18 @@ const config: Config = {
     extend: {
       colors: {
         room: {
-          bg: "#0b0f14",
-          panel: "#111823",
-          panelAlt: "#161f2c",
-          border: "#243040",
-          accent: "#22c55e",
-          accentSoft: "#16351f",
-          text: "#e6edf5",
-          muted: "#8ea0b5",
+          bg: "#ffffff",
+          panel: "#fffaf5",
+          panelAlt: "#fff1e2",
+          border: "#f3d9bb",
+          accent: "#f97316",
+          accentSoft: "#ffe4c7",
+          text: "#3a2617",
+          muted: "#9a7b5c",
         },
       },
       boxShadow: {
-        speaking: "0 0 0 3px rgba(34,197,94,0.65)",
+        speaking: "0 0 0 3px rgba(249,115,22,0.65)",
       },
       keyframes: {
         pulseSoft: {

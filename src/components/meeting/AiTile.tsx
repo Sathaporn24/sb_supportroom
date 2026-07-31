@@ -8,22 +8,25 @@ type Props = {
 export function AiTile({ speaking, thinking }: Props) {
   return (
     <div
-      className={`flex items-center gap-3 rounded-xl border bg-room-panel p-4 transition-shadow ${
+      className={`relative aspect-video w-full overflow-hidden rounded-xl border bg-room-panel transition-shadow ${
         speaking ? "border-room-accent shadow-speaking" : "border-room-border"
       }`}
     >
-      <div
-        className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-room-accentSoft text-room-accent ${
-          speaking ? "animate-pulse-soft" : ""
-        }`}
-      >
-        <SparkleIcon />
+      <div className="flex h-full w-full items-center justify-center bg-room-panelAlt">
+        <div
+          className={`flex h-16 w-16 items-center justify-center rounded-full bg-room-accentSoft text-room-accent ${
+            speaking ? "animate-pulse-soft" : ""
+          }`}
+        >
+          <SparkleIcon className="h-8 w-8" />
+        </div>
       </div>
-      <div className="min-w-0">
-        <p className="truncate text-sm font-semibold text-room-text">School Bright Support</p>
-        <p className="text-xs text-room-muted">
+
+      <div className="absolute inset-x-0 bottom-0 flex items-center justify-between gap-2 px-3 py-2">
+        <p className="truncate text-sm font-medium text-room-text">School Bright Support</p>
+        <span className="shrink-0 text-xs text-room-muted">
           {thinking ? "กำลังประมวลผล..." : speaking ? "กำลังพูด..." : "รอฟังอยู่"}
-        </p>
+        </span>
       </div>
     </div>
   );
