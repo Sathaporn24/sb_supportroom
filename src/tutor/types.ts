@@ -26,6 +26,8 @@ export type AfterSpeechAction =
   | "ENTER_READY"
   | "WAIT_SLIDE_DURATION"
   | "RESTART_SLIDE"
+  /** Like RESTART_SLIDE, but leads the narration with a "we're back where we left off" line. */
+  | "RESUME_AFTER_ANSWER"
   | "WAIT_FINAL_QUESTION"
   | "FINISH_SESSION"
   | null;
@@ -55,7 +57,8 @@ export type TutorEffect =
   /** Generic "speak this text" - context for what happens after comes from afterSpeech. */
   | { kind: "SPEAK"; text: string }
   | { kind: "WAIT_READY_TIMEOUT"; ms: number }
-  | { kind: "LOAD_SLIDE"; slideIndex: number }
+  /** withResumeBridge prepends a spoken hand-back line; the exact wording is picked by the effect runner. */
+  | { kind: "LOAD_SLIDE"; slideIndex: number; withResumeBridge?: boolean }
   | { kind: "WAIT_REMAINING"; ms: number }
   | { kind: "START_RECORDING" }
   | { kind: "STOP_RECORDING_AND_SEND" }

@@ -62,12 +62,15 @@ function loadSlide(runtime: TutorRuntime, slideIndex: number): { runtime: TutorR
   };
 }
 
-function restartCurrentSlide(runtime: TutorRuntime): { runtime: TutorRuntime; effect: TutorEffect } {
+function restartCurrentSlide(
+  runtime: TutorRuntime,
+  withResumeBridge = false,
+): { runtime: TutorRuntime; effect: TutorEffect } {
   return {
     // answerSlideIndex is dropped here - this is the "go back to where we left off" step
     // after an answer that referenced another slide.
     runtime: { ...runtime, state: "restarting-slide", answerSlideIndex: null },
-    effect: { kind: "LOAD_SLIDE", slideIndex: runtime.currentSlideIndex },
+    effect: { kind: "LOAD_SLIDE", slideIndex: runtime.currentSlideIndex, withResumeBridge },
   };
 }
 
@@ -132,6 +135,8 @@ export function tutorReducer(
         }
         case "RESTART_SLIDE":
           return restartCurrentSlide({ ...runtime, isAiSpeaking: false, afterSpeech: null });
+        case "RESUME_AFTER_ANSWER":
+          return restartCurrentSlide({ ...runtime, isAiSpeaking: false, afterSpeech: null }, true);
         case "WAIT_FINAL_QUESTION":
           return {
             runtime: {
@@ -219,7 +224,9 @@ export function tutorReducer(
         answerStatus: event.answerStatus,
         createdAt: new Date().toISOString(),
       };
-      const afterSpeech: AfterSpeechAction = runtime.completedAllSlides ? "WAIT_FINAL_QUESTION" : "RESTART_SLIDE";
+      const afterSpeech: AfterSpeechAction = runtime.completedAllSlides
+        ? "WAIT_FINAL_QUESTION"
+        : "RESUME_AFTER_ANSWER";
       // If the answer is grounded in another slide, show that slide while it's being read
       // out. currentSlideIndex is untouched, so RESTART_SLIDE brings us right back.
       const referencedIndex = ctx.slides.findIndex((slide) => slide.slideObjectId === event.relatedSlideObjectId);

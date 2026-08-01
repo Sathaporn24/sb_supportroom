@@ -30,6 +30,25 @@ export const PROCESSING_FILLER_TEXTS = [
   "รอสักครู่นะคะ อีกไม่นานค่ะ",
 ] as const;
 
-// One filler line only covers ~3s of a ~9s wait, so these top it up until the answer
-// lands. Kept short on purpose - they're a reassuring noise, not new information.
-export const PROCESSING_FILLER_FOLLOWUPS = ["อีกสักครู่นะคะ", "ใกล้ได้แล้วค่ะ", "รออีกนิดนะคะ"] as const;
+// One filler line only covers ~3s of a ~9s wait, so these top up the rest. They are
+// thinking sounds rather than more sentences on purpose: repeating "อีกสักครู่นะคะ" every
+// few seconds reads as a stuck loop, while a drawn-out "อืมมม" reads as someone actually
+// working on the answer.
+//
+// Spoken at PROCESSING_THINKING_RATE, not the lesson rate. Repeating characters alone is
+// not enough - measured against the real service, "อืมมมมมม" runs only ~0.2s longer than
+// "อืม", whereas dropping the rate stretches "อืมมม" from 1.9s to 3.3s.
+export const PROCESSING_FILLER_FOLLOWUPS = ["อืมมม", "เอ่อออ", "อืมมม เอ่อออ", "เอิ่มมม"] as const;
+
+/** SSML rate for the thinking sounds above - slow enough to drawl without sounding broken. */
+export const PROCESSING_THINKING_RATE = "-45%";
+
+// Spoken on the way back into the lesson after a question, so the jump from "answer" to
+// "mid-sentence narration" isn't abrupt - especially when the answer moved the deck to a
+// different slide and the teacher needs telling that we're back where we left off.
+export const RESUME_BRIDGE_TEXTS = [
+  "เรากลับมาที่ขั้นตอนที่ค้างไว้กันต่อเลยนะคะ",
+  "กลับมาที่ขั้นตอนเมื่อกี้ที่ค้างไว้กันต่อนะคะ",
+  "เรามาต่อกันที่ตรงที่ค้างไว้เลยนะคะ",
+  "กลับมาเรียนต่อจากที่ค้างไว้กันนะคะ",
+] as const;

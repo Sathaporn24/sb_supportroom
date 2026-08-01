@@ -6,6 +6,11 @@ import { jsonError } from "@/lib/api-response";
 const bodySchema = z.object({
   text: z.string().min(1).max(2000),
   voice: z.string().optional(),
+  // Pinned to an SSML percentage so a caller can't smuggle arbitrary prosody markup in.
+  rate: z
+    .string()
+    .regex(/^[+-]\d{1,2}%$/)
+    .optional(),
 });
 
 export async function POST(request: NextRequest) {

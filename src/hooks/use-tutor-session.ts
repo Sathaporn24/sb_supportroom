@@ -6,9 +6,22 @@ import type { TutorEvent, TutorUserEvent } from "@/tutor/intents";
 import type { TutorEffect, TutorRuntime } from "@/tutor/types";
 import { createInitialRuntime, tutorReducer, type TutorContext } from "@/tutor/tutor-reducer";
 import * as api from "@/lib/api-client";
-import { PROCESSING_FILLER_FOLLOWUPS, PROCESSING_FILLER_TEXTS } from "@/config/response-texts";
+import {
+  PROCESSING_FILLER_FOLLOWUPS,
+  PROCESSING_FILLER_TEXTS,
+  PROCESSING_THINKING_RATE,
+  RESUME_BRIDGE_TEXTS,
+} from "@/config/response-texts";
 
 const MIN_RECORDING_MS = 300;
+
+/**
+ * Wording variety lives here rather than in the reducer, which stays pure so the state
+ * machine remains deterministic under test.
+ */
+function pickRandom<T>(items: readonly T[]): T {
+  return items[Math.floor(Math.random() * items.length)];
+}
 
 export function useTutorSession(session: TrainingSession) {
   const runtimeRef = useRef<TutorRuntime>(createInitialRuntime());
@@ -86,14 +99,18 @@ export function useTutorSession(session: TrainingSession) {
     }
   }
 
-  async function loadSlideAudio(slideIndex: number) {
+  async function loadSlideAudio(slideIndex: number, withResumeBridge = false) {
     const slide = slidesRef.current[slideIndex];
     if (!slide) {
       dispatch({ type: "FAIL", message: "ไม่พบสไลด์ที่ต้องการ" });
       return;
     }
     try {
-      const blob = await api.synthesizeSpeech(slide.speakerNotes);
+      // The hand-back line rides along in the same synthesis request rather than being a
+      // second clip: one round-trip, and the sentence flows into the narration instead of
+      // landing after an audible seam.
+      const bridge = withResumeBridge ? `${pickRandom(RESUME_BRIDGE_TEXTS)} ` : "";
+      const blob = await api.synthesizeSpeech(`${bridge}${slide.speakerNotes}`);
       if (!mountedRef.current) return;
       // Dispatch the state transition FIRST - dispatch() always clears any pending
       // audio/timer via clearPending(), so building the <audio> element before this
@@ -125,11 +142,17 @@ export function useTutorSession(session: TrainingSession) {
   async function prefetchFillers() {
     // A random subset per session, so repeat sessions don't open with the same line.
     const shuffled = [...PROCESSING_FILLER_TEXTS].sort(() => Math.random() - 0.5).slice(0, 5);
-    for (const { text, bucket } of [
-      ...shuffled.map((text) => ({ text, bucket: fillerBlobsRef })),
-      ...PROCESSING_FILLER_FOLLOWUPS.map((text) => ({ text, bucket: followUpBlobsRef })),
+    for (const { text, rate, bucket } of [
+      ...shuffled.map((text) => ({ text, rate: undefined, bucket: fillerBlobsRef })),
+      // The thinking sounds are the one place we override the lesson pace - drawling them
+      // out is what makes them read as deliberation rather than a stuck loop.
+      ...PROCESSING_FILLER_FOLLOWUPS.map((text) => ({
+        text,
+        rate: PROCESSING_THINKING_RATE as string | undefined,
+        bucket: followUpBlobsRef,
+      })),
     ]) {
-      const blob = await api.synthesizeSpeech(text).catch(() => null);
+      const blob = await api.synthesizeSpeech(text, rate).catch(() => null);
       if (!mountedRef.current) return;
       if (blob) bucket.current.push(blob);
     }
@@ -150,7 +173,7 @@ export function useTutorSession(session: TrainingSession) {
       URL.revokeObjectURL(audioUrlRef.current);
       audioUrlRef.current = null;
     }
-    const url = URL.createObjectURL(pool[Math.floor(Math.random() * pool.length)]);
+    const url = URL.createObjectURL(pickRandom(pool));
     audioUrlRef.current = url;
     const audio = new Audio(url);
     audioRef.current = audio;
@@ -295,7 +318,7 @@ export function useTutorSession(session: TrainingSession) {
         timerRef.current = setTimeout(() => dispatch({ type: "INTRO_TIMEOUT" }), effect.ms);
         break;
       case "LOAD_SLIDE":
-        void loadSlideAudio(effect.slideIndex);
+        void loadSlideAudio(effect.slideIndex, effect.withResumeBridge);
         break;
       case "WAIT_REMAINING":
         timerRef.current = setTimeout(() => dispatch({ type: "SLIDE_DURATION_ENDED" }), effect.ms);

@@ -117,8 +117,9 @@ describe("tutorReducer: no_speech resumes silently, real failures speak up", () 
     const result = tutorReducer(processing, { type: "NO_SPEECH" }, ctx);
     expect(result.runtime.state).toBe("restarting-slide");
     expect(result.runtime.currentSlideIndex).toBe(0);
-    expect(result.effect).toEqual({ kind: "LOAD_SLIDE", slideIndex: 0 });
-    // No SPEAK effect was produced - confirms nothing extra is said before resuming.
+    // No SPEAK effect, and no resume bridge either: the lesson was never actually
+    // interrupted, so announcing a return would be narrating something that didn't happen.
+    expect(result.effect).toEqual({ kind: "LOAD_SLIDE", slideIndex: 0, withResumeBridge: false });
   });
 
   it("speaks up on QUESTION_FAILED rather than resuming silently like NO_SPEECH", () => {
@@ -151,14 +152,15 @@ describe("tutorReducer: answered questions restart the current slide", () => {
       ctx,
     );
     expect(answered.runtime.state).toBe("answer-speaking");
-    expect(answered.runtime.afterSpeech).toBe("RESTART_SLIDE");
+    expect(answered.runtime.afterSpeech).toBe("RESUME_AFTER_ANSWER");
     expect(answered.effect).toEqual({ kind: "SPEAK", text: "คำตอบทดสอบ" });
     expect(answered.runtime.questions).toHaveLength(1);
 
     const restarted = tutorReducer(answered.runtime, { type: "TTS_ENDED", elapsedMs: 1500 }, ctx);
     expect(restarted.runtime.state).toBe("restarting-slide");
     expect(restarted.runtime.currentSlideIndex).toBe(1);
-    expect(restarted.effect).toEqual({ kind: "LOAD_SLIDE", slideIndex: 1 });
+    // Answering did interrupt the lesson, so the narration leads with a hand-back line.
+    expect(restarted.effect).toEqual({ kind: "LOAD_SLIDE", slideIndex: 1, withResumeBridge: true });
   });
 
   it("shows the referenced slide while answering, then returns to the interrupted slide", () => {
@@ -182,7 +184,9 @@ describe("tutorReducer: answered questions restart the current slide", () => {
 
     const restarted = tutorReducer(answered.runtime, { type: "TTS_ENDED", elapsedMs: 1500 }, ctx);
     expect(restarted.runtime.answerSlideIndex).toBeNull();
-    expect(restarted.effect).toEqual({ kind: "LOAD_SLIDE", slideIndex: 1 });
+    // withResumeBridge: coming back from a different slide needs a spoken hand-back, or the
+    // narration restarts mid-topic with no signal that we returned.
+    expect(restarted.effect).toEqual({ kind: "LOAD_SLIDE", slideIndex: 1, withResumeBridge: true });
   });
 
   it("does not jump when the answer references the slide already on screen", () => {

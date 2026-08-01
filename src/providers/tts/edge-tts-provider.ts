@@ -16,7 +16,7 @@ export class EdgeTextToSpeechProvider implements TextToSpeechProvider {
     const tts = new MsEdgeTTS();
     try {
       await tts.setMetadata(input.voice || DEFAULT_VOICE, OUTPUT_FORMAT.AUDIO_24KHZ_48KBITRATE_MONO_MP3);
-      const { audioStream } = tts.toStream(input.text, { rate: DEFAULT_RATE });
+      const { audioStream } = tts.toStream(input.text, { rate: input.rate || DEFAULT_RATE });
 
       const chunks: Buffer[] = [];
       for await (const chunk of audioStream) {

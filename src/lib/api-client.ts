@@ -112,8 +112,13 @@ export function listSessionQuestions(sessionId: string): Promise<{ questions: Se
   return request(`/api/session-questions?sessionId=${encodeURIComponent(sessionId)}`);
 }
 
-export async function synthesizeSpeech(text: string): Promise<Blob> {
-  const response = await fetch("/api/tts", { method: "POST", headers: jsonHeaders, body: JSON.stringify({ text }) });
+/** `rate` is an SSML percentage ("-45%") for utterances that shouldn't run at lesson pace. */
+export async function synthesizeSpeech(text: string, rate?: string): Promise<Blob> {
+  const response = await fetch("/api/tts", {
+    method: "POST",
+    headers: jsonHeaders,
+    body: JSON.stringify(rate ? { text, rate } : { text }),
+  });
   if (!response.ok) {
     const body = (await response.json().catch(() => null)) as ApiErrorResponse | null;
     throw new Error(body?.error?.message ?? "แปลงข้อความเป็นเสียงไม่สำเร็จ");
