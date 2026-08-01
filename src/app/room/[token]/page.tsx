@@ -61,7 +61,13 @@ export default function RoomPage() {
   return <RoomContent session={session} />;
 }
 
-const PUSH_TO_TALK_ENABLED_STATES = ["slide-speaking", "waiting-slide-duration", "final-question-window"];
+// "ready" included so the teacher can answer the start prompt by voice, not just by click.
+const PUSH_TO_TALK_ENABLED_STATES = [
+  "ready",
+  "slide-speaking",
+  "waiting-slide-duration",
+  "final-question-window",
+];
 
 function RoomContent({ session }: { session: TrainingSession }) {
   const router = useRouter();
@@ -126,8 +132,9 @@ function RoomContent({ session }: { session: TrainingSession }) {
             resumeSlideNumber={resumeSlideNumber}
           />
           {runtime.state === "ready" && (
-            <div className="absolute inset-0 flex items-center justify-center rounded-xl bg-black/40">
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 rounded-xl bg-black/40">
               <Button onClick={() => sendEvent({ type: "START" })}>พร้อมแล้ว เริ่มเรียนเลย</Button>
+              <p className="text-xs text-white/80">หรือกดปุ่ม &ldquo;กดค้างเพื่อพูด&rdquo; แล้วบอกว่าพร้อมแล้วก็ได้ค่ะ</p>
             </div>
           )}
         </div>

@@ -237,6 +237,10 @@ export function useTutorSession(session: TrainingSession) {
       return;
     }
 
+    // Answering "พร้อมหรือยังคะ?" is a yes/no, not a lesson question - the provider skips
+    // the deck grounding for it, so it comes back much faster.
+    const expecting = runtimeRef.current.interruptedFrom === "ready" ? "readiness" : "question";
+
     playProcessingFiller();
 
     try {
@@ -247,9 +251,15 @@ export function useTutorSession(session: TrainingSession) {
         sessionId: session.id,
         currentSlideObjectId: currentSlide?.slideObjectId,
         durationMs,
+        expecting,
       });
 
       if (!mountedRef.current) return;
+
+      if (result.readiness) {
+        dispatch({ type: "READINESS_ANSWERED", ready: result.readiness === "ready" });
+        return;
+      }
 
       if (result.answerStatus === "no_speech" || result.answerStatus === "transcription_failed") {
         dispatch({ type: "NO_SPEECH" });

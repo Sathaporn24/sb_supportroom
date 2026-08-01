@@ -15,6 +15,12 @@ export class MockVoiceQuestionProvider implements VoiceQuestionProvider {
       return { transcript: "", answer: "", answerStatus: "no_speech" };
     }
 
+    if (input.expecting === "readiness") {
+      // Mock mode can't really transcribe, so it always "hears" yes - enough to exercise
+      // the spoken-start path without a Gemini key.
+      return { transcript: "พร้อมแล้วค่ะ", answer: "", answerStatus: "answered", readiness: "ready" };
+    }
+
     const transcript = MOCK_TRANSCRIPT;
     const match = input.lessonSlides.find((slide) =>
       MOCK_KEYWORDS.some((keyword) => slide.speakerNotes.includes(keyword)),

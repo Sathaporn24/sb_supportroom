@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { createInitialRuntime, tutorReducer, type TutorContext } from "@/tutor/tutor-reducer";
 import type { TeachingSlide } from "@/types/domain";
 import { QUESTION_FAILED_TEXT } from "@/config/response-texts";
+import { notReadyScript, readyConfirmScript } from "@/tutor/scripts";
 
 const slides: TeachingSlide[] = [
   { slideObjectId: "s1", index: 0, speakerNotes: "Slide one", videoDurationMs: 0 },
@@ -106,6 +107,58 @@ describe("tutorReducer: Push-to-Talk", () => {
     const ended = tutorReducer(recording, { type: "PUSH_TO_TALK_END" }, ctx);
     expect(ended.runtime.state).toBe("processing-question");
     expect(ended.effect).toEqual({ kind: "STOP_RECORDING_AND_SEND" });
+  });
+});
+
+describe("tutorReducer: answering the readiness prompt by voice", () => {
+  function toReady() {
+    let r = createInitialRuntime();
+    r = tutorReducer(r, { type: "JOIN" }, ctx).runtime;
+    r = tutorReducer(r, { type: "LESSON_LOADED" }, ctx).runtime;
+    return tutorReducer(r, { type: "TTS_ENDED", elapsedMs: 1000 }, ctx).runtime; // -> ready
+  }
+
+  it("allows push-to-talk from the ready prompt and remembers where it came from", () => {
+    const recording = tutorReducer(toReady(), { type: "PUSH_TO_TALK_START" }, ctx);
+    expect(recording.runtime.state).toBe("push-to-talk-recording");
+    expect(recording.runtime.interruptedFrom).toBe("ready");
+  });
+
+  it('starts the deck after acknowledging a spoken "พร้อมแล้ว"', () => {
+    const recording = tutorReducer(toReady(), { type: "PUSH_TO_TALK_START" }, ctx).runtime;
+    const processing = tutorReducer(recording, { type: "PUSH_TO_TALK_END" }, ctx).runtime;
+
+    const confirmed = tutorReducer(processing, { type: "READINESS_ANSWERED", ready: true }, ctx);
+    expect(confirmed.effect).toEqual({ kind: "SPEAK", text: readyConfirmScript });
+    expect(confirmed.runtime.afterSpeech).toBe("START_FIRST_SLIDE");
+
+    // No resume bridge: this is the first slide, not a return to something interrupted.
+    const started = tutorReducer(confirmed.runtime, { type: "TTS_ENDED", elapsedMs: 1000 }, ctx);
+    expect(started.runtime.state).toBe("slide-loading");
+    expect(started.effect).toEqual({ kind: "LOAD_SLIDE", slideIndex: 0 });
+  });
+
+  it('waits with no auto-start timer after "ยังไม่พร้อม"', () => {
+    const recording = tutorReducer(toReady(), { type: "PUSH_TO_TALK_START" }, ctx).runtime;
+    const processing = tutorReducer(recording, { type: "PUSH_TO_TALK_END" }, ctx).runtime;
+
+    const declined = tutorReducer(processing, { type: "READINESS_ANSWERED", ready: false }, ctx);
+    expect(declined.effect).toEqual({ kind: "SPEAK", text: notReadyScript });
+
+    // Crucially no WAIT_READY_TIMEOUT here - starting anyway 5s after being told "not yet"
+    // would override the answer the teacher just gave.
+    const waiting = tutorReducer(declined.runtime, { type: "TTS_ENDED", elapsedMs: 1000 }, ctx);
+    expect(waiting.runtime.state).toBe("ready");
+    expect(waiting.effect).toEqual({ kind: "NONE" });
+  });
+
+  it("returns to the ready prompt, not slide 1, when the readiness reply is unusable", () => {
+    const recording = tutorReducer(toReady(), { type: "PUSH_TO_TALK_START" }, ctx).runtime;
+    const processing = tutorReducer(recording, { type: "PUSH_TO_TALK_END" }, ctx).runtime;
+
+    const resumed = tutorReducer(processing, { type: "NO_SPEECH" }, ctx);
+    expect(resumed.runtime.state).toBe("ready");
+    expect(resumed.effect).toEqual({ kind: "WAIT_READY_TIMEOUT", ms: 5000 });
   });
 });
 

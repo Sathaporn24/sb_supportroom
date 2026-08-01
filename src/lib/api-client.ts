@@ -132,12 +132,17 @@ export function askVoiceQuestion(input: {
   sessionId: string;
   currentSlideObjectId?: string;
   durationMs: number;
+  /** "readiness" answers the start prompt; omitted means a normal lesson question. */
+  expecting?: "question" | "readiness";
 }): Promise<VoiceQuestionResult> {
   const formData = new FormData();
   formData.append("audio", input.audioBlob, "question.webm");
   formData.append("lessonSlug", input.lessonSlug);
   formData.append("sessionId", input.sessionId);
   formData.append("durationMs", String(input.durationMs));
+  if (input.expecting) {
+    formData.append("expecting", input.expecting);
+  }
   if (input.currentSlideObjectId) {
     formData.append("currentSlideObjectId", input.currentSlideObjectId);
   }

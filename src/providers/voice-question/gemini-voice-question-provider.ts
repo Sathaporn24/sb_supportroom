@@ -31,6 +31,19 @@ function buildPrompt(groundingContext: string): string {
   ].join("\n");
 }
 
+// No speaker-notes grounding here on purpose: this is a yes/no reply to "พร้อมหรือยังคะ?",
+// and leaving the whole deck out of the request makes it far quicker than a real question.
+function buildReadinessPrompt(): string {
+  return [
+    "ฟังไฟล์เสียงที่แนบมา คุณครูกำลังตอบคำถามว่า พร้อมเริ่มเรียนหรือยัง",
+    "ถอดเสียงเป็นข้อความภาษาไทย แล้วตัดสินว่าคำตอบคือพร้อมหรือยังไม่พร้อม",
+    'ถ้าฟังไม่ชัดหรือไม่แน่ใจ ให้ถือว่า "not_ready" เพื่อไม่ให้เริ่มเรียนโดยที่คุณครูยังไม่ได้ตั้งใจ',
+    "",
+    "ตอบกลับเป็น JSON เท่านั้น ตาม schema:",
+    '{"transcript": string, "readiness": "ready" | "not_ready"}',
+  ].join("\n");
+}
+
 export class GeminiVoiceQuestionProvider implements VoiceQuestionProvider {
   async transcribeAndAnswer(input: VoiceQuestionInput): Promise<VoiceQuestionResult> {
     if (input.durationMs < uploadLimits.minVoiceDurationMs) {
@@ -38,9 +51,12 @@ export class GeminiVoiceQuestionProvider implements VoiceQuestionProvider {
     }
 
     const { apiKey, model } = getGeminiEnv();
-    const groundingContext = input.lessonSlides
-      .map((slide, index) => `Slide ${index + 1} (${slide.slideObjectId}): ${slide.speakerNotes}`)
-      .join("\n");
+    const isReadiness = input.expecting === "readiness";
+    const groundingContext = isReadiness
+      ? ""
+      : input.lessonSlides
+          .map((slide, index) => `Slide ${index + 1} (${slide.slideObjectId}): ${slide.speakerNotes}`)
+          .join("\n");
 
     const response = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
@@ -51,7 +67,7 @@ export class GeminiVoiceQuestionProvider implements VoiceQuestionProvider {
           contents: [
             {
               parts: [
-                { text: buildPrompt(groundingContext) },
+                { text: isReadiness ? buildReadinessPrompt() : buildPrompt(groundingContext) },
                 { inline_data: { mime_type: input.mimeType, data: input.audio.toString("base64") } },
               ],
             },
@@ -76,6 +92,16 @@ export class GeminiVoiceQuestionProvider implements VoiceQuestionProvider {
 
     try {
       const parsed = JSON.parse(text) as Partial<VoiceQuestionResult>;
+      if (isReadiness) {
+        // Anything other than an explicit "ready" is treated as not ready, so a misheard
+        // reply stalls the lesson rather than starting one the teacher didn't ask for.
+        return {
+          transcript: parsed.transcript ?? "",
+          answer: "",
+          answerStatus: "answered",
+          readiness: parsed.readiness === "ready" ? "ready" : "not_ready",
+        };
+      }
       if (!isAnswerStatus(parsed.answerStatus)) {
         return { transcript: "", answer: "", answerStatus: "transcription_failed" };
       }

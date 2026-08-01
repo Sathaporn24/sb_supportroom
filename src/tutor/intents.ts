@@ -30,6 +30,8 @@ export type TutorInternalEvent =
       relatedSlideObjectId?: string;
     }
   | { type: "QUESTION_FAILED" }
+  /** Spoken answer to "พร้อมหรือยังคะ?", used instead of clicking the start button. */
+  | { type: "READINESS_ANSWERED"; ready: boolean }
   | { type: "RESTART_CURRENT_SLIDE" }
   | { type: "NEXT_SLIDE" }
   | { type: "FINAL_QUESTION_TIMEOUT" }

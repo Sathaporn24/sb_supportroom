@@ -1,7 +1,7 @@
 import type { SessionQuestion, TeachingSlide } from "@/types/domain";
 import type { TutorEvent } from "@/tutor/intents";
 import type { AfterSpeechAction, TutorEffect, TutorRuntime, TutorState } from "@/tutor/types";
-import { closingScript, finalQuestionScript, introScript } from "@/tutor/scripts";
+import { closingScript, finalQuestionScript, introScript, notReadyScript, readyConfirmScript } from "@/tutor/scripts";
 import { QUESTION_FAILED_TEXT } from "@/config/response-texts";
 
 export type TutorContext = {
@@ -17,6 +17,7 @@ export function createInitialRuntime(): TutorRuntime {
     state: "idle",
     currentSlideIndex: 0,
     answerSlideIndex: null,
+    interruptedFrom: null,
     isMicEnabled: true,
     isCameraEnabled: false,
     isAiSpeaking: false,
@@ -45,7 +46,14 @@ function speak(
   };
 }
 
-const PUSH_TO_TALK_STATES: TutorState[] = ["slide-speaking", "waiting-slide-duration", "final-question-window"];
+// "ready" is in here so the teacher can answer the "พร้อมหรือยังคะ?" prompt out loud
+// instead of reaching for the start button.
+const PUSH_TO_TALK_STATES: TutorState[] = [
+  "ready",
+  "slide-speaking",
+  "waiting-slide-duration",
+  "final-question-window",
+];
 const PAUSABLE_STATES: TutorState[] = ["ready", "slide-speaking", "waiting-slide-duration", "final-question-window"];
 
 function loadSlide(runtime: TutorRuntime, slideIndex: number): { runtime: TutorRuntime; effect: TutorEffect } {
@@ -89,6 +97,14 @@ function resumeAfterInterruption(
   runtime: TutorRuntime,
   ctx: TutorContext,
 ): { runtime: TutorRuntime; effect: TutorEffect } {
+  // Interrupting the readiness prompt means the lesson never started - go back to waiting
+  // for a "พร้อม" rather than dropping the teacher into slide 1 unannounced.
+  if (runtime.interruptedFrom === "ready") {
+    return {
+      runtime: { ...runtime, state: "ready", interruptedFrom: null },
+      effect: { kind: "WAIT_READY_TIMEOUT", ms: ctx.introWaitMs },
+    };
+  }
   if (runtime.completedAllSlides) {
     return {
       runtime: { ...runtime, state: "final-question-window" },
@@ -137,6 +153,13 @@ export function tutorReducer(
           return restartCurrentSlide({ ...runtime, isAiSpeaking: false, afterSpeech: null });
         case "RESUME_AFTER_ANSWER":
           return restartCurrentSlide({ ...runtime, isAiSpeaking: false, afterSpeech: null }, true);
+        case "START_FIRST_SLIDE":
+          return loadSlide({ ...runtime, isAiSpeaking: false, afterSpeech: null }, 0);
+        case "AWAIT_READINESS":
+          return {
+            runtime: { ...runtime, state: "ready", isAiSpeaking: false, afterSpeech: null },
+            effect: { kind: "NONE" },
+          };
         case "WAIT_FINAL_QUESTION":
           return {
             runtime: {
@@ -189,7 +212,13 @@ export function tutorReducer(
     case "PUSH_TO_TALK_START": {
       if (!PUSH_TO_TALK_STATES.includes(runtime.state)) return noEffect(runtime);
       return {
-        runtime: { ...runtime, state: "push-to-talk-recording", isAiSpeaking: false, afterSpeech: null },
+        runtime: {
+          ...runtime,
+          interruptedFrom: runtime.state,
+          state: "push-to-talk-recording",
+          isAiSpeaking: false,
+          afterSpeech: null,
+        },
         effect: { kind: "START_RECORDING" },
       };
     }
@@ -211,6 +240,18 @@ export function tutorReducer(
       // push-to-talk button, which is how an expired API key stayed hidden for hours.
       const afterSpeech: AfterSpeechAction = runtime.completedAllSlides ? "WAIT_FINAL_QUESTION" : "RESTART_SLIDE";
       return speak(runtime, "answer-speaking", afterSpeech, QUESTION_FAILED_TEXT);
+    }
+
+    case "READINESS_ANSWERED": {
+      if (runtime.state !== "processing-question") return noEffect(runtime);
+      if (event.ready) {
+        return speak(runtime, "answer-speaking", "START_FIRST_SLIDE", readyConfirmScript, {
+          interruptedFrom: null,
+        });
+      }
+      // No auto-start timer on this path: the teacher just said they need a moment, so
+      // starting anyway five seconds later would ignore the answer they gave.
+      return speak(runtime, "answer-speaking", "AWAIT_READINESS", notReadyScript, { interruptedFrom: null });
     }
 
     case "QUESTION_ANSWERED": {

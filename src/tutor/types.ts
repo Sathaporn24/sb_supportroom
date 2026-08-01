@@ -28,6 +28,10 @@ export type AfterSpeechAction =
   | "RESTART_SLIDE"
   /** Like RESTART_SLIDE, but leads the narration with a "we're back where we left off" line. */
   | "RESUME_AFTER_ANSWER"
+  /** Teacher said they're ready - begin the deck once the acknowledgement finishes. */
+  | "START_FIRST_SLIDE"
+  /** Teacher said they aren't ready yet - go back to waiting, with no auto-start timer. */
+  | "AWAIT_READINESS"
   | "WAIT_FINAL_QUESTION"
   | "FINISH_SESSION"
   | null;
@@ -41,6 +45,13 @@ export type TutorRuntime = {
    * stays put so the lesson resumes exactly where it was interrupted.
    */
   answerSlideIndex: number | null;
+  /**
+   * State the teacher was in when they pressed the talk button. Push-to-talk is allowed
+   * from the readiness prompt as well as mid-lesson, and those resume very differently -
+   * one goes back to waiting, the other back to a slide - so the origin has to be
+   * remembered rather than inferred once we're already in processing-question.
+   */
+  interruptedFrom: TutorState | null;
   isMicEnabled: boolean;
   isCameraEnabled: boolean;
   isAiSpeaking: boolean;

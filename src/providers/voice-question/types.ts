@@ -13,6 +13,12 @@ export type VoiceQuestionInput = {
   /** Every slide's speaker notes in the lesson - the full grounding knowledge base. */
   lessonSlides: VoiceQuestionSlideContext[];
   currentSlideObjectId?: string;
+  /**
+   * "readiness" is the reply to the "พร้อมหรือยังคะ?" prompt - a yes/no, not a question.
+   * It skips the speaker-notes grounding entirely, which also makes it markedly faster
+   * than a full question round-trip.
+   */
+  expecting?: "question" | "readiness";
 };
 
 export type VoiceQuestionResult = {
@@ -20,6 +26,8 @@ export type VoiceQuestionResult = {
   answer: string;
   answerStatus: AnswerStatus;
   relatedSlideObjectId?: string;
+  /** Only set when expecting === "readiness": did the teacher say they're ready to start? */
+  readiness?: "ready" | "not_ready";
 };
 
 export interface VoiceQuestionProvider {

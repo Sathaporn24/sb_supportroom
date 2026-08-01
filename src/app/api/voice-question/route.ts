@@ -52,7 +52,13 @@ export async function POST(request: NextRequest) {
         speakerNotes: slide.speakerNotes,
       })),
       currentSlideObjectId: typeof currentSlideObjectId === "string" ? currentSlideObjectId : undefined,
+      expecting: formData.get("expecting") === "readiness" ? "readiness" : "question",
     });
+
+    // A yes/no about starting isn't a question the CS team needs to review.
+    if (result.readiness) {
+      return NextResponse.json(result);
+    }
 
     if (result.answerStatus !== "no_speech") {
       const questionRepo = createSessionQuestionRepository();
