@@ -33,6 +33,8 @@ export function useTutorSession(session: TrainingSession) {
   const recordedChunksRef = useRef<Blob[]>([]);
   const recordingStartRef = useRef(0);
   const mountedRef = useRef(true);
+  /** In-flight startRecording(), so a fast release can wait for it instead of bailing out. */
+  const pendingStartRef = useRef<Promise<void> | null>(null);
 
   // Plain closures (not useCallback) - this hook's own effect-runner calls them
   // directly each render, they are never passed as props needing referential
@@ -125,7 +127,6 @@ export function useTutorSession(session: TrainingSession) {
         if (e.data.size > 0) recordedChunksRef.current.push(e.data);
       };
       mediaRecorderRef.current = recorder;
-      recordingStartRef.current = Date.now();
       recorder.start();
     } catch (err) {
       dispatch({ type: "FAIL", message: err instanceof Error ? err.message : "ไม่สามารถเข้าถึงไมโครโฟนได้" });
@@ -133,6 +134,12 @@ export function useTutorSession(session: TrainingSession) {
   }
 
   async function stopRecordingAndSend() {
+    // A quick tap can release the button before getUserMedia has even resolved. Waiting on
+    // the in-flight start means the press still records something; bailing out here (the
+    // old behaviour) silently captured nothing at all and just resumed the slide.
+    await pendingStartRef.current;
+    pendingStartRef.current = null;
+
     const recorder = mediaRecorderRef.current;
     const durationMs = Date.now() - recordingStartRef.current;
     if (!recorder || recorder.state === "inactive") {
@@ -237,7 +244,11 @@ export function useTutorSession(session: TrainingSession) {
         timerRef.current = setTimeout(() => dispatch({ type: "SLIDE_DURATION_ENDED" }), effect.ms);
         break;
       case "START_RECORDING":
-        void startRecording();
+        // Stamped synchronously, before any await: measuring from recorder.start() instead
+        // would charge a slow mic hand-off against the teacher's hold time and trip the
+        // too-short check on a perfectly normal press.
+        recordingStartRef.current = Date.now();
+        pendingStartRef.current = startRecording();
         break;
       case "STOP_RECORDING_AND_SEND":
         void stopRecordingAndSend();
@@ -258,6 +269,10 @@ export function useTutorSession(session: TrainingSession) {
     mountedRef.current = true;
     dispatch({ type: "JOIN" });
     void api.markSessionStarted(session.token).catch(() => undefined);
+    // Get the permission prompt and device hand-off out of the way while the intro plays,
+    // so the first press records instantly. Failures are ignored here - the first real
+    // press retries and surfaces a proper error message if the mic is genuinely blocked.
+    void ensureMicStream().catch(() => undefined);
 
     return () => {
       mountedRef.current = false;
