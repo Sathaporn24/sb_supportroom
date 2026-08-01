@@ -6,6 +6,7 @@ import type { TutorEvent, TutorUserEvent } from "@/tutor/intents";
 import type { TutorEffect, TutorRuntime } from "@/tutor/types";
 import { createInitialRuntime, tutorReducer, type TutorContext } from "@/tutor/tutor-reducer";
 import * as api from "@/lib/api-client";
+import { PROCESSING_FILLER_FOLLOWUPS, PROCESSING_FILLER_TEXTS } from "@/config/response-texts";
 
 const MIN_RECORDING_MS = 300;
 
@@ -35,6 +36,9 @@ export function useTutorSession(session: TrainingSession) {
   const mountedRef = useRef(true);
   /** In-flight startRecording(), so a fast release can wait for it instead of bailing out. */
   const pendingStartRef = useRef<Promise<void> | null>(null);
+  /** Pre-synthesized "please wait" lines - see prefetchFillers() / playProcessingFiller(). */
+  const fillerBlobsRef = useRef<Blob[]>([]);
+  const followUpBlobsRef = useRef<Blob[]>([]);
 
   // Plain closures (not useCallback) - this hook's own effect-runner calls them
   // directly each render, they are never passed as props needing referential
@@ -109,6 +113,54 @@ export function useTutorSession(session: TrainingSession) {
     }
   }
 
+  /**
+   * Synthesizes the "please wait" lines ahead of time, during the intro, so the filler can
+   * start the instant the button is released. Synthesizing on demand would cost ~1s of the
+   * very silence this exists to cover.
+   *
+   * Sequential rather than parallel (15 simultaneous TTS calls is a good way to get rate
+   * limited), and each blob is usable the moment it lands - a question asked early just
+   * draws from a smaller pool instead of waiting for the whole set.
+   */
+  async function prefetchFillers() {
+    // A random subset per session, so repeat sessions don't open with the same line.
+    const shuffled = [...PROCESSING_FILLER_TEXTS].sort(() => Math.random() - 0.5).slice(0, 5);
+    for (const { text, bucket } of [
+      ...shuffled.map((text) => ({ text, bucket: fillerBlobsRef })),
+      ...PROCESSING_FILLER_FOLLOWUPS.map((text) => ({ text, bucket: followUpBlobsRef })),
+    ]) {
+      const blob = await api.synthesizeSpeech(text).catch(() => null);
+      if (!mountedRef.current) return;
+      if (blob) bucket.current.push(blob);
+    }
+  }
+
+  /**
+   * Covers the wait between releasing the talk button and the answer arriving.
+   * Deliberately does NOT dispatch TTS_ENDED - this is filler, not part of the lesson
+   * script, so the state machine must not react to it. Whatever dispatches next (the
+   * answer, a navigation, a failure) runs clearPending() and cuts it off mid-sentence,
+   * which is exactly right: the real answer should never queue behind the filler.
+   */
+  function playProcessingFiller(isFollowUp = false) {
+    const pool = isFollowUp ? followUpBlobsRef.current : fillerBlobsRef.current;
+    if (!pool.length) return;
+
+    if (audioUrlRef.current) {
+      URL.revokeObjectURL(audioUrlRef.current);
+      audioUrlRef.current = null;
+    }
+    const url = URL.createObjectURL(pool[Math.floor(Math.random() * pool.length)]);
+    audioUrlRef.current = url;
+    const audio = new Audio(url);
+    audioRef.current = audio;
+    audio.addEventListener("ended", () => {
+      // Keep topping the silence up for as long as we're still waiting.
+      if (runtimeRef.current.state === "processing-question") playProcessingFiller(true);
+    });
+    void audio.play().catch(() => undefined);
+  }
+
   async function ensureMicStream(): Promise<MediaStream> {
     if (micStreamRef.current) {
       return micStreamRef.current;
@@ -161,6 +213,8 @@ export function useTutorSession(session: TrainingSession) {
       dispatch({ type: "NO_SPEECH" });
       return;
     }
+
+    playProcessingFiller();
 
     try {
       const currentSlide = slidesRef.current[runtimeRef.current.currentSlideIndex];
@@ -221,6 +275,9 @@ export function useTutorSession(session: TrainingSession) {
             if (mountedRef.current) {
               setEmbedUrl(url);
               dispatch({ type: "LESSON_LOADED" });
+              // Runs alongside the intro/first slides - never awaited, so a slow or failing
+              // TTS here can't hold the lesson up.
+              void prefetchFillers();
             }
           } catch (err) {
             if (mountedRef.current) {
