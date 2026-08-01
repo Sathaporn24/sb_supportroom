@@ -206,7 +206,7 @@ describe("tutorReducer: answered questions restart the current slide", () => {
     );
     expect(answered.runtime.state).toBe("answer-speaking");
     expect(answered.runtime.afterSpeech).toBe("RESUME_AFTER_ANSWER");
-    expect(answered.effect).toEqual({ kind: "SPEAK", text: "คำตอบทดสอบ" });
+    expect(answered.effect).toEqual({ kind: "SPEAK", text: "คำตอบทดสอบ", withFoundLead: true });
     expect(answered.runtime.questions).toHaveLength(1);
 
     const restarted = tutorReducer(answered.runtime, { type: "TTS_ENDED", elapsedMs: 1500 }, ctx);
@@ -292,6 +292,22 @@ describe("tutorReducer: answered questions restart the current slide", () => {
     const back = tutorReducer(answered.runtime, { type: "TTS_ENDED", elapsedMs: 1000 }, ctx);
     expect(back.runtime.state).toBe("final-question-window");
     expect(back.runtime.answerSlideIndex).toBeNull();
+  });
+
+  it('never leads with "เจอแล้ว" on an answer that found nothing', () => {
+    const speaking = toSlideSpeaking(0);
+    const recording = tutorReducer(speaking, { type: "PUSH_TO_TALK_START" }, ctx).runtime;
+    const processing = tutorReducer(recording, { type: "PUSH_TO_TALK_END" }, ctx).runtime;
+
+    for (const answerStatus of ["not_found", "out_of_scope"] as const) {
+      const answered = tutorReducer(
+        processing,
+        { type: "QUESTION_ANSWERED", transcript: "q", answer: "ไม่พบข้อมูลค่ะ", answerStatus },
+        ctx,
+      );
+      // Announcing a find and then saying nothing was found contradicts itself.
+      expect(answered.effect).toEqual({ kind: "SPEAK", text: "ไม่พบข้อมูลค่ะ" });
+    }
   });
 
   it("returns to the final-question window instead of a slide once all slides are done", () => {

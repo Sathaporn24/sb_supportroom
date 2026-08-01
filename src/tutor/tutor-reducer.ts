@@ -39,10 +39,11 @@ function speak(
   afterSpeech: AfterSpeechAction,
   text: string,
   patch: Partial<TutorRuntime> = {},
+  withFoundLead = false,
 ): { runtime: TutorRuntime; effect: TutorEffect } {
   return {
     runtime: { ...runtime, ...patch, state, afterSpeech, isAiSpeaking: true },
-    effect: { kind: "SPEAK", text },
+    effect: withFoundLead ? { kind: "SPEAK", text, withFoundLead: true } : { kind: "SPEAK", text },
   };
 }
 
@@ -275,10 +276,16 @@ export function tutorReducer(
         event.relatedSlideObjectId && referencedIndex >= 0 && referencedIndex !== runtime.currentSlideIndex
           ? referencedIndex
           : null;
-      return speak(runtime, "answer-speaking", afterSpeech, event.answer, {
-        questions: [...runtime.questions, questionRecord],
-        answerSlideIndex,
-      });
+      return speak(
+        runtime,
+        "answer-speaking",
+        afterSpeech,
+        event.answer,
+        { questions: [...runtime.questions, questionRecord], answerSlideIndex },
+        // Only when something was actually found - "เจอแล้ว" ahead of "ไม่พบข้อมูล" would
+        // contradict the very next sentence.
+        event.answerStatus === "answered",
+      );
     }
 
     case "RESTART_CURRENT_SLIDE":

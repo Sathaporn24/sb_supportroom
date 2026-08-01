@@ -65,8 +65,13 @@ export type TutorRuntime = {
 export type TutorEffect =
   | { kind: "NONE" }
   | { kind: "LOAD_LESSON" }
-  /** Generic "speak this text" - context for what happens after comes from afterSpeech. */
-  | { kind: "SPEAK"; text: string }
+  /**
+   * Generic "speak this text" - context for what happens after comes from afterSpeech.
+   * withFoundLead prefixes an "อ้อ เจอแล้วค่ะ" beat, so the answer arrives as a discovery
+   * rather than cutting in cold after the waiting sounds. Set only for answers that
+   * actually found something; leading a "ไม่พบข้อมูล" with "เจอแล้ว" contradicts itself.
+   */
+  | { kind: "SPEAK"; text: string; withFoundLead?: boolean }
   | { kind: "WAIT_READY_TIMEOUT"; ms: number }
   /** withResumeBridge prepends a spoken hand-back line; the exact wording is picked by the effect runner. */
   | { kind: "LOAD_SLIDE"; slideIndex: number; withResumeBridge?: boolean }

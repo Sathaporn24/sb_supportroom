@@ -43,6 +43,15 @@ export const PROCESSING_FILLER_TEXTS = [
 //
 // Multiple spaces collapse to one, so the gaps between ticks are newlines - the only
 // thing that produces a long pause (measured: newline ~1.5s, comma ~0.4s, space ~0).
+// Beat of silence after the opening "กรุณารอสักครู่นะคะ" before the waiting sounds start.
+// Running them back to back sounds like one continuous stream of noise; the gap is what
+// makes the sounds read as "still working" rather than filler for its own sake.
+export const PROCESSING_FILLER_GAP_MS = 1_200;
+
+// Prefixed to an answer that actually found something, so it lands as a discovery instead
+// of cutting in cold after the ticking.
+export const ANSWER_FOUND_LEADS = ["อ้อ เจอแล้วค่ะ", "อ๋อ เจอแล้วค่ะ", "อ้อ ได้แล้วค่ะ", "เจอแล้วค่ะ"] as const;
+
 export const PROCESSING_FILLER_FOLLOWUPS = [
   { text: "ติ๊ก\nต๊อก\nติ๊ก\nต๊อก", rate: "-10%" },
   { text: "ติ๊ก, ต๊อก, ติ๊ก, ต๊อก", rate: "-25%" },

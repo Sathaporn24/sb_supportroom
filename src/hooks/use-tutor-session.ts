@@ -6,7 +6,13 @@ import type { TutorEvent, TutorUserEvent } from "@/tutor/intents";
 import type { TutorEffect, TutorRuntime } from "@/tutor/types";
 import { createInitialRuntime, tutorReducer, type TutorContext } from "@/tutor/tutor-reducer";
 import * as api from "@/lib/api-client";
-import { PROCESSING_FILLER_FOLLOWUPS, PROCESSING_FILLER_TEXTS, RESUME_BRIDGE_TEXTS } from "@/config/response-texts";
+import {
+  ANSWER_FOUND_LEADS,
+  PROCESSING_FILLER_FOLLOWUPS,
+  PROCESSING_FILLER_GAP_MS,
+  PROCESSING_FILLER_TEXTS,
+  RESUME_BRIDGE_TEXTS,
+} from "@/config/response-texts";
 
 const MIN_RECORDING_MS = 300;
 
@@ -47,6 +53,8 @@ export function useTutorSession(session: TrainingSession) {
   /** Pre-synthesized "please wait" lines - see prefetchFillers() / playProcessingFiller(). */
   const fillerBlobsRef = useRef<Blob[]>([]);
   const followUpBlobsRef = useRef<Blob[]>([]);
+  /** Separate from timerRef: this paces the filler chain, not a state-machine transition. */
+  const fillerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Plain closures (not useCallback) - this hook's own effect-runner calls them
   // directly each render, they are never passed as props needing referential
@@ -66,6 +74,10 @@ export function useTutorSession(session: TrainingSession) {
       clearTimeout(timerRef.current);
       timerRef.current = null;
     }
+    if (fillerTimerRef.current) {
+      clearTimeout(fillerTimerRef.current);
+      fillerTimerRef.current = null;
+    }
   }
 
   function dispatch(event: TutorEvent) {
@@ -76,9 +88,12 @@ export function useTutorSession(session: TrainingSession) {
     runEffect(effect);
   }
 
-  async function playText(text: string) {
+  async function playText(text: string, withFoundLead = false) {
     try {
-      const blob = await api.synthesizeSpeech(text);
+      // The lead rides along in the same synthesis request as the answer, so it flows into
+      // it rather than landing as a separate clip with an audible seam.
+      const lead = withFoundLead ? `${pickRandom(ANSWER_FOUND_LEADS)} ` : "";
+      const blob = await api.synthesizeSpeech(`${lead}${text}`);
       if (!mountedRef.current) return;
       const url = URL.createObjectURL(blob);
       audioUrlRef.current = url;
@@ -173,8 +188,13 @@ export function useTutorSession(session: TrainingSession) {
     const audio = new Audio(url);
     audioRef.current = audio;
     audio.addEventListener("ended", () => {
-      // Keep topping the silence up for as long as we're still waiting.
-      if (runtimeRef.current.state === "processing-question") playProcessingFiller(true);
+      // Keep topping the silence up for as long as we're still waiting, but leave a beat
+      // between clips - chaining them back to back sounds like one unbroken stream rather
+      // than someone pausing to work.
+      if (runtimeRef.current.state !== "processing-question") return;
+      fillerTimerRef.current = setTimeout(() => {
+        if (runtimeRef.current.state === "processing-question") playProcessingFiller(true);
+      }, PROCESSING_FILLER_GAP_MS);
     });
     void audio.play().catch(() => undefined);
   }
@@ -317,7 +337,7 @@ export function useTutorSession(session: TrainingSession) {
         })();
         break;
       case "SPEAK":
-        void playText(effect.text);
+        void playText(effect.text, effect.withFoundLead);
         break;
       case "WAIT_READY_TIMEOUT":
         timerRef.current = setTimeout(() => dispatch({ type: "INTRO_TIMEOUT" }), effect.ms);
