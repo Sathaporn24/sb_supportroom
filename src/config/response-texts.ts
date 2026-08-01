@@ -31,17 +31,24 @@ export const PROCESSING_FILLER_TEXTS = [
 ] as const;
 
 // One filler line only covers ~3s of a ~9s wait, so these top up the rest. They are
-// thinking sounds rather than more sentences on purpose: repeating "อีกสักครู่นะคะ" every
-// few seconds reads as a stuck loop, while a drawn-out "อืมมม" reads as someone actually
-// working on the answer.
+// sounds rather than more sentences on purpose: repeating "อีกสักครู่นะคะ" every few
+// seconds reads as a stuck loop, while a drawn-out hum or a ticking clock reads as time
+// visibly passing.
 //
-// Spoken at PROCESSING_THINKING_RATE, not the lesson rate. Repeating characters alone is
-// not enough - measured against the real service, "อืมมมมมม" runs only ~0.2s longer than
-// "อืม", whereas dropping the rate stretches "อืมมม" from 1.9s to 3.3s.
-export const PROCESSING_FILLER_FOLLOWUPS = ["อืมมม", "เอ่อออ", "อืมมม เอ่อออ", "เอิ่มมม"] as const;
-
-/** SSML rate for the thinking sounds above - slow enough to drawl without sounding broken. */
-export const PROCESSING_THINKING_RATE = "-45%";
+// Each carries its own rate because they want opposite treatment - a hum has to be
+// stretched to drawl at all, while a tick-tock slowed to the same degree stops sounding
+// like a clock. Rate is the only lever available: the service rejects SSML outright
+// (<break> and nested <prosody> both close the connection), and repeated characters
+// barely help - measured, "อืมมมมมม" runs only ~0.2s longer than "อืม".
+//
+// Multiple spaces collapse to one, so the gaps between ticks are newlines - the only
+// thing that produces a long pause (measured: newline ~1.5s, comma ~0.4s, space ~0).
+export const PROCESSING_FILLER_FOLLOWUPS = [
+  { text: "ติ๊ก\nต๊อก\nติ๊ก\nต๊อก", rate: "-10%" },
+  { text: "ติ๊ก, ต๊อก, ติ๊ก, ต๊อก", rate: "-25%" },
+  { text: "อืมมม", rate: "-45%" },
+  { text: "เอ่อออ", rate: "-45%" },
+] as const;
 
 // Spoken on the way back into the lesson after a question, so the jump from "answer" to
 // "mid-sentence narration" isn't abrupt - especially when the answer moved the deck to a

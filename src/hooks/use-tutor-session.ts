@@ -6,12 +6,7 @@ import type { TutorEvent, TutorUserEvent } from "@/tutor/intents";
 import type { TutorEffect, TutorRuntime } from "@/tutor/types";
 import { createInitialRuntime, tutorReducer, type TutorContext } from "@/tutor/tutor-reducer";
 import * as api from "@/lib/api-client";
-import {
-  PROCESSING_FILLER_FOLLOWUPS,
-  PROCESSING_FILLER_TEXTS,
-  PROCESSING_THINKING_RATE,
-  RESUME_BRIDGE_TEXTS,
-} from "@/config/response-texts";
+import { PROCESSING_FILLER_FOLLOWUPS, PROCESSING_FILLER_TEXTS, RESUME_BRIDGE_TEXTS } from "@/config/response-texts";
 
 const MIN_RECORDING_MS = 300;
 
@@ -143,12 +138,12 @@ export function useTutorSession(session: TrainingSession) {
     // A random subset per session, so repeat sessions don't open with the same line.
     const shuffled = [...PROCESSING_FILLER_TEXTS].sort(() => Math.random() - 0.5).slice(0, 5);
     for (const { text, rate, bucket } of [
-      ...shuffled.map((text) => ({ text, rate: undefined, bucket: fillerBlobsRef })),
-      // The thinking sounds are the one place we override the lesson pace - drawling them
-      // out is what makes them read as deliberation rather than a stuck loop.
-      ...PROCESSING_FILLER_FOLLOWUPS.map((text) => ({
+      ...shuffled.map((text) => ({ text, rate: undefined as string | undefined, bucket: fillerBlobsRef })),
+      // The waiting sounds are the one place we override the lesson pace, and each one
+      // carries its own rate - a hum needs stretching, a tick-tock needs to stay clock-like.
+      ...PROCESSING_FILLER_FOLLOWUPS.map(({ text, rate }) => ({
         text,
-        rate: PROCESSING_THINKING_RATE as string | undefined,
+        rate: rate as string | undefined,
         bucket: followUpBlobsRef,
       })),
     ]) {
