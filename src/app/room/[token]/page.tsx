@@ -65,7 +65,16 @@ const PUSH_TO_TALK_ENABLED_STATES = ["slide-speaking", "waiting-slide-duration",
 
 function RoomContent({ session }: { session: TrainingSession }) {
   const router = useRouter();
-  const { runtime, embedUrl, loadError, currentSlide, totalSlides, sendEvent } = useTutorSession(session);
+  const {
+    runtime,
+    embedUrl,
+    loadError,
+    currentSlide,
+    isShowingReferencedSlide,
+    resumeSlideNumber,
+    totalSlides,
+    sendEvent,
+  } = useTutorSession(session);
   const media = useLocalMedia();
   const [chatOpen, setChatOpen] = useState(false);
 
@@ -113,6 +122,8 @@ function RoomContent({ session }: { session: TrainingSession }) {
             currentSlide={currentSlide}
             totalSlides={totalSlides}
             loading={runtime.state === "idle" || runtime.state === "preparing"}
+            isReference={isShowingReferencedSlide}
+            resumeSlideNumber={resumeSlideNumber}
           />
           {runtime.state === "ready" && (
             <div className="absolute inset-0 flex items-center justify-center rounded-xl bg-black/40">

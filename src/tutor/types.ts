@@ -33,6 +33,12 @@ export type AfterSpeechAction =
 export type TutorRuntime = {
   state: TutorState;
   currentSlideIndex: number;
+  /**
+   * Slide to *display* while an answer is being spoken, when the answer is grounded in a
+   * different slide than the one being taught. Purely a view override - currentSlideIndex
+   * stays put so the lesson resumes exactly where it was interrupted.
+   */
+  answerSlideIndex: number | null;
   isMicEnabled: boolean;
   isCameraEnabled: boolean;
   isAiSpeaking: boolean;

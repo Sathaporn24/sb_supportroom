@@ -22,6 +22,12 @@ function buildPrompt(groundingContext: string): string {
     "",
     "ตอบกลับเป็น JSON เท่านั้น ตาม schema:",
     '{"transcript": string, "answer": string, "answerStatus": "answered" | "not_found" | "out_of_scope" | "transcription_failed", "relatedSlideObjectId": string | null}',
+    "",
+    // The room jumps the Slides embed to relatedSlideObjectId while the answer is read out
+    // loud, so an omitted or invented id leaves the teacher staring at the wrong slide.
+    "relatedSlideObjectId: เมื่อ answerStatus = answered ให้ใส่ objectId ของ slide ที่ใช้เป็นแหล่งอ้างอิงคำตอบเสมอ",
+    "ต้องเป็น objectId ที่ปรากฏในรายการ Speaker Notes ด้านบนเท่านั้น ห้ามสร้างขึ้นเอง",
+    "ถ้าตอบไม่ได้หรือไม่มี slide ไหนเกี่ยวข้อง ให้เป็น null",
   ].join("\n");
 }
 

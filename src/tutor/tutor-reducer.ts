@@ -15,6 +15,7 @@ export function createInitialRuntime(): TutorRuntime {
   return {
     state: "idle",
     currentSlideIndex: 0,
+    answerSlideIndex: null,
     isMicEnabled: true,
     isCameraEnabled: false,
     isAiSpeaking: false,
@@ -52,6 +53,7 @@ function loadSlide(runtime: TutorRuntime, slideIndex: number): { runtime: TutorR
       ...runtime,
       state: "slide-loading",
       currentSlideIndex: slideIndex,
+      answerSlideIndex: null,
       isAiSpeaking: false,
       afterSpeech: null,
     },
@@ -61,7 +63,9 @@ function loadSlide(runtime: TutorRuntime, slideIndex: number): { runtime: TutorR
 
 function restartCurrentSlide(runtime: TutorRuntime): { runtime: TutorRuntime; effect: TutorEffect } {
   return {
-    runtime: { ...runtime, state: "restarting-slide" },
+    // answerSlideIndex is dropped here - this is the "go back to where we left off" step
+    // after an answer that referenced another slide.
+    runtime: { ...runtime, state: "restarting-slide", answerSlideIndex: null },
     effect: { kind: "LOAD_SLIDE", slideIndex: runtime.currentSlideIndex },
   };
 }
@@ -129,7 +133,13 @@ export function tutorReducer(
           return restartCurrentSlide({ ...runtime, isAiSpeaking: false, afterSpeech: null });
         case "WAIT_FINAL_QUESTION":
           return {
-            runtime: { ...runtime, state: "final-question-window", isAiSpeaking: false, afterSpeech: null },
+            runtime: {
+              ...runtime,
+              state: "final-question-window",
+              answerSlideIndex: null,
+              isAiSpeaking: false,
+              afterSpeech: null,
+            },
             effect: { kind: "WAIT_FINAL_QUESTION", ms: ctx.finalQuestionWaitMs },
           };
         case "FINISH_SESSION":
@@ -201,8 +211,16 @@ export function tutorReducer(
         createdAt: new Date().toISOString(),
       };
       const afterSpeech: AfterSpeechAction = runtime.completedAllSlides ? "WAIT_FINAL_QUESTION" : "RESTART_SLIDE";
+      // If the answer is grounded in another slide, show that slide while it's being read
+      // out. currentSlideIndex is untouched, so RESTART_SLIDE brings us right back.
+      const referencedIndex = ctx.slides.findIndex((slide) => slide.slideObjectId === event.relatedSlideObjectId);
+      const answerSlideIndex =
+        event.relatedSlideObjectId && referencedIndex >= 0 && referencedIndex !== runtime.currentSlideIndex
+          ? referencedIndex
+          : null;
       return speak(runtime, "answer-speaking", afterSpeech, event.answer, {
         questions: [...runtime.questions, questionRecord],
+        answerSlideIndex,
       });
     }
 

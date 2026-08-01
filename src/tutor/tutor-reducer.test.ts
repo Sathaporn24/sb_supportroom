@@ -152,6 +152,82 @@ describe("tutorReducer: answered questions restart the current slide", () => {
     expect(restarted.effect).toEqual({ kind: "LOAD_SLIDE", slideIndex: 1 });
   });
 
+  it("shows the referenced slide while answering, then returns to the interrupted slide", () => {
+    const speaking = toSlideSpeaking(1); // teaching s2
+    const recording = tutorReducer(speaking, { type: "PUSH_TO_TALK_START" }, ctx).runtime;
+    const processing = tutorReducer(recording, { type: "PUSH_TO_TALK_END" }, ctx).runtime;
+
+    const answered = tutorReducer(
+      processing,
+      {
+        type: "QUESTION_ANSWERED",
+        transcript: "ถามเรื่องหน้าแรก",
+        answer: "คำตอบจากสไลด์แรก",
+        answerStatus: "answered",
+        relatedSlideObjectId: "s1",
+      },
+      ctx,
+    );
+    expect(answered.runtime.answerSlideIndex).toBe(0);
+    expect(answered.runtime.currentSlideIndex).toBe(1); // lesson position untouched
+
+    const restarted = tutorReducer(answered.runtime, { type: "TTS_ENDED", elapsedMs: 1500 }, ctx);
+    expect(restarted.runtime.answerSlideIndex).toBeNull();
+    expect(restarted.effect).toEqual({ kind: "LOAD_SLIDE", slideIndex: 1 });
+  });
+
+  it("does not jump when the answer references the slide already on screen", () => {
+    const speaking = toSlideSpeaking(1);
+    const recording = tutorReducer(speaking, { type: "PUSH_TO_TALK_START" }, ctx).runtime;
+    const processing = tutorReducer(recording, { type: "PUSH_TO_TALK_END" }, ctx).runtime;
+
+    const answered = tutorReducer(
+      processing,
+      { type: "QUESTION_ANSWERED", transcript: "q", answer: "a", answerStatus: "answered", relatedSlideObjectId: "s2" },
+      ctx,
+    );
+    expect(answered.runtime.answerSlideIndex).toBeNull();
+  });
+
+  it("ignores an unknown relatedSlideObjectId rather than blanking the embed", () => {
+    const speaking = toSlideSpeaking(0);
+    const recording = tutorReducer(speaking, { type: "PUSH_TO_TALK_START" }, ctx).runtime;
+    const processing = tutorReducer(recording, { type: "PUSH_TO_TALK_END" }, ctx).runtime;
+
+    const answered = tutorReducer(
+      processing,
+      {
+        type: "QUESTION_ANSWERED",
+        transcript: "q",
+        answer: "a",
+        answerStatus: "answered",
+        relatedSlideObjectId: "does-not-exist",
+      },
+      ctx,
+    );
+    expect(answered.runtime.answerSlideIndex).toBeNull();
+  });
+
+  it("clears the referenced slide when the answer comes in the final-question window", () => {
+    let r = toSlideSpeaking(1);
+    r = tutorReducer(r, { type: "TTS_ENDED", elapsedMs: 1000 }, ctx).runtime;
+    r = tutorReducer(r, { type: "SLIDE_DURATION_ENDED" }, ctx).runtime;
+    r = tutorReducer(r, { type: "TTS_ENDED", elapsedMs: 1000 }, ctx).runtime; // final-question-window
+
+    const recording = tutorReducer(r, { type: "PUSH_TO_TALK_START" }, ctx).runtime;
+    const processing = tutorReducer(recording, { type: "PUSH_TO_TALK_END" }, ctx).runtime;
+    const answered = tutorReducer(
+      processing,
+      { type: "QUESTION_ANSWERED", transcript: "q", answer: "a", answerStatus: "answered", relatedSlideObjectId: "s1" },
+      ctx,
+    );
+    expect(answered.runtime.answerSlideIndex).toBe(0);
+
+    const back = tutorReducer(answered.runtime, { type: "TTS_ENDED", elapsedMs: 1000 }, ctx);
+    expect(back.runtime.state).toBe("final-question-window");
+    expect(back.runtime.answerSlideIndex).toBeNull();
+  });
+
   it("returns to the final-question window instead of a slide once all slides are done", () => {
     let r = toSlideSpeaking(1);
     r = tutorReducer(r, { type: "TTS_ENDED", elapsedMs: 1000 }, ctx).runtime;

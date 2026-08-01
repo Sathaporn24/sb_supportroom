@@ -273,11 +273,18 @@ export function useTutorSession(session: TrainingSession) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const sendEvent = useCallback((event: TutorUserEvent) => dispatch(event), []);
 
+  // While an answer references another slide, the room shows that slide instead - the
+  // lesson position (currentSlideIndex) is unchanged and comes back after the answer.
+  const { currentSlideIndex, answerSlideIndex } = runtimeRef.current;
+  const displayedSlideIndex = answerSlideIndex ?? currentSlideIndex;
+
   return {
     runtime: runtimeRef.current,
     embedUrl,
     loadError,
-    currentSlide: slidesRef.current[runtimeRef.current.currentSlideIndex],
+    currentSlide: slidesRef.current[displayedSlideIndex],
+    isShowingReferencedSlide: answerSlideIndex !== null,
+    resumeSlideNumber: currentSlideIndex + 1,
     totalSlides: slidesRef.current.length,
     sendEvent,
   };
