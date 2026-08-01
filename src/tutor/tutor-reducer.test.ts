@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createInitialRuntime, tutorReducer, type TutorContext } from "@/tutor/tutor-reducer";
 import type { TeachingSlide } from "@/types/domain";
+import { QUESTION_FAILED_TEXT } from "@/config/response-texts";
 
 const slides: TeachingSlide[] = [
   { slideObjectId: "s1", index: 0, speakerNotes: "Slide one", videoDurationMs: 0 },
@@ -108,7 +109,7 @@ describe("tutorReducer: Push-to-Talk", () => {
   });
 });
 
-describe("tutorReducer: no_speech / transcription_failed resume silently", () => {
+describe("tutorReducer: no_speech resumes silently, real failures speak up", () => {
   it("restarts the current slide with no extra speech on NO_SPEECH", () => {
     const speaking = toSlideSpeaking(0);
     const recording = tutorReducer(speaking, { type: "PUSH_TO_TALK_START" }, ctx).runtime;
@@ -120,13 +121,21 @@ describe("tutorReducer: no_speech / transcription_failed resume silently", () =>
     // No SPEAK effect was produced - confirms nothing extra is said before resuming.
   });
 
-  it("handles QUESTION_FAILED (upload/API error) the same way as NO_SPEECH", () => {
+  it("speaks up on QUESTION_FAILED rather than resuming silently like NO_SPEECH", () => {
     const speaking = toSlideSpeaking(1);
     const recording = tutorReducer(speaking, { type: "PUSH_TO_TALK_START" }, ctx).runtime;
     const processing = tutorReducer(recording, { type: "PUSH_TO_TALK_END" }, ctx).runtime;
-    const result = tutorReducer(processing, { type: "QUESTION_FAILED" }, ctx);
-    expect(result.runtime.state).toBe("restarting-slide");
-    expect(result.runtime.currentSlideIndex).toBe(1);
+
+    // An upload/API failure (expired key, upstream outage) has to be audible - a silent
+    // resume here is indistinguishable from the push-to-talk button simply not working.
+    const failed = tutorReducer(processing, { type: "QUESTION_FAILED" }, ctx);
+    expect(failed.runtime.state).toBe("answer-speaking");
+    expect(failed.effect).toEqual({ kind: "SPEAK", text: QUESTION_FAILED_TEXT });
+
+    // ...and it still lands back on the interrupted slide once the apology finishes.
+    const resumed = tutorReducer(failed.runtime, { type: "TTS_ENDED", elapsedMs: 1000 }, ctx);
+    expect(resumed.runtime.state).toBe("restarting-slide");
+    expect(resumed.runtime.currentSlideIndex).toBe(1);
   });
 });
 

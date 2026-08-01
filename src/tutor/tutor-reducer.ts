@@ -2,6 +2,7 @@ import type { SessionQuestion, TeachingSlide } from "@/types/domain";
 import type { TutorEvent } from "@/tutor/intents";
 import type { AfterSpeechAction, TutorEffect, TutorRuntime, TutorState } from "@/tutor/types";
 import { closingScript, finalQuestionScript, introScript } from "@/tutor/scripts";
+import { QUESTION_FAILED_TEXT } from "@/config/response-texts";
 
 export type TutorContext = {
   slides: TeachingSlide[];
@@ -193,10 +194,18 @@ export function tutorReducer(
       return { runtime: { ...runtime, state: "processing-question" }, effect: { kind: "STOP_RECORDING_AND_SEND" } };
     }
 
-    case "NO_SPEECH":
+    case "NO_SPEECH": {
+      if (runtime.state !== "processing-question") return noEffect(runtime);
+      // Nothing was said, so say nothing back - resuming quietly is the right call here.
+      return resumeAfterInterruption(runtime, ctx);
+    }
+
     case "QUESTION_FAILED": {
       if (runtime.state !== "processing-question") return noEffect(runtime);
-      return resumeAfterInterruption(runtime, ctx);
+      // A real failure DOES get spoken. Silently resuming looks identical to a broken
+      // push-to-talk button, which is how an expired API key stayed hidden for hours.
+      const afterSpeech: AfterSpeechAction = runtime.completedAllSlides ? "WAIT_FINAL_QUESTION" : "RESTART_SLIDE";
+      return speak(runtime, "answer-speaking", afterSpeech, QUESTION_FAILED_TEXT);
     }
 
     case "QUESTION_ANSWERED": {
