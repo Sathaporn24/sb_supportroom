@@ -20,6 +20,11 @@ yarn-error.log*
 # local env files
 .env*.local
 .env
+# Tracked on purpose so the team can clone and run without re-collecting keys.
+# THIS FILE HOLDS LIVE CREDENTIALS - keep this repo private, and rotate every key in
+# it (Supabase service_role, Google service account, Gemini) before ever making the
+# repo public or removing a collaborator.
+!.env.local
 
 # typescript
 *.tsbuildinfo
