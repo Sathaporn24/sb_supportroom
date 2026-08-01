@@ -2,7 +2,6 @@ import "server-only";
 import type { SessionSummaryRepository } from "@/providers/data/repository-types";
 import type { SessionQuestion, SessionSummary } from "@/types/domain";
 import { getSupabaseServiceClient } from "@/providers/data/supabase/client";
-import { generateId } from "@/utils/id";
 
 type ResultRow = {
   session_id: string;
@@ -41,7 +40,6 @@ export class SupabaseSessionSummaryRepository implements SessionSummaryRepositor
     const supabase = getSupabaseServiceClient();
     const { error } = await supabase.from("session_results").upsert(
       {
-        id: generateId("result"),
         session_id: summary.sessionId,
         completed_all_slides: summary.completedAllSlides,
         last_slide_object_id: summary.lastSlideObjectId ?? null,

@@ -2,7 +2,6 @@ import "server-only";
 import type { SessionQuestionRepository } from "@/providers/data/repository-types";
 import type { AnswerStatus, CreateSessionQuestionInput, SessionQuestion } from "@/types/domain";
 import { getSupabaseServiceClient } from "@/providers/data/supabase/client";
-import { generateId } from "@/utils/id";
 
 type QuestionRow = {
   id: string;
@@ -33,7 +32,6 @@ export class SupabaseSessionQuestionRepository implements SessionQuestionReposit
     const { data, error } = await supabase
       .from("session_questions")
       .insert({
-        id: generateId("question"),
         session_id: input.sessionId,
         slide_object_id: input.slideObjectId ?? null,
         transcript: input.transcript ?? null,

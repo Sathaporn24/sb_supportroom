@@ -6,7 +6,7 @@ import { z } from "zod";
 const providerSelectionSchema = z.object({
   DATA_PROVIDER: z.enum(["mock", "supabase"]).default("mock"),
   SLIDES_PROVIDER: z.enum(["mock", "google"]).default("mock"),
-  TTS_PROVIDER: z.enum(["mock", "huggingface"]).default("mock"),
+  TTS_PROVIDER: z.enum(["mock", "edge"]).default("mock"),
   VOICE_QUESTION_PROVIDER: z.enum(["mock", "gemini"]).default("mock"),
 });
 
@@ -59,21 +59,12 @@ export function getGoogleServiceAccountEnv() {
   };
 }
 
-export function getHuggingFaceEnv() {
-  const values = requireEnv(["HUGGINGFACE_API_TOKEN", "HUGGINGFACE_TTS_MODEL"]);
-  const model = values.HUGGINGFACE_TTS_MODEL;
-  return {
-    token: values.HUGGINGFACE_API_TOKEN,
-    model,
-    endpoint: process.env.HUGGINGFACE_TTS_ENDPOINT || `https://api-inference.huggingface.co/models/${model}`,
-  };
-}
-
 export function getGeminiEnv() {
   const values = requireEnv(["GEMINI_API_KEY"]);
+  // gemini-1.5-flash is retired - verified gemini-flash-latest works against the real API.
   return {
     apiKey: values.GEMINI_API_KEY,
-    model: process.env.GEMINI_MODEL || "gemini-1.5-flash",
+    model: process.env.GEMINI_MODEL || "gemini-flash-latest",
   };
 }
 

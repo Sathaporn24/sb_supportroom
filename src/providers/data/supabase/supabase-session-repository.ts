@@ -2,7 +2,7 @@ import "server-only";
 import type { SessionRepository } from "@/providers/data/repository-types";
 import type { CreateSessionInput, EndSessionInput, SessionStatus, TrainingSession } from "@/types/domain";
 import { getSupabaseServiceClient } from "@/providers/data/supabase/client";
-import { generateId, generatePublicToken } from "@/utils/id";
+import { generatePublicToken } from "@/utils/id";
 
 type SessionRow = {
   id: string;
@@ -53,7 +53,6 @@ export class SupabaseSessionRepository implements SessionRepository {
     const { data, error } = await supabase
       .from("training_sessions")
       .insert({
-        id: generateId("session"),
         token: generatePublicToken(),
         lesson_id: lesson.id,
         lesson_slug: lesson.slug,

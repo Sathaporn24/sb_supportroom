@@ -4,7 +4,7 @@
 export const tutorConfig = {
   mockWordsPerMinute: 125,
   defaultIntroWaitMs: 5_000,
-  defaultBreathPauseMs: 1_000,
+  defaultBreathPauseMs: 500,
   defaultFinalQuestionWaitMs: 5_000,
   defaultSessionExpiryHours: 24,
 } as const;

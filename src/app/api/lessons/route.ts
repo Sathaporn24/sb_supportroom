@@ -3,7 +3,6 @@ import { z } from "zod";
 import { createLessonConfigRepository } from "@/providers/data";
 import { createSlidesContentProvider } from "@/providers/slides";
 import { jsonError } from "@/lib/api-response";
-import { generateId } from "@/utils/id";
 import type { LessonConfig } from "@/types/domain";
 
 export async function GET() {
@@ -60,7 +59,7 @@ export async function POST(request: NextRequest) {
 
   const now = new Date().toISOString();
   const config: LessonConfig = {
-    id: existing?.id ?? generateId("lesson"),
+    id: existing?.id ?? crypto.randomUUID(),
     slug: parsed.data.slug,
     title: parsed.data.title,
     description: parsed.data.description,
