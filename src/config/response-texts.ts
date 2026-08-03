@@ -15,48 +15,84 @@ export const QUESTION_FAILED_TEXT =
 // every time is what makes an assistant sound robotic.
 // Spelling matters more than usual here: Edge TTS reads tone marks, so "ค่ะ" (statement)
 // vs "คะ" (after นะ / in questions) is an actual pronunciation difference, not a typo.
+// Deliberately plain. "เป็นคำถามที่ดีมากเลยค่ะ" on every single question reads as flattery
+// on a script, and "ขอเวลาประมวลผล" is what a machine does, not what a person says - both
+// were here and both are why the opening sounded off.
 export const PROCESSING_FILLER_TEXTS = [
   "ได้ค่ะ ขอเวลาสักครู่นะคะ",
   "รับทราบค่ะ รอสักครู่นะคะ",
   "สักครู่นะคะ กำลังหาคำตอบให้อยู่ค่ะ",
   "โอเคค่ะ ขอเช็กข้อมูลสักครู่นะคะ",
-  "เป็นคำถามที่ดีมากเลยค่ะ ขอตรวจสอบข้อมูลสักครู่นะคะ",
-  "คำถามน่าสนใจค่ะ ขอเวลาดูรายละเอียดสักครู่นะคะ",
+  "ได้เลยค่ะ ขอดูข้อมูลแป๊บนึงนะคะ",
   "ขอบคุณสำหรับคำถามค่ะ กำลังหาคำตอบให้อยู่นะคะ",
-  "ได้ยินคำถามแล้วค่ะ ขอเวลาประมวลผลสักครู่นะคะ",
   "กำลังตรวจสอบข้อมูลจากบทเรียนให้อยู่นะคะ",
   "เข้าใจคำถามแล้วค่ะ ขอเวลาเตรียมคำตอบสักครู่นะคะ",
   "ขอค้นข้อมูลในบทเรียนสักครู่นะคะ",
-  "รอสักครู่นะคะ อีกไม่นานค่ะ",
+  "ได้ค่ะ ขอเปิดดูรายละเอียดแป๊บนึงนะคะ",
 ] as const;
 
-// One filler line only covers ~3s of a ~9s wait, so these top up the rest. They are
-// sounds rather than more sentences on purpose: repeating "อีกสักครู่นะคะ" every few
-// seconds reads as a stuck loop, while a drawn-out hum or a ticking clock reads as time
-// visibly passing.
+// One filler line only covers 1.3-2.1s of a ~9s wait (measured against the real service),
+// so these top up the rest. Three rungs at ~0.9-1.3s each, with the gap below between
+// them, lands the last one right around when the answer typically arrives.
 //
-// Each carries its own rate because they want opposite treatment - a hum has to be
-// stretched to drawl at all, while a tick-tock slowed to the same degree stops sounding
-// like a clock. Rate is the only lever available: the service rejects SSML outright
-// (<break> and nested <prosody> both close the connection), and repeated characters
-// barely help - measured, "อืมมมมมม" runs only ~0.2s longer than "อืม".
+// They are ordered stages, not one bag drawn from at random. A person filling their own
+// silence doesn't repeat the same noise - they hum, then say how it's going, then say
+// they're nearly there. Drawing randomly from a flat pool (the previous behaviour) can
+// hand back the same hum twice in a row, which is exactly what a stuck loop sounds like.
+// Each rung here implies more elapsed time than the one before it.
 //
-// Multiple spaces collapse to one, so the gaps between ticks are newlines - the only
-// thing that produces a long pause (measured: newline ~1.5s, comma ~0.4s, space ~0).
-// Beat of silence after the opening "กรุณารอสักครู่นะคะ" before the waiting sounds start.
-// Running them back to back sounds like one continuous stream of noise; the gap is what
-// makes the sounds read as "still working" rather than filler for its own sake.
-export const PROCESSING_FILLER_GAP_MS = 1_200;
+// "ติ๊ก ต๊อก" used to sit in this list and is the main reason it sounded wrong: a ticking
+// clock is onomatopoeia, something written in a comic panel, not a sound a person makes
+// out loud while looking something up. Thai fillers that speakers genuinely produce while
+// thinking are hums - อืม / หืม (see thaipod101.com/blog/2021/09/09/thai-filler-words).
+// เอ่อ is equally common but reads as struggling for words rather than looking something
+// up, so it's left out of an assistant that's supposed to sound competent.
+//
+// Stage 1 carries no polite particle on purpose. "อืมค่ะ" is a reply; a bare hum is a
+// thought, and a thought is what should be audible while the answer is still cooking.
+//
+// Rate is the only prosody lever available: the service rejects SSML outright (<break>
+// and nested <prosody> both close the connection), and repeated characters barely help -
+// measured, "อืมมมมมม" runs only ~0.2s longer than "อืม", so hums are slowed instead.
+export const PROCESSING_FILLER_STAGES: ReadonlyArray<ReadonlyArray<{ text: string; rate?: string }>> = [
+  // 1 - just thinking.
+  [
+    { text: "อืมม", rate: "-45%" },
+    { text: "หืมม", rate: "-45%" },
+    { text: "อืม อืมม", rate: "-40%" },
+  ],
+  // 2 - still on it, said out loud.
+  [
+    { text: "ขอดูอีกนิดนึงนะคะ" },
+    { text: "กำลังดูให้อยู่นะคะ" },
+    { text: "ขออีกนิดนึงนะคะ" },
+  ],
+  // 3 - nearly there. Also the rung a long wait sits on, so its variants have to bear
+  // being heard more than once.
+  [
+    { text: "ใกล้ได้แล้วค่ะ" },
+    { text: "อีกนิดเดียวค่ะ" },
+    { text: "เกือบได้แล้วนะคะ" },
+  ],
+];
+
+// Beat of silence between waiting sounds. Running them back to back sounds like one
+// continuous stream of noise; the gap is what makes them read as "still working" rather
+// than filler for its own sake.
+//
+// A range rather than one number: a fixed gap turns the sounds into a metronome, and
+// nothing about a person waiting on a lookup is metronomic.
+export const PROCESSING_FILLER_GAP_MIN_MS = 900;
+export const PROCESSING_FILLER_GAP_MAX_MS = 1_900;
 
 // Prefixed to an answer that actually found something, so it lands as a discovery instead
-// of cutting in cold after the ticking.
-export const ANSWER_FOUND_LEADS = ["อ้อ เจอแล้วค่ะ", "อ๋อ เจอแล้วค่ะ", "อ้อ ได้แล้วค่ะ", "เจอแล้วค่ะ"] as const;
-
-export const PROCESSING_FILLER_FOLLOWUPS = [
-  { text: "ติ๊ก\nต๊อก\nติ๊ก\nต๊อก", rate: "-10%" },
-  { text: "ติ๊ก, ต๊อก, ติ๊ก, ต๊อก", rate: "-25%" },
-  { text: "อืมมม", rate: "-45%" },
-  { text: "เอ่อออ", rate: "-45%" },
+// of cutting in cold after the last waiting sound.
+export const ANSWER_FOUND_LEADS = [
+  "อ๋อ ได้แล้วค่ะ",
+  "ได้คำตอบแล้วค่ะ",
+  "อ้อ เจอแล้วค่ะ",
+  "เจอแล้วค่ะ",
+  "โอเคค่ะ เจอแล้ว",
 ] as const;
 
 // Spoken on the way back into the lesson after a question, so the jump from "answer" to

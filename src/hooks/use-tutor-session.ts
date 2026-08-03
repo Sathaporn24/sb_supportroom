@@ -8,8 +8,9 @@ import { createInitialRuntime, tutorReducer, type TutorContext } from "@/tutor/t
 import * as api from "@/lib/api-client";
 import {
   ANSWER_FOUND_LEADS,
-  PROCESSING_FILLER_FOLLOWUPS,
-  PROCESSING_FILLER_GAP_MS,
+  PROCESSING_FILLER_GAP_MAX_MS,
+  PROCESSING_FILLER_GAP_MIN_MS,
+  PROCESSING_FILLER_STAGES,
   PROCESSING_FILLER_TEXTS,
   RESUME_BRIDGE_TEXTS,
 } from "@/config/response-texts";
@@ -52,7 +53,8 @@ export function useTutorSession(session: TrainingSession) {
   const pendingStartRef = useRef<Promise<void> | null>(null);
   /** Pre-synthesized "please wait" lines - see prefetchFillers() / playProcessingFiller(). */
   const fillerBlobsRef = useRef<Blob[]>([]);
-  const followUpBlobsRef = useRef<Blob[]>([]);
+  /** One bucket per PROCESSING_FILLER_STAGES rung, kept in stage order. */
+  const stageBlobsRef = useRef<Blob[][]>(PROCESSING_FILLER_STAGES.map(() => []));
   /** Separate from timerRef: this paces the filler chain, not a state-machine transition. */
   const fillerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -152,19 +154,24 @@ export function useTutorSession(session: TrainingSession) {
   async function prefetchFillers() {
     // A random subset per session, so repeat sessions don't open with the same line.
     const shuffled = [...PROCESSING_FILLER_TEXTS].sort(() => Math.random() - 0.5).slice(0, 5);
-    for (const { text, rate, bucket } of [
-      ...shuffled.map((text) => ({ text, rate: undefined as string | undefined, bucket: fillerBlobsRef })),
-      // The waiting sounds are the one place we override the lesson pace, and each one
-      // carries its own rate - a hum needs stretching, a tick-tock needs to stay clock-like.
-      ...PROCESSING_FILLER_FOLLOWUPS.map(({ text, rate }) => ({
-        text,
-        rate: rate as string | undefined,
-        bucket: followUpBlobsRef,
-      })),
-    ]) {
+    type Job = { text: string; rate?: string; push: (blob: Blob) => void };
+    const jobs: Job[] = shuffled.map((text) => ({ text, push: (blob) => fillerBlobsRef.current.push(blob) }));
+    // Two variants per stage rather than all of them: enough that a rung heard twice in one
+    // wait isn't identical, without tripling the number of calls made during the intro.
+    PROCESSING_FILLER_STAGES.forEach((stage, stageIndex) => {
+      for (const { text, rate } of [...stage].sort(() => Math.random() - 0.5).slice(0, 2)) {
+        // Slowing is the only way to make a hum drawl; stages 2 and 3 are sentences and
+        // stay at lesson pace.
+        jobs.push({ text, rate, push: (blob) => stageBlobsRef.current[stageIndex].push(blob) });
+      }
+    });
+
+    // In need-order, so a question asked early still finds the opening line and stage 1
+    // ready even if the later rungs haven't landed yet.
+    for (const { text, rate, push } of jobs) {
       const blob = await api.synthesizeSpeech(text, rate).catch(() => null);
       if (!mountedRef.current) return;
-      if (blob) bucket.current.push(blob);
+      if (blob) push(blob);
     }
   }
 
@@ -175,9 +182,22 @@ export function useTutorSession(session: TrainingSession) {
    * answer, a navigation, a failure) runs clearPending() and cuts it off mid-sentence,
    * which is exactly right: the real answer should never queue behind the filler.
    */
-  function playProcessingFiller(isFollowUp = false) {
-    const pool = isFollowUp ? followUpBlobsRef.current : fillerBlobsRef.current;
-    if (!pool.length) return;
+  function playProcessingFiller(stage = 0) {
+    // Stage 0 is the opening acknowledgement; 1+ index into the waiting-sound rungs. A wait
+    // long enough to run off the end sits on the last rung rather than looping back to a
+    // hum - going quiet again after "ใกล้ได้แล้ว" would sound like progress reversing.
+    const pool =
+      stage === 0
+        ? fillerBlobsRef.current
+        : (stageBlobsRef.current[Math.min(stage, stageBlobsRef.current.length) - 1] ?? []);
+    // A rung whose prefetch hasn't landed yet is skipped rather than waited on, so the
+    // chain keeps moving forward through the stages instead of stalling on a missing clip.
+    // Only forward to a rung that actually exists - once past the last one an empty pool
+    // means nothing was ever synthesized, and rescheduling would just spin a timer.
+    if (!pool.length) {
+      if (stage < stageBlobsRef.current.length) scheduleNextFiller(stage + 1);
+      return;
+    }
 
     if (audioUrlRef.current) {
       URL.revokeObjectURL(audioUrlRef.current);
@@ -187,16 +207,22 @@ export function useTutorSession(session: TrainingSession) {
     audioUrlRef.current = url;
     const audio = new Audio(url);
     audioRef.current = audio;
-    audio.addEventListener("ended", () => {
-      // Keep topping the silence up for as long as we're still waiting, but leave a beat
-      // between clips - chaining them back to back sounds like one unbroken stream rather
-      // than someone pausing to work.
-      if (runtimeRef.current.state !== "processing-question") return;
-      fillerTimerRef.current = setTimeout(() => {
-        if (runtimeRef.current.state === "processing-question") playProcessingFiller(true);
-      }, PROCESSING_FILLER_GAP_MS);
-    });
+    // Keep topping the silence up for as long as we're still waiting, but leave a beat
+    // between clips - chaining them back to back sounds like one unbroken stream rather
+    // than someone pausing to work.
+    audio.addEventListener("ended", () => scheduleNextFiller(stage + 1));
     void audio.play().catch(() => undefined);
+  }
+
+  function scheduleNextFiller(stage: number) {
+    if (runtimeRef.current.state !== "processing-question") return;
+    // Jittered so the sounds don't fall into a metronome. Both ends are checked because
+    // the answer can land during the gap, at which point dispatch() clears this timer.
+    const gap =
+      PROCESSING_FILLER_GAP_MIN_MS + Math.random() * (PROCESSING_FILLER_GAP_MAX_MS - PROCESSING_FILLER_GAP_MIN_MS);
+    fillerTimerRef.current = setTimeout(() => {
+      if (runtimeRef.current.state === "processing-question") playProcessingFiller(stage);
+    }, gap);
   }
 
   async function ensureMicStream(): Promise<MediaStream> {
