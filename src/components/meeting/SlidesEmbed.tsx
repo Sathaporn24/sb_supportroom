@@ -47,16 +47,25 @@ export function SlidesEmbed({
 
   const src = `${embedUrl}#slide=id.${currentSlide.slideObjectId}`;
 
+  // Google's /embed iframe always renders its own bottom toolbar (page number, prev/next
+  // arrows, "Google Slides" link) and lets clicks on it navigate slides - neither of which
+  // fits a passive "shared screen" that only the tutor engine should drive. There is no
+  // official flag to turn the toolbar off, so it's clipped by rendering the iframe taller
+  // than its visible box (overflow-hidden crops the extra height off the bottom) and a
+  // transparent overlay on top eats every click before it reaches the iframe.
   return (
-    <div className="relative h-full">
+    <div className="relative h-full min-h-[280px] w-full overflow-hidden rounded-xl border border-room-border bg-white">
       <iframe
         key={src}
         src={src}
         title="Shared Screen"
-        className="h-full min-h-[280px] w-full rounded-xl border border-room-border bg-white"
-        sandbox="allow-scripts allow-same-origin allow-popups"
+        className="absolute inset-x-0 top-0 w-full border-0"
+        style={{ height: "calc(100% + 40px)" }}
+        sandbox="allow-scripts allow-same-origin"
         allow="autoplay"
+        tabIndex={-1}
       />
+      <div className="absolute inset-0" aria-hidden="true" />
       {isReference && (
         <div className="pointer-events-none absolute left-3 top-3 rounded-full bg-black/70 px-3 py-1 text-xs text-white shadow">
           ย้อนกลับมาที่สไลด์ {currentSlide.index + 1} เพื่อตอบคำถาม
