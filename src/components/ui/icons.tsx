@@ -72,6 +72,33 @@ export function LockIcon({ className = base }: IconProps) {
   );
 }
 
+export function SpeakerIcon({ className = base }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className={className} aria-hidden="true">
+      <path d="M4 9v6h3.5L13 19V5L7.5 9H4Z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
+      <path d="M16.5 9a4 4 0 0 1 0 6M18.8 6.5a7.5 7.5 0 0 1 0 11" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+export function SpeakerLowIcon({ className = base }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className={className} aria-hidden="true">
+      <path d="M4 9v6h3.5L13 19V5L7.5 9H4Z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
+      <path d="M16.5 9a4 4 0 0 1 0 6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+export function SpeakerMuteIcon({ className = base }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" className={className} aria-hidden="true">
+      <path d="M4 9v6h3.5L13 19V5L7.5 9H4Z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
+      <path d="M17 10l4 4M21 10l-4 4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 export function SparkleIcon({ className = base }: IconProps) {
   return (
     <svg viewBox="0 0 24 24" fill="currentColor" className={className} aria-hidden="true">

@@ -1,0 +1,167 @@
+<mxfile host="app.diagrams.net" agent="claude-code" version="24.7.0" type="device">
+  <diagram id="er-diagram-supportroom" name="ER Diagram">
+    <mxGraphModel dx="1600" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1600" pageHeight="1200" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <!-- LESSON_CONFIG -->
+        <mxCell id="lc" value="LESSON_CONFIG" style="swimlane;fontStyle=1;align=center;verticalAlign=middle;childLayout=stackLayout;horizontal=1;startSize=30;horizontalStack=0;resizeParent=0;resizeParentMax=0;collapsible=0;marginBottom=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="40" y="40" width="260" height="316" as="geometry" />
+        </mxCell>
+        <mxCell id="lc-1" value="PK   Id : string" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=8;fontStyle=1;fontSize=11;whiteSpace=nowrap;overflow=hidden;html=1;" vertex="1" parent="lc">
+          <mxGeometry y="30" width="260" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="lc-2" value="UK   Slug : string" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=8;fontSize=11;whiteSpace=nowrap;overflow=hidden;html=1;" vertex="1" parent="lc">
+          <mxGeometry y="56" width="260" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="lc-3" value="Title : string" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=8;fontSize=11;whiteSpace=nowrap;overflow=hidden;html=1;" vertex="1" parent="lc">
+          <mxGeometry y="82" width="260" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="lc-4" value="SlidesSourceUrl : string" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=8;fontSize=11;whiteSpace=nowrap;overflow=hidden;html=1;" vertex="1" parent="lc">
+          <mxGeometry y="108" width="260" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="lc-5" value="PresentationId : string?" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=8;fontSize=11;whiteSpace=nowrap;overflow=hidden;html=1;" vertex="1" parent="lc">
+          <mxGeometry y="134" width="260" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="lc-6" value="SlidesEmbedUrl : string?" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=8;fontSize=11;whiteSpace=nowrap;overflow=hidden;html=1;" vertex="1" parent="lc">
+          <mxGeometry y="160" width="260" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="lc-7" value="IntroWaitMs : int" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=8;fontSize=11;whiteSpace=nowrap;overflow=hidden;html=1;" vertex="1" parent="lc">
+          <mxGeometry y="186" width="260" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="lc-8" value="BreathPauseMs : int" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=8;fontSize=11;whiteSpace=nowrap;overflow=hidden;html=1;" vertex="1" parent="lc">
+          <mxGeometry y="212" width="260" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="lc-9" value="FinalQuestionWaitMs : int" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=8;fontSize=11;whiteSpace=nowrap;overflow=hidden;html=1;" vertex="1" parent="lc">
+          <mxGeometry y="238" width="260" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="lc-10" value="SlideConfigs : json[] (embedded)" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=8;fontSize=11;whiteSpace=nowrap;overflow=hidden;html=1;" vertex="1" parent="lc">
+          <mxGeometry y="264" width="260" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="lc-11" value="IsActive : bool" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=8;fontSize=11;whiteSpace=nowrap;overflow=hidden;html=1;" vertex="1" parent="lc">
+          <mxGeometry y="290" width="260" height="26" as="geometry" />
+        </mxCell>
+
+        <!-- TRAINING_SESSION -->
+        <mxCell id="ts" value="TRAINING_SESSION" style="swimlane;fontStyle=1;align=center;verticalAlign=middle;childLayout=stackLayout;horizontal=1;startSize=30;horizontalStack=0;resizeParent=0;resizeParentMax=0;collapsible=0;marginBottom=0;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="420" y="40" width="260" height="342" as="geometry" />
+        </mxCell>
+        <mxCell id="ts-1" value="PK   Id : string" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=8;fontStyle=1;fontSize=11;whiteSpace=nowrap;overflow=hidden;html=1;" vertex="1" parent="ts">
+          <mxGeometry y="30" width="260" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="ts-2" value="UK   Token : string  (join link)" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=8;fontSize=11;whiteSpace=nowrap;overflow=hidden;html=1;" vertex="1" parent="ts">
+          <mxGeometry y="56" width="260" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="ts-3" value="FK   LessonId : string" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=8;fontSize=11;whiteSpace=nowrap;overflow=hidden;html=1;" vertex="1" parent="ts">
+          <mxGeometry y="82" width="260" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="ts-4" value="LessonSlug : string" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=8;fontSize=11;whiteSpace=nowrap;overflow=hidden;html=1;" vertex="1" parent="ts">
+          <mxGeometry y="108" width="260" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="ts-5" value="TeacherName : string?" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=8;fontSize=11;whiteSpace=nowrap;overflow=hidden;html=1;" vertex="1" parent="ts">
+          <mxGeometry y="134" width="260" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="ts-6" value="SchoolName : string?" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=8;fontSize=11;whiteSpace=nowrap;overflow=hidden;html=1;" vertex="1" parent="ts">
+          <mxGeometry y="160" width="260" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="ts-7" value="Status : string" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=8;fontSize=11;whiteSpace=nowrap;overflow=hidden;html=1;" vertex="1" parent="ts">
+          <mxGeometry y="186" width="260" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="ts-8" value="ExpiresAt : datetime" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=8;fontSize=11;whiteSpace=nowrap;overflow=hidden;html=1;" vertex="1" parent="ts">
+          <mxGeometry y="212" width="260" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="ts-9" value="StartedAt : datetime?" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=8;fontSize=11;whiteSpace=nowrap;overflow=hidden;html=1;" vertex="1" parent="ts">
+          <mxGeometry y="238" width="260" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="ts-10" value="EndedAt : datetime?" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=8;fontSize=11;whiteSpace=nowrap;overflow=hidden;html=1;" vertex="1" parent="ts">
+          <mxGeometry y="264" width="260" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="ts-11" value="CompletedAllSlides : bool" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=8;fontSize=11;whiteSpace=nowrap;overflow=hidden;html=1;" vertex="1" parent="ts">
+          <mxGeometry y="290" width="260" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="ts-12" value="LastSlideObjectId : string?" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=8;fontSize=11;whiteSpace=nowrap;overflow=hidden;html=1;" vertex="1" parent="ts">
+          <mxGeometry y="316" width="260" height="26" as="geometry" />
+        </mxCell>
+
+        <!-- SESSION_QUESTION -->
+        <mxCell id="sq" value="SESSION_QUESTION" style="swimlane;fontStyle=1;align=center;verticalAlign=middle;childLayout=stackLayout;horizontal=1;startSize=30;horizontalStack=0;resizeParent=0;resizeParentMax=0;collapsible=0;marginBottom=0;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="40" y="480" width="240" height="186" as="geometry" />
+        </mxCell>
+        <mxCell id="sq-1" value="PK   Id : string" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=8;fontStyle=1;fontSize=11;whiteSpace=nowrap;overflow=hidden;html=1;" vertex="1" parent="sq">
+          <mxGeometry y="30" width="240" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="sq-2" value="FK   SessionId : string" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=8;fontSize=11;whiteSpace=nowrap;overflow=hidden;html=1;" vertex="1" parent="sq">
+          <mxGeometry y="56" width="240" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="sq-3" value="SlideObjectId : string?" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=8;fontSize=11;whiteSpace=nowrap;overflow=hidden;html=1;" vertex="1" parent="sq">
+          <mxGeometry y="82" width="240" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="sq-4" value="Transcript : string?" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=8;fontSize=11;whiteSpace=nowrap;overflow=hidden;html=1;" vertex="1" parent="sq">
+          <mxGeometry y="108" width="240" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="sq-5" value="Answer : string?" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=8;fontSize=11;whiteSpace=nowrap;overflow=hidden;html=1;" vertex="1" parent="sq">
+          <mxGeometry y="134" width="240" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="sq-6" value="AnswerStatus : string" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=8;fontSize=11;whiteSpace=nowrap;overflow=hidden;html=1;" vertex="1" parent="sq">
+          <mxGeometry y="160" width="240" height="26" as="geometry" />
+        </mxCell>
+
+        <!-- CHAT_MESSAGE -->
+        <mxCell id="cm" value="CHAT_MESSAGE" style="swimlane;fontStyle=1;align=center;verticalAlign=middle;childLayout=stackLayout;horizontal=1;startSize=30;horizontalStack=0;resizeParent=0;resizeParentMax=0;collapsible=0;marginBottom=0;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="340" y="480" width="240" height="160" as="geometry" />
+        </mxCell>
+        <mxCell id="cm-1" value="PK   Id : string" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=8;fontStyle=1;fontSize=11;whiteSpace=nowrap;overflow=hidden;html=1;" vertex="1" parent="cm">
+          <mxGeometry y="30" width="240" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="cm-2" value="FK   SessionId : string" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=8;fontSize=11;whiteSpace=nowrap;overflow=hidden;html=1;" vertex="1" parent="cm">
+          <mxGeometry y="56" width="240" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="cm-3" value="SenderRole : string  (teacher/cs/system)" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=8;fontSize=11;whiteSpace=nowrap;overflow=hidden;html=1;" vertex="1" parent="cm">
+          <mxGeometry y="82" width="240" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="cm-4" value="SenderName : string?" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=8;fontSize=11;whiteSpace=nowrap;overflow=hidden;html=1;" vertex="1" parent="cm">
+          <mxGeometry y="108" width="240" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="cm-5" value="Text : string" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=8;fontSize=11;whiteSpace=nowrap;overflow=hidden;html=1;" vertex="1" parent="cm">
+          <mxGeometry y="134" width="240" height="26" as="geometry" />
+        </mxCell>
+
+        <!-- SESSION_SUMMARY -->
+        <mxCell id="ss" value="SESSION_SUMMARY" style="swimlane;fontStyle=1;align=center;verticalAlign=middle;childLayout=stackLayout;horizontal=1;startSize=30;horizontalStack=0;resizeParent=0;resizeParentMax=0;collapsible=0;marginBottom=0;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="640" y="480" width="260" height="160" as="geometry" />
+        </mxCell>
+        <mxCell id="ss-1" value="PK   Id : string" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=8;fontStyle=1;fontSize=11;whiteSpace=nowrap;overflow=hidden;html=1;" vertex="1" parent="ss">
+          <mxGeometry y="30" width="260" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="ss-2" value="FK,UK   SessionId : string" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=8;fontSize=11;whiteSpace=nowrap;overflow=hidden;html=1;" vertex="1" parent="ss">
+          <mxGeometry y="56" width="260" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="ss-3" value="CompletedAllSlides : bool" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=8;fontSize=11;whiteSpace=nowrap;overflow=hidden;html=1;" vertex="1" parent="ss">
+          <mxGeometry y="82" width="260" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="ss-4" value="LastSlideObjectId : string?" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=8;fontSize=11;whiteSpace=nowrap;overflow=hidden;html=1;" vertex="1" parent="ss">
+          <mxGeometry y="108" width="260" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="ss-5" value="UnansweredPoints : text[]" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=8;fontSize=11;whiteSpace=nowrap;overflow=hidden;html=1;" vertex="1" parent="ss">
+          <mxGeometry y="134" width="260" height="26" as="geometry" />
+        </mxCell>
+
+        <!-- Relationships -->
+        <mxCell id="e1" value="spawns" style="edgeStyle=entityRelationEdgeStyle;rounded=0;html=1;fontSize=11;startArrow=ERone;startFill=0;endArrow=ERmany;endFill=0;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="lc" target="ts">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e2" value="logs" style="edgeStyle=entityRelationEdgeStyle;rounded=0;html=1;fontSize=11;startArrow=ERone;startFill=0;endArrow=ERmany;endFill=0;exitX=0.25;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="ts" target="sq">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e3" value="carries" style="edgeStyle=entityRelationEdgeStyle;rounded=0;html=1;fontSize=11;startArrow=ERone;startFill=0;endArrow=ERmany;endFill=0;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="ts" target="cm">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e4" value="closes with" style="edgeStyle=entityRelationEdgeStyle;rounded=0;html=1;fontSize=11;startArrow=ERone;startFill=0;endArrow=ERzeroToOne;endFill=0;exitX=0.75;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="ts" target="ss">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

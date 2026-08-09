@@ -6,6 +6,7 @@ import * as api from "@/lib/api-client";
 import { isSessionJoinable } from "@/utils/session-status";
 import { useTutorSession } from "@/hooks/use-tutor-session";
 import { useLocalMedia } from "@/hooks/use-local-media";
+import { useSessionChat } from "@/hooks/use-session-chat";
 import { AiTile } from "@/components/meeting/AiTile";
 import { TeacherTile } from "@/components/meeting/TeacherTile";
 import { SlidesEmbed } from "@/components/meeting/SlidesEmbed";
@@ -80,15 +81,26 @@ function RoomContent({ session }: { session: TrainingSession }) {
     resumeSlideNumber,
     totalSlides,
     sendEvent,
+    aiVolume,
+    setAiVolume,
   } = useTutorSession(session);
   const media = useLocalMedia();
   const [chatOpen, setChatOpen] = useState(false);
+  const chat = useSessionChat(session.token, session.id, "teacher", session.teacherName);
 
   useEffect(() => {
     if (runtime.state === "completed") {
       router.replace("/session-ended");
     }
   }, [runtime.state, router]);
+
+  // Auto-dismiss the mic notice after a few seconds so it doesn't linger indefinitely if the
+  // teacher doesn't press push-to-talk again (which would also clear it, per the reducer).
+  useEffect(() => {
+    if (!runtime.micNotice) return;
+    const timer = setTimeout(() => sendEvent({ type: "CLEAR_MIC_NOTICE" }), 6000);
+    return () => clearTimeout(timer);
+  }, [runtime.micNotice, sendEvent]);
 
   const isProcessing = runtime.state === "processing-question";
   const isAnswering = runtime.state === "answer-speaking";
@@ -154,10 +166,26 @@ function RoomContent({ session }: { session: TrainingSession }) {
         </div>
       </div>
 
+      {runtime.micNotice && (
+        <div className="flex shrink-0 items-center justify-center gap-3 border-t border-amber-500/30 bg-amber-500/10 px-4 py-2 text-center text-sm text-amber-700">
+          <p>{runtime.micNotice}</p>
+          <button
+            type="button"
+            onClick={() => sendEvent({ type: "CLEAR_MIC_NOTICE" })}
+            className="text-amber-700/70 hover:text-amber-700"
+            aria-label="ปิดข้อความแจ้งเตือน"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
       <ControlBar
         micOn={runtime.isMicEnabled}
         cameraOn={runtime.isCameraEnabled && media.cameraOn}
         pushToTalkStatus={pushToTalkStatus}
+        aiVolume={aiVolume}
+        onChangeAiVolume={setAiVolume}
         onToggleMic={() => sendEvent({ type: "TOGGLE_MIC" })}
         onToggleCamera={() => {
           sendEvent({ type: "TOGGLE_CAMERA" });
@@ -169,7 +197,13 @@ function RoomContent({ session }: { session: TrainingSession }) {
         onPushToTalkEnd={() => sendEvent({ type: "PUSH_TO_TALK_END" })}
       />
 
-      <ChatDrawer open={chatOpen} onClose={() => setChatOpen(false)} questions={runtime.questions} />
+      <ChatDrawer
+        open={chatOpen}
+        onClose={() => setChatOpen(false)}
+        questions={runtime.questions}
+        chatMessages={chat.chatMessages}
+        onSendMessage={chat.sendChatMessage}
+      />
     </div>
   );
 }

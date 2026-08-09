@@ -5,7 +5,8 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import * as api from "@/lib/api-client";
 import { ApiClientError } from "@/lib/api-client";
-import type { LessonConfig, SlideConfig } from "@/types/domain";
+import type { ContentSourceType, LessonConfig, SlideConfig } from "@/types/domain";
+import { DocumentUploadList } from "@/components/admin/DocumentUploadList";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { LoadingBlock } from "@/components/ui/LoadingBlock";
@@ -21,6 +22,8 @@ function toFormState(lesson: LessonConfig): FormState {
     description: lesson.description,
     slidesSourceUrl: lesson.slidesSourceUrl,
     slidesEmbedUrl: lesson.slidesEmbedUrl,
+    contentSourceType: lesson.contentSourceType,
+    pdfDocumentResourceId: lesson.pdfDocumentResourceId,
     introWaitMs: lesson.introWaitMs,
     breathPauseMs: lesson.breathPauseMs,
     finalQuestionWaitMs: lesson.finalQuestionWaitMs,
@@ -36,6 +39,7 @@ export default function LessonEditorPage() {
   const [syncStatus, setSyncStatus] = useState<string | null>(null);
   const [syncedAt, setSyncedAt] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
+  const [pdfUploading, setPdfUploading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [savedAt, setSavedAt] = useState<string | null>(null);
   const [notFound, setNotFound] = useState(false);
@@ -98,6 +102,50 @@ export default function LessonEditorPage() {
     }
   }
 
+  async function handlePdfUpload(file: File) {
+    if (!form) return;
+    setPdfUploading(true);
+    setSyncStatus("กำลังอัปโหลด PDF...");
+    try {
+      const { document } = await api.uploadDocument(file, form.slug);
+      const content = await api.previewPdfLessonContent(document.id);
+      const existingBySlideId = new Map(form.slideConfigs.map((s) => [s.slideObjectId, s]));
+      const nextSlideConfigs: SlideConfig[] = content.slides.map((slide) => ({
+        slideObjectId: slide.slideObjectId,
+        slideIndex: slide.index,
+        videoDurationMs: existingBySlideId.get(slide.slideObjectId)?.videoDurationMs ?? null,
+      }));
+      setForm({
+        ...form,
+        title: form.title || content.title,
+        pdfDocumentResourceId: document.id,
+        slideConfigs: nextSlideConfigs,
+      });
+      setSyncedAt(content.syncedAt);
+      setSyncStatus(`อัปโหลดสำเร็จ พบ ${content.slides.length} หน้า`);
+    } catch (err) {
+      setSyncStatus(err instanceof ApiClientError ? err.response.error.message : "อัปโหลด PDF ไม่สำเร็จ");
+    } finally {
+      setPdfUploading(false);
+    }
+  }
+
+  function handleContentSourceChange(next: ContentSourceType) {
+    if (!form) return;
+    setForm({
+      ...form,
+      contentSourceType: next,
+      // Each source's own fields don't apply to the other - clear them on switch so a stale
+      // Google URL or PDF pointer from before can't linger and confuse a later save.
+      ...(next === "pdf"
+        ? { slidesSourceUrl: "", slidesEmbedUrl: null }
+        : { pdfDocumentResourceId: undefined }),
+      slideConfigs: [],
+    });
+    setSyncStatus(null);
+    setSyncedAt(null);
+  }
+
   async function handleSave() {
     if (!form) return;
     setSaving(true);
@@ -148,9 +196,11 @@ export default function LessonEditorPage() {
           <h1 className="mt-1 text-xl font-semibold text-room-text">แก้ไขบทเรียน: {form.title}</h1>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="ghost" onClick={handleSync} disabled={syncing}>
-            {syncButtonContent}
-          </Button>
+          {form.contentSourceType === "google_slides" && (
+            <Button variant="ghost" onClick={handleSync} disabled={syncing}>
+              {syncButtonContent}
+            </Button>
+          )}
           <Button onClick={handleSave} disabled={saving}>
             {saveButtonContent}
           </Button>
@@ -173,23 +223,72 @@ export default function LessonEditorPage() {
             className="w-full rounded-lg border border-room-border bg-room-bg px-3 py-2 text-room-text outline-none focus:border-room-accent"
           />
         </label>
-        <label className="block text-sm">
-          <span className="mb-1 block text-room-muted">Google Slides Source URL (ลิงก์แก้ไข /edit)</span>
-          <input
-            value={form.slidesSourceUrl}
-            onChange={(e) => setForm({ ...form, slidesSourceUrl: e.target.value })}
-            placeholder="https://docs.google.com/presentation/d/xxxxx/edit"
-            className="w-full rounded-lg border border-room-border bg-room-bg px-3 py-2 text-room-text outline-none focus:border-room-accent"
-          />
-        </label>
-        <label className="block text-sm">
-          <span className="mb-1 block text-room-muted">Published/Embed URL (ไม่บังคับ ถ้าไม่ระบุจะสร้างให้อัตโนมัติ)</span>
-          <input
-            value={form.slidesEmbedUrl ?? ""}
-            onChange={(e) => setForm({ ...form, slidesEmbedUrl: e.target.value || null })}
-            className="w-full rounded-lg border border-room-border bg-room-bg px-3 py-2 text-room-text outline-none focus:border-room-accent"
-          />
-        </label>
+        <div className="space-y-2">
+          <span className="block text-sm text-room-muted">แหล่งเนื้อหาสอน</span>
+          <div className="flex gap-4 text-sm text-room-text">
+            <label className="flex items-center gap-2">
+              <input
+                type="radio"
+                name="contentSourceType"
+                checked={form.contentSourceType === "google_slides"}
+                onChange={() => handleContentSourceChange("google_slides")}
+                className="h-4 w-4"
+              />
+              Google Slides
+            </label>
+            <label className="flex items-center gap-2">
+              <input
+                type="radio"
+                name="contentSourceType"
+                checked={form.contentSourceType === "pdf"}
+                onChange={() => handleContentSourceChange("pdf")}
+                className="h-4 w-4"
+              />
+              PDF
+            </label>
+          </div>
+        </div>
+
+        {form.contentSourceType === "google_slides" ? (
+          <>
+            <label className="block text-sm">
+              <span className="mb-1 block text-room-muted">Google Slides Source URL (ลิงก์แก้ไข /edit)</span>
+              <input
+                value={form.slidesSourceUrl}
+                onChange={(e) => setForm({ ...form, slidesSourceUrl: e.target.value })}
+                placeholder="https://docs.google.com/presentation/d/xxxxx/edit"
+                className="w-full rounded-lg border border-room-border bg-room-bg px-3 py-2 text-room-text outline-none focus:border-room-accent"
+              />
+            </label>
+            <label className="block text-sm">
+              <span className="mb-1 block text-room-muted">Published/Embed URL (ไม่บังคับ ถ้าไม่ระบุจะสร้างให้อัตโนมัติ)</span>
+              <input
+                value={form.slidesEmbedUrl ?? ""}
+                onChange={(e) => setForm({ ...form, slidesEmbedUrl: e.target.value || null })}
+                className="w-full rounded-lg border border-room-border bg-room-bg px-3 py-2 text-room-text outline-none focus:border-room-accent"
+              />
+            </label>
+          </>
+        ) : (
+          <div className="space-y-2">
+            <span className="block text-sm text-room-muted">ไฟล์ PDF ({form.slideConfigs.length} หน้าที่อ่านได้แล้ว)</span>
+            <input
+              type="file"
+              accept="application/pdf"
+              disabled={pdfUploading}
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) void handlePdfUpload(file);
+                e.target.value = "";
+              }}
+              className="block w-full text-sm text-room-text file:mr-3 file:rounded-lg file:border-0 file:bg-room-accentSoft file:px-3 file:py-2 file:text-sm file:font-medium"
+            />
+            <p className="text-xs text-room-muted">
+              อัปโหลดไฟล์ใหม่เพื่อแทนที่ไฟล์เดิม — แต่ละหน้าจะกลายเป็น 1 Slide โดยใช้ข้อความในหน้านั้นเป็นบทพูดของ AI โดยตรง
+            </p>
+          </div>
+        )}
+
         <label className="flex items-center gap-2 text-sm text-room-text">
           <input
             type="checkbox"
@@ -214,7 +313,7 @@ export default function LessonEditorPage() {
               type="number"
               min={0}
               value={form.introWaitMs}
-              onChange={(e) => setForm({ ...form, introWaitMs: Number(e.target.value) })}
+              onChange={(e) => setForm({ ...form, introWaitMs: Math.max(0, Number(e.target.value) || 0) })}
               className="w-full rounded-lg border border-room-border bg-room-bg px-3 py-2 text-room-text outline-none focus:border-room-accent"
             />
           </label>
@@ -224,7 +323,7 @@ export default function LessonEditorPage() {
               type="number"
               min={0}
               value={form.breathPauseMs}
-              onChange={(e) => setForm({ ...form, breathPauseMs: Number(e.target.value) })}
+              onChange={(e) => setForm({ ...form, breathPauseMs: Math.max(0, Number(e.target.value) || 0) })}
               className="w-full rounded-lg border border-room-border bg-room-bg px-3 py-2 text-room-text outline-none focus:border-room-accent"
             />
           </label>
@@ -234,11 +333,28 @@ export default function LessonEditorPage() {
               type="number"
               min={0}
               value={form.finalQuestionWaitMs}
-              onChange={(e) => setForm({ ...form, finalQuestionWaitMs: Number(e.target.value) })}
+              onChange={(e) => setForm({ ...form, finalQuestionWaitMs: Math.max(0, Number(e.target.value) || 0) })}
               className="w-full rounded-lg border border-room-border bg-room-bg px-3 py-2 text-room-text outline-none focus:border-room-accent"
             />
           </label>
         </div>
+      </Card>
+
+      <Card className="space-y-4">
+        <div>
+          <p className="text-xs uppercase tracking-wide text-room-muted">เอกสารประกอบ</p>
+          <p className="mt-1 text-xs text-room-muted">
+            เอกสารในนี้จะถูกใช้ตอบคำถามเฉพาะบทเรียนนี้เท่านั้น — ถ้าต้องการให้ใช้ได้ทุกบทเรียน ให้อัปโหลดที่{" "}
+            <Link href="/admin/documents" className="text-room-accent hover:underline">
+              คลังเอกสารกลาง
+            </Link>{" "}
+            แทน
+          </p>
+        </div>
+        <DocumentUploadList
+          lessonSlug={form.slug}
+          primaryDocumentId={form.contentSourceType === "pdf" ? form.pdfDocumentResourceId : undefined}
+        />
       </Card>
 
       <section className="space-y-3">
@@ -259,7 +375,9 @@ export default function LessonEditorPage() {
                 type="number"
                 min={0}
                 value={slide.videoDurationMs ?? 0}
-                onChange={(e) => updateSlideDuration(slide.slideObjectId, Number(e.target.value) || null)}
+                onChange={(e) =>
+                  updateSlideDuration(slide.slideObjectId, Math.max(0, Number(e.target.value) || 0) || null)
+                }
                 className="w-32 rounded-lg border border-room-border bg-room-bg px-2 py-1 text-room-text outline-none focus:border-room-accent"
               />
             </label>
@@ -268,9 +386,11 @@ export default function LessonEditorPage() {
       </section>
 
       <div className="flex justify-end gap-2">
-        <Button variant="ghost" onClick={handleSync} disabled={syncing}>
-          {syncButtonContent}
-        </Button>
+        {form.contentSourceType === "google_slides" && (
+          <Button variant="ghost" onClick={handleSync} disabled={syncing}>
+            {syncButtonContent}
+          </Button>
+        )}
         <Button onClick={handleSave} disabled={saving}>
           {saveButtonContent}
         </Button>

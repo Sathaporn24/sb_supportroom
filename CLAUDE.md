@@ -40,8 +40,11 @@ npm run build
 4. Provider/Repository ใหม่ทุกตัวต้องมี Mock คู่กับ Real และเพิ่ม Case ใน Factory
    (`src/providers/*/index.ts`) — ห้ามกระจาย `if (provider === ...)` ไปที่อื่น
 5. ห้ามใช้ Prisma/ORM — Supabase Repository เรียก `@supabase/supabase-js` ตรง ๆ
-6. ห้ามสร้าง Slide Editor/Media CMS ใหม่ — เนื้อหาสอนแก้ผ่าน Google Slides เท่านั้น
-   Admin UI แก้ได้แค่ Metadata (URL, videoDurationMs, ค่าจังหวะเวลา)
+6. ห้ามสร้าง Slide Editor แบบพิมพ์เนื้อหาเองใน UI — เนื้อหาสอนต้องมาจากภายนอกเสมอ (Google Slides
+   หรืออัปโหลดไฟล์ PDF, เลือกได้ต่อบทเรียนผ่าน `contentSourceType`) Admin UI แก้ได้แค่ Metadata
+   (URL/ไฟล์ PDF ที่ผูกไว้, videoDurationMs, ค่าจังหวะเวลา) เนื้อหาจริง (Speaker Notes/ข้อความในหน้า
+   PDF, รูปภาพ) resolve สดเสมอ ไม่เคย persist เป็นสำเนา — ดู `PdfSlidesRenderer`
+   (`SB_Ai_Supportroom/src/SupportRoom.Providers.Slides/`) สำหรับฝั่ง PDF
 
 ## Folder Map
 

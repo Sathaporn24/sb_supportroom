@@ -60,6 +60,12 @@ export type TutorRuntime = {
   pausedFrom: TutorState | null;
   errorMessage: string | null;
   completedAllSlides: boolean;
+  /**
+   * Non-fatal, dismissible notice (e.g. mic permission denied) - unlike errorMessage/state
+   * "error" this does NOT replace the room UI. The lesson resumes right where push-to-talk
+   * interrupted it; this just tells the teacher why their question wasn't recorded.
+   */
+  micNotice: string | null;
 };
 
 export type TutorEffect =

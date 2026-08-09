@@ -6,7 +6,6 @@ import * as api from "@/lib/api-client";
 import type { TrainingSession } from "@/types/domain";
 import { SessionsTable } from "@/components/admin/SessionsTable";
 import { Button } from "@/components/ui/Button";
-import { Card } from "@/components/ui/Card";
 import { LoadingBlock } from "@/components/ui/LoadingBlock";
 import { Spinner } from "@/components/ui/Spinner";
 
@@ -53,6 +52,9 @@ export default function AdminPage() {
         <Link href="/admin/lessons">
           <Button variant="secondary">จัดการบทเรียน</Button>
         </Link>
+        <Link href="/admin/documents">
+          <Button variant="secondary">คลังเอกสาร</Button>
+        </Link>
         <Link href="/admin/sessions/new">
           <Button>สร้างลิงก์การสอน</Button>
         </Link>
@@ -67,13 +69,6 @@ export default function AdminPage() {
           )}
         </Button>
       </div>
-
-      <Card className="border-amber-500/30 bg-amber-500/5">
-        <p className="text-xs text-amber-700">
-          หมายเหตุ: ในโหมด Mock ข้อมูลเก็บแบบ In-memory ฝั่งเซิร์ฟเวอร์ (รีเซ็ตเมื่อรีสตาร์ทเซิร์ฟเวอร์) ลิงก์ใช้งานได้ข้ามเบราว์เซอร์/อุปกรณ์ได้
-          ตราบใดที่ยังเรียกไปที่เซิร์ฟเวอร์เดียวกัน — เมื่อสลับไปใช้ Supabase ข้อมูลจะถาวรและใช้งานข้ามอุปกรณ์ได้เต็มรูปแบบ
-        </p>
-      </Card>
 
       <section className="space-y-3">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-room-muted">รายการ Sessions</h2>

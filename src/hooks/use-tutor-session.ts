@@ -17,6 +17,9 @@ import {
 
 const MIN_RECORDING_MS = 300;
 
+/** Persisted per-browser so the teacher's AI-volume preference survives a page reload. */
+const AI_VOLUME_STORAGE_KEY = "sb_ai_volume";
+
 /**
  * Wording variety lives here rather than in the reducer, which stays pure so the state
  * machine remains deterministic under test.
@@ -43,6 +46,11 @@ export function useTutorSession(session: TrainingSession) {
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const audioUrlRef = useRef<string | null>(null);
+  /** AI playback volume, 0-1. Kept in a ref so every new <audio> can read the live value
+   * synchronously at creation, and mirrored in state so the volume control re-renders. This
+   * is a pure playback concern - it never touches the reducer/state machine (arch rule #3). */
+  const volumeRef = useRef(1);
+  const [volume, setVolumeState] = useState(1);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const micStreamRef = useRef<MediaStream | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -82,6 +90,21 @@ export function useTutorSession(session: TrainingSession) {
     }
   }
 
+  /** Sets AI playback volume (0-1). Applies immediately to the clip playing right now, so the
+   * teacher can turn the AI down mid-sentence WITHOUT interrupting it (unlike push-to-talk,
+   * which stops playback entirely). Persisted so the choice sticks across reloads. */
+  function changeVolume(next: number) {
+    const clamped = Math.min(1, Math.max(0, Number.isFinite(next) ? next : 1));
+    volumeRef.current = clamped;
+    setVolumeState(clamped);
+    if (audioRef.current) audioRef.current.volume = clamped;
+    try {
+      window.localStorage.setItem(AI_VOLUME_STORAGE_KEY, String(clamped));
+    } catch {
+      // localStorage can throw (private mode, storage disabled) - volume still works this session.
+    }
+  }
+
   function dispatch(event: TutorEvent) {
     clearPending();
     const { runtime: next, effect } = tutorReducer(runtimeRef.current, event, ctxRef.current);
@@ -100,14 +123,22 @@ export function useTutorSession(session: TrainingSession) {
       const url = URL.createObjectURL(blob);
       audioUrlRef.current = url;
       const audio = new Audio(url);
+      audio.volume = volumeRef.current;
       audioRef.current = audio;
       audio.addEventListener("ended", () => {
         const elapsedMs = Number.isFinite(audio.duration) ? audio.duration * 1000 : 0;
         dispatch({ type: "TTS_ENDED", elapsedMs });
       });
       await audio.play();
-    } catch (err) {
-      dispatch({ type: "FAIL", message: err instanceof Error ? err.message : "แปลงข้อความเป็นเสียงไม่สำเร็จ" });
+    } catch {
+      // Same graceful-degradation as loadSlideAudio below: a flaky TTS service (Edge Read-Aloud
+      // can hang for tens of seconds under load before failing) must not take the whole session
+      // down. This path carries the intro/answer/closing lines - previously the only one still
+      // wired to FAIL, so a TTS hiccup here (confirmed live: real 502s after 24-46s) dropped the
+      // whole room into the dead-end error screen. The state machine only needs TTS_ENDED to
+      // advance; it doesn't care whether audio actually played.
+      if (!mountedRef.current) return;
+      dispatch({ type: "TTS_ENDED", elapsedMs: 0 });
     }
   }
 
@@ -122,7 +153,16 @@ export function useTutorSession(session: TrainingSession) {
       // second clip: one round-trip, and the sentence flows into the narration instead of
       // landing after an audible seam.
       const bridge = withResumeBridge ? `${pickRandom(RESUME_BRIDGE_TEXTS)} ` : "";
-      const blob = await api.synthesizeSpeech(`${bridge}${slide.speakerNotes}`);
+      const combinedText = `${bridge}${slide.speakerNotes}`;
+      if (!combinedText.trim()) {
+        // An image-only/blank slide (common for PDF lessons) has no speaker notes to say -
+        // the backend rejects empty text outright (400), so skip narration instead of
+        // treating "nothing to say" as a synthesis failure that halts the whole lesson.
+        dispatch({ type: "SLIDE_READY" });
+        dispatch({ type: "TTS_ENDED", elapsedMs: 0 });
+        return;
+      }
+      const blob = await api.synthesizeSpeech(combinedText);
       if (!mountedRef.current) return;
       // Dispatch the state transition FIRST - dispatch() always clears any pending
       // audio/timer via clearPending(), so building the <audio> element before this
@@ -131,14 +171,21 @@ export function useTutorSession(session: TrainingSession) {
       const url = URL.createObjectURL(blob);
       audioUrlRef.current = url;
       const audio = new Audio(url);
+      audio.volume = volumeRef.current;
       audioRef.current = audio;
       audio.addEventListener("ended", () => {
         const elapsedMs = Number.isFinite(audio.duration) ? audio.duration * 1000 : 0;
         dispatch({ type: "TTS_ENDED", elapsedMs });
       });
       await audio.play();
-    } catch (err) {
-      dispatch({ type: "FAIL", message: err instanceof Error ? err.message : "เตรียมเสียงสไลด์ไม่สำเร็จ" });
+    } catch {
+      // A flaky/slow TTS service (Edge Read-Aloud throttles under bursts and can hang for tens
+      // of seconds before failing) must not take the whole lesson down. Fall back to showing the
+      // slide silently for its normal duration - the same graceful path as a notes-less slide
+      // above - instead of dispatching FAIL, which drops the entire session into an error state.
+      if (!mountedRef.current) return;
+      dispatch({ type: "SLIDE_READY" });
+      dispatch({ type: "TTS_ENDED", elapsedMs: 0 });
     }
   }
 
@@ -206,6 +253,7 @@ export function useTutorSession(session: TrainingSession) {
     const url = URL.createObjectURL(pickRandom(pool));
     audioUrlRef.current = url;
     const audio = new Audio(url);
+    audio.volume = volumeRef.current;
     audioRef.current = audio;
     // Keep topping the silence up for as long as we're still waiting, but leave a beat
     // between clips - chaining them back to back sounds like one unbroken stream rather
@@ -245,7 +293,18 @@ export function useTutorSession(session: TrainingSession) {
       mediaRecorderRef.current = recorder;
       recorder.start();
     } catch (err) {
-      dispatch({ type: "FAIL", message: err instanceof Error ? err.message : "ไม่สามารถเข้าถึงไมโครโฟนได้" });
+      // Recoverable - the lesson is fine, only the mic request failed. Denied/no-device get a
+      // specific, actionable Thai message instead of the browser's raw (often English) error
+      // text; MIC_UNAVAILABLE resumes right where push-to-talk interrupted rather than ending
+      // the whole session like FAIL does.
+      const domError = err as DOMException;
+      const message =
+        domError?.name === "NotAllowedError" || domError?.name === "SecurityError"
+          ? "ไม่ได้รับอนุญาตให้ใช้ไมโครโฟน กรุณาอนุญาตการใช้งานไมค์ในเบราว์เซอร์ แล้วลองกดพูดอีกครั้งค่ะ"
+          : domError?.name === "NotFoundError"
+            ? "ไม่พบไมโครโฟนในอุปกรณ์นี้ กรุณาตรวจสอบไมค์แล้วลองใหม่อีกครั้งค่ะ"
+            : "ไม่สามารถเข้าถึงไมโครโฟนได้ กรุณาลองใหม่อีกครั้งค่ะ";
+      dispatch({ type: "MIC_UNAVAILABLE", message });
     }
   }
 
@@ -398,6 +457,15 @@ export function useTutorSession(session: TrainingSession) {
 
   useEffect(() => {
     mountedRef.current = true;
+    // Restored here (not in a useState initializer) to avoid an SSR/hydration mismatch on the
+    // volume slider - the server has no localStorage, so both render at 1 first, then this snaps
+    // to the saved value before any audio starts.
+    try {
+      const stored = window.localStorage.getItem(AI_VOLUME_STORAGE_KEY);
+      if (stored !== null) changeVolume(Number(stored));
+    } catch {
+      // localStorage unavailable - fall back to the default volume of 1.
+    }
     dispatch({ type: "JOIN" });
     void api.markSessionStarted(session.token).catch(() => undefined);
     // Get the permission prompt and device hand-off out of the way while the intro plays,
@@ -433,5 +501,7 @@ export function useTutorSession(session: TrainingSession) {
     resumeSlideNumber: currentSlideIndex + 1,
     totalSlides: slidesRef.current.length,
     sendEvent,
+    aiVolume: volume,
+    setAiVolume: changeVolume,
   };
 }

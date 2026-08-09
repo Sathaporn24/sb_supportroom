@@ -77,9 +77,6 @@ export function CreateSessionModal({ open, onClose, lesson }: Props) {
               เสร็จสิ้น
             </Button>
           </div>
-          <p className="text-xs text-room-muted">
-            หมายเหตุ: ในโหมด Mock ข้อมูลอยู่ในหน่วยความจำฝั่งเซิร์ฟเวอร์ ลองเปิดลิงก์นี้ในแท็บใหม่ได้เลยค่ะ
-          </p>
         </div>
       ) : (
         <div className="space-y-4">

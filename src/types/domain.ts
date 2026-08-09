@@ -1,7 +1,7 @@
-// Google Slides is the source of truth for teaching content in this phase.
-// LessonConfig only stores admin-set metadata (URLs, timing, per-slide video duration) -
-// the actual slide content (speaker notes, images/video) is resolved live via
-// SlidesContentProvider and is never persisted as a copy.
+// Teaching content comes from either Google Slides or an uploaded PDF (contentSourceType).
+// LessonConfig only stores admin-set metadata (URLs/PDF pointer, timing, per-slide video
+// duration) - the actual slide content (speaker notes, images/video) is resolved live via
+// SlidesContentProvider/PdfSlidesRenderer and is never persisted as a copy.
 
 export type SlideConfig = {
   slideObjectId: string;
@@ -9,6 +9,8 @@ export type SlideConfig = {
   /** null/0 for slides with no video. */
   videoDurationMs: number | null;
 };
+
+export type ContentSourceType = "google_slides" | "pdf";
 
 export type LessonConfig = {
   id: string;
@@ -20,6 +22,9 @@ export type LessonConfig = {
   presentationId: string | null;
   /** Published/embed URL used to render the Shared Screen iframe. */
   slidesEmbedUrl: string | null;
+  contentSourceType: ContentSourceType;
+  /** Set only when contentSourceType is "pdf" - the DocumentResource holding the PDF. */
+  pdfDocumentResourceId?: string;
   introWaitMs: number;
   breathPauseMs: number;
   finalQuestionWaitMs: number;
@@ -46,6 +51,15 @@ export type SlidesLessonContent = {
   embedUrl: string;
   slides: ResolvedSlide[];
   syncedAt: string;
+};
+
+/** Response shape for POST /api/slides/resolve. */
+export type ResolvedPresentation = {
+  presentationId: string | null;
+  embedUrl: string;
+  /** True when presentationId could not be derived and only display is possible. */
+  isEmbedOnly: boolean;
+  warning?: string;
 };
 
 /** ResolvedSlide merged with the admin-configured videoDurationMs - what the Tutor Engine consumes. */
@@ -101,11 +115,51 @@ export type SessionQuestion = {
 
 export type CreateSessionQuestionInput = Omit<SessionQuestion, "id" | "createdAt">;
 
+/** Response shape for POST /api/voice-question. */
+export type VoiceQuestionResult = {
+  transcript: string;
+  answer: string;
+  answerStatus: AnswerStatus;
+  relatedSlideObjectId?: string;
+  /** Only set when expecting === "readiness": did the teacher say they're ready to start? */
+  readiness?: "ready" | "not_ready";
+};
+
 export type SessionSummary = {
   sessionId: string;
   completedAllSlides: boolean;
   lastSlideObjectId?: string;
   questions: SessionQuestion[];
   unansweredPoints: string[];
+  createdAt: string;
+};
+
+/** A typed chat message - separate from SessionQuestion (Push-to-Talk log), sent live over SignalR. */
+export type ChatSenderRole = "teacher" | "cs" | "system";
+
+export type ChatMessage = {
+  id: string;
+  sessionId: string;
+  senderRole: ChatSenderRole;
+  senderName?: string;
+  text: string;
+  createdAt: string;
+};
+
+/**
+ * A CS-uploaded document (.pptx/.pdf/.docx/.xlsx) parsed and embedded into the knowledge base.
+ * lessonId null/undefined = standalone document, queried alongside every lesson's own content
+ * (see kb-global namespace) instead of being tied to one lesson.
+ */
+export type DocumentIndexingStatus = "pending" | "indexed" | "failed";
+
+export type DocumentResource = {
+  id: string;
+  lessonId?: string;
+  fileName: string;
+  contentType: string;
+  sizeBytes: number;
+  indexingStatus: DocumentIndexingStatus;
+  indexedChunkCount: number;
   createdAt: string;
 };

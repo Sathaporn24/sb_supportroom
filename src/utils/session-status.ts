@@ -1,4 +1,4 @@
-import type { SessionStatus, TrainingSession } from "@/types/domain";
+import type { AnswerStatus, SessionStatus, TrainingSession } from "@/types/domain";
 
 export function getSessionStatus(session: TrainingSession, now: Date = new Date()): SessionStatus {
   if (session.endedAt) {
@@ -29,4 +29,12 @@ export const sessionStatusLabels: Record<SessionStatus, string> = {
   IN_PROGRESS: "กำลังสอน",
   ENDED: "จบแล้ว",
   EXPIRED: "หมดอายุ",
+};
+
+export const answerStatusLabels: Record<AnswerStatus, string> = {
+  answered: "ตอบแล้ว",
+  not_found: "ไม่พบข้อมูล",
+  out_of_scope: "นอกเรื่อง",
+  no_speech: "ไม่มีคำพูด",
+  transcription_failed: "ถอดเสียงไม่ได้",
 };

@@ -17,14 +17,9 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-# local env files
+# local env files - never tracked; copy .env.example and fill in real values locally
 .env*.local
 .env
-# Tracked on purpose so the team can clone and run without re-collecting keys.
-# THIS FILE HOLDS LIVE CREDENTIALS - keep this repo private, and rotate every key in
-# it (Supabase service_role, Google service account, Gemini) before ever making the
-# repo public or removing a collaborator.
-!.env.local
 
 # typescript
 *.tsbuildinfo

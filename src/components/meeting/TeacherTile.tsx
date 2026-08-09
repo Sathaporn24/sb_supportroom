@@ -20,8 +20,11 @@ export function TeacherTile({ stream, cameraOn, micOn, speaking, teacherName }: 
     }
   }, [stream, cameraOn]);
 
-  const initial = teacherName?.trim()?.[0] ?? "ค";
-  const displayName = teacherName || `คุณครู${initial}`;
+  // Avatar-circle initial and the no-name fallback text are two independent things - reusing
+  // one inside the other produced "คุณครูค" (the fallback "ค" glued onto its own fallback text).
+  const trimmedName = teacherName?.trim();
+  const initial = trimmedName?.[0] ?? "ค";
+  const displayName = trimmedName || "คุณครู";
 
   return (
     <div

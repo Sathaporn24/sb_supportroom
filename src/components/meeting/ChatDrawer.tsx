@@ -1,24 +1,67 @@
-import type { SessionQuestion } from "@/types/domain";
+"use client";
+
+import { useState } from "react";
+import type { ChatMessage, SessionQuestion } from "@/types/domain";
+import { answerStatusLabels } from "@/utils/session-status";
 
 type Props = {
   open: boolean;
   onClose: () => void;
   questions: SessionQuestion[];
+  chatMessages?: ChatMessage[];
+  /** Omit to keep this panel read-only (falls back to the old Q&A-log-only behavior). */
+  onSendMessage?: (text: string) => Promise<void>;
 };
 
-const scopeLabel: Record<SessionQuestion["answerStatus"], string> = {
-  answered: "ตอบแล้ว",
-  not_found: "ไม่พบข้อมูล",
-  out_of_scope: "นอกเรื่อง",
-  no_speech: "ไม่มีคำพูด",
-  transcription_failed: "ถอดเสียงไม่ได้",
+const senderLabel: Record<ChatMessage["senderRole"], string> = {
+  teacher: "ครู",
+  cs: "ทีม CS",
+  system: "ระบบ",
 };
 
-// Push-to-Talk is the only way to ask a question now - this panel is a read-only
-// transcript/answer log, not a text-input chat.
-export function ChatDrawer({ open, onClose, questions }: Props) {
+type TimelineEntry =
+  | { kind: "question"; key: string; createdAt: string; question: SessionQuestion }
+  | { kind: "chat"; key: string; createdAt: string; message: ChatMessage };
+
+// Push-to-Talk questions and typed chat messages share one time-ordered feed - the drawer
+// used to be read-only (Q&A log only); onSendMessage turns it into a real two-way channel.
+export function ChatDrawer({ open, onClose, questions, chatMessages = [], onSendMessage }: Props) {
+  const [draft, setDraft] = useState("");
+  const [sending, setSending] = useState(false);
+
   if (!open) {
     return null;
+  }
+
+  const timeline: TimelineEntry[] = [
+    ...questions.map((question, index) => ({
+      kind: "question" as const,
+      key: `q-${question.id || index}`,
+      createdAt: question.createdAt,
+      question,
+    })),
+    ...chatMessages.map((message) => ({
+      kind: "chat" as const,
+      key: `c-${message.id}`,
+      createdAt: message.createdAt,
+      message,
+    })),
+  ].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+
+  async function handleSend() {
+    const text = draft.trim();
+    if (!text || !onSendMessage || sending) {
+      return;
+    }
+    setSending(true);
+    try {
+      await onSendMessage(text);
+      setDraft("");
+    } catch {
+      // Connection hiccup - keep the draft so the sender can retry instead of retyping.
+    } finally {
+      setSending(false);
+    }
   }
 
   return (
@@ -34,21 +77,53 @@ export function ChatDrawer({ open, onClose, questions }: Props) {
         </button>
       </div>
       <div className="flex-1 space-y-3 overflow-y-auto px-4 py-3">
-        {questions.length === 0 && (
-          <p className="text-sm text-room-muted">กดค้างปุ่มไมค์เพื่อถามคำถามได้เลยค่ะ คำถามและคำตอบจะแสดงที่นี่</p>
+        {timeline.length === 0 && (
+          <p className="text-sm text-room-muted">กดค้างปุ่มไมค์เพื่อถามคำถาม หรือพิมพ์ข้อความได้เลยค่ะ</p>
         )}
-        {questions.map((q, index) => (
-          <div key={index} className="space-y-1">
-            {q.transcript && (
-              <p className="rounded-lg bg-room-panelAlt px-3 py-2 text-sm text-room-text">
-                {q.transcript}
-                <span className="ml-2 text-xs text-room-muted">({scopeLabel[q.answerStatus]})</span>
-              </p>
-            )}
-            {q.answer && <p className="rounded-lg bg-room-accentSoft px-3 py-2 text-sm text-room-text">{q.answer}</p>}
-          </div>
-        ))}
+        {timeline.map((entry) =>
+          entry.kind === "question" ? (
+            <div key={entry.key} className="space-y-1">
+              {entry.question.transcript && (
+                <p className="rounded-lg bg-room-panelAlt px-3 py-2 text-sm text-room-text">
+                  {entry.question.transcript}
+                  <span className="ml-2 text-xs text-room-muted">({answerStatusLabels[entry.question.answerStatus]})</span>
+                </p>
+              )}
+              {entry.question.answer && (
+                <p className="rounded-lg bg-room-accentSoft px-3 py-2 text-sm text-room-text">{entry.question.answer}</p>
+              )}
+            </div>
+          ) : (
+            <div key={entry.key} className="space-y-1">
+              <p className="text-xs text-room-muted">{entry.message.senderName || senderLabel[entry.message.senderRole]}</p>
+              <p className="rounded-lg bg-room-panelAlt px-3 py-2 text-sm text-room-text">{entry.message.text}</p>
+            </div>
+          ),
+        )}
       </div>
+      {onSendMessage && (
+        <div className="flex shrink-0 items-center gap-2 border-t border-room-border px-3 py-2">
+          <input
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                void handleSend();
+              }
+            }}
+            placeholder="พิมพ์ข้อความ..."
+            className="flex-1 rounded-lg border border-room-border bg-room-panelAlt px-3 py-2 text-sm text-room-text outline-none focus:border-room-accent"
+          />
+          <button
+            onClick={() => void handleSend()}
+            disabled={sending || !draft.trim()}
+            className="rounded-lg bg-room-accentSoft px-3 py-2 text-sm font-medium text-room-text disabled:opacity-50"
+          >
+            ส่ง
+          </button>
+        </div>
+      )}
     </div>
   );
 }

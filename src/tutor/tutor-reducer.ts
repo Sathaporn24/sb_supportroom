@@ -26,6 +26,7 @@ export function createInitialRuntime(): TutorRuntime {
     pausedFrom: null,
     errorMessage: null,
     completedAllSlides: false,
+    micNotice: null,
   };
 }
 
@@ -219,6 +220,7 @@ export function tutorReducer(
           state: "push-to-talk-recording",
           isAiSpeaking: false,
           afterSpeech: null,
+          micNotice: null,
         },
         effect: { kind: "START_RECORDING" },
       };
@@ -234,6 +236,18 @@ export function tutorReducer(
       // Nothing was said, so say nothing back - resuming quietly is the right call here.
       return resumeAfterInterruption(runtime, ctx);
     }
+
+    case "MIC_UNAVAILABLE": {
+      if (runtime.state !== "push-to-talk-recording") return noEffect(runtime);
+      // Recoverable, unlike FAIL: the lesson resumes exactly where push-to-talk interrupted it
+      // (same recovery path as NO_SPEECH) - only a permission/device problem, not a broken
+      // session. The message rides along on the runtime so the UI can show a dismissible notice
+      // instead of nothing happening at all.
+      return resumeAfterInterruption({ ...runtime, micNotice: event.message }, ctx);
+    }
+
+    case "CLEAR_MIC_NOTICE":
+      return { runtime: { ...runtime, micNotice: null }, effect: { kind: "NONE" } };
 
     case "QUESTION_FAILED": {
       if (runtime.state !== "processing-question") return noEffect(runtime);

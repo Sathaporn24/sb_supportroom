@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.10" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.10">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="Microsoft.OpenApi" Version="2.11.0" />
+    <PackageReference Include="Serilog.AspNetCore" Version="9.0.0" />
+    <PackageReference Include="Serilog.Sinks.File" Version="7.0.0" />
+    <PackageReference Include="Swashbuckle.AspNetCore.SwaggerUI" Version="10.2.3" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\SupportRoom.Application\SupportRoom.Application.csproj" />
+    <ProjectReference Include="..\SupportRoom.Infrastructure\SupportRoom.Infrastructure.csproj" />
+    <ProjectReference Include="..\SupportRoom.Providers.Slides\SupportRoom.Providers.Slides.csproj" />
+    <ProjectReference Include="..\SupportRoom.Providers.Tts\SupportRoom.Providers.Tts.csproj" />
+    <ProjectReference Include="..\SupportRoom.Providers.VoiceQuestion\SupportRoom.Providers.VoiceQuestion.csproj" />
+    <ProjectReference Include="..\SupportRoom.Providers.Data\SupportRoom.Providers.Data.csproj" />
+  </ItemGroup>
+
+</Project>
