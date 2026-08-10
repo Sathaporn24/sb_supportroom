@@ -47,25 +47,32 @@ internal static class OpenAiRest
             var stopwatch = Stopwatch.StartNew();
             try
             {
+                var payload = new Dictionary<string, object?>
+                {
+                    ["model"] = creds.Model,
+                    ["messages"] = new object[]
+                    {
+                        new { role = "system", content = systemPrompt },
+                        new { role = "user", content = userPrompt },
+                    },
+                    ["response_format"] = new { type = "json_object" },
+                    // GLM-5.2 and other reasoning models spend output tokens on hidden reasoning before
+                    // the visible answer. Without a generous cap the reasoning can eat the whole budget
+                    // and the JSON answer comes back truncated/empty (parses to null, surfacing as
+                    // transcription_failed). 4096 leaves ample room for a short answer; harmless otherwise.
+                    ["max_tokens"] = 4096,
+                };
+                if (creds.DisableReasoning)
+                {
+                    // Turns off the reasoning pass on GLM/ModelArts - faster and cleaner JSON for the
+                    // grounded-answer task, which doesn't benefit from chain-of-thought.
+                    payload["thinking"] = new { type = "disabled" };
+                }
+
                 var client = httpClientFactory.CreateClient(nameof(OpenAiRest));
                 using var request = new HttpRequestMessage(HttpMethod.Post, $"{creds.BaseUrl}/chat/completions")
                 {
-                    Content = JsonContent.Create(new
-                    {
-                        model = creds.Model,
-                        messages = new object[]
-                        {
-                            new { role = "system", content = systemPrompt },
-                            new { role = "user", content = userPrompt },
-                        },
-                        response_format = new { type = "json_object" },
-                        // GLM-5.2 and other reasoning models spend output tokens on hidden reasoning
-                        // before the visible answer. Without a generous cap the reasoning can eat the
-                        // whole budget and the JSON answer comes back truncated/empty (parses to null,
-                        // surfacing as transcription_failed). 4096 leaves ample room for a short answer
-                        // after reasoning; harmless for non-reasoning models.
-                        max_tokens = 4096,
-                    }),
+                    Content = JsonContent.Create(payload),
                 };
                 request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", creds.ApiKey);
 

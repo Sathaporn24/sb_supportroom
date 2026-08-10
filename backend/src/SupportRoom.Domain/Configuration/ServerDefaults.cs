@@ -100,6 +100,12 @@ public sealed class OpenAiCredentials
     /// requesting a reduced dimension). Override with OPENAI_EMBEDDING_DIMENSIONS only alongside a
     /// matching index.</summary>
     public required int EmbeddingDimensions { get; init; }
+
+    /// <summary>When true, sends thinking:{type:disabled} to turn off a reasoning model's hidden
+    /// reasoning pass. For grounded RAG answers this is faster (~35% on GLM-5.2) and returns cleaner
+    /// JSON, with no quality loss. Off by default - only GLM/ModelArts-style endpoints accept this
+    /// field; a strict OpenAI endpoint would reject an unknown param. Set OPENAI_DISABLE_REASONING=true.</summary>
+    public required bool DisableReasoning { get; init; }
 }
 
 public sealed class ElevenLabsSettings
@@ -183,6 +189,7 @@ public static class ExternalServiceEnv
             Model = Environment.GetEnvironmentVariable("OPENAI_MODEL") is { Length: > 0 } m ? m : "gpt-4o-mini",
             EmbeddingModel = Environment.GetEnvironmentVariable("OPENAI_EMBEDDING_MODEL") is { Length: > 0 } em ? em : "text-embedding-3-small",
             EmbeddingDimensions = int.TryParse(Environment.GetEnvironmentVariable("OPENAI_EMBEDDING_DIMENSIONS"), out var d) && d > 0 ? d : 768,
+            DisableReasoning = string.Equals(Environment.GetEnvironmentVariable("OPENAI_DISABLE_REASONING"), "true", StringComparison.OrdinalIgnoreCase),
         };
     }
 
