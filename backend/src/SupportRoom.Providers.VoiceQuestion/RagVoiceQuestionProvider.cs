@@ -27,7 +27,8 @@ public sealed class RagVoiceQuestionProvider(
     IHttpClientFactory httpClientFactory,
     IEmbeddingProvider embeddingProvider,
     IKnowledgeIndexProvider knowledgeIndexProvider,
-    ILogger<RagVoiceQuestionProvider> logger) : IVoiceQuestionProvider
+    ILogger<RagVoiceQuestionProvider> logger,
+    bool useOpenAiAnswer = false) : IVoiceQuestionProvider
 {
     private static int TopK => int.TryParse(Environment.GetEnvironmentVariable("RAG_TOP_K"), out var k) && k > 0 ? k : 3;
 
@@ -113,8 +114,12 @@ public sealed class RagVoiceQuestionProvider(
         // if this fails or the lesson isn't indexed yet).
         var groundingContext = await BuildGroundingContextAsync(input, transcript);
 
-        // Step 3: answer using only the retrieved (or fallback full-deck) context.
-        var answered = await CallAndParseAsync(creds, BuildAnswerPrompt(transcript, groundingContext));
+        // Step 3: answer using only the retrieved (or fallback full-deck) context. Optionally
+        // offloaded to OpenAI (keeps the heavy answer generation off Gemini's quota) - transcription
+        // above always stays on Gemini regardless.
+        var answered = useOpenAiAnswer
+            ? await AnswerWithOpenAiAsync(transcript, groundingContext)
+            : await CallAndParseAsync(creds, BuildAnswerPrompt(transcript, groundingContext));
         if (answered is null || !GeminiRest.IsAnswerStatus(answered.AnswerStatus))
         {
             return new VoiceQuestionResult { AnswerStatus = AnswerStatus.TranscriptionFailed };
@@ -198,13 +203,39 @@ public sealed class RagVoiceQuestionProvider(
         GeminiCredentials creds, string prompt, byte[]? audio = null, string? mimeType = null)
     {
         var text = await GeminiRest.CallAsync(httpClientFactory, creds, logger, prompt, audio, mimeType);
+        return ParseAnswerJson(text);
+    }
+
+    /// <summary>Runs the answer step (3 only) on OpenAI chat-completions. Transcription (1) stays on
+    /// Gemini in the caller - this is text-only, reusing the exact same prompt + JSON schema.</summary>
+    private async Task<GeminiRest.GeminiAnswerJson?> AnswerWithOpenAiAsync(string transcript, string groundingContext)
+    {
+        var openAi = ExternalServiceEnv.GetOpenAi();
+        var text = await OpenAiRest.CallAnswerAsync(
+            httpClientFactory, openAi, logger,
+            "คุณตอบโดยอ้างอิงจากข้อมูลอ้างอิงที่ให้มาเท่านั้น และตอบกลับเป็น JSON ตาม schema ที่ระบุเท่านั้น",
+            BuildAnswerPrompt(transcript, groundingContext));
+        return ParseAnswerJson(text);
+    }
+
+    private static GeminiRest.GeminiAnswerJson? ParseAnswerJson(string? text)
+    {
         if (string.IsNullOrEmpty(text))
+        {
+            return null;
+        }
+        // Some models (GLM via ModelArts, seen live) wrap the answer in a ```json ... ``` fence even
+        // in json_object mode. Extract the outermost { ... } so the fence (or any stray prose) doesn't
+        // break deserialization - a plain JSON body is unaffected.
+        var start = text.IndexOf('{');
+        var end = text.LastIndexOf('}');
+        if (start < 0 || end <= start)
         {
             return null;
         }
         try
         {
-            return JsonSerializer.Deserialize<GeminiRest.GeminiAnswerJson>(text, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+            return JsonSerializer.Deserialize<GeminiRest.GeminiAnswerJson>(text[start..(end + 1)], new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
         }
         catch (JsonException)
         {

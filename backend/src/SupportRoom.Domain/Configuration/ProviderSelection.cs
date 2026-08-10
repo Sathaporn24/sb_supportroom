@@ -19,13 +19,23 @@ public static class VoiceQuestionProvider
 
     /// <summary>Same wire contract as Gemini - retrieval-augmented instead of full-deck-context.</summary>
     public const string GeminiRag = "gemini-rag";
-    public static readonly string[] Allowed = [Gemini, GeminiRag];
+
+    /// <summary>Retrieval-augmented, but the answer step (3) runs on OpenAI instead of Gemini -
+    /// Gemini still handles audio transcription (1). Offloads the heavy answer generation off
+    /// Gemini's quota. Pair with KNOWLEDGE_PROVIDER=pinecone-openai so retrieval embeds on OpenAI too.</summary>
+    public const string OpenAiRag = "openai-rag";
+    public static readonly string[] Allowed = [Gemini, GeminiRag, OpenAiRag];
 }
 
 public static class KnowledgeProvider
 {
     public const string Pinecone = "pinecone";
-    public static readonly string[] Allowed = [Pinecone];
+
+    /// <summary>Same Pinecone index, but embeddings are produced by OpenAI instead of Gemini.
+    /// The index dimension must match (both 768) and every vector must have been re-indexed with
+    /// OpenAI - a query embedded by one vendor can't search vectors embedded by the other.</summary>
+    public const string PineconeOpenAi = "pinecone-openai";
+    public static readonly string[] Allowed = [Pinecone, PineconeOpenAi];
 }
 
 public static class DocumentStorageProvider

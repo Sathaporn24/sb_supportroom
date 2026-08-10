@@ -18,6 +18,9 @@ public static class VoiceQuestionProviderFactory
         VoiceQuestionProvider.Gemini => new GeminiVoiceQuestionProvider(httpClientFactory, loggerFactory.CreateLogger<GeminiVoiceQuestionProvider>()),
         VoiceQuestionProvider.GeminiRag => new RagVoiceQuestionProvider(
             httpClientFactory, embeddingProvider, knowledgeIndexProvider, loggerFactory.CreateLogger<RagVoiceQuestionProvider>()),
+        // Gemini transcribes the audio; OpenAI embeds the query and writes the answer.
+        VoiceQuestionProvider.OpenAiRag => new RagVoiceQuestionProvider(
+            httpClientFactory, embeddingProvider, knowledgeIndexProvider, loggerFactory.CreateLogger<RagVoiceQuestionProvider>(), useOpenAiAnswer: true),
         // Unreachable in practice - ProviderSelectionReader already validates against
         // VoiceQuestionProvider.Allowed before this value ever reaches here.
         _ => throw new ArgumentOutOfRangeException(nameof(voiceQuestionProvider), voiceQuestionProvider, "Unknown voice question provider"),

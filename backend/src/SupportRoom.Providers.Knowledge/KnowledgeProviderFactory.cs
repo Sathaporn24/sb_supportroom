@@ -23,6 +23,13 @@ public static class KnowledgeProviderFactory
             Embedding = new GeminiEmbeddingProvider(httpClientFactory, loggerFactory.CreateLogger<GeminiEmbeddingProvider>()),
             Index = new PineconeKnowledgeIndexProvider(httpClientFactory, loggerFactory.CreateLogger<PineconeKnowledgeIndexProvider>()),
         },
+        // Same Pinecone index, embeddings from OpenAI instead of Gemini (both 768-dim). Requires
+        // every vector to have been re-indexed with OpenAI - see KnowledgeProvider.PineconeOpenAi.
+        SupportRoom.Domain.Configuration.KnowledgeProvider.PineconeOpenAi => new KnowledgeProviders
+        {
+            Embedding = new OpenAiEmbeddingProvider(httpClientFactory, loggerFactory.CreateLogger<OpenAiEmbeddingProvider>()),
+            Index = new PineconeKnowledgeIndexProvider(httpClientFactory, loggerFactory.CreateLogger<PineconeKnowledgeIndexProvider>()),
+        },
         // Unreachable in practice - ProviderSelectionReader already validates against
         // KnowledgeProvider.Allowed before this value ever reaches here.
         _ => throw new ArgumentOutOfRangeException(nameof(knowledgeProvider), knowledgeProvider, "Unknown knowledge provider"),

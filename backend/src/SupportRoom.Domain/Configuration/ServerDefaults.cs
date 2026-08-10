@@ -78,6 +78,30 @@ public sealed class EdgeTtsSettings
     public required string Rate { get; init; }
 }
 
+public sealed class OpenAiCredentials
+{
+    public required string ApiKey { get; init; }
+
+    /// <summary>API base (up to and including the version segment), no trailing slash - e.g.
+    /// "https://api.openai.com/v1" for OpenAI, or an OpenAI-compatible gateway like Zhipu GLM
+    /// ("https://open.bigmodel.cn/api/paas/v4"). Set via OPENAI_BASE_URL. The provider appends
+    /// "/chat/completions" and "/embeddings".</summary>
+    public required string BaseUrl { get; init; }
+
+    /// <summary>Chat model for the RAG answer step. gpt-4o-mini by default (cheap, JSON-mode capable);
+    /// override with OPENAI_MODEL.</summary>
+    public required string Model { get; init; }
+
+    /// <summary>Embedding model for retrieval. text-embedding-3-small by default; override with
+    /// OPENAI_EMBEDDING_MODEL.</summary>
+    public required string EmbeddingModel { get; init; }
+
+    /// <summary>Fixed to 768 to match the existing Pinecone index (text-embedding-3 supports
+    /// requesting a reduced dimension). Override with OPENAI_EMBEDDING_DIMENSIONS only alongside a
+    /// matching index.</summary>
+    public required int EmbeddingDimensions { get; init; }
+}
+
 public sealed class ElevenLabsSettings
 {
     public required string ApiKey { get; init; }
@@ -146,6 +170,19 @@ public static class ExternalServiceEnv
             ApiKey = Environment.GetEnvironmentVariable("GEMINI_API_KEY")!,
             // gemini-1.5-flash is retired - verified gemini-flash-latest works against the real API.
             Model = Environment.GetEnvironmentVariable("GEMINI_MODEL") is { Length: > 0 } m ? m : "gemini-flash-latest",
+        };
+    }
+
+    public static OpenAiCredentials GetOpenAi()
+    {
+        Require("OPENAI_API_KEY");
+        return new OpenAiCredentials
+        {
+            ApiKey = Environment.GetEnvironmentVariable("OPENAI_API_KEY")!,
+            BaseUrl = (Environment.GetEnvironmentVariable("OPENAI_BASE_URL") is { Length: > 0 } b ? b : "https://api.openai.com/v1").TrimEnd('/'),
+            Model = Environment.GetEnvironmentVariable("OPENAI_MODEL") is { Length: > 0 } m ? m : "gpt-4o-mini",
+            EmbeddingModel = Environment.GetEnvironmentVariable("OPENAI_EMBEDDING_MODEL") is { Length: > 0 } em ? em : "text-embedding-3-small",
+            EmbeddingDimensions = int.TryParse(Environment.GetEnvironmentVariable("OPENAI_EMBEDDING_DIMENSIONS"), out var d) && d > 0 ? d : 768,
         };
     }
 
