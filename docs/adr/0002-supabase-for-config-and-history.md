@@ -2,7 +2,10 @@
 
 ## Status
 
-Accepted
+**Superseded (2026-08-10)** — เดิม Accepted แต่ปัจจุบัน **เลิกใช้ Supabase แล้ว** ระบบย้ายที่เก็บ
+Config/ประวัติไปไว้ที่ Backend .NET ซึ่งต่อ Postgres ผ่าน **EF Core** โดยตรง (ไม่ใช่ Supabase JS
+Client) — ดู `backend/src/SupportRoom.Providers.Data/Migrations/` สำหรับ Schema จริง เอกสารนี้เก็บ
+ไว้เป็นบันทึกประวัติการตัดสินใจเท่านั้น เนื้อหาด้านล่างสะท้อนบริบทตอนตัดสินใจ ไม่ใช่สถาปัตยกรรมปัจจุบัน
 
 ## Context
 
