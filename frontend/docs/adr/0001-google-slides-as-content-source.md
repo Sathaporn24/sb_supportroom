@@ -2,7 +2,11 @@
 
 ## Status
 
-Accepted
+Amended (2026-08-10)
+
+Google Slides ยังเป็นแหล่งเนื้อหาที่รองรับ แต่ไม่ใช่แหล่งเดียวอีกต่อไป ระบบปัจจุบันเลือก
+`contentSourceType=google_slides|pdf` ต่อบทเรียน และ backend .NET เป็นผู้ resolve content
+ทั้งสองแบบ เนื้อหาจริงยังไม่ถูก snapshot ลง PostgreSQL
 
 ## Context
 
@@ -17,7 +21,7 @@ Accepted
 - 1 Slide = 1 ช่วงการสอน
 - Speaker Notes ของแต่ละ Slide = บทพูดของ AI โดยตรง (Plain Text ไม่มี Syntax พิเศษ)
 - ระบบไม่ Copy/Snapshot เนื้อหา — อ่านสดทุกครั้งที่เข้าห้อง (`GET /api/lessons/[slug]`)
-- Database (Mock/Supabase) เก็บเฉพาะ Metadata (URL, ค่าจังหวะเวลา,
+- Database เก็บเฉพาะ Metadata (URL, ค่าจังหวะเวลา,
   `videoDurationMs` ต่อ Slide) ไม่เก็บเนื้อหาสไลด์เอง
 
 ## Consequences

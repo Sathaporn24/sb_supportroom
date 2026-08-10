@@ -1,104 +1,87 @@
 # System Architecture
 
-> สถานะ: ตรงกับโค้ดจริงใน branch นี้ (Mock-first, Backend เตรียมพร้อมเชื่อมจริง)
+> สถานะ: อ้างอิงโค้ดใน monorepo ปัจจุบัน ณ branch นี้
 
 ## ภาพรวม
 
-`sb_supportroom` ใช้ Next.js App Router เป็นทั้ง Frontend และ Backend ในโปรเจกต์เดียว
-(Route Handlers ทำหน้าที่ Backend API) ไม่มี Backend แยกต่างหาก
-
 ```text
-Browser UI (Client Components)
-  ↓ fetch()
-src/lib/api-client.ts        — Internal API Client ฝั่ง Browser จุดเดียวที่คุยกับ /api/*
-  ↓ HTTP
-src/app/api/**/route.ts      — Route Handlers (Backend)
-  ↓
-Provider / Repository Interfaces
-  ├─ src/providers/slides      → SlidesContentProvider   (Mock / Google)
-  ├─ src/providers/tts         → TextToSpeechProvider     (Mock / Hugging Face)
-  ├─ src/providers/voice-question → VoiceQuestionProvider (Mock / Gemini)
-  └─ src/providers/data        → LessonConfigRepository / SessionRepository /
-                                   SessionQuestionRepository / SessionSummaryRepository
-                                   (Mock in-memory / Supabase)
+Next.js Browser UI
+  ├─ REST: frontend/src/lib/api-client.ts
+  └─ SignalR: frontend/src/hooks/use-session-chat.ts
+                ↓
+ASP.NET Core API (.NET 10)
+  ├─ Controllers / SessionHub
+  ├─ Application Services
+  ├─ Domain contracts/entities
+  └─ Provider implementations
+       ├─ PostgreSQL ผ่าน EF Core/Npgsql
+       ├─ Google Slides หรือ PDF renderer
+       ├─ Edge TTS
+       ├─ Gemini / OpenAI-compatible API
+       ├─ Pinecone
+       └─ Local storage / Huawei OBS
 ```
 
-## กฎ Architecture ที่บังคับใช้จริงในโค้ด
+Next.js ทำหน้าที่ UI เท่านั้น ไม่มี `src/app/api/**` และไม่ถือ credentials ของ provider
 
-1. **Component ห้ามเรียก Google/Gemini/Hugging Face/Supabase โดยตรง** — ทุก Client
-   Component เรียกผ่าน `src/lib/api-client.ts` เท่านั้น ซึ่งยิง `fetch("/api/...")`
-2. **Secret อยู่ฝั่ง Server เท่านั้น** — ไฟล์ที่แตะ Credential ทุกไฟล์ขึ้นต้นด้วย
-   `import "server-only"` (เช่น `src/config/env.ts`, ทุกไฟล์ใน `src/providers/*/`,
-   `src/providers/data/supabase/*`) ถ้ามีการ import เข้า Client Component โดยไม่ตั้งใจ
-   Next.js จะ build fail ทันที
-3. **Business Logic ของ Tutor Engine ไม่ผูกกับ SDK ผู้ให้บริการ** — ดู `src/tutor/`
-   เป็น Pure Reducer (`tutor-reducer.ts`) รับ Event คืน `{ runtime, effect }` เท่านั้น
-   ไม่รู้จัก Google Slides API, Gemini SDK หรือ Hugging Face เลย
-4. **Factory จุดเดียวต่อ Provider** — `src/providers/*/index.ts` แต่ละตัวมี
-   `createXxxProvider()` ที่ switch ตาม Environment Variable (`SLIDES_PROVIDER`,
-   `TTS_PROVIDER`, `VOICE_QUESTION_PROVIDER`, `DATA_PROVIDER`) ไม่มีการกระจาย
-   `if (provider === ...)` ไปตาม Component อื่น
-5. **Mock เป็นค่าเริ่มต้นเสมอ** — ทุก Factory `default` ไปที่ Mock เมื่อไม่ได้ตั้งค่า
-   Environment Variable (ทดสอบใน `src/providers/provider-factories.test.ts`)
+## Backend Layers
 
-## โครงสร้างโฟลเดอร์ (ส่วนที่เกี่ยวกับ Backend/Integration)
+| Layer | หน้าที่ |
+|---|---|
+| `SupportRoom.Api` | HTTP controllers, SignalR hub, DI, CORS, logging, exception pipeline, background worker |
+| `SupportRoom.Application` | Use cases, validation/orchestration, DTOs, ViewModels, realtime abstraction |
+| `SupportRoom.Domain` | Entities, status constants, provider selection และ environment readers |
+| `SupportRoom.Infrastructure` | Error envelope, exception handlers และ CORS |
+| `SupportRoom.Providers.Data` | EF Core DbContext, repositories, unit of work และ migrations |
+| `SupportRoom.Providers.Slides` | Google Slides และ PDF rendering |
+| `SupportRoom.Providers.Tts` | Edge TTS |
+| `SupportRoom.Providers.VoiceQuestion` | Gemini full-context และ RAG answer pipelines |
+| `SupportRoom.Providers.Knowledge` | Gemini/OpenAI embeddings และ Pinecone vector index |
+| `SupportRoom.Providers.DocumentParsing` | PDF, PPTX, DOCX, XLSX text extraction |
+| `SupportRoom.Providers.Storage` | Local filesystem และ Huawei OBS |
+
+## Frontend Boundaries
+
+- REST calls รวมที่ `frontend/src/lib/api-client.ts`
+- SignalR connection อยู่ใน `frontend/src/hooks/use-session-chat.ts`
+- Browser media/TTS orchestration อยู่ใน hooks
+- `frontend/src/tutor/` เป็น pure reducer ไม่รู้จัก fetch, SignalR, MediaRecorder หรือ provider SDK
+- Wire types อยู่ใน `frontend/src/types/` และต้องตรงกับ backend ViewModels
+
+## Provider Selection
+
+ระบบไม่มี Mock fallback และอ่าน selection ตอน backend startup:
 
 ```text
-src/
-├── app/
-│   ├── api/                      Route Handlers (Backend)
-│   │   ├── health/route.ts
-│   │   ├── slides/resolve/route.ts
-│   │   ├── slides/content/route.ts
-│   │   ├── tts/route.ts
-│   │   ├── voice-question/route.ts
-│   │   ├── lessons/route.ts
-│   │   ├── lessons/[slug]/route.ts
-│   │   ├── sessions/route.ts
-│   │   ├── sessions/[token]/route.ts
-│   │   ├── sessions/[token]/summary/route.ts
-│   │   ├── session-questions/route.ts
-│   │   └── admin/reset/route.ts
-│   ├── admin/                    CS-facing pages (lessons, sessions)
-│   ├── join/[token]/             Pre-join (camera/mic preview)
-│   └── room/[token]/             Meeting room (Slides embed + Push-to-Talk)
-├── config/
-│   ├── env.ts                    Server-only env readers + validation (Zod)
-│   ├── server-defaults.ts        Server-only defaults for new LessonConfig rows
-│   └── tutor-config.ts           Client-safe constants (mirrors the env defaults)
-├── lib/
-│   ├── api-client.ts             Only place Browser code calls /api/*
-│   └── api-response.ts           Shared ApiErrorResponse helper for Route Handlers
-├── providers/
-│   ├── slides/                   SlidesContentProvider (Mock, Google real skeleton)
-│   ├── tts/                      TextToSpeechProvider (Mock, Hugging Face skeleton)
-│   ├── voice-question/           VoiceQuestionProvider (Mock, Gemini skeleton)
-│   └── data/                     4 repository interfaces, Mock (in-memory) + Supabase
-├── tutor/                        Pure state machine (reducer + types + intents)
-├── hooks/use-tutor-session.ts    Wires the reducer to React + browser APIs
-└── types/                        domain.ts (LessonConfig/TrainingSession/...), api.ts
+SLIDES_PROVIDER=google
+TTS_PROVIDER=edge
+VOICE_QUESTION_PROVIDER=gemini | gemini-rag | openai-rag
+KNOWLEDGE_PROVIDER=pinecone | pinecone-openai
+DOCUMENT_STORAGE_PROVIDER=local | huawei-obs
 ```
+
+PostgreSQL เป็น dependency บังคับและไม่มี `DATA_PROVIDER` switch
 
 ## Data Ownership
 
-- **Google Slides = แหล่งเนื้อหาการสอนหลัก** เสมอ (Speaker Notes ของแต่ละ Slide คือ
-  บทพูด) — ระบบไม่ Snapshot หรือ Copy เนื้อหานี้ลงฐานข้อมูล ทุกครั้งที่เข้าห้องจะอ่านจาก
-  Slides Provider สด ๆ (`resolvePresentation` → `getLessonContent`)
-- **Supabase (หรือ Mock in-memory) เก็บเฉพาะ Config และประวัติการใช้งาน**:
-  `LessonConfig` (URL, ค่าจังหวะเวลา, `videoDurationMs` ต่อ Slide), `TrainingSession`,
-  `SessionQuestion`, `SessionSummary` — ดู [ER_DIAGRAM.md](./ER_DIAGRAM.md)
+- PostgreSQL เก็บ metadata/config/history: lesson, session, question, chat, summary และ document metadata
+- Google Slides หรือ PDF storage เป็น source of truth ของ teaching content
+- Pinecone เก็บ embeddings/chunks แยกจาก PostgreSQL โดยใช้ lesson slug หรือ `kb-global` เป็น namespace
+- Frontend ไม่เข้าถึงฐานข้อมูลหรือ provider ภายนอกโดยตรง
 
-## Mock Mode ทำงานอย่างไร
+## Background Work
 
-- `DATA_PROVIDER=mock` (ค่าเริ่มต้น): `src/providers/data/mock/store.ts` เป็น In-memory
-  Map เก็บบน `globalThis` (กัน Next.js Dev Hot Reload ล้างข้อมูล) — **รีเซ็ตเมื่อรีสตาร์ท
-  เซิร์ฟเวอร์** และไม่ persist ข้าม Process/Serverless Invocation ในโปรดักชัน
-- `SLIDES_PROVIDER=mock`: มี Deck จำลอง 1 ชุด (`MOCK_PRESENTATION_ID` ใน
-  `mock-slides-provider.ts`) ให้เดิน Flow ได้โดยไม่ต้องมี Google Credential
-- `TTS_PROVIDER=mock`: สร้างไฟล์ WAV เงียบ (silent) ความยาวคำนวณจากจำนวนตัวอักษร
-  ผ่าน `estimateSpeakingDurationMs` — Path เดียวกับที่ Client เล่นเสียงจริง
-  (`<audio>` element + `ended` event) ต่างกันแค่เนื้อหาเสียง
-- `VOICE_QUESTION_PROVIDER=mock`: ไม่ถอดเสียงจริง แต่ใช้ Transcript ตัวอย่างคงที่
-  แล้ว Ground คำตอบกับ Speaker Notes จริงของบทเรียนนั้น ๆ
+Document upload จะบันทึกไฟล์และแถว `DocumentResource` ก่อน แล้ว enqueue งาน parse/embed/index
+เข้า in-memory channel ซึ่ง `QueuedHostedService` ประมวลผลใน DI scope ใหม่
 
-ดูสถานะ Integration แต่ละตัวแบบละเอียดใน [BACKEND_HANDOFF.md](./BACKEND_HANDOFF.md)
+ข้อจำกัดปัจจุบัน: queue เป็น unbounded และไม่ durable; process restart อาจทิ้งเอกสารไว้สถานะ
+`pending`
+
+## Cross-cutting Concerns
+
+- JSON ใช้ camelCase
+- Error ใช้ envelope `{ error: { code, message, requestId } }`
+- Serilog ใส่ correlation ID และเขียน console/rolling files
+- Development CORS อนุญาต `http://localhost:3000`; production อ่าน `ALLOWED_ORIGINS`
+- Swagger/OpenAPI เปิดเฉพาะ Development
+- ปัจจุบันยังไม่มี authentication, authorization หรือ rate limiting

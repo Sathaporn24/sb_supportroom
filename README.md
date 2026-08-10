@@ -1,102 +1,124 @@
-# sb_supportroom (SupportRoom AI)
+# SupportRoom AI
 
-ห้องสอนการใช้งานระบบแบบสนทนาโต้ตอบ (ประสบการณ์คล้าย Video Call กับเจ้าหน้าที่ CS ชื่อ
-**School Bright Support**) เนื้อหาการสอนดึงจาก **Google Slides** โดยตรง (1 Slide = 1
-ช่วงการสอน, Speaker Notes = บทพูดของ AI) คุณครูถามคำถามด้วยเสียงผ่าน **Push-to-Talk**
+ระบบห้องสอนการใช้งานแบบสนทนาโต้ตอบสำหรับทีม CS และคุณครู เนื้อหาสอนมาจาก Google Slides
+หรือไฟล์ PDF, รองรับ Push-to-Talk, คำตอบแบบ grounded/RAG, Edge TTS และแชตสดผ่าน SignalR
 
-**Phase ปัจจุบัน**: Backend จริง (Next.js Route Handlers) + Provider/Repository
-Interface ครบทั้ง 4 บริการภายนอก (Google Slides, Gemini, Hugging Face, Supabase) —
-**Mock เป็นค่าเริ่มต้นเสมอ รันได้ทันทีโดยไม่มี Credential ใด ๆ**
-ยังไม่มี Integration ใดถูกทดสอบกับบริการจริง (ดู [docs/BACKEND_HANDOFF.md](./docs/BACKEND_HANDOFF.md))
+## สถาปัตยกรรมปัจจุบัน
 
-Spec เดิม: [`AI_Live_Tutor_Demo_Spec.md`](./AI_Live_Tutor_Demo_Spec.md) (Phase 1, มี
-Annotation สถานะกำกับแต่ละหัวข้อ) — Business Logic ล่าสุดอยู่ใน
-[docs/SYSTEM_LOGIC.md](./docs/SYSTEM_LOGIC.md)
+โปรเจกต์เป็น monorepo แยก frontend และ backend ชัดเจน:
 
-## เทคโนโลยี
+```text
+Browser (Next.js)
+  ├─ REST ────────> ASP.NET Core Controllers
+  └─ SignalR ─────> SessionHub
+                       ↓
+                 Application Services
+                       ↓
+        PostgreSQL / Google Slides / Edge TTS
+        Gemini / OpenAI-compatible / Pinecone
+        Local storage หรือ Huawei OBS
+```
 
-- Next.js 15 (App Router) เป็นทั้ง Frontend และ Backend + TypeScript (strict) + Tailwind CSS
-- Zod สำหรับ Request/Env Validation
-- Vitest สำหรับ Unit Test
-- Provider Interfaces สำหรับ Google Slides / Gemini / Hugging Face TTS / Supabase
-  (Mock เป็น Default, Real Implementation "Prepared")
+- `frontend/` — Next.js 15, React 19, TypeScript, Tailwind และ SignalR client
+- `backend/` — .NET 10, ASP.NET Core, EF Core/PostgreSQL, SignalR และ Serilog
+- `backend/src/SupportRoom.Application/` — use cases และ business orchestration
+- `backend/src/SupportRoom.Domain/` — entities, status/constants และ configuration contracts
+- `backend/src/SupportRoom.Providers.*` — integrations ภายนอกและ persistence
+- `backend/tests/` — application/provider/API test projects
+
+Next.js ไม่มี Route Handler ฝั่ง backend แล้ว ทุก `/api/*` และ `/hubs/session` ชี้ไปที่ .NET API
+ผ่าน `NEXT_PUBLIC_API_BASE_URL`
+
+## ความสามารถหลัก
+
+- จัดการบทเรียนและสร้างลิงก์ session
+- ใช้ Google Slides หรือ PDF เป็นเนื้อหาหลักต่อบทเรียน
+- อัปโหลด PDF, PPTX, DOCX และ XLSX เพื่อสร้าง knowledge base
+- ถามด้วยเสียงแบบ Push-to-Talk และตอบโดยอ้างอิงเนื้อหาที่กำหนด
+- เลือก full-context Gemini, Gemini RAG หรือ OpenAI-compatible RAG
+- สังเคราะห์เสียงภาษาไทยด้วย Edge TTS
+- แชตสดระหว่างครูกับทีม CS ผ่าน SignalR พร้อมเก็บประวัติ
+- เก็บบทเรียน, session, คำถาม, แชต, เอกสาร และ summary ใน PostgreSQL
 
 ## เริ่มต้นใช้งาน
 
-```bash
+สิ่งที่ต้องมี: Node.js/npm, .NET SDK 10, PostgreSQL และ credentials ของ provider ที่เลือก
+ระบบปัจจุบันไม่มี Mock provider และ backend ต้องได้รับ provider selection ทุกหมวดอย่างชัดเจน
+
+### Backend
+
+```powershell
+cd backend
+Copy-Item src/SupportRoom.Api/.env.example src/SupportRoom.Api/.env
+# กรอก provider credentials และตั้ง POSTGRES_CONNECTION_STRING หรือ ConnectionStrings:Postgres
+
+dotnet restore SupportRoom.slnx
+dotnet ef database update --project src/SupportRoom.Providers.Data --startup-project src/SupportRoom.Api
+dotnet run --project src/SupportRoom.Api
+```
+
+Development API ใช้ `http://localhost:5138` ตาม `launchSettings.json`
+
+### Frontend
+
+```powershell
+cd frontend
+Copy-Item .env.example .env.local
 npm install
-cp .env.example .env.local   # ไม่บังคับ - ไม่มีไฟล์นี้ก็รันได้ (ทุกอย่าง default เป็น mock)
 npm run dev
 ```
 
-เปิด <http://localhost:3000> จะ redirect ไปที่ `/admin` โดยอัตโนมัติ
+เปิด <http://localhost:3000>
 
-ตรวจสอบก่อนส่งงาน:
+> `frontend/.env.example` มี legacy server variables เหลืออยู่ แต่ frontend อ่านจริงเฉพาะ
+> `NEXT_PUBLIC_API_BASE_URL`; credentials ทั้งหมดต้องอยู่ฝั่ง backend เท่านั้น
 
-```bash
+## Provider Selection
+
+Backend บังคับให้ตั้งค่าหมวดเหล่านี้:
+
+| หมวด | ค่าที่รองรับ |
+|---|---|
+| Slides | `SLIDES_PROVIDER=google` |
+| TTS | `TTS_PROVIDER=edge` |
+| Voice question | `gemini`, `gemini-rag`, `openai-rag` |
+| Knowledge | `pinecone`, `pinecone-openai` |
+| Document storage | `local`, `huawei-obs` |
+
+รายละเอียด environment ทั้งหมดอยู่ใน
+[`backend/src/SupportRoom.Api/.env.example`](./backend/src/SupportRoom.Api/.env.example)
+
+## ตรวจสอบก่อนส่งงาน
+
+```powershell
+cd frontend
 npm run lint
 npm run typecheck
 npm run test
 npm run build
+
+cd ../backend
+dotnet build SupportRoom.slnx
+dotnet test SupportRoom.slnx
 ```
 
-## Demo Flow (Mock Mode)
+Provider tests บางรายการเรียกบริการจริงและต้องมี credentials/network จึงควรแยกผล unit tests
+ออกจาก integration tests เมื่อใช้ใน CI
 
-1. เปิด `/admin` → **จัดการบทเรียน** → เปิดบทเรียน "วิธีการ Login (mobile)" → กด
-   **ตรวจสอบ/Sync Slides** (ดึง Mock Deck 6 Slide) → ติ๊ก **เปิดใช้งานบทเรียนนี้** → บันทึก
-2. `/admin` → **สร้างลิงก์การสอน** → เลือกบทเรียนที่ "พร้อมใช้งาน" → กรอกชื่อครู/โรงเรียน
-   (ไม่บังคับ) → สร้างลิงก์ → คัดลอก
-3. เปิดลิงก์ในแท็บ/เบราว์เซอร์ใหม่ (ใน Mock Mode ข้อมูลอยู่ใน In-memory Store ฝั่งเซิร์ฟเวอร์
-   ใช้ข้ามเบราว์เซอร์ได้ตราบใดที่ยังชี้ไปเซิร์ฟเวอร์เดียวกัน) → หน้า Pre-join → อนุญาต
-   กล้อง/ไมค์ → **เข้าร่วมห้องสอน**
-4. ห้องสอน — AI ทักทาย → รอ/กด **พร้อมแล้ว เริ่มเรียนเลย** → Slide เดินอัตโนมัติทีละ
-   Slide พร้อมเสียง Mock TTS (ไฟล์ WAV เงียบ ความยาวตามจำนวนตัวอักษร)
-5. กดค้างปุ่มไมค์ (**Push-to-Talk**) เพื่อถามคำถาม (Mock ใช้ Transcript ตัวอย่างคงที่
-   แล้ว Ground คำตอบกับ Speaker Notes จริงของบทเรียน) ปล่อยเร็วเกินไปจะได้ยิน "ไม่มีคำพูด"
-   แล้วกลับไปสอนต่อเงียบ ๆ
-6. เดินจนจบทุก Slide → ฟังคำถามท้ายบทเรียน → เงียบจนหมดเวลา → กล่าวลา → จบ Session อัตโนมัติ
-   (หรือกด **ออกจากห้อง** เพื่อจบก่อนกำหนด)
-7. กลับ `/admin` → **ดูสรุป** ที่แถว Session นั้น
-8. ปุ่ม **Reset Demo Data** ล้างข้อมูล Mock กลับเป็น Seed (ใช้ได้เฉพาะ Mock Mode)
+## สถานะและข้อจำกัดที่ต้องทราบ
 
-ขั้นตอนละเอียดกว่านี้ + Checklist ทดสอบ: [docs/TESTING_GUIDE.md](./docs/TESTING_GUIDE.md)
+- ยังไม่มี authentication/authorization และ rate limiting
+- Backend ยังไม่บังคับ session expiry; frontend เป็นผู้ตรวจวันหมดอายุในปัจจุบัน
+- Document indexing queue อยู่ใน memory และงาน Pending อาจสูญหายเมื่อ process restart
+- การลบเอกสารยังไม่ลบ vector รายเอกสารออกจาก Pinecone
+- ไม่มี CI workflow ใน repository
+- EF Core/Npgsql dependencies ต้องจัด version ให้ตรงกันเพื่อกำจัด assembly conflict warning
 
-## Environment Variables
+## เอกสาร
 
-```env
-DATA_PROVIDER=mock              # mock | supabase
-SLIDES_PROVIDER=mock            # mock | google
-TTS_PROVIDER=mock               # mock | huggingface
-VOICE_QUESTION_PROVIDER=mock    # mock | gemini
-```
-
-รายการตัวแปรทั้งหมด (รวม Credential ของแต่ละบริการ): [docs/ENVIRONMENT_SETUP.md](./docs/ENVIRONMENT_SETUP.md)
-วิธีเปิดใช้งานแต่ละ Integration จริง: [docs/API_INTEGRATION_GUIDE.md](./docs/API_INTEGRATION_GUIDE.md)
-
-## สถาปัตยกรรม
-
-```text
-Browser UI → src/lib/api-client.ts → Next.js Route Handlers (src/app/api/**)
-           → Provider/Repository Interfaces → Mock (default) หรือ Real (Google Slides /
-             Gemini / Hugging Face / Supabase)
-```
-
-- Tutor Engine (`src/tutor/tutor-reducer.ts`) เป็น Pure Reducer แยกขาดจาก UI และจาก
-  SDK ผู้ให้บริการทุกตัว — ดู State Diagram เต็มใน [docs/STATE_MACHINE.md](./docs/STATE_MACHINE.md)
-- Secret ทั้งหมดอยู่ฝั่ง Server เท่านั้น (`import "server-only"` กันไว้ทุกไฟล์ที่แตะ Credential)
-- รายละเอียดสถาปัตยกรรมเต็ม: [docs/SYSTEM_ARCHITECTURE.md](./docs/SYSTEM_ARCHITECTURE.md)
-
-## เอกสารทั้งหมด
-
-ดูสารบัญและจุดเริ่มต้นที่แนะนำใน [docs/SYSTEM_ARCHITECTURE.md](./docs/SYSTEM_ARCHITECTURE.md)
-และรายการ Diagram/Setup Guide/ADR ทั้งหมดในโฟลเดอร์ [`docs/`](./docs/)
-
-## Known Limitations
-
-- **ยังไม่มี Integration ใดทดสอบกับบริการจริง** (Google Slides/Gemini/Hugging
-  Face/Supabase) — ทั้งหมดอยู่ในสถานะ "Prepared" ดู [docs/BACKEND_HANDOFF.md](./docs/BACKEND_HANDOFF.md)
-- Mock Data เป็น In-memory ฝั่งเซิร์ฟเวอร์ — หายเมื่อรีสตาร์ทเซิร์ฟเวอร์
-- Resume หลัง Push-to-Talk เป็นแบบ Restart ทั้ง Slide เสมอ ไม่ใช่ Resume ตำแหน่งกลาง
-  ประโยค (ตามที่ Spec อนุญาตให้ทำได้เมื่อ Resume แม่นยำกว่านี้ซับซ้อนเกินไป)
-- ไม่มี Authentication สำหรับ CS, ไม่มี Multi-device Sync, ไม่มีคะแนนหรือประเมินคุณครู
-- รองรับการเรียนครั้งละหนึ่งอุปกรณ์ต่อ Session
+- ภาพรวมระบบ: [`frontend/docs/SYSTEM_ARCHITECTURE.md`](./frontend/docs/SYSTEM_ARCHITECTURE.md)
+- Environment: [`frontend/docs/ENVIRONMENT_SETUP.md`](./frontend/docs/ENVIRONMENT_SETUP.md)
+- API: [`frontend/docs/API_CONTRACT.md`](./frontend/docs/API_CONTRACT.md)
+- State machine: [`frontend/docs/STATE_MACHINE.md`](./frontend/docs/STATE_MACHINE.md)
+- Data model/workflow: [`backend/docs/ER_DIAGRAM_AND_WORKFLOW.md`](./backend/docs/ER_DIAGRAM_AND_WORKFLOW.md)
+- การทดสอบ: [`frontend/docs/TESTING_GUIDE.md`](./frontend/docs/TESTING_GUIDE.md)

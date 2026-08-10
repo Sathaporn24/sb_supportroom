@@ -2,7 +2,11 @@
 
 ## Status
 
-Accepted (สืบทอดจากเฟส 1 และคงหลักการเดิมไว้ในเฟสนี้)
+Superseded (2026-08-10)
+
+Backend .NET ปัจจุบันถอด Mock providers ออกแล้ว ทุก provider category ต้องเลือก real
+implementation อย่างชัดเจน และ PostgreSQL เป็น dependency บังคับ การตัดสินใจด้านล่าง
+อธิบาย architecture เดิมเท่านั้น
 
 ## Context
 
