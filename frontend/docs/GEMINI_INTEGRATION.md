@@ -1,68 +1,50 @@
-# Gemini Integration
+# Gemini and Voice Question Integration
 
-> สถานะ: **Prepared — Credentials Required** ยังไม่เคยทดสอบกับ Gemini API จริง
-> Entry point: `src/providers/voice-question/gemini-voice-question-provider.ts`
+Gemini ทำหน้าที่ audio transcription ทุก voice mode และทำ answer/embedding ในบาง mode
 
-## ขั้นตอน
+## Modes
 
-1. สร้าง API Key ที่ [Google AI Studio](https://aistudio.google.com/) หรือผ่าน Google
-   Cloud Console (Vertex AI) แล้วแต่ว่าจะใช้ Endpoint ไหน (Provider นี้เขียนไว้สำหรับ
-   Generative Language API REST endpoint แบบ AI Studio Key)
-2. ตั้งค่า Environment:
-   ```env
-   GEMINI_API_KEY=xxxxxxxxxxxx
-   GEMINI_MODEL=gemini-1.5-flash
-   ```
-3. สลับ Provider: `VOICE_QUESTION_PROVIDER=gemini`
+| Voice mode | Transcription | Retrieval | Answer |
+|---|---|---|---|
+| `gemini` | Gemini | ไม่มี; ส่ง full deck | Gemini |
+| `gemini-rag` | Gemini | Gemini embedding + Pinecone | Gemini |
+| `openai-rag` | Gemini | OpenAI embedding + Pinecone | OpenAI-compatible API |
 
-## Flow การส่งเสียง
+`GEMINI_API_KEY` บังคับทุก mode; `GEMINI_MODEL` default `gemini-flash-latest`
 
-`POST /api/voice-question` → โหลด Speaker Notes ทุก Slide → เรียก
-`GeminiVoiceQuestionProvider.transcribeAndAnswer` → ส่ง Request ไปที่
-`https://generativelanguage.googleapis.com/v1beta/models/<model>:generateContent`
-พร้อม 2 Parts ใน Content เดียว:
+## Response Contract
 
-1. Prompt ข้อความ (บังคับ Persona + Grounding Rule + Speaker Notes ทั้งหมด + Schema)
-2. `inline_data` เสียงคำถาม (`mime_type` ตาม MediaRecorder ของ Browser, เนื้อไฟล์เป็น
-   Base64)
+Provider คืน:
 
-## Prompt / Response Schema
+```json
+{
+  "transcript": "...",
+  "answer": "...",
+  "answerStatus": "answered | not_found | out_of_scope | no_speech | transcription_failed",
+  "relatedSlideObjectId": "...",
+  "readiness": "ready | not_ready"
+}
+```
 
-Prompt เต็มอยู่ใน `buildPrompt()` ของไฟล์ Provider สรุปกติกา:
+Readiness request ใช้ prompt สั้นและไม่ persist เป็น `SessionQuestion`
 
-- ถอดเสียงเป็นข้อความภาษาไทย
-- ตอบจาก Speaker Notes ที่แนบมาเท่านั้น ห้ามใช้ความรู้ทั่วไป ห้ามเดา
-- บังคับตอบกลับเป็น JSON (`generationConfig.responseMimeType = "application/json"`)
-  ตาม Schema:
-  ```json
-  {
-    "transcript": "string",
-    "answer": "string",
-    "answerStatus": "answered | not_found | out_of_scope | transcription_failed",
-    "relatedSlideObjectId": "string | null"
-  }
-  ```
+## Grounding Rules
 
-Provider ฝั่งเราตรวจสอบว่า `answerStatus` เป็นหนึ่งใน 4 ค่าที่กำหนด (บวก `no_speech`
-ที่ตัดสินใจฝั่ง Server ก่อนเรียก Gemini ด้วยความยาวการอัดเสียง) ถ้า Parse JSON ไม่ได้หรือ
-`answerStatus` ไม่ตรง Schema จะถือเป็น `transcription_failed` โดยอัตโนมัติ (Fail-safe)
+- ตอบจาก retrieved chunks/full lesson context เท่านั้น
+- ห้ามสร้าง slide object ID ที่ไม่มีใน context
+- RAG query lesson namespace และ `kb-global`, merge top score แล้วกรองด้วย threshold
+- Retrieval outage fallback ไป full-deck context
+- Indexed corpus ที่มีแต่ไม่มี chunk ผ่าน threshold จะตอบ not-found ไม่ fallback
 
-## Safety / Fallback
+## Setup
 
-- ถ้าไม่ได้ตั้ง `GEMINI_API_KEY` แล้วเลือก `VOICE_QUESTION_PROVIDER=gemini` จะได้
-  `MissingEnvError` ทันทีตอนเรียก `/api/voice-question` (ไม่ Fallback เงียบไปที่ Mock)
-- Request ที่ Gemini ตอบ Error (`!response.ok`) → Provider throw Error พร้อมข้อความสั้น ๆ
-  → Route Handler คืน `502 UPSTREAM_ERROR` ให้ Client (ไม่ใช่ 500 เพราะไม่ใช่ Bug ของเรา)
-- **ห้าม Log เสียง Audio หรือ Transcript เกินความจำเป็น** — โค้ดปัจจุบันไม่มีการ
-  `console.log` เนื้อหา Transcript/Answer เต็มที่จุดใดเลย มีแค่ Error Message สั้น ๆ เวลา
-  Fail
+1. ตั้ง `GEMINI_API_KEY` และ optional `GEMINI_MODEL`
+2. เลือก `VOICE_QUESTION_PROVIDER`
+3. ถ้าใช้ RAG ตั้ง `KNOWLEDGE_PROVIDER` และ Pinecone credentials
+4. ให้ Pinecone dimension ตรงกับ embedding provider (ค่าเริ่มต้น 768)
+5. Reindex ทุก namespace เมื่อเปลี่ยน embedding vendor/model/dimension
 
-## วิธีทดสอบ Transcript และ Answer Status
+## Verification
 
-1. ตั้งค่า Credential ตามด้านบน
-2. เข้าห้องสอนจริง (`/room/[token]`) กดค้างปุ่มไมค์แล้วถามคำถามที่ตรงกับเนื้อหาใน
-   Speaker Notes ของบทเรียนนั้น → ควรได้ `answerStatus: "answered"` และคำตอบตรงเนื้อหา
-3. ถามคำถามที่ไม่มีในเนื้อหาเลย → ควรได้ `not_found`
-4. ถามคำถามนอกเรื่องระบบทั้งหมด (เช่นถามเรื่องดินฟ้าอากาศ) → ควรได้ `out_of_scope`
-5. ปล่อยให้เงียบ/พึมพำสั้น ๆ ต่ำกว่า `MIN_VOICE_DURATION_MS` → ควรได้ `no_speech`
-   (กรณีนี้ไม่เรียก Gemini เลย ตัดสินใจได้จาก Duration ฝั่ง Server ก่อน)
+ทดสอบ readiness, answered, not-found, out-of-scope, no-speech, malformed JSON, provider 429/5xx,
+retrieval outage และ related-slide mapping โดยไม่ log transcript/prompt เต็ม

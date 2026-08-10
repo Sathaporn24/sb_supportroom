@@ -21,10 +21,10 @@
         <mxCell id="lc-4" value="SlidesSourceUrl : string" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=8;fontSize=11;whiteSpace=nowrap;overflow=hidden;html=1;" vertex="1" parent="lc">
           <mxGeometry y="108" width="260" height="26" as="geometry" />
         </mxCell>
-        <mxCell id="lc-5" value="PresentationId : string?" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=8;fontSize=11;whiteSpace=nowrap;overflow=hidden;html=1;" vertex="1" parent="lc">
+        <mxCell id="lc-5" value="PresentationId / PdfDocumentResourceId : string?" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=8;fontSize=11;whiteSpace=nowrap;overflow=hidden;html=1;" vertex="1" parent="lc">
           <mxGeometry y="134" width="260" height="26" as="geometry" />
         </mxCell>
-        <mxCell id="lc-6" value="SlidesEmbedUrl : string?" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=8;fontSize=11;whiteSpace=nowrap;overflow=hidden;html=1;" vertex="1" parent="lc">
+        <mxCell id="lc-6" value="ContentSourceType / SlidesEmbedUrl" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=8;fontSize=11;whiteSpace=nowrap;overflow=hidden;html=1;" vertex="1" parent="lc">
           <mxGeometry y="160" width="260" height="26" as="geometry" />
         </mxCell>
         <mxCell id="lc-7" value="IntroWaitMs : int" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=8;fontSize=11;whiteSpace=nowrap;overflow=hidden;html=1;" vertex="1" parent="lc">
@@ -36,7 +36,7 @@
         <mxCell id="lc-9" value="FinalQuestionWaitMs : int" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=8;fontSize=11;whiteSpace=nowrap;overflow=hidden;html=1;" vertex="1" parent="lc">
           <mxGeometry y="238" width="260" height="26" as="geometry" />
         </mxCell>
-        <mxCell id="lc-10" value="SlideConfigs : json[] (embedded)" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=8;fontSize=11;whiteSpace=nowrap;overflow=hidden;html=1;" vertex="1" parent="lc">
+        <mxCell id="lc-10" value="SlideConfigs : JSON owned collection" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=8;fontSize=11;whiteSpace=nowrap;overflow=hidden;html=1;" vertex="1" parent="lc">
           <mxGeometry y="264" width="260" height="26" as="geometry" />
         </mxCell>
         <mxCell id="lc-11" value="IsActive : bool" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=8;fontSize=11;whiteSpace=nowrap;overflow=hidden;html=1;" vertex="1" parent="lc">
@@ -147,6 +147,18 @@
           <mxGeometry y="134" width="260" height="26" as="geometry" />
         </mxCell>
 
+        <!-- DOCUMENT_RESOURCE -->
+        <mxCell id="dr" value="DOCUMENT_RESOURCE" style="swimlane;fontStyle=1;align=center;verticalAlign=middle;childLayout=stackLayout;horizontal=1;startSize=30;horizontalStack=0;resizeParent=0;resizeParentMax=0;collapsible=0;marginBottom=0;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="960" y="480" width="280" height="212" as="geometry" />
+        </mxCell>
+        <mxCell id="dr-1" value="PK   Id : string" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=8;fontStyle=1;fontSize=11;whiteSpace=nowrap;overflow=hidden;html=1;" vertex="1" parent="dr"><mxGeometry y="30" width="280" height="26" as="geometry" /></mxCell>
+        <mxCell id="dr-2" value="LessonId : string?" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=8;fontSize=11;whiteSpace=nowrap;overflow=hidden;html=1;" vertex="1" parent="dr"><mxGeometry y="56" width="280" height="26" as="geometry" /></mxCell>
+        <mxCell id="dr-3" value="FileName / ContentType / SizeBytes" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=8;fontSize=11;whiteSpace=nowrap;overflow=hidden;html=1;" vertex="1" parent="dr"><mxGeometry y="82" width="280" height="26" as="geometry" /></mxCell>
+        <mxCell id="dr-4" value="ObsBucket / ObsKey" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=8;fontSize=11;whiteSpace=nowrap;overflow=hidden;html=1;" vertex="1" parent="dr"><mxGeometry y="108" width="280" height="26" as="geometry" /></mxCell>
+        <mxCell id="dr-5" value="IndexingStatus : pending/indexed/failed" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=8;fontSize=11;whiteSpace=nowrap;overflow=hidden;html=1;" vertex="1" parent="dr"><mxGeometry y="134" width="280" height="26" as="geometry" /></mxCell>
+        <mxCell id="dr-6" value="IndexedChunkCount : int" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=8;fontSize=11;whiteSpace=nowrap;overflow=hidden;html=1;" vertex="1" parent="dr"><mxGeometry y="160" width="280" height="26" as="geometry" /></mxCell>
+        <mxCell id="dr-7" value="Used by PDF source and RAG documents" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=8;fontSize=11;whiteSpace=nowrap;overflow=hidden;html=1;" vertex="1" parent="dr"><mxGeometry y="186" width="280" height="26" as="geometry" /></mxCell>
+
         <!-- Relationships -->
         <mxCell id="e1" value="spawns" style="edgeStyle=entityRelationEdgeStyle;rounded=0;html=1;fontSize=11;startArrow=ERone;startFill=0;endArrow=ERmany;endFill=0;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="lc" target="ts">
           <mxGeometry relative="1" as="geometry" />
@@ -158,6 +170,9 @@
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
         <mxCell id="e4" value="closes with" style="edgeStyle=entityRelationEdgeStyle;rounded=0;html=1;fontSize=11;startArrow=ERone;startFill=0;endArrow=ERzeroToOne;endFill=0;exitX=0.75;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="ts" target="ss">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e5" value="attaches" style="edgeStyle=entityRelationEdgeStyle;rounded=0;html=1;fontSize=11;startArrow=ERone;startFill=0;endArrow=ERmany;endFill=0;exitX=1;exitY=0.7;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="lc" target="dr">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
 

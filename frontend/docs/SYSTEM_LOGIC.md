@@ -1,75 +1,54 @@
 # System Logic
 
-สรุป Business Logic ที่ Implement จริง อ้างอิงไฟล์โค้ดที่บังคับใช้กติกาแต่ละข้อ
+## Lesson Lifecycle
 
-## 1. Google Slides เป็นแหล่งเนื้อหา
+1. Admin สร้าง lesson โดยเลือก `google_slides` หรือ `pdf`
+2. Backend เก็บ metadata/timing ใน PostgreSQL และ resolve content สดจากแหล่งจริง
+3. Admin สร้าง session link ที่มี UUID token
+4. ครูเข้า join/room; frontend โหลด session และ teaching content จาก .NET API
+5. Tutor reducer ขับ intro → readiness → slides → final question → closing
+6. เมื่อจบ backend บันทึก `SessionSummary` จากคำถามของ session
 
-- **1 Slide = 1 ช่วงการสอน**, **Speaker Notes = บทพูด** — ไม่มี Syntax พิเศษใน Notes
-  (`MockSlidesContentProvider`/`GoogleSlidesContentProvider` อ่าน Notes เป็น Plain Text
-  ตรง ๆ ไม่ Parse Command ใด ๆ)
-- เนื้อหาที่ใช้คือเวอร์ชันล่าสุดตอนเข้าห้อง — `GET /api/lessons/[slug]` เรียก
-  `SlidesContentProvider.getLessonContent` สดทุกครั้ง ไม่มี Cache/Snapshot ระยะยาว
-- Source URL กับ Embed URL เก็บแยกกัน (`LessonConfig.slidesSourceUrl` /
-  `slidesEmbedUrl`) เพราะ Published URL ใช้ Identifier คนละแบบกับ Source URL
-  (`src/utils/google-slides-url.ts` แยก `isPublished` ออกจาก `presentationId`)
+Frontend ตรวจ expiry/status ก่อนเข้าห้อง แต่ backend ยังไม่ enforce expiry เองในปัจจุบัน
 
-## 2. การดำเนินบทเรียน (`src/tutor/tutor-reducer.ts`)
+## Voice Question
 
-- เข้าห้อง → AI ทักทาย+ถามพร้อม (`introScript`) → รอ `introWaitMs` (Config ต่อบทเรียน) →
-  เริ่มอัตโนมัติถ้าไม่ตอบ (`INTRO_TIMEOUT`)
-- เดิน Slide ต่อเนื่องตามลำดับ **ไม่มี Checkpoint** ถามความเข้าใจระหว่างทาง และ
-  **ไม่มี Progress Bar** (ดู [STATE_MACHINE.md](./STATE_MACHINE.md))
-- จบ Slide สุดท้าย → สรุปสั้น + เปิดคำถามท้ายบทเรียน → เงียบเกิน `finalQuestionWaitMs`
-  → กล่าวลา → จบ Session อัตโนมัติ
+- Push-to-Talk ใช้ MediaRecorder; คลิปสั้นกว่า minimum กลับไปสอนแบบเงียบ
+- ระหว่างรอคำตอบ hook เล่น processing fillers หลายระดับที่ prefetch ไว้
+- `gemini`: ส่งเสียงพร้อม full lesson context ใน request เดียว
+- `gemini-rag`: Gemini transcribe → embedding/Pinecone query → Gemini answer
+- `openai-rag`: Gemini transcribe → OpenAI embedding/Pinecone → OpenAI-compatible answer
+- RAG query lesson namespace และ `kb-global`, merge ตาม score และใช้ threshold
+- Retrieval ล้มเหลว fallback เป็น full-deck context
+- คำถามปกติถูก persist และ broadcast ผ่าน SignalR; readiness ไม่ถูกเก็บเป็นคำถาม
 
-## 3. Slide ที่มีวิดีโอ
+## Teaching Content
 
-เนื่องจากอ่าน Event "วิดีโอจบ" จาก iframe ข้าม Origin ไม่ได้ ระบบใช้ `videoDurationMs`
-ที่ Admin กำหนดต่อ Slide แทน:
+- Google Slides: speaker notes คือ narration และ object ID ใช้อ้าง slide
+- PDF: แต่ละหน้าเป็น slide, backend extract narration และ render page image ตาม request
+- `videoDurationMs` รวมกับความยาว TTS โดยรอเฉพาะเวลาที่เหลือ
+- หลังตอบคำถามจะกลับมาเริ่ม narration ของ slide ที่ถูกขัดจังหวะใหม่
 
-```ts
-slideDurationMs = Math.max(ttsAudioDurationMs, videoDurationMs ?? 0);
-// แล้วเพิ่ม breathPauseMs ก่อนเปลี่ยน Slide
-```
+## Documents and RAG Indexing
 
-Implement ใน `tutor-reducer.ts` case `TTS_ENDED` → `WAIT_SLIDE_DURATION` (คำนวณ
-`remaining = max(0, videoDurationMs - elapsedMs)` แล้วรอ `remaining + breathPauseMs`)
-มี Unit Test ครอบคลุมทั้ง 3 กรณี (TTS นานกว่า/สั้นกว่า/เท่ากับวิดีโอ) ใน
-`tutor-reducer.test.ts`
+- รองรับ PDF, PPTX, DOCX และ XLSX สำหรับ knowledge documents
+- Upload เขียน storage + `DocumentResource(pending)` ก่อน แล้ว enqueue parse/embed/upsert
+- เอกสารผูก lesson ใช้ namespace ของ lesson; standalone ใช้ `kb-global`
+- Save Google Slides lesson พยายาม re-index แบบ best effort
+- `/api/admin/reindex` rebuild ทุก namespace เมื่อ `ALLOW_DATA_RESET=true`
 
-## 4. Push-to-Talk (ไม่มี Voice Activity Detection)
+ข้อจำกัด: queue ไม่ durable และ deletion ยังไม่ลบ vectors รายเอกสารออกจาก Pinecone
 
-- กดค้างเพื่อพูด (`PushToTalkButton` รองรับ Mouse/Touch/Keyboard) — เริ่มกด
-  หยุดเสียง AI ทันที (`dispatch()` ใน `use-tutor-session.ts` เรียก `clearPending()`
-  ก่อนทุกครั้ง ซึ่ง pause `<audio>` ที่กำลังเล่นอยู่)
-- อัดเสียงเฉพาะช่วงกดค้างผ่าน `MediaRecorder` (`startRecording`/`stopRecordingAndSend`)
-- ปล่อยปุ่ม → หยุดอัด → ถ้าอัดสั้นกว่า `MIN_RECORDING_MS` (300ms ฝั่ง Client) หรือสั้นกว่า
-  `MIN_VOICE_DURATION_MS` (ฝั่ง Server) → `NO_SPEECH` ทันที ไม่เรียก API
-- ถอดเสียงไม่ได้/Error ระหว่างอัปโหลด → `QUESTION_FAILED` → พฤติกรรมเดียวกับ
-  `NO_SPEECH` คือกลับไปสอนต่อโดยไม่พูดข้อความเพิ่มเติม (ดูตารางใน STATE_MACHINE.md)
+## Realtime Chat
 
-## 5. Grounded Q&A (`VoiceQuestionProvider`)
+- Teacher/Admin join SignalR group ด้วย session token
+- `SendChatMessage` persist PostgreSQL แล้ว broadcast `ReceiveChatMessage`
+- Push-to-Talk question broadcast `ReceiveNewQuestion`
+- REST endpoints ใช้ hydrate history เมื่อเปิดหน้าช้าหรือ reconnect
+- ปัจจุบันยังไม่มี identity proof และ client สามารถระบุ `senderRole` เอง
 
-- Backend โหลด Speaker Notes ของ **ทุก Slide** ในบทเรียนมาเป็นฐานความรู้ก่อนส่งให้
-  Provider (`/api/voice-question` เรียก `getLessonContent` แล้ว map เป็น
-  `lessonSlides` ทั้งหมด ไม่ใช่แค่ Slide ปัจจุบัน)
-- `MockVoiceQuestionProvider`: จับคู่ Keyword ธรรมดากับ Notes จริง (ไม่ใช้ความรู้ทั่วไป)
-- `GeminiVoiceQuestionProvider` (Prepared): Prompt บังคับให้ตอบจาก Notes เท่านั้น คืน
-  JSON ตาม Schema คงที่ (`answerStatus` ต้องเป็นหนึ่งใน 5 ค่าที่กำหนด มิฉะนั้นถือว่า
-  `transcription_failed`)
-- ผลลัพธ์ `not_found`/`out_of_scope` ยังถือเป็น "ตอบสำเร็จ" ในเชิง UX (AI พูดข้อความ
-  มาตรฐานแล้วกลับไปสอนต่อ) ต่างจาก `no_speech`/`transcription_failed` ที่กลับไปสอนต่อ
-  แบบเงียบ ๆ ทันที
+## TTS and Volume
 
-## 6. Session Rules
-
-| กติกา | Implementation |
-|---|---|
-| CS สร้างลิงก์เฉพาะ Session | `generatePublicToken()` (`crypto.randomUUID()`) ใน `MockSessionRepository.create` / `token uuid default gen_random_uuid()` ใน Supabase |
-| ชื่อครู/โรงเรียนไม่บังคับ | `CreateSessionInput.teacherName`/`schoolName` เป็น optional ทั้ง Type และ Zod schema |
-| หมดอายุเริ่มต้น 24 ชม. ปรับได้ | `getDefaultSessionExpiryHours()` อ่านจาก `DEFAULT_SESSION_EXPIRY_HOURS`, ฟอร์มสร้าง Session ให้แก้ `expiresAt` ได้ตรง ๆ |
-| ยังไม่มี Auth สำหรับ CS | ไม่มี Middleware/Session Cookie ใด ๆ ใน `/admin/**` |
-| รองรับหนึ่งอุปกรณ์ต่อ Session | ไม่มี Presence/Lock Mechanism หลายอุปกรณ์ (ตั้งใจไม่ทำตามข้อห้ามใน Prompt) |
-| ลิงก์หมดอายุระหว่างอยู่ในห้อง เรียนต่อได้ | `isSessionJoinable()` เช็คแค่ตอนเข้า `/join`; หน้า `/room` เช็คแค่ `status !== "ENDED"` ไม่เช็ค `expiresAt` ซ้ำ |
-| จบ Session ต้องแสดงหน้าขอบคุณ | `router.replace("/session-ended")` เมื่อ `runtime.state === "completed"` |
-| ไม่มีคะแนนประเมิน | `SessionSummary` ไม่มีฟิลด์คะแนน/ระดับใด ๆ |
+- Backend ใช้ Edge TTS และ chunk ข้อความยาวก่อนรวม audio เพื่อลด timeout
+- Frontend เก็บ AI volume ใน browser localStorage และใช้กับ audio ทุกประเภท
+- TTS/provider failure เป็น upstream error; tutor พูดข้อความแจ้งใน question failure path

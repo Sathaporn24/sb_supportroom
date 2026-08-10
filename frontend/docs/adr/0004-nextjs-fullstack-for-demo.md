@@ -2,7 +2,11 @@
 
 ## Status
 
-Accepted
+Superseded (2026-08-10)
+
+ระบบปัจจุบันแยก backend เป็น ASP.NET Core .NET 10 ใน `backend/`; Next.js ใน `frontend/`
+ทำหน้าที่ UI เท่านั้นและเรียก REST/SignalR ข้าม origin การตัดสินใจด้านล่างเก็บไว้เป็นประวัติ
+ของ demo architecture เดิม
 
 ## Context
 

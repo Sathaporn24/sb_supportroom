@@ -20,13 +20,13 @@
         </mxCell>
 
         <!-- Setup -->
-        <mxCell id="b1" value="CS สร้าง Lesson&#10;(slug, Google Slides URL, timing)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=12;arcSize=10;" vertex="1" parent="1">
+        <mxCell id="b1" value="CS สร้าง Lesson&#10;(Google Slides หรือ PDF, timing)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=12;arcSize=10;" vertex="1" parent="1">
           <mxGeometry x="40" y="50" width="340" height="60" as="geometry" />
         </mxCell>
-        <mxCell id="b2" value="POST /api/lessons&#10;resolve PresentationId" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=12;arcSize=10;" vertex="1" parent="1">
+        <mxCell id="b2" value="POST /api/lessons&#10;resolve content source" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=12;arcSize=10;" vertex="1" parent="1">
           <mxGeometry x="40" y="150" width="340" height="60" as="geometry" />
         </mxCell>
-        <mxCell id="b3" value="Index สไลด์ลง Knowledge Store&#10;(Mock / Pinecone)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=12;arcSize=10;" vertex="1" parent="1">
+        <mxCell id="b3" value="Index เนื้อหาลง Knowledge Store&#10;(Embedding + Pinecone)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=12;arcSize=10;" vertex="1" parent="1">
           <mxGeometry x="40" y="250" width="340" height="60" as="geometry" />
         </mxCell>
         <mxCell id="b4" value="CS สร้าง Session Link&#10;POST /api/sessions" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=12;arcSize=10;" vertex="1" parent="1">
@@ -40,7 +40,7 @@
         <mxCell id="b6" value="GET /api/sessions/{token}&#10;+ lessonTitle" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=12;arcSize=10;" vertex="1" parent="1">
           <mxGeometry x="40" y="570" width="340" height="60" as="geometry" />
         </mxCell>
-        <mxCell id="b7" value="PATCH action=start&#10;Status → active" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=12;arcSize=10;" vertex="1" parent="1">
+        <mxCell id="b7" value="PATCH action=start&#10;Status → IN_PROGRESS" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=12;arcSize=10;" vertex="1" parent="1">
           <mxGeometry x="40" y="670" width="340" height="60" as="geometry" />
         </mxCell>
         <mxCell id="b8" value="เชื่อม SignalR Hub&#10;JoinSession(token)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=12;arcSize=10;" vertex="1" parent="1">
@@ -48,7 +48,7 @@
         </mxCell>
 
         <!-- Live -->
-        <mxCell id="bA" value="เล่นคำบรรยายสไลด์&#10;(Google Slides embed + TTS)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=12;arcSize=10;" vertex="1" parent="1">
+        <mxCell id="bA" value="เล่นคำบรรยายสไลด์&#10;(Google/PDF + Edge TTS)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=12;arcSize=10;" vertex="1" parent="1">
           <mxGeometry x="40" y="890" width="340" height="60" as="geometry" />
         </mxCell>
         <mxCell id="dia1" value="ครูกด&#10;Push-to-Talk?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=12;" vertex="1" parent="1">
@@ -57,7 +57,7 @@
         <mxCell id="b9" value="POST /api/voice-question&#10;audio + slug + sessionId" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=12;arcSize=10;" vertex="1" parent="1">
           <mxGeometry x="40" y="1130" width="340" height="60" as="geometry" />
         </mxCell>
-        <mxCell id="b10" value="Gemini ถอดเสียง + ตอบ&#10;(เต็มเดค หรือ RAG)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=12;arcSize=10;" vertex="1" parent="1">
+        <mxCell id="b10" value="Gemini ถอดเสียง&#10;Gemini/OpenAI ตอบ (full/RAG)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=12;arcSize=10;" vertex="1" parent="1">
           <mxGeometry x="40" y="1230" width="340" height="60" as="geometry" />
         </mxCell>
         <mxCell id="b11" value="Broadcast ReceiveNewQuestion&#10;→ หน้า Admin (สด)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=12;arcSize=10;" vertex="1" parent="1">

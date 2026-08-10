@@ -1,135 +1,97 @@
 # API Contract
 
-ตรงกับไฟล์ใน `src/app/api/**/route.ts` จริง Validation ทั้งหมดใช้ [Zod](https://zod.dev)
-Error Shape กลาง (`src/types/api.ts`):
+Base URL มาจาก `NEXT_PUBLIC_API_BASE_URL` และ response JSON ใช้ camelCase
 
-```ts
-interface ApiErrorResponse {
-  error: {
-    code: "VALIDATION_ERROR" | "NOT_FOUND" | "UNAUTHORIZED" | "UPSTREAM_ERROR" | "CONFIG_ERROR" | "INTERNAL_ERROR";
-    message: string;
-    details?: unknown;
-    requestId?: string;
-  };
+Error กลาง:
+
+```json
+{ "error": { "code": "VALIDATION_ERROR", "message": "...", "requestId": "..." } }
+```
+
+## REST Endpoints
+
+| Method | Path | หน้าที่ |
+|---|---|---|
+| GET | `/api/health` | สถานะ API และ provider selection |
+| GET | `/api/lessons` | รายการบทเรียน |
+| POST | `/api/lessons` | create/update lesson ตาม slug |
+| GET | `/api/lessons/{slug}` | lesson + resolved teaching content |
+| GET | `/api/lessons/pdf-preview?documentId=` | preview PDF เป็น slides |
+| GET | `/api/lessons/pdf-pages/{documentId}/{pageNumber}` | rendered PDF page image |
+| POST | `/api/slides/resolve` | resolve Google Slides URL |
+| GET | `/api/slides/content?presentationId=` | slide order และ speaker notes |
+| GET | `/api/sessions` | รายการ sessions |
+| POST | `/api/sessions` | สร้าง session link |
+| GET | `/api/sessions/{token}` | session + lesson title |
+| GET | `/api/sessions/{id}/by-id` | session ตาม internal ID |
+| PATCH | `/api/sessions/{token}` | `action=start` หรือ `action=end` |
+| GET | `/api/sessions/{token}/summary` | session summary |
+| GET | `/api/session-questions?sessionId=` | Push-to-Talk history |
+| GET | `/api/chat-messages?sessionId=` | chat history |
+| POST | `/api/tts` | JSON `{ text, rate? }` → audio bytes |
+| POST | `/api/voice-question` | multipart audio question/readiness |
+| GET | `/api/documents?lessonSlug=` | lesson documents หรือ standalone documents |
+| POST | `/api/documents` | upload document, สูงสุดตาม `MAX_DOCUMENT_UPLOAD_MB` |
+| DELETE | `/api/documents/{id}` | ลบ metadata/storage object |
+| POST | `/api/admin/reset` | ลบ session/question/summary เมื่ออนุญาต |
+| POST | `/api/admin/reindex` | rebuild RAG namespaces เมื่ออนุญาต |
+
+## Key Payloads
+
+### `POST /api/voice-question`
+
+`multipart/form-data`:
+
+- `audio`, `lessonSlug`, `sessionId` — required
+- `durationMs`, `currentSlideObjectId` — optional
+- `expecting=question|readiness`
+
+Response:
+
+```json
+{
+  "transcript": "...",
+  "answer": "...",
+  "answerStatus": "answered",
+  "relatedSlideObjectId": "...",
+  "readiness": "ready"
 }
 ```
 
-ไม่มี Route ใดคืน Stack Trace หรือ Secret ให้ Client — Authentication ปัจจุบัน: **ไม่มี**
-(CS ไม่ต้อง Login ในเฟสนี้ ทุก Route เปิดสาธารณะ)
+`answerStatus`: `answered`, `not_found`, `out_of_scope`, `no_speech`,
+`transcription_failed`; `readiness` มีเฉพาะ readiness flow
 
----
+### `POST /api/lessons`
 
-## `GET /api/health`
+รับ `LessonConfigDto`: slug/title, Google Slides metadata, `contentSourceType` (`google_slides`
+หรือ `pdf`), optional `pdfDocumentResourceId`, timing, slide configs และ `isActive`
 
-- **Purpose**: ตรวจสถานะเซิร์ฟเวอร์ + Provider ที่กำลังใช้งาน
-- **Response 200**: `{ status: "ok", providers: ProviderSelection, timestamp: string }`
+### `PATCH /api/sessions/{token}`
 
-## `POST /api/slides/resolve`
+```json
+{ "action": "start" }
+```
 
-- **Purpose**: ตรวจสอบ Google Slides URL และ derive `presentationId`/`embedUrl`
-- **Provider**: `SlidesContentProvider.resolvePresentation`
-- **Request**: `{ slidesSourceUrl: string; slidesEmbedUrl?: string }`
-- **Response 200**: `{ presentationId: string | null; embedUrl: string; isEmbedOnly: boolean; warning?: string }`
-- **Errors**: `400 VALIDATION_ERROR`, `502 UPSTREAM_ERROR` (Google API ล้มเหลว/ไม่มีสิทธิ์)
+หรือ
 
-## `GET /api/slides/content?presentationId=xxx`
+```json
+{ "action": "end", "completedAllSlides": true, "lastSlideObjectId": "..." }
+```
 
-- **Purpose**: อ่าน Slide order + Speaker Notes สดจาก Google Slides
-- **Provider**: `SlidesContentProvider.getLessonContent`
-- **Response 200**: `SlidesLessonContent` — `{ presentationId, title, embedUrl, slides: [{ slideObjectId, index, speakerNotes, slideUrl? }], syncedAt }`
-- **Errors**: `400 VALIDATION_ERROR` (ไม่มี presentationId), `502 UPSTREAM_ERROR`
+ข้อจำกัดปัจจุบัน: controller ยังไม่ได้ reject action ที่ไม่รู้จักและจะตีความเป็น `end`
 
-## `POST /api/tts`
+## SignalR Contract
 
-- **Purpose**: แปลงข้อความเป็นเสียง
-- **Provider**: `TextToSpeechProvider.synthesize`
-- **Request**: `{ text: string (1-2000 ตัวอักษร); voice?: string }`
-- **Response 200**: Audio bytes ดิบ พร้อม `Content-Type` ตาม Provider (Mock = `audio/wav`)
-- **Errors**: `400 VALIDATION_ERROR`, `502 UPSTREAM_ERROR` — **ไม่ Log ข้อความเต็มที่ส่งมา**
+Hub: `/hubs/session`
 
-## `POST /api/voice-question`
+Client invokes:
 
-- **Purpose**: รับเสียงคำถามจาก Push-to-Talk → ถอดเสียง → ตอบแบบ Grounded → บันทึกคำถาม
-- **Provider**: `VoiceQuestionProvider.transcribeAndAnswer` + `SessionQuestionRepository.add`
-- **Request**: `multipart/form-data`
-  - `audio: File` (บังคับ, ต้องเป็น `audio/*` หรือ `video/webm`, ขนาด ≤ `MAX_VOICE_UPLOAD_MB`)
-  - `lessonSlug: string` (บังคับ)
-  - `sessionId: string` (บังคับ)
-  - `durationMs: string` (ตัวเลขระยะเวลาอัด)
-  - `currentSlideObjectId?: string`
-- **Response 200**: `VoiceQuestionResult` — `{ transcript, answer, answerStatus, relatedSlideObjectId? }`
-  `answerStatus ∈ answered | not_found | out_of_scope | no_speech | transcription_failed`
-- **Errors**: `400 VALIDATION_ERROR` (ไฟล์ผิดชนิด/เกินขนาด/ขาดฟิลด์), `404 NOT_FOUND`
-  (ไม่พบบทเรียนหรือยังไม่ตั้งค่า Slides), `502 UPSTREAM_ERROR`
-- **Side effect**: บันทึก `SessionQuestion` เมื่อ `answerStatus !== "no_speech"`
+- `JoinSession(token)`
+- `SendChatMessage(token, senderRole, senderName, text)`
 
-## `GET /api/lessons`
+Server events:
 
-- **Purpose**: รายการบทเรียนทั้งหมด (Admin ใช้เลือก/แก้ไข)
-- **Response 200**: `{ lessons: LessonConfig[] }`
+- `ReceiveChatMessage(ChatMessage)`
+- `ReceiveNewQuestion(SessionQuestion)`
 
-## `POST /api/lessons`
-
-- **Purpose**: สร้าง/แก้ไข LessonConfig (upsert ตาม `slug`)
-- **Request**: `LessonConfigInput` (ทุกฟิลด์ของ `LessonConfig` ยกเว้น `id`, `presentationId`,
-  `createdAt`, `updatedAt` — `presentationId` ถูก Derive ใหม่จาก `slidesSourceUrl` เสมอฝั่ง Server)
-- **Response 200**: `{ lesson: LessonConfig }`
-- **Errors**: `400 VALIDATION_ERROR`
-
-## `GET /api/lessons/[slug]`
-
-- **Purpose**: โหลดบทเรียนสำหรับห้องสอน (LessonConfig + Slide เนื้อหาสด รวม `videoDurationMs`)
-- **ใช้โดย**: `useTutorSession` (effect `LOAD_LESSON`)
-- **Response 200**: `{ lesson: LessonConfig; embedUrl: string; slides: TeachingSlide[] }`
-- **Errors**: `404 NOT_FOUND` (ไม่พบ/ยังไม่ Active), `409 CONFIG_ERROR` (ยังไม่ตั้งค่า Slides), `502 UPSTREAM_ERROR`
-
-## `GET /api/sessions`
-
-- **Purpose**: รายการ Session ทั้งหมด (Admin Dashboard)
-- **Response 200**: `{ sessions: TrainingSession[] }`
-
-## `POST /api/sessions`
-
-- **Purpose**: สร้าง Session Link ใหม่
-- **Request**: `{ lessonSlug: string; teacherName?: string; schoolName?: string; expiresAt?: string (ISO) }`
-  — ถ้าไม่ระบุ `expiresAt` จะใช้ `getDefaultSessionExpiryHours()` (ค่าเริ่มต้น 24 ชั่วโมง)
-- **Response 201**: `{ session: TrainingSession }`
-- **Errors**: `400 VALIDATION_ERROR`, `404 NOT_FOUND` (lessonSlug ไม่มีจริง)
-
-## `GET /api/sessions/[token]`
-
-- **Purpose**: โหลด Session สำหรับหน้า Join/Room (Public, ไม่ต้อง Auth)
-- **Response 200**: `{ session: TrainingSession; lessonTitle: string }`
-- **Errors**: `404 NOT_FOUND`
-
-## `PATCH /api/sessions/[token]`
-
-- **Purpose**: Mark Session เริ่ม/จบ
-- **Request** (discriminated union ตาม `action`):
-  - `{ action: "start" }`
-  - `{ action: "end"; completedAllSlides: boolean; lastSlideObjectId?: string }`
-- **Response 200**: `{ session: TrainingSession }`
-- **Side effect** (`action: "end"`): สร้าง `SessionSummary` ผ่าน `SessionSummaryRepository.save`
-  โดย `unansweredPoints` มาจากคำถามที่ `answerStatus === "not_found"`
-- **Errors**: `400 VALIDATION_ERROR`, `404 NOT_FOUND`
-
-## `GET /api/sessions/[token]/summary`
-
-- **Purpose**: สรุปผลการสอน (Admin ดูหลังจบ Session)
-- **Response 200**: `{ session: TrainingSession; summary: SessionSummary | null }`
-  (`summary` เป็น `null` ถ้า Session ยังไม่จบ)
-- **Errors**: `404 NOT_FOUND`
-
-## `GET /api/session-questions?sessionId=xxx`
-
-- **Purpose**: คำถามที่ถามระหว่าง Session (Live view ก่อน Session จบ, Admin ใช้)
-- **Response 200**: `{ questions: SessionQuestion[] }`
-- **หมายเหตุ**: Read-only — การเขียนเกิดเฉพาะภายใน `/api/voice-question` เท่านั้น ไม่มี
-  POST แยกที่ Route นี้เพื่อไม่ให้มี 2 ทางเขียนข้อมูลเดียวกัน
-- **Errors**: `400 VALIDATION_ERROR`
-
-## `POST /api/admin/reset`
-
-- **Purpose**: รีเซ็ตข้อมูล Mock กลับเป็น Seed (เฉพาะ `DATA_PROVIDER=mock`)
-- **Response 200**: `{ status: "reset" }`
-- **Errors**: `409 CONFIG_ERROR` (ถ้าเรียกตอนใช้ `DATA_PROVIDER=supabase`)
+ปัจจุบันไม่มี authentication; token ใช้เป็น group key และ `senderRole` ยังเชื่อค่าจาก client

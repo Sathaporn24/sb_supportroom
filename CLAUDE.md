@@ -1,110 +1,118 @@
 # CLAUDE.md
 
-คำแนะนำนี้สำหรับ Claude Code และทีมพัฒนาที่ทำงานในโปรเจกต์ `sb_supportroom`
+คำแนะนำสำหรับผู้ช่วยเขียนโค้ดและทีมพัฒนาที่ทำงานใน `sb_supportroom`
 
-## Project Overview
+## Current Architecture
 
-ห้องสอนการใช้งานระบบแบบสนทนาโต้ตอบ (คล้าย Video Call กับ AI ชื่อ "School Bright
-Support") CS สร้าง Session Link ให้คุณครู เนื้อหาสอนดึงจาก **Google Slides** โดยตรง
-(Speaker Notes = บทพูด) ผู้เรียนถามคำถามด้วยเสียงผ่าน **Push-to-Talk** (ไม่มี VAD)
+ระบบเป็น monorepo แยกส่วนชัดเจน:
 
-## Current Phase
+- `frontend/` — Next.js 15 + React 19 + TypeScript + Tailwind
+- `backend/` — ASP.NET Core .NET 10 + EF Core/PostgreSQL + SignalR
+- Frontend ติดต่อ backend ผ่าน `frontend/src/lib/api-client.ts` และ
+  `frontend/src/hooks/use-session-chat.ts`
+- ไม่มี Next.js Route Handlers, Supabase repository หรือ Mock providers ในระบบปัจจุบัน
+- เนื้อหาหลักต่อบทเรียนเลือกได้ระหว่าง Google Slides กับ PDF
+- RAG ใช้ Pinecone ร่วมกับ Gemini หรือ OpenAI-compatible embeddings/answering
 
-**Phase 2 — Backend + Real Provider Skeletons (Mock-first ยังเป็น Default)**
+## Architecture Rules
 
-- Next.js App Router เป็นทั้ง Frontend และ Backend (Route Handlers ที่ `src/app/api/**`)
-- Google Slides / Gemini / Hugging Face มี Interface + Mock + Real
-  Skeleton ครบ แต่**ยังไม่มี Integration ใดทดสอบกับบริการจริง**
-- Mock เป็น Provider เริ่มต้นเสมอ รันได้โดยไม่มี `.env.local`
-
-## Commands
-
-```bash
-npm install
-npm run dev         # http://localhost:3000
-npm run lint
-npm run typecheck
-npm run test         # Vitest unit tests
-npm run build
-```
-
-## Architecture Rules (บังคับใช้จริง ไม่ใช่แค่แนวทาง)
-
-1. Client Component **ห้าม** import โค้ดที่มี `import "server-only"` โดยตรง — คุยกับ
-   Backend ผ่าน `src/lib/api-client.ts` เท่านั้น (`fetch("/api/...")`)
-2. Secret ทุกตัว (Google/Gemini/Hugging Face) อยู่ในไฟล์ที่มี
-   `import "server-only"` เท่านั้น — ห้ามเพิ่ม Secret ใหม่นอกกติกานี้
-3. Tutor Engine (`src/tutor/`) เป็น Pure Reducer ห้ามผูกกับ SDK ผู้ให้บริการหรือ Browser
-   API ใด ๆ (`fetch`, `MediaRecorder`, `<audio>`) — สิ่งเหล่านั้นอยู่ใน
-   `src/hooks/use-tutor-session.ts` เท่านั้น
-4. Provider/Repository ใหม่ทุกตัวต้องมี Mock คู่กับ Real และเพิ่ม Case ใน Factory
-   (`src/providers/*/index.ts`) — ห้ามกระจาย `if (provider === ...)` ไปที่อื่น
-5. ฐานข้อมูลอยู่ที่หลังบ้าน (.NET + EF Core, ดู `backend/`) — หน้าบ้านไม่ต่อ DB ตรง คุยผ่าน `src/lib/api-client.ts` เท่านั้น
-6. ห้ามสร้าง Slide Editor แบบพิมพ์เนื้อหาเองใน UI — เนื้อหาสอนต้องมาจากภายนอกเสมอ (Google Slides
-   หรืออัปโหลดไฟล์ PDF, เลือกได้ต่อบทเรียนผ่าน `contentSourceType`) Admin UI แก้ได้แค่ Metadata
-   (URL/ไฟล์ PDF ที่ผูกไว้, videoDurationMs, ค่าจังหวะเวลา) เนื้อหาจริง (Speaker Notes/ข้อความในหน้า
-   PDF, รูปภาพ) resolve สดเสมอ ไม่เคย persist เป็นสำเนา — ดู `PdfSlidesRenderer`
-   (`SB_Ai_Supportroom/src/SupportRoom.Providers.Slides/`) สำหรับฝั่ง PDF
+1. Browser ห้ามเรียก database หรือ external AI provider โดยตรง ทุก request ผ่าน .NET API
+2. Credentials อยู่ใน `backend/src/SupportRoom.Api/.env` หรือ deployment secrets เท่านั้น
+3. Tutor engine ใน `frontend/src/tutor/` ต้องเป็น pure reducer; browser APIs อยู่ใน hooks
+4. Business orchestration อยู่ใน `SupportRoom.Application`; controllers ต้องบาง
+5. Entities/contracts อยู่ใน `SupportRoom.Domain`; provider implementation อยู่ใน
+   `SupportRoom.Providers.*`
+6. Database schema เปลี่ยนผ่าน EF Core migration ใหม่ ห้ามแก้ migration ที่ deploy แล้ว
+7. Frontend/backend wire contract ใช้ camelCase และต้องอัปเดต TypeScript types กับ ViewModels คู่กัน
+8. ห้าม persist สำเนา Google Slides/PDF teaching content ลง LessonConfig; เก็บเฉพาะ metadata
 
 ## Folder Map
 
 ```text
-src/app/api/**              Route Handlers (Backend)
-src/app/admin/**            CS Dashboard (ไม่มี Auth)
-src/app/join|room/[token]   Public Teacher Flow
-src/config/                 env.ts (server-only), server-defaults.ts (server-only),
-                             tutor-config.ts (client-safe constants)
-src/lib/                    api-client.ts (Browser→Backend), api-response.ts
-src/tutor/                  types.ts, intents.ts, scripts.ts, tutor-reducer.ts (pure)
-src/hooks/use-tutor-session.ts   ต่อ Reducer เข้ากับ React + Browser API จริง
-src/types/domain.ts         Domain Types ทั้งหมด (LessonConfig, TrainingSession, ...)
-backend/                    .NET Backend (API + Providers + EF Core Migrations) — ดู backend/docs/
-docs/                        เอกสารเต็ม ดู docs/SYSTEM_ARCHITECTURE.md เป็นจุดเริ่ม
+frontend/src/app/                    Next.js pages
+frontend/src/components/             UI, admin, meeting room
+frontend/src/hooks/                  media, tutor orchestration, SignalR
+frontend/src/lib/api-client.ts       REST client จุดเดียว
+frontend/src/tutor/                  pure state machine
+frontend/src/types/                  frontend wire/domain types
+
+backend/src/SupportRoom.Api/         controllers, hub, startup, hosted queue
+backend/src/SupportRoom.Application/ services, DTOs, ViewModels
+backend/src/SupportRoom.Domain/      entities, constants, environment readers
+backend/src/SupportRoom.Infrastructure/ CORS, error handling
+backend/src/SupportRoom.Providers.Data/ EF Core, repositories, migrations
+backend/src/SupportRoom.Providers.Slides/ Google Slides + PDF rendering
+backend/src/SupportRoom.Providers.Tts/ Edge TTS
+backend/src/SupportRoom.Providers.VoiceQuestion/ Gemini/OpenAI RAG flows
+backend/src/SupportRoom.Providers.Knowledge/ embeddings + Pinecone
+backend/src/SupportRoom.Providers.DocumentParsing/ PDF/PPTX/DOCX/XLSX extraction
+backend/src/SupportRoom.Providers.Storage/ local/Huawei OBS
+backend/tests/                        xUnit test projects
 ```
 
-## Integration Entry Points
+## Provider Configuration
 
-| Service | Real Provider | Env ที่ต้องตั้ง |
-|---|---|---|
-| Google Slides | `src/providers/slides/google-slides-provider.ts` | `SLIDES_PROVIDER=google` + `GOOGLE_SERVICE_ACCOUNT_*` |
-| Hugging Face TTS | `src/providers/tts/huggingface-tts-provider.ts` | `TTS_PROVIDER=huggingface` + `HUGGINGFACE_*` |
-| Gemini | `src/providers/voice-question/gemini-voice-question-provider.ts` | `VOICE_QUESTION_PROVIDER=gemini` + `GEMINI_*` |
+ทุกหมวดต้องกำหนดค่า ไม่มี Mock fallback:
 
-รายละเอียดครบใน [docs/API_INTEGRATION_GUIDE.md](./docs/API_INTEGRATION_GUIDE.md)
-
-## Environment Variable Map
-
-ดูตารางเต็มที่ [docs/ENVIRONMENT_SETUP.md](./docs/ENVIRONMENT_SETUP.md) — สรุปสั้น:
-Provider Switch (`SLIDES_PROVIDER`/`TTS_PROVIDER`/`VOICE_QUESTION_PROVIDER`) Default เป็น
-`mock` เสมอ ตัวแปร Credential ทั้งหมดเป็น Server-only (ไม่มี `NEXT_PUBLIC_`)
-
-## ไฟล์ที่ต้องอ่านก่อนแก้โค้ดส่วนนี้
-
-| จะแก้... | อ่านก่อน |
+| หมวด | ค่าที่รองรับ |
 |---|---|
-| Tutor State Machine | `docs/STATE_MACHINE.md`, `src/tutor/tutor-reducer.test.ts` |
-| Route Handler / API Contract | `docs/API_CONTRACT.md` |
-| Provider ใหม่ | `docs/BACKEND_HANDOFF.md`, Interface ที่เกี่ยวข้องใน `src/providers/*/types.ts` |
-| Database Schema | `docs/ER_DIAGRAM.md`, `backend/src/SupportRoom.Providers.Data/Migrations/` |
+| `SLIDES_PROVIDER` | `google` |
+| `TTS_PROVIDER` | `edge` |
+| `VOICE_QUESTION_PROVIDER` | `gemini`, `gemini-rag`, `openai-rag` |
+| `KNOWLEDGE_PROVIDER` | `pinecone`, `pinecone-openai` |
+| `DOCUMENT_STORAGE_PROVIDER` | `local`, `huawei-obs` |
 
-## What is Mock / Prepared / Connected
+ดูค่าทั้งหมดใน `backend/src/SupportRoom.Api/.env.example`
 
-- **Mock** = ทำงานได้จริง ไม่ต้องมี Credential (Default เสมอ)
-- **Prepared** = เขียน Real Implementation ตาม Contract ของบริการแล้ว แต่ยังไม่เคย
-  ทดสอบกับบริการจริง (สถานะปัจจุบันของทั้ง 4 Integration — ดู
-  [docs/BACKEND_HANDOFF.md](./docs/BACKEND_HANDOFF.md))
-- **Connected** = ทดสอบกับบริการจริงสำเร็จแล้ว — **ยังไม่มี Integration ใดถึงสถานะนี้**
-  ห้ามรายงานว่า "เชื่อมสำเร็จแล้ว" จนกว่าจะทดสอบกับ Credential จริงจริง ๆ
+## Commands
 
-## Definition of Done (ต่อการเปลี่ยนแปลง)
+```powershell
+# Frontend
+cd frontend
+npm install
+npm run lint
+npm run typecheck
+npm run test
+npm run build
 
-ดู [docs/DEVELOPMENT_CHECKLIST.md](./docs/DEVELOPMENT_CHECKLIST.md) — สรุปสั้น: Lint +
-Typecheck + Test + Build ผ่านทั้งหมด, ไม่มี Secret หลุด Client, เอกสารที่เกี่ยวข้อง
-อัปเดตตรงกับโค้ดจริง
+# Backend
+cd ../backend
+dotnet restore SupportRoom.slnx
+dotnet build SupportRoom.slnx
+dotnet test SupportRoom.slnx
+dotnet run --project src/SupportRoom.Api
+```
 
-## Document Update Checklist
+Apply database migration:
 
-แก้ Tutor Engine → อัปเดต `docs/STATE_MACHINE.md` + `docs/SEQUENCE_DIAGRAMS.md`
-แก้ Route Handler → อัปเดต `docs/API_CONTRACT.md`
-แก้ Schema → Migration ใหม่ (ห้ามแก้ของเดิม) + อัปเดต `docs/ER_DIAGRAM.md`
-เพิ่ม Provider ใหม่ → อัปเดต `docs/BACKEND_HANDOFF.md` (ตาราง Status) + Setup Guide ใหม่
+```powershell
+dotnet ef database update --project src/SupportRoom.Providers.Data --startup-project src/SupportRoom.Api
+```
+
+## Files to Read Before Changes
+
+| งาน | อ่านก่อน |
+|---|---|
+| Tutor state machine | `frontend/docs/STATE_MACHINE.md`, reducer tests |
+| REST/SignalR contract | `frontend/docs/API_CONTRACT.md`, controllers/hub |
+| Database schema | `backend/docs/ER_DIAGRAM_AND_WORKFLOW.md`, EF migrations |
+| Provider/environment | `frontend/docs/ENVIRONMENT_SETUP.md`, `.env.example`, provider factory |
+| RAG/document flow | `frontend/docs/SYSTEM_LOGIC.md`, Knowledge/VoiceQuestion services |
+
+## Definition of Done
+
+- Frontend lint, typecheck, tests และ build ผ่าน
+- Backend build/test ผ่านโดยแยก unit tests จาก tests ที่ต้องใช้ provider จริง
+- ไม่มี secret หรือ transcript/answer เต็มใน source/log
+- API DTO/ViewModel และ TypeScript types ตรงกัน
+- Schema change มี migration ใหม่
+- เอกสารที่เกี่ยวข้องอัปเดตตามโค้ดจริง
+
+## Known Baseline Issues
+
+- ไม่มี auth/rate limiting
+- Session expiry ยังบังคับเฉพาะ frontend
+- Background indexing queue เป็น in-memory/unbounded
+- Document deletion ยังทิ้ง vectors ไว้ใน Pinecone
+- EF Core dependency versions ยังมี conflict warning
+- API integration test project ยังไม่มี test ที่ยืนยัน endpoint จริง
