@@ -16,6 +16,7 @@
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+*.log
 
 # local env files - never tracked; copy .env.example and fill in real values locally
 .env*.local
