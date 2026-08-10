@@ -108,19 +108,6 @@ public sealed class OpenAiCredentials
     public required bool DisableReasoning { get; init; }
 }
 
-public sealed class ElevenLabsSettings
-{
-    public required string ApiKey { get; init; }
-
-    /// <summary>The voice to speak with - from the ElevenLabs dashboard (Voices). For Thai, pick a
-    /// voice built on a multilingual model.</summary>
-    public required string VoiceId { get; init; }
-
-    /// <summary>eleven_multilingual_v2 (good quality, supports Thai) by default. Swap to
-    /// eleven_turbo_v2_5 for lower latency, or eleven_v3 for the newest model, via ELEVENLABS_MODEL.</summary>
-    public required string Model { get; init; }
-}
-
 public sealed class PineconeCredentials
 {
     public required string ApiKey { get; init; }
@@ -199,17 +186,6 @@ public static class ExternalServiceEnv
         // -10% verified to sound more natural for instructional narration than the raw default rate.
         Rate = Environment.GetEnvironmentVariable("EDGE_TTS_RATE") is { Length: > 0 } r ? r : "-10%",
     };
-
-    public static ElevenLabsSettings GetElevenLabs()
-    {
-        Require("ELEVENLABS_API_KEY", "ELEVENLABS_VOICE_ID");
-        return new ElevenLabsSettings
-        {
-            ApiKey = Environment.GetEnvironmentVariable("ELEVENLABS_API_KEY")!,
-            VoiceId = Environment.GetEnvironmentVariable("ELEVENLABS_VOICE_ID")!,
-            Model = Environment.GetEnvironmentVariable("ELEVENLABS_MODEL") is { Length: > 0 } m ? m : "eleven_multilingual_v2",
-        };
-    }
 
     public static PineconeCredentials GetPinecone()
     {

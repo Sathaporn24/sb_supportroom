@@ -9,8 +9,7 @@ public static class SlidesProvider
 public static class TtsProvider
 {
     public const string Edge = "edge";
-    public const string ElevenLabs = "elevenlabs";
-    public static readonly string[] Allowed = [Edge, ElevenLabs];
+    public static readonly string[] Allowed = [Edge];
 }
 
 public static class VoiceQuestionProvider
