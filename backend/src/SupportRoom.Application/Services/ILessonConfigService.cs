@@ -1,3 +1,4 @@
+using SupportRoom.Providers.Knowledge;
 using Mapster;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
@@ -116,6 +117,7 @@ public sealed class LessonConfigService(
             entity = new LessonConfig
             {
                 Id = IdGenerator.GenerateId("lesson"),
+                CompanyId = CurrentCompanyId,
                 Slug = input.Slug,
                 Title = input.Title,
                 Description = input.Description,
@@ -167,7 +169,7 @@ public sealed class LessonConfigService(
             try
             {
                 var content = await slidesProvider.GetLessonContentAsync(new GetLessonContentInput { PresentationId = presentationId });
-                await knowledgeIndexingService.IndexLessonAsync(input.Slug, content.Slides);
+                await knowledgeIndexingService.IndexLessonAsync(KnowledgeNamespaces.For(CurrentCompanyId, input.Slug), content.Slides);
             }
             catch (Exception ex)
             {

@@ -27,8 +27,8 @@ export function SessionsTable({ sessions, origin }: { sessions: TrainingSession[
         <thead className="bg-room-panelAlt text-xs uppercase tracking-wide text-room-muted">
           <tr>
             <th className="px-4 py-3">วันที่สร้าง</th>
-            <th className="px-4 py-3">คุณครู</th>
-            <th className="px-4 py-3">โรงเรียน</th>
+            <th className="px-4 py-3">ผู้รับลิงก์</th>
+            <th className="px-4 py-3">องค์กร</th>
             <th className="px-4 py-3">หมดอายุ</th>
             <th className="px-4 py-3">สถานะ</th>
             <th className="px-4 py-3">การจัดการ</th>
@@ -40,8 +40,8 @@ export function SessionsTable({ sessions, origin }: { sessions: TrainingSession[
             return (
               <tr key={session.id} className="border-t border-room-border">
                 <td className="px-4 py-3 text-room-text">{formatDateTimeTh(session.createdAt)}</td>
-                <td className="px-4 py-3 text-room-text">{session.teacherName || "ไม่ระบุ"}</td>
-                <td className="px-4 py-3 text-room-text">{session.schoolName || "ไม่ระบุ"}</td>
+                <td className="px-4 py-3 text-room-text">{session.recipientName || "ไม่ระบุ"}</td>
+                <td className="px-4 py-3 text-room-text">{session.recipientOrgName || "ไม่ระบุ"}</td>
                 <td className="px-4 py-3 text-room-text">{formatDateTimeTh(session.expiresAt)}</td>
                 <td className="px-4 py-3">
                   <Badge tone={statusTone[status]}>{sessionStatusLabels[status]}</Badge>

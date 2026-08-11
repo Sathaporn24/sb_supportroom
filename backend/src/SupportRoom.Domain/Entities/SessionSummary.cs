@@ -6,9 +6,10 @@ namespace SupportRoom.Domain.Entities;
 /// Snapshot written once, when a TrainingSession ends (mirrors sessions/[token]/route.ts's
 /// PATCH action=end behavior) - not recomputed live.
 /// </summary>
-public sealed class SessionSummary : IEntityMaster<string>
+public sealed class SessionSummary : IEntityMaster<string>, ICompanyScoped
 {
     public required string Id { get; init; }
+    public required string CompanyId { get; init; }
     public string? CreateBy { get; init; }
     public DateTime CreateDate { get; init; }
     public string? UpdateBy { get; set; }

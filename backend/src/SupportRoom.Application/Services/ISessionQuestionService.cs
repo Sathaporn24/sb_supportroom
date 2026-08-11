@@ -1,3 +1,4 @@
+using Microsoft.Extensions.DependencyInjection;
 using Mapster;
 using Microsoft.Extensions.Logging;
 using SupportRoom.Application.Common;
@@ -14,7 +15,7 @@ namespace SupportRoom.Application.Services;
 public interface ISessionQuestionService
 {
     SessionQuestionViewModel Create(string sessionId, CreateSessionQuestionDto input);
-    IReadOnlyList<SessionQuestionViewModel> GetBySessionId(string sessionId);
+    IReadOnlyList<SessionQuestionViewModel> GetByToken(string token);
 }
 
 public sealed class SessionQuestionService(IUnitOfWork unitOfWork, IServiceProvider serviceProvider, ILogger<ISessionQuestionService> logger)
@@ -30,6 +31,7 @@ public sealed class SessionQuestionService(IUnitOfWork unitOfWork, IServiceProvi
         var entity = new SessionQuestion
         {
             Id = IdGenerator.GenerateId("question"),
+            CompanyId = CurrentCompanyId,
             SessionId = sessionId,
             SlideObjectId = input.SlideObjectId,
             Transcript = input.Transcript,
@@ -50,6 +52,11 @@ public sealed class SessionQuestionService(IUnitOfWork unitOfWork, IServiceProvi
         return entity.Adapt<SessionQuestionViewModel>();
     }
 
-    public IReadOnlyList<SessionQuestionViewModel> GetBySessionId(string sessionId)
-        => _repository.GetBySessionId(sessionId).OrderBy(x => x.CreateDate).ToList().Adapt<List<SessionQuestionViewModel>>();
+    /// <summary>Keyed on the session token for the same reason as IChatMessageService.GetByToken:
+    /// it is the credential callers already hold, and it resolves the company first.</summary>
+    public IReadOnlyList<SessionQuestionViewModel> GetByToken(string token)
+    {
+        var session = ServiceProvider.GetRequiredService<ITrainingSessionService>().GetByToken(token);
+        return _repository.GetBySessionId(session.Id).OrderBy(x => x.CreateDate).ToList().Adapt<List<SessionQuestionViewModel>>();
+    }
 }

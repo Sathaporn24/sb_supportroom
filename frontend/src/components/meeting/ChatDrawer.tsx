@@ -14,8 +14,8 @@ type Props = {
 };
 
 const senderLabel: Record<ChatMessage["senderRole"], string> = {
-  teacher: "ครู",
-  cs: "ทีม CS",
+  recipient: "ผู้เข้าร่วม",
+  agent: "ทีมซัพพอร์ต",
   system: "ระบบ",
 };
 

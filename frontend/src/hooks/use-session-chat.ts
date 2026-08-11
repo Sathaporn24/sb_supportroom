@@ -6,7 +6,7 @@ import { getApiBaseUrl, getChatMessages } from "@/lib/api-client";
 import type { ChatMessage, ChatSenderRole, SessionQuestion } from "@/types/domain";
 
 // Owns the HubConnection (browser API) - per architecture rule 3 this lives in a hook, never
-// in src/tutor/. Used by both the teacher room and the CS admin session page: one hook
+// in src/tutor/. Used by both the room and the CS admin session page: one hook
 // instance per participant, senderRole fixed at call time so callers just pass text.
 
 export type ChatConnectionState = "connecting" | "connected" | "reconnecting" | "disconnected";
@@ -21,9 +21,10 @@ function mergeById<T extends { id: string }>(existing: T[], incoming: T[]): T[] 
   );
 }
 
+// sessionId is no longer a parameter: history hydration keys on the token too now, so the token
+// is the only identifier this hook needs.
 export function useSessionChat(
   token: string,
-  sessionId: string | null,
   senderRole: ChatSenderRole,
   senderName?: string,
 ) {
@@ -86,11 +87,11 @@ export function useSessionChat(
   // History hydration - separate from the live socket so a CS agent joining mid-session (or a
   // reconnect) still sees everything said before they connected.
   useEffect(() => {
-    if (!sessionId) {
+    if (!token) {
       return;
     }
     let cancelled = false;
-    getChatMessages(sessionId)
+    getChatMessages(token)
       .then(({ messages }) => {
         if (!cancelled) {
           setChatMessages((prev) => mergeById(prev, messages));
@@ -102,7 +103,7 @@ export function useSessionChat(
     return () => {
       cancelled = true;
     };
-  }, [sessionId]);
+  }, [token]);
 
   const sendChatMessage = useCallback(
     async (text: string) => {

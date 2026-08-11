@@ -14,7 +14,7 @@ public sealed class KnowledgeSourceChunk
 
 public interface IKnowledgeIndexingService
 {
-    Task IndexLessonAsync(string lessonSlug, IReadOnlyList<ResolvedSlide> slides);
+    Task IndexLessonAsync(string namespaceKey, IReadOnlyList<ResolvedSlide> slides);
 
     /// <summary>Shared embed-then-upsert core, reused by document indexing
     /// (IDocumentResourceService) so it doesn't duplicate the embed/upsert loop. Returns the
@@ -34,7 +34,7 @@ public sealed class KnowledgeIndexingService(
     IKnowledgeIndexProvider knowledgeIndexProvider,
     ILogger<IKnowledgeIndexingService> logger) : IKnowledgeIndexingService
 {
-    public async Task IndexLessonAsync(string lessonSlug, IReadOnlyList<ResolvedSlide> slides)
+    public async Task IndexLessonAsync(string namespaceKey, IReadOnlyList<ResolvedSlide> slides)
     {
         var chunks = slides
             .Where(s => !string.IsNullOrWhiteSpace(s.SpeakerNotes))
@@ -46,7 +46,7 @@ public sealed class KnowledgeIndexingService(
             })
             .ToList();
 
-        await IndexChunksAsync(lessonSlug, chunks);
+        await IndexChunksAsync(namespaceKey, chunks);
     }
 
     /// <summary>Caps how many embed calls run at once - a large document (many pages/chunks)

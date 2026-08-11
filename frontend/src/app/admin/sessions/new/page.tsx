@@ -41,7 +41,7 @@ export default function NewSessionPage() {
           ← กลับหน้า Admin
         </Link>
         <h1 className="mt-1 text-xl font-semibold text-room-text">สร้างลิงก์การสอน</h1>
-        <p className="mt-1 text-sm text-room-muted">เลือกสื่อการสอนที่ต้องการสร้างลิงก์ห้องสอนให้คุณครู</p>
+        <p className="mt-1 text-sm text-room-muted">เลือกสื่อการสอนที่ต้องการสร้างลิงก์ห้องสอนให้ผู้ใช้</p>
       </div>
 
       <input

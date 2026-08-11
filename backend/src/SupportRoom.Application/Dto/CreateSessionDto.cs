@@ -6,8 +6,8 @@ public sealed class CreateSessionDto
 {
     [Required]
     public required string LessonSlug { get; init; }
-    public string? TeacherName { get; init; }
-    public string? SchoolName { get; init; }
+    public string? RecipientName { get; init; }
+    public string? RecipientOrgName { get; init; }
 
     /// <summary>
     /// ISO-8601 string, optional - defaults to now + ServerDefaults.GetDefaultSessionExpiryHours()

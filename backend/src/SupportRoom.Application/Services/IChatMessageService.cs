@@ -1,3 +1,4 @@
+using Microsoft.Extensions.DependencyInjection;
 using Mapster;
 using Microsoft.Extensions.Logging;
 using SupportRoom.Application.Common;
@@ -15,7 +16,7 @@ namespace SupportRoom.Application.Services;
 public interface IChatMessageService
 {
     Task<ChatMessageViewModel> SendAsync(SendChatMessageDto input);
-    IReadOnlyList<ChatMessageViewModel> GetBySessionId(string sessionId);
+    IReadOnlyList<ChatMessageViewModel> GetByToken(string token);
 }
 
 public sealed class ChatMessageService(
@@ -35,6 +36,7 @@ public sealed class ChatMessageService(
         var entity = new ChatMessage
         {
             Id = IdGenerator.GenerateId("chat"),
+            CompanyId = CurrentCompanyId,
             SessionId = input.SessionId,
             SenderRole = input.SenderRole,
             SenderName = input.SenderName,
@@ -53,6 +55,12 @@ public sealed class ChatMessageService(
         return viewModel;
     }
 
-    public IReadOnlyList<ChatMessageViewModel> GetBySessionId(string sessionId)
-        => _repository.GetBySessionId(sessionId).OrderBy(x => x.CreateDate).ToList().Adapt<List<ChatMessageViewModel>>();
+    /// <summary>Keyed on the session token, not its id: the token is the credential both the
+    /// recipient and the CS console already hold, and looking the session up by it resolves the
+    /// company before any message is read.</summary>
+    public IReadOnlyList<ChatMessageViewModel> GetByToken(string token)
+    {
+        var session = ServiceProvider.GetRequiredService<ITrainingSessionService>().GetByToken(token);
+        return _repository.GetBySessionId(session.Id).OrderBy(x => x.CreateDate).ToList().Adapt<List<ChatMessageViewModel>>();
+    }
 }

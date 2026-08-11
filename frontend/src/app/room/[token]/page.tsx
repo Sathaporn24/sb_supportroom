@@ -8,7 +8,7 @@ import { useTutorSession } from "@/hooks/use-tutor-session";
 import { useLocalMedia } from "@/hooks/use-local-media";
 import { useSessionChat } from "@/hooks/use-session-chat";
 import { AiTile } from "@/components/meeting/AiTile";
-import { TeacherTile } from "@/components/meeting/TeacherTile";
+import { ParticipantTile } from "@/components/meeting/ParticipantTile";
 import { SlidesEmbed } from "@/components/meeting/SlidesEmbed";
 import { ControlBar } from "@/components/meeting/ControlBar";
 import { ChatDrawer } from "@/components/meeting/ChatDrawer";
@@ -86,7 +86,7 @@ function RoomContent({ session }: { session: TrainingSession }) {
   } = useTutorSession(session);
   const media = useLocalMedia();
   const [chatOpen, setChatOpen] = useState(false);
-  const chat = useSessionChat(session.token, session.id, "teacher", session.teacherName);
+  const chat = useSessionChat(session.token, "recipient", session.recipientName);
 
   useEffect(() => {
     if (runtime.state === "completed") {
@@ -155,12 +155,12 @@ function RoomContent({ session }: { session: TrainingSession }) {
             <AiTile speaking={runtime.isAiSpeaking} thinking={isProcessing} loading={isAiPreparing} />
           </div>
           <div className="flex-1 md:flex-none">
-            <TeacherTile
+            <ParticipantTile
               stream={media.stream}
               cameraOn={media.cameraOn}
               micOn={runtime.isMicEnabled}
               speaking={runtime.state === "push-to-talk-recording"}
-              teacherName={session.teacherName}
+              recipientName={session.recipientName}
             />
           </div>
         </div>

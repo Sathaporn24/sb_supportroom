@@ -18,9 +18,14 @@ public sealed class VoiceQuestionInput
     public required IReadOnlyList<VoiceQuestionSlideContext> LessonSlides { get; init; }
     public string? CurrentSlideObjectId { get; init; }
 
-    /// <summary>Knowledge-store namespace key for retrieval-augmented providers - unused by
-    /// providers that ground on the full LessonSlides list directly.</summary>
-    public required string LessonSlug { get; init; }
+    /// <summary>Company-scoped knowledge-store namespace for this lesson, built by the caller
+    /// (KnowledgeNamespaces.For) - not a bare slug. Providers must never assemble a namespace
+    /// themselves: a provider that queried a plain slug would read across companies.</summary>
+    public required string LessonNamespace { get; init; }
+
+    /// <summary>This company's shared standalone-document namespace (KnowledgeNamespaces.ForGlobal).
+    /// Queried on every question alongside LessonNamespace.</summary>
+    public required string GlobalNamespace { get; init; }
 
     /// <summary>
     /// "readiness" is the reply to the "พร้อมหรือยังคะ?" prompt - a yes/no, not a question. It

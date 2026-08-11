@@ -92,8 +92,8 @@ export function listSessions(): Promise<{ sessions: TrainingSession[] }> {
 
 export function createSession(input: {
   lessonSlug: string;
-  teacherName?: string;
-  schoolName?: string;
+  recipientName?: string;
+  recipientOrgName?: string;
   expiresAt?: string;
 }): Promise<{ session: TrainingSession }> {
   return request(apiUrl("/api/sessions"), { method: "POST", headers: jsonHeaders, body: JSON.stringify(input) });
@@ -128,12 +128,16 @@ export function getSessionSummary(
   return request(apiUrl(`/api/sessions/${encodeURIComponent(token)}/summary`));
 }
 
-export function listSessionQuestions(sessionId: string): Promise<{ questions: SessionQuestion[] }> {
-  return request(apiUrl(`/api/session-questions?sessionId=${encodeURIComponent(sessionId)}`));
+// Both of these key on the session token rather than its id. The token is the credential the
+// caller already holds, and the backend derives the company from it before reading anything -
+// a raw session id would identify a row without proving the caller may see it.
+
+export function listSessionQuestions(token: string): Promise<{ questions: SessionQuestion[] }> {
+  return request(apiUrl(`/api/session-questions?token=${encodeURIComponent(token)}`));
 }
 
-export function getChatMessages(sessionId: string): Promise<{ messages: ChatMessage[] }> {
-  return request(apiUrl(`/api/chat-messages?sessionId=${encodeURIComponent(sessionId)}`));
+export function getChatMessages(token: string): Promise<{ messages: ChatMessage[] }> {
+  return request(apiUrl(`/api/chat-messages?token=${encodeURIComponent(token)}`));
 }
 
 /** `rate` is an SSML percentage ("-45%") for utterances that shouldn't run at lesson pace. */
@@ -152,8 +156,9 @@ export async function synthesizeSpeech(text: string, rate?: string): Promise<Blo
 
 export function askVoiceQuestion(input: {
   audioBlob: Blob;
-  lessonSlug: string;
-  sessionId: string;
+  /** The session token. The backend derives company, session and lesson from it - sending a
+   * lesson slug separately would let the two disagree. */
+  token: string;
   currentSlideObjectId?: string;
   durationMs: number;
   /** "readiness" answers the start prompt; omitted means a normal lesson question. */
@@ -161,8 +166,7 @@ export function askVoiceQuestion(input: {
 }): Promise<VoiceQuestionResult> {
   const formData = new FormData();
   formData.append("audio", input.audioBlob, "question.webm");
-  formData.append("lessonSlug", input.lessonSlug);
-  formData.append("sessionId", input.sessionId);
+  formData.append("token", input.token);
   formData.append("durationMs", String(input.durationMs));
   if (input.expecting) {
     formData.append("expecting", input.expecting);

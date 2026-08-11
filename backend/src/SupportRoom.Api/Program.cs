@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
 using Serilog;
+using SupportRoom.Api;
 using SupportRoom.Api.Configurations;
 using SupportRoom.Api.Hubs;
 using SupportRoom.Application.Common;
@@ -124,6 +125,11 @@ if (!app.Environment.IsDevelopment())
 app.UseCors(CorsSetup.PolicyName);
 
 app.UseAuthorization();
+
+// After UseAuthorization so it can read a verified claim once auth exists (TD-002), and before
+// MapControllers so every action already has a company resolved. Recipient-side services
+// overwrite it from the session token - see CompanyContextMiddleware.
+app.UseMiddleware<CompanyContextMiddleware>();
 
 app.MapControllers();
 app.MapHub<SessionHub>("/hubs/session");

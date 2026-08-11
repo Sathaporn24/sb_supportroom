@@ -57,11 +57,17 @@ public class VoiceQuestionServiceTests
         var serviceProvider = new FakeServiceProvider()
             .Register<ILessonConfigService>(lessonService)
             .Register<ISessionQuestionService>(questionService);
+        // AskAsync now starts by resolving the session from its token - that lookup is what
+        // scopes the request to a company and supplies the lesson slug, instead of trusting a
+        // slug the caller sent alongside an unrelated session id.
+        serviceProvider.Register<ITrainingSessionService>(
+            new TrainingSessionService(uow, serviceProvider, NullLogger<ITrainingSessionService>.Instance));
 
         // Active Google-Slides lesson so GetTeachingContentBySlugAsync returns the real deck.
         _lessons.Items.Add(new LessonConfig
         {
             Id = "lesson-1",
+            CompanyId = TestFixtures.CompanyId,
             Slug = "lesson-a",
             Title = "บทเรียน",
             SlidesSourceUrl = "",
@@ -76,6 +82,7 @@ public class VoiceQuestionServiceTests
         _sessions.Items.Add(new TrainingSession
         {
             Id = "session-1",
+            CompanyId = TestFixtures.CompanyId,
             Token = "tok-1",
             LessonId = "lesson-1",
             LessonSlug = "lesson-a",
@@ -93,8 +100,7 @@ public class VoiceQuestionServiceTests
     {
         Audio = audio,
         MimeType = "audio/mpeg",
-        LessonSlug = "lesson-a",
-        SessionId = "session-1",
+        Token = "tok-1",
         DurationMs = durationMs,
         CurrentSlideObjectId = "slide-1",
         Expecting = expecting,

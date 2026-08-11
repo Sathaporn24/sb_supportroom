@@ -23,14 +23,21 @@ public class ChatMessageServiceTests
         MapsterConfig.Apply();
         _unitOfWork
             .Register<IChatMessageRepository>(_messages)
-            .Register<ITrainingSessionRepository>(_sessions);
-        _service = new ChatMessageService(_unitOfWork, new FakeServiceProvider(), NullLogger<IChatMessageService>.Instance, _notifier);
+            .Register<ITrainingSessionRepository>(_sessions)
+            .Register<ILessonConfigRepository>(new FakeLessonConfigRepository());
+        // Real TrainingSessionService, not a fake: GetByToken is the step that resolves the
+        // company for the whole request, so stubbing it out would hide the behaviour being relied on.
+        var serviceProvider = new FakeServiceProvider();
+        serviceProvider.Register<ITrainingSessionService>(
+            new TrainingSessionService(_unitOfWork, serviceProvider, NullLogger<ITrainingSessionService>.Instance));
+        _service = new ChatMessageService(_unitOfWork, serviceProvider, NullLogger<IChatMessageService>.Instance, _notifier);
     }
 
     private void SeedSession(string id = "session-1", string token = "tok-1")
         => _sessions.Items.Add(new TrainingSession
         {
             Id = id,
+            CompanyId = TestFixtures.CompanyId,
             Token = token,
             LessonId = "lesson-1",
             LessonSlug = "lesson-a",
@@ -67,12 +74,13 @@ public class ChatMessageServiceTests
     }
 
     [Fact]
-    public void GetBySessionId_ReturnsMessagesOldestFirst()
+    public void GetByToken_ReturnsMessagesOldestFirst()
     {
-        _messages.Items.Add(new ChatMessage { Id = "m-late", SessionId = "session-1", SenderRole = "cs", Text = "b", CreateDate = new DateTime(2026, 1, 2, 0, 0, 0, DateTimeKind.Utc) });
-        _messages.Items.Add(new ChatMessage { Id = "m-early", SessionId = "session-1", SenderRole = "teacher", Text = "a", CreateDate = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc) });
+        SeedSession("session-1", "tok-1");
+        _messages.Items.Add(new ChatMessage { Id = "m-late", CompanyId = TestFixtures.CompanyId, SessionId = "session-1", SenderRole = "cs", Text = "b", CreateDate = new DateTime(2026, 1, 2, 0, 0, 0, DateTimeKind.Utc) });
+        _messages.Items.Add(new ChatMessage { Id = "m-early", CompanyId = TestFixtures.CompanyId, SessionId = "session-1", SenderRole = "teacher", Text = "a", CreateDate = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc) });
 
-        var list = _service.GetBySessionId("session-1");
+        var list = _service.GetByToken("tok-1");
 
         Assert.Equal("m-early", list[0].Id);
         Assert.Equal("m-late", list[1].Id);

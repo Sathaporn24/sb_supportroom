@@ -68,8 +68,8 @@ export default function JoinPage() {
           <h1 className="text-lg font-semibold text-room-text">{lessonTitle}</h1>
           <p className="mt-1 text-sm text-room-muted">
             ผู้สอน: School Bright Support
-            {session.teacherName ? ` · คุณครู${session.teacherName}` : ""}
-            {session.schoolName ? ` · ${session.schoolName}` : ""}
+            {session.recipientName ? ` · ${session.recipientName}` : ""}
+            {session.recipientOrgName ? ` · ${session.recipientOrgName}` : ""}
           </p>
         </div>
 

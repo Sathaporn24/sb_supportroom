@@ -7,6 +7,14 @@ namespace SupportRoom.Application.Tests;
 /// </summary>
 internal static class TestFixtures
 {
+    /// <summary>Company every seeded entity belongs to. FakeServiceProvider pre-resolves
+    /// ICompanyContext to this value, so services under test stamp the same id on rows they
+    /// create and the two match up.</summary>
+    public const string CompanyId = "company-test";
+
+    /// <summary>A second company, for tests that assert one company cannot see another's rows.</summary>
+    public const string OtherCompanyId = "company-other";
+
     /// <summary>Google's own official Slides API quickstart sample ("Baby album", 5 slides,
     /// publicly viewable) - verified reachable with this project's service account credentials.
     /// Source: https://developers.google.com/slides/api/quickstart (SAMPLE_PRESENTATION_ID).</summary>

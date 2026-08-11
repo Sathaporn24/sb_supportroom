@@ -44,7 +44,7 @@ export default function AdminPage() {
       <div>
         <h1 className="text-xl font-semibold text-room-text">SupportRoom AI — Admin</h1>
         <p className="mt-1 text-sm text-room-muted">
-          จัดการบทเรียนจาก Google Slides และสร้างลิงก์ห้องสอนการใช้งานระบบสำหรับคุณครู
+          จัดการบทเรียนและสร้างลิงก์ห้องสอนการใช้งานระบบสำหรับผู้ใช้
         </p>
       </div>
 

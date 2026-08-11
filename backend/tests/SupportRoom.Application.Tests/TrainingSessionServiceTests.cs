@@ -42,6 +42,7 @@ public class TrainingSessionServiceTests
         var lesson = new LessonConfig
         {
             Id = $"lesson-{slug}",
+            CompanyId = TestFixtures.CompanyId,
             Slug = slug,
             Title = "บทเรียน",
             SlidesSourceUrl = "",
@@ -61,7 +62,7 @@ public class TrainingSessionServiceTests
     {
         SeedLesson("lesson-a");
 
-        var vm = _service.Create(new CreateSessionDto { LessonSlug = "lesson-a", TeacherName = "ครูเอ" });
+        var vm = _service.Create(new CreateSessionDto { LessonSlug = "lesson-a", RecipientName = "ครูเอ" });
 
         Assert.Equal(SessionStatus.NotStarted, vm.Status);
         Assert.False(string.IsNullOrEmpty(vm.Token));

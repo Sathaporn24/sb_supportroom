@@ -25,8 +25,8 @@ function toLocalInputValue(iso: string): string {
 }
 
 export function CreateSessionModal({ open, onClose, lesson }: Props) {
-  const [teacherName, setTeacherName] = useState("");
-  const [schoolName, setSchoolName] = useState("");
+  const [recipientName, setRecipientName] = useState("");
+  const [recipientOrgName, setRecipientOrgName] = useState("");
   const [expiresAt, setExpiresAt] = useState("");
   const [created, setCreated] = useState<TrainingSession | null>(null);
   const [origin, setOrigin] = useState("");
@@ -35,8 +35,8 @@ export function CreateSessionModal({ open, onClose, lesson }: Props) {
 
   useEffect(() => {
     if (open) {
-      setTeacherName("");
-      setSchoolName("");
+      setRecipientName("");
+      setRecipientOrgName("");
       setExpiresAt(toLocalInputValue(addHours(new Date().toISOString(), tutorConfig.defaultSessionExpiryHours)));
       setCreated(null);
       setError(null);
@@ -52,8 +52,8 @@ export function CreateSessionModal({ open, onClose, lesson }: Props) {
     try {
       const { session } = await api.createSession({
         lessonSlug: lesson.slug,
-        teacherName: teacherName || undefined,
-        schoolName: schoolName || undefined,
+        recipientName: recipientName || undefined,
+        recipientOrgName: recipientOrgName || undefined,
         expiresAt: new Date(expiresAt).toISOString(),
       });
       setCreated(session);
@@ -95,18 +95,18 @@ export function CreateSessionModal({ open, onClose, lesson }: Props) {
           {error && <p className="text-xs text-red-600">{error}</p>}
 
           <label className="block text-sm">
-            <span className="mb-1 block text-room-muted">ชื่อคุณครู (ไม่บังคับ)</span>
+            <span className="mb-1 block text-room-muted">ชื่อผู้รับลิงก์ (ไม่บังคับ)</span>
             <input
-              value={teacherName}
-              onChange={(e) => setTeacherName(e.target.value)}
+              value={recipientName}
+              onChange={(e) => setRecipientName(e.target.value)}
               className="w-full rounded-lg border border-room-border bg-room-bg px-3 py-2 text-room-text outline-none focus:border-room-accent"
             />
           </label>
           <label className="block text-sm">
-            <span className="mb-1 block text-room-muted">โรงเรียน (ไม่บังคับ)</span>
+            <span className="mb-1 block text-room-muted">องค์กร (ไม่บังคับ)</span>
             <input
-              value={schoolName}
-              onChange={(e) => setSchoolName(e.target.value)}
+              value={recipientOrgName}
+              onChange={(e) => setRecipientOrgName(e.target.value)}
               className="w-full rounded-lg border border-room-border bg-room-bg px-3 py-2 text-room-text outline-none focus:border-room-accent"
             />
           </label>

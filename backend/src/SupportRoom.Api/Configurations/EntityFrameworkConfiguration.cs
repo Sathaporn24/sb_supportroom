@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using SupportRoom.Domain.Common;
 using SupportRoom.Providers.Data.Data;
 using SupportRoom.Providers.Data.Data.UnitOfWork;
 
@@ -22,6 +23,11 @@ public static class EntityFrameworkConfiguration
         {
             throw new InvalidOperationException("Missing ConnectionStrings:Postgres (or POSTGRES_CONNECTION_STRING env var).");
         }
+
+        // Scoped, and registered before the DbContext that injects it: ApplicationDbContext's
+        // company query filters read this instance on every query, and the recipient-side flow
+        // resolves it mid-request from a session token.
+        services.AddScoped<ICompanyContext, CompanyContext>();
 
         services.AddDbContext<ApplicationDbContext>(options => options.UseNpgsql(connectionString));
         services.AddScoped<IUnitOfWork, UnitOfWork>();

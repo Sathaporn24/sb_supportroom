@@ -8,10 +8,10 @@ type Props = {
   cameraOn: boolean;
   micOn: boolean;
   speaking: boolean;
-  teacherName?: string;
+  recipientName?: string;
 };
 
-export function TeacherTile({ stream, cameraOn, micOn, speaking, teacherName }: Props) {
+export function ParticipantTile({ stream, cameraOn, micOn, speaking, recipientName }: Props) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
 
   useEffect(() => {
@@ -21,10 +21,10 @@ export function TeacherTile({ stream, cameraOn, micOn, speaking, teacherName }: 
   }, [stream, cameraOn]);
 
   // Avatar-circle initial and the no-name fallback text are two independent things - reusing
-  // one inside the other produced "คุณครูค" (the fallback "ค" glued onto its own fallback text).
-  const trimmedName = teacherName?.trim();
-  const initial = trimmedName?.[0] ?? "ค";
-  const displayName = trimmedName || "คุณครู";
+  // one inside the other produced "ผู้เข้าร่วมผ" (the fallback initial glued onto its own fallback text).
+  const trimmedName = recipientName?.trim();
+  const initial = trimmedName?.[0] ?? "ผ";
+  const displayName = trimmedName || "ผู้เข้าร่วม";
 
   return (
     <div

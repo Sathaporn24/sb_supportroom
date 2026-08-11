@@ -1,3 +1,4 @@
+using SupportRoom.Domain.Common;
 using System.Linq.Expressions;
 using SupportRoom.Application.Realtime;
 using SupportRoom.Application.Services;
@@ -198,6 +199,16 @@ internal sealed class FakeRealtimeNotifier : IRealtimeNotifier
 internal sealed class FakeServiceProvider : IServiceProvider
 {
     private readonly Dictionary<Type, object> _services = new();
+
+    public FakeServiceProvider()
+    {
+        // ServiceBase resolves ICompanyContext in its constructor, so every service under test
+        // needs one present - pre-resolved to TestFixtures.CompanyId so entities created during
+        // a test carry the same company the fixtures seed.
+        var companyContext = new CompanyContext();
+        companyContext.Resolve(TestFixtures.CompanyId);
+        _services[typeof(ICompanyContext)] = companyContext;
+    }
 
     public FakeServiceProvider Register<T>(T implementation) where T : notnull
     {

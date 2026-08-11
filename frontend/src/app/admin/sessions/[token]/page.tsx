@@ -30,7 +30,7 @@ export default function SessionSummaryPage() {
 
   // Real-time so CS sees a session that's still in progress update live, not just the
   // post-hoc summary this page originally showed.
-  const chat = useSessionChat(params.token, session && session !== "loading" ? session.id : null, "cs", "ทีม CS");
+  const chat = useSessionChat(params.token, "agent", "ทีมซัพพอร์ต");
 
   useEffect(() => {
     void api
@@ -39,7 +39,7 @@ export default function SessionSummaryPage() {
         setSession(found);
         setSummary(foundSummary);
         if (!foundSummary) {
-          const { questions } = await api.listSessionQuestions(found.id);
+          const { questions } = await api.listSessionQuestions(params.token);
           setFallbackQuestions(questions);
         }
       })
@@ -71,14 +71,14 @@ export default function SessionSummaryPage() {
           </Link>
           <h1 className="mt-1 text-xl font-semibold text-room-text">สรุปผลการสอน</h1>
           <p className="text-sm text-room-muted">
-            {session.teacherName || "ไม่ระบุชื่อคุณครู"} · {session.schoolName || "ไม่ระบุโรงเรียน"}
+            {session.recipientName || "ไม่ระบุชื่อผู้รับลิงก์"} · {session.recipientOrgName || "ไม่ระบุองค์กร"}
           </p>
         </div>
         <button
           onClick={() => setChatOpen((prev) => !prev)}
           className="rounded-lg border border-room-border bg-room-panel px-3 py-2 text-sm font-medium text-room-text hover:bg-room-panelAlt"
         >
-          แชทกับครู{chat.chatMessages.length > 0 ? ` (${chat.chatMessages.length})` : ""}
+          แชท{chat.chatMessages.length > 0 ? ` (${chat.chatMessages.length})` : ""}
         </button>
       </div>
 

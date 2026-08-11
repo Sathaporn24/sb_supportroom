@@ -1,3 +1,4 @@
+using SupportRoom.Providers.Knowledge;
 using Mapster;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -34,6 +35,14 @@ public sealed class VoiceQuestionService(
 
     public async Task<VoiceAnswerViewModel> AskAsync(AskVoiceQuestionDto input)
     {
+        // Resolving the session from its token FIRST is what makes this request company-scoped:
+        // it sets ICompanyContext, so the lesson lookup below can only ever see this company's
+        // lessons. The lesson slug used to come straight from the caller alongside a separate
+        // sessionId, with nothing checking the two belonged together - harmless while every slug
+        // was globally unique, but a cross-company read the moment slugs are per-company.
+        var sessionService = ServiceProvider.GetRequiredService<ITrainingSessionService>();
+        var session = sessionService.GetByToken(input.Token);
+
         // Resolve slides through the single content-source-agnostic path so voice questions work
         // for BOTH Google-Slides and PDF lessons - this used to require lesson.PresentationId and
         // call the Slides provider directly, which 404'd every PDF-sourced lesson.
@@ -41,7 +50,7 @@ public sealed class VoiceQuestionService(
         LessonTeachingContentViewModel content;
         try
         {
-            content = await lessonService.GetTeachingContentBySlugAsync(input.LessonSlug);
+            content = await lessonService.GetTeachingContentBySlugAsync(session.LessonSlug);
         }
         catch (HttpStatusCodeException)
         {
@@ -58,23 +67,27 @@ public sealed class VoiceQuestionService(
                 LessonSlides = content.Slides.Select(s => new VoiceQuestionSlideContext { SlideObjectId = s.SlideObjectId, SpeakerNotes = s.SpeakerNotes }).ToList(),
                 CurrentSlideObjectId = input.CurrentSlideObjectId,
                 Expecting = input.Expecting,
-                LessonSlug = input.LessonSlug,
+                // Built here, from the company the session token resolved to - never inside the
+                // provider. Vectors live outside PostgreSQL, so the query filter cannot protect
+                // them; the namespace key is the only isolation the knowledge store has.
+                LessonNamespace = KnowledgeNamespaces.For(CurrentCompanyId, session.LessonSlug),
+                GlobalNamespace = KnowledgeNamespaces.ForGlobal(CurrentCompanyId),
             });
 
             // A yes/no about starting isn't a question the CS team needs to review.
             if (result.Readiness is not null)
             {
-                Logger.LogInformation("Readiness check: session={SessionId} readiness={Readiness}", input.SessionId, result.Readiness);
+                Logger.LogInformation("Readiness check: session={SessionId} readiness={Readiness}", session.Id, result.Readiness);
                 return result.Adapt<VoiceAnswerViewModel>();
             }
 
             // Never log Transcript/Answer - only the outcome.
-            Logger.LogInformation("Voice question answered: session={SessionId} status={AnswerStatus}", input.SessionId, result.AnswerStatus);
+            Logger.LogInformation("Voice question answered: session={SessionId} status={AnswerStatus}", session.Id, result.AnswerStatus);
 
             if (result.AnswerStatus != AnswerStatus.NoSpeech)
             {
                 var questionService = ServiceProvider.GetRequiredService<ISessionQuestionService>();
-                var question = questionService.Create(input.SessionId, new CreateSessionQuestionDto
+                var question = questionService.Create(session.Id, new CreateSessionQuestionDto
                 {
                     SlideObjectId = result.RelatedSlideObjectId ?? input.CurrentSlideObjectId,
                     Transcript = string.IsNullOrEmpty(result.Transcript) ? null : result.Transcript,
@@ -82,11 +95,7 @@ public sealed class VoiceQuestionService(
                     AnswerStatus = result.AnswerStatus,
                 });
 
-                var session = _sessionRepository.Get(input.SessionId);
-                if (session is not null)
-                {
-                    await realtimeNotifier.NotifyNewQuestionAsync(session.Token, question);
-                }
+                await realtimeNotifier.NotifyNewQuestionAsync(session.Token, question);
             }
 
             return result.Adapt<VoiceAnswerViewModel>();

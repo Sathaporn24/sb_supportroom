@@ -140,14 +140,15 @@ public sealed class RagVoiceQuestionProvider(
         {
             var queryVector = await embeddingProvider.EmbedAsync(transcript, EmbeddingTaskType.RetrievalQuery);
 
-            // Every question is grounded against this lesson's own namespace *and* the shared
-            // "kb-global" namespace - a CS-uploaded standalone document (no lessonSlug at
-            // upload time) must answer questions in any lesson, not just one it happens to be
-            // tagged to. Querying kb-global for a lesson that's also literally named "kb-global"
-            // is impossible (lesson slugs come from LessonConfig, kb-global is a reserved key),
-            // so there's no risk of double-counting the same namespace.
-            var lessonChunksTask = knowledgeIndexProvider.QueryAsync(input.LessonSlug, queryVector, TopK);
-            var globalChunksTask = knowledgeIndexProvider.QueryAsync(KnowledgeNamespaces.Global, queryVector, TopK);
+            // Every question is grounded against this lesson's own namespace *and* this company's
+            // shared standalone-document namespace - a CS-uploaded standalone document (no
+            // lessonSlug at upload time) must answer questions in any lesson, not just one it
+            // happens to be tagged to. Both keys arrive already company-scoped from the caller
+            // (KnowledgeNamespaces.For / ForGlobal); this provider must not build them itself,
+            // because the global one is queried on every single question and an unscoped key
+            // there would pull another company's documents into this answer.
+            var lessonChunksTask = knowledgeIndexProvider.QueryAsync(input.LessonNamespace, queryVector, TopK);
+            var globalChunksTask = knowledgeIndexProvider.QueryAsync(input.GlobalNamespace, queryVector, TopK);
             await Task.WhenAll(lessonChunksTask, globalChunksTask);
 
             var allMatches = MergeTopK(lessonChunksTask.Result, globalChunksTask.Result, TopK);
@@ -160,8 +161,8 @@ public sealed class RagVoiceQuestionProvider(
             var relevant = allMatches.Where(c => c.Score >= MinScore).ToList();
 
             logger.LogInformation(
-                "Retrieval for lesson {LessonSlug}: {LessonMatchCount} lesson + {GlobalMatchCount} kb-global matches, top score {TopScore:F3}, {RelevantCount} cleared threshold {MinScore:F2}, using [{ChunkIds}]",
-                input.LessonSlug, lessonChunksTask.Result.Count, globalChunksTask.Result.Count,
+                "Retrieval for {LessonNamespace}: {LessonMatchCount} lesson + {GlobalMatchCount} global matches, top score {TopScore:F3}, {RelevantCount} cleared threshold {MinScore:F2}, using [{ChunkIds}]",
+                input.LessonNamespace, lessonChunksTask.Result.Count, globalChunksTask.Result.Count,
                 allMatches.Count > 0 ? allMatches.Max(c => c.Score) : 0f, relevant.Count, MinScore,
                 string.Join(", ", relevant.Select(c => c.Id)));
 
@@ -187,7 +188,7 @@ public sealed class RagVoiceQuestionProvider(
         {
             // fall through to the full-deck fallback below - a retrieval outage must never break
             // a live demo, but it should still be visible in the logs, not silent.
-            logger.LogWarning(ex, "Retrieval fell back to full-deck context for lesson {LessonSlug}: {Error}", input.LessonSlug, ex.Message);
+            logger.LogWarning(ex, "Retrieval fell back to full-deck context for {LessonNamespace}: {Error}", input.LessonNamespace, ex.Message);
         }
 
         return string.Join('\n', input.LessonSlides.Select((slide, index) => $"Slide {index + 1} ({slide.SlideObjectId}): {slide.SpeakerNotes}"));

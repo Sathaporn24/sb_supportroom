@@ -74,8 +74,8 @@ export type TrainingSession = {
   token: string;
   lessonId: string;
   lessonSlug: string;
-  teacherName?: string;
-  schoolName?: string;
+  recipientName?: string;
+  recipientOrgName?: string;
   status: SessionStatus;
   createdAt: string;
   expiresAt: string;
@@ -87,8 +87,8 @@ export type TrainingSession = {
 
 export type CreateSessionInput = {
   lessonSlug: string;
-  teacherName?: string;
-  schoolName?: string;
+  recipientName?: string;
+  recipientOrgName?: string;
   expiresAt: string;
 };
 
@@ -135,7 +135,10 @@ export type SessionSummary = {
 };
 
 /** A typed chat message - separate from SessionQuestion (Push-to-Talk log), sent live over SignalR. */
-export type ChatSenderRole = "teacher" | "cs" | "system";
+// "recipient" is whoever opened the join link; "agent" is the company's own support staff.
+// Deliberately not "teacher"/"cs" - those are School Bright's words, and this product is used
+// by other companies whose users are not teachers.
+export type ChatSenderRole = "recipient" | "agent" | "system";
 
 export type ChatMessage = {
   id: string;

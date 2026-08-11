@@ -17,7 +17,7 @@ import {
 
 const MIN_RECORDING_MS = 300;
 
-/** Persisted per-browser so the teacher's AI-volume preference survives a page reload. */
+/** Persisted per-browser so the recipient's AI-volume preference survives a page reload. */
 const AI_VOLUME_STORAGE_KEY = "sb_ai_volume";
 
 /**
@@ -41,7 +41,6 @@ export function useTutorSession(session: TrainingSession) {
     introWaitMs: 5_000,
     breathPauseMs: 1_000,
     finalQuestionWaitMs: 5_000,
-    teacherName: session.teacherName,
   });
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -91,7 +90,7 @@ export function useTutorSession(session: TrainingSession) {
   }
 
   /** Sets AI playback volume (0-1). Applies immediately to the clip playing right now, so the
-   * teacher can turn the AI down mid-sentence WITHOUT interrupting it (unlike push-to-talk,
+   * recipient can turn the AI down mid-sentence WITHOUT interrupting it (unlike push-to-talk,
    * which stops playback entirely). Persisted so the choice sticks across reloads. */
   function changeVolume(next: number) {
     const clamped = Math.min(1, Math.max(0, Number.isFinite(next) ? next : 1));
@@ -347,8 +346,7 @@ export function useTutorSession(session: TrainingSession) {
       const currentSlide = slidesRef.current[runtimeRef.current.currentSlideIndex];
       const result = await api.askVoiceQuestion({
         audioBlob,
-        lessonSlug: session.lessonSlug,
-        sessionId: session.id,
+        token: session.token,
         currentSlideObjectId: currentSlide?.slideObjectId,
         durationMs,
         expecting,
@@ -403,7 +401,6 @@ export function useTutorSession(session: TrainingSession) {
               introWaitMs: lesson.introWaitMs,
               breathPauseMs: lesson.breathPauseMs,
               finalQuestionWaitMs: lesson.finalQuestionWaitMs,
-              teacherName: session.teacherName,
             };
             if (mountedRef.current) {
               setEmbedUrl(url);
@@ -435,7 +432,7 @@ export function useTutorSession(session: TrainingSession) {
         break;
       case "START_RECORDING":
         // Stamped synchronously, before any await: measuring from recorder.start() instead
-        // would charge a slow mic hand-off against the teacher's hold time and trip the
+        // would charge a slow mic hand-off against the recipient's hold time and trip the
         // too-short check on a perfectly normal press.
         recordingStartRef.current = Date.now();
         pendingStartRef.current = startRecording();
