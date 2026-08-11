@@ -19,3 +19,6 @@ next-env.d.ts
 
 .next/
 node_modules/
+
+# personal working notes - not part of the product repo (e.g. docs/THESIS_PLAN.local.md)
+*.local.md

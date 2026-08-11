@@ -7,6 +7,13 @@
       "runtimeArgs": ["run", "dev"],
       "cwd": "frontend",
       "port": 3000
+    },
+    {
+      "name": "sb-supportroom-api",
+      "runtimeExecutable": "dotnet",
+      "runtimeArgs": ["run", "--project", "src/SupportRoom.Api"],
+      "cwd": "backend",
+      "port": 5138
     }
   ]
 }
