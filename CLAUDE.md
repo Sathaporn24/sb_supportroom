@@ -20,6 +20,7 @@ Push-to-Talk ถามได้ตลอด → AI ตอบโดยอ้า�
 | ทางเลือกเทคโนโลยี, build vs buy, MVP/Production/Scale | [`docs/SOLUTION_ARCHITECTURE.md`](./docs/SOLUTION_ARCHITECTURE.md) |
 | การตัดสินใจเชิงเทคนิคและเหตุผล | [`docs/TECH_DECISIONS.md`](./docs/TECH_DECISIONS.md) |
 | ลำดับงานเพื่อขึ้น production | [`docs/PRODUCTION_ROADMAP.md`](./docs/PRODUCTION_ROADMAP.md) |
+| สเปกฟีเจอร์หลักที่เคาะแล้วแต่ยังไม่ได้ทำ | [`docs/CORE_FEATURE_SPEC.md`](./docs/CORE_FEATURE_SPEC.md) |
 
 ## Current Architecture
 
