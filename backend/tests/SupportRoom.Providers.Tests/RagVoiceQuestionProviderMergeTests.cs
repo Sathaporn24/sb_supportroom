@@ -28,7 +28,10 @@ public class RagVoiceQuestionProviderMergeTests : IAsyncLifetime
         }
     }
 
+    // Only this one is tagged: the topK test below is pure merge arithmetic over in-memory
+    // matches and never touches Gemini or Pinecone.
     [Fact]
+    [Trait(TestCategories.Category, TestCategories.Integration)]
     public async Task MergeTopK_PullsAStandaloneDocumentChunkIntoAnUnrelatedLessonsAnswer()
     {
         var lessonNamespace = $"test-lesson-{Guid.NewGuid()}";

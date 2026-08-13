@@ -205,8 +205,9 @@ Pinecone เป็นระบบที่สองที่ต้อง sync �
 | งานที่ต้องทำก่อน | แยก unit/integration ด้วย xUnit trait | + native PDFium ใน image | + secrets, environment |
 
 **Recommendation**
-**A แล้วต่อด้วย B** — งานที่ต้องทำก่อนคือแยก test ที่ยิงของจริงออกด้วย xUnit trait
-แล้วให้ CI รันเฉพาะ unit tests (`dotnet test --filter Category!=Integration`)
+**A แล้วต่อด้วย B** — ✅ งานที่ต้องทำก่อน (แยก test ที่ยิงของจริงด้วย xUnit trait) **ทำเสร็จแล้ว
+13 ส.ค. 2026**: 11 test ติด `[Trait("Category","Integration")]` และ
+`dotnet test --filter "Category!=Integration"` ผ่าน 76/76 — CI มีคำสั่งที่เขียวสะอาดให้ใช้แล้ว
 เลื่อน **C** ไว้จนกว่าจะสรุปได้ว่า deploy ที่ไหน (Azure? Huawei Cloud? on-prem?) — **ต้องถามทีม**
 ⚠️ ตอนทำ Dockerfile: `PDFtoImage` ต้องมี native PDFium ใน image
 

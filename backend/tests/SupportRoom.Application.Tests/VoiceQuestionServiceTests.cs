@@ -22,6 +22,7 @@ namespace SupportRoom.Application.Tests;
 /// regression: the service resolves slides via GetTeachingContentBySlugAsync (works for any
 /// content source) instead of demanding a Google PresentationId.
 /// </summary>
+[Trait(TestCategories.Category, TestCategories.Integration)]
 public class VoiceQuestionServiceTests
 {
     // GeminiVoiceQuestionProvider checks DurationMs itself before ever calling Gemini (see
