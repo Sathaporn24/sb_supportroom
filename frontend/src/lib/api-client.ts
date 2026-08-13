@@ -1,8 +1,13 @@
 "use client";
 
 import type { ApiErrorResponse } from "@/types/api";
+import { getAccessToken, getActiveCompanyId } from "@/lib/auth-session";
 import type {
+  AdminUser,
+  ChangePasswordInput,
   ChatMessage,
+  Company,
+  CreateAdminUserInput,
   CreateTrainingLinkInput,
   DocumentResource,
   EndLearningSessionInput,
@@ -10,13 +15,17 @@ import type {
   LearningSession,
   LessonConfig,
   LessonConfigInput,
+  LoginInput,
+  LoginResult,
   ResolvedPresentation,
   ReviewSessionQuestionInput,
   SessionQuestion,
   SessionSummary,
+  SignedInUser,
   SlidesLessonContent,
   TeachingSlide,
   TrainingLink,
+  UpdateAdminUserInput,
   UpdateLearningProgressInput,
   VoiceQuestionResult,
 } from "@/types/domain";
@@ -39,19 +48,58 @@ export class ApiClientError extends Error {
 // relative (same-origin Next.js route handlers), now cross-origin against the API's own host.
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "";
 
+/**
+ * Adds ?company= to back-office calls so the server knows which customer is being viewed.
+ *
+ * Only when signed in: the learner surface is anonymous and derives its company from the link
+ * token instead, so tagging those requests would be noise at best and misleading at worst.
+ *
+ * The value is a hint, never a permission - the server checks on every request that this user
+ * may act on that company and answers 403 if not (TD-014).
+ */
 function apiUrl(path: string): string {
-  return `${API_BASE_URL}${path}`;
+  const url = `${API_BASE_URL}${path}`;
+  const companyId = getActiveCompanyId();
+  if (!companyId || !getAccessToken()) return url;
+  return `${url}${path.includes("?") ? "&" : "?"}company=${encodeURIComponent(companyId)}`;
+}
+
+/**
+ * Called when the API says the token is missing or expired. Set by AdminSessionProvider so this
+ * module can hand control back to the app without importing React or the router.
+ */
+let onUnauthorized: (() => void) | null = null;
+
+export function setUnauthorizedHandler(handler: (() => void) | null): void {
+  onUnauthorized = handler;
 }
 
 async function request<T>(input: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(input, init);
+  const token = getAccessToken();
+  const response = await fetch(input, {
+    ...init,
+    headers: token ? { ...init?.headers, Authorization: `Bearer ${token}` } : init?.headers,
+  });
+
   if (!response.ok) {
     const body = (await response.json().catch(() => null)) as ApiErrorResponse | null;
+
+    // 401 only. A 403 must NOT sign anyone out: they are correctly signed in and simply asked
+    // for something that is not theirs, and throwing them to a login screen would both lose
+    // their work and imply that signing in again might help.
+    if (response.status === 401) {
+      onUnauthorized?.();
+    }
+
     if (body?.error) {
       throw new ApiClientError(body, response.status);
     }
     throw new Error(`Request failed: ${response.status}`);
   }
+
+  // 204 No Content has no body to parse - changePassword returns one.
+  if (response.status === 204) return undefined as T;
+
   return response.json() as Promise<T>;
 }
 
@@ -301,4 +349,55 @@ export function deleteDocument(id: string): Promise<{ status: string }> {
 /** Base URL the SignalR hub connection should use - same host as every REST call above. */
 export function getApiBaseUrl(): string {
   return API_BASE_URL;
+}
+
+// ─── Back office identity (TD-014) ────────────────────────────────────────────────────────────
+
+export function login(input: LoginInput): Promise<{ result: LoginResult }> {
+  return request(apiUrl("/api/auth/login"), { method: "POST", headers: jsonHeaders, body: JSON.stringify(input) });
+}
+
+export function getSignedInUser(): Promise<{ user: SignedInUser }> {
+  return request(apiUrl("/api/auth/me"));
+}
+
+export function changePassword(input: ChangePasswordInput): Promise<void> {
+  return request(apiUrl("/api/auth/change-password"), {
+    method: "POST",
+    headers: jsonHeaders,
+    body: JSON.stringify(input),
+  });
+}
+
+/** Feeds the company switcher: every active company for an owner, exactly one for anyone else. */
+export function listSwitchableCompanies(): Promise<{ companies: Company[] }> {
+  return request(apiUrl("/api/companies"));
+}
+
+export function createCompany(input: { id: string; name: string }): Promise<{ company: Company }> {
+  return request(apiUrl("/api/companies"), { method: "POST", headers: jsonHeaders, body: JSON.stringify(input) });
+}
+
+export function updateCompany(id: string, input: { name: string; isActive: boolean }): Promise<{ company: Company }> {
+  return request(apiUrl(`/api/companies/${encodeURIComponent(id)}`), {
+    method: "PUT",
+    headers: jsonHeaders,
+    body: JSON.stringify(input),
+  });
+}
+
+export function listAdminUsers(companyId: string): Promise<{ users: AdminUser[] }> {
+  return request(apiUrl(`/api/admin-users/${encodeURIComponent(companyId)}`));
+}
+
+export function createAdminUser(input: CreateAdminUserInput): Promise<{ user: AdminUser }> {
+  return request(apiUrl("/api/admin-users"), { method: "POST", headers: jsonHeaders, body: JSON.stringify(input) });
+}
+
+export function updateAdminUser(id: string, input: UpdateAdminUserInput): Promise<{ user: AdminUser }> {
+  return request(apiUrl(`/api/admin-users/${encodeURIComponent(id)}`), {
+    method: "PUT",
+    headers: jsonHeaders,
+    body: JSON.stringify(input),
+  });
 }

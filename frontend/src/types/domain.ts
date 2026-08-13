@@ -236,3 +236,76 @@ export type DocumentResource = {
   indexedChunkCount: number;
   createdAt: string;
 };
+
+// ─── Back office identity (TD-014) ────────────────────────────────────────────────────────────
+// Only the admin surface has accounts. The person who receives a training link has none and
+// never will: their token is both key and scope. Do not add a learner role here.
+
+/** Mirrors AdminRole.cs. */
+export type AdminRole = "owner" | "admin" | "cs";
+
+/** Mirrors CompanyViewModel - one entry in the company switcher. */
+export type Company = {
+  id: string;
+  name: string;
+  isActive: boolean;
+};
+
+/** Mirrors SignedInUserViewModel - the signed-in user's own profile. */
+export type SignedInUser = {
+  id: string;
+  email: string;
+  displayName: string;
+  role: AdminRole;
+  /** null for an owner, who spans every company. */
+  companyId?: string;
+  /** When true the app must keep the back office out of reach until the password is changed. */
+  mustChangePassword: boolean;
+};
+
+/** Mirrors LoginResultViewModel. */
+export type LoginResult = {
+  token: string;
+  expiresAt: string;
+  user: SignedInUser;
+};
+
+/**
+ * Mirrors AdminUserViewModel - one row on the user-management screen. Deliberately a separate
+ * type from SignedInUser: they answer different questions and will drift apart.
+ */
+export type AdminUser = {
+  id: string;
+  email: string;
+  displayName: string;
+  role: AdminRole;
+  companyId?: string;
+  isActive: boolean;
+  lastLoginAt?: string;
+  createdAt: string;
+};
+
+export type CreateAdminUserInput = {
+  email: string;
+  displayName: string;
+  role: AdminRole;
+  /** Ignored for an owner; for anyone else a company admin's own company always wins server-side. */
+  companyId?: string;
+  initialPassword: string;
+};
+
+export type UpdateAdminUserInput = {
+  displayName: string;
+  role: AdminRole;
+  isActive: boolean;
+};
+
+export type LoginInput = {
+  email: string;
+  password: string;
+};
+
+export type ChangePasswordInput = {
+  currentPassword: string;
+  newPassword: string;
+};
