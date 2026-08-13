@@ -1,8 +1,11 @@
 // SupportRoom AI — PostgreSQL schema
-// สร้างจาก EF Core migrations จริง (ถึง 20260811064348_RenameChatSenderRoles) + การแยก
-// TrainingLink/LearningSession ที่โค้ดทำแล้วแต่ยังไม่มี migration — อัปเดต 13 ส.ค. 2026
-// ⚠️ ตาราง TrainingLink/LearningSession และคอลัมน์ Review* ด้านล่างสะท้อน "โค้ดปัจจุบัน"
-//    ไม่ใช่ "ฐานข้อมูลปัจจุบัน" จนกว่าจะรัน migration ที่ค้างอยู่ (ดูท้ายไฟล์)
+// สร้างจาก EF Core migrations จริง รวมถึง 20260813140603_SplitLinkAndAddAuth
+// (TD-013 แยกลิงก์/การเรียน + TD-014 auth/Company) — อัปเดต 13 ส.ค. 2026
+// ⚠️ migration เขียนเสร็จและตรวจ SQL ที่ generate แล้ว (ยืนยันว่า RENAME ไม่ใช่ DROP —
+//    ข้อมูลลิงก์เดิมไม่หาย) แต่ "ยังไม่เคย apply กับฐานข้อมูลจริงสักครั้ง" — เครื่องที่เขียนโค้ด
+//    ล่าสุดไม่มีทั้ง Postgres และ Docker รันคำสั่งนี้แล้วอัปเดตบรรทัดนี้ทันทีที่ apply สำเร็จ:
+//      dotnet ef database update --project src/SupportRoom.Providers.Data --startup-project src/SupportRoom.Api
+//    ต้องตั้ง JWT_SECRET (≥32 ตัว) ใน .env ก่อน ไม่งั้น backend สตาร์ทไม่ขึ้น — ดู .env.example
 // วางลง https://dbdiagram.io ได้เลย
 //
 // ⚠️ ความสัมพันธ์ทุกเส้นด้านล่างเป็น "logical" เท่านั้น
@@ -25,12 +28,55 @@ Project supportroom {
   '''
 }
 
-// ทุกตารางมี CompanyId + คอลัมน์ audit ชุดเดียวกันจาก IEntityMaster<string>:
+// ทุกตารางมีคอลัมน์ audit ชุดเดียวกันจาก IEntityMaster<string>:
 // CreateBy, CreateDate, UpdateBy, UpdateDate, DeleteBy, IsDelete, DeletedAt
-// CompanyId มี EF Core global query filter ทุกตาราง (TD-010) — ยกเว้นทางเดียวคือ
-// TrainingLinkRepository.GetByToken ที่ต้อง IgnoreQueryFilters เพราะยังไม่รู้ company
 // หมายเหตุ: IsDelete/DeletedAt ยังไม่มีพฤติกรรมจริง โค้ดลบแบบ hard delete ทุกครั้ง
-//           และไม่มี global query filter
+//
+// CompanyId มี EF Core global query filter ทุกตาราง (TD-010) ยกเว้น 3 ทางที่ต้อง
+// IgnoreQueryFilters เพราะถูก query ก่อนรู้ company:
+//   - TrainingLinkRepository.GetByToken (ผู้เรียนถือแค่ token ยังไม่รู้ company)
+//   - Company และ AdminUser ทั้งสองตารางไม่มี query filter เลย (ดูคำเตือนที่ตารางนั้น) — TD-014
+
+Table Company {
+  Id text [pk, note: 'slug เช่น "scb", "school-bright" — ไม่ใช่เลข generate เพราะโผล่ใน URL (?company=)']
+  Name text [not null, note: 'ชื่อที่แสดงในตัวสลับบริษัท เช่น "ธนาคารไทยพาณิชย์"']
+  IsActive boolean [not null, note: 'ปิดใช้งาน = offboard ลูกค้า ข้อมูลเดิมไม่ถูกลบ แต่ staff ของบริษัทนั้น sign in ไม่ได้อีก']
+  CreateBy text [null]
+  CreateDate timestamptz [not null]
+  UpdateBy text [null]
+  UpdateDate timestamptz [null]
+  DeleteBy text [null]
+  IsDelete boolean [not null]
+  DeletedAt timestamptz [null]
+
+  Note: '🔴 ไม่มี query filter — เป็นทะเบียนบริษัทเอง filter ตัวเองไม่ได้ (ตัวสลับบริษัทต้อง list ได้ทุกแถวสำหรับ owner) ทุก query ต้องกรองเองผ่าน IAuthorizationGuard ไม่ใช่พึ่ง EF (TD-014)'
+}
+
+Table AdminUser {
+  Id text [pk, note: 'prefix "user_"']
+  CompanyId text [null, note: 'null เฉพาะ role=owner (ครอบทุกบริษัท) — ห้ามตีความ null ว่า "เห็นได้ทุกอย่าง" ต้องเช็ค Role เท่านั้น']
+  Role text [not null, note: '"owner" | "admin" | "cs" — ดู AdminRole.cs สำหรับสิทธิ์แต่ละระดับ']
+  Email text [not null, unique, note: 'unique ทั้งระบบ ไม่ใช่ต่อบริษัท — ตอน sign in ยังไม่รู้ company']
+  PasswordHash text [null, note: 'null ได้ถ้าจะรองรับ SSO-only ทีหลัง (ยังไม่ทำ)']
+  DisplayName text [not null]
+  IsActive boolean [not null, note: 'ปิดบัญชี ไม่ลบ — audit trail ที่ CreateBy/UpdateBy ชี้มายัง user นี้ต้อง resolve ได้เสมอ']
+  LastLoginAt timestamptz [null]
+  MustChangePassword boolean [not null, note: 'บังคับเปลี่ยนรหัสผ่านตอน sign in ครั้งแรก — คนสร้างบัญชีรู้รหัสผ่านเริ่มต้นอยู่แล้ว']
+  CreateBy text [null]
+  CreateDate timestamptz [not null]
+  UpdateBy text [null]
+  UpdateDate timestamptz [null]
+  DeleteBy text [null]
+  IsDelete boolean [not null]
+  DeletedAt timestamptz [null]
+
+  Indexes {
+    Email [unique, name: 'IX_AdminUser_Email']
+    CompanyId [name: 'IX_AdminUser_CompanyId']
+  }
+
+  Note: '🔴 ไม่มี query filter — sign-in ค้นหาด้วย email ก่อนรู้ company และ owner มี CompanyId เป็น null ซึ่ง filter แบบ CompanyId==context จะไม่ match อะไรเลย IAuthorizationGuard คือด่านเดียวที่ป้องกันตารางนี้ ไม่ใช่ query filter (TD-014)'
+}
 
 Table LessonConfig {
   Id text [pk, note: 'prefix "lesson_" สร้างโดย IdGenerator']
@@ -200,12 +246,22 @@ Table DocumentResource {
 
 // ── ความสัมพันธ์ (logical เท่านั้น ไม่มี FK จริงในฐานข้อมูล) ──
 
+// ทุกตารางที่มี CompanyId ผูกกับ Company.Id เชิง concept — ไม่ได้วาดเส้นให้ดูรก
+// แต่ผูก 2 เส้นแรกไว้ให้เห็นภาพว่า Company เป็นรากของทั้ง identity และข้อมูล
+Ref: AdminUser.CompanyId > Company.Id
+Ref: LessonConfig.CompanyId > Company.Id
+
 Ref: TrainingLink.LessonId > LessonConfig.Id
 Ref: DocumentResource.LessonId > LessonConfig.Id
 Ref: LessonConfig.PdfDocumentResourceId - DocumentResource.Id
 Ref: LearningSession.TrainingLinkId > TrainingLink.Id
 Ref: SessionQuestion.SessionId > LearningSession.Id
 Ref: ChatMessage.SessionId > LearningSession.Id
+
+TableGroup identity {
+  Company
+  AdminUser
+}
 
 TableGroup lesson_content {
   LessonConfig
@@ -223,31 +279,15 @@ TableGroup session_runtime {
 }
 
 // ──────────────────────────────────────────────────────────────
-// migration ที่ยังค้าง — แยก "ลิงก์" ออกจาก "การเรียน" (TD-013, CORE_FEATURE_SPEC)
-// โค้ดทุกชั้นทำเสร็จแล้ว แต่ยังไม่ได้สร้าง migration:
-//   dotnet ef migrations add SplitTrainingLinkAndLearningSession \
-//     --project src/SupportRoom.Providers.Data --startup-project src/SupportRoom.Api
-// (ต้องใช้ .NET 10 SDK — เครื่องที่ทำงานล่าสุดมีแค่ SDK 8 จึงยังรันไม่ได้)
+// สถานะ migration — เขียนเสร็จแล้ว รอ apply เท่านั้น
 //
-// 1. rename TrainingSession → TrainingLink
-//      ตัดออก: RecipientName, Status, StartedAt, EndedAt, CompletedAllSlides, LastSlideObjectId
-//      เพิ่ม:   MaxAttendees integer [null]
-//      คงไว้:   Id, CompanyId, Token, LessonId, LessonSlug, RecipientOrgName, ExpiresAt, audit
+// 20260813140603_SplitLinkAndAddAuth คลุมทั้ง TD-013 (แยกลิงก์/การเรียน) และ TD-014
+// (auth + Company) ในตัวเดียว — ไม่ได้ scaffold ตรง ๆ เพราะ EF สร้างแบบ DROP TrainingSession +
+// CREATE TrainingLink ซึ่งลบข้อมูลลิงก์เดิมทิ้งหมด เขียนใหม่ด้วยมือให้ RENAME แทน + แตก
+// "การเรียน" ออกมาเป็น LearningSession + ย้าย FK ของ SessionQuestion/ChatMessage ตาม
+// (รายละเอียดขั้นตอนอยู่ในตัว migration ไฟล์เอง ไม่ใช่ที่นี่ เพื่อไม่ให้สองที่ไม่ตรงกัน)
 //
-// 2. ตารางใหม่ LearningSession (ดูรายละเอียดคอลัมน์ด้านบน)
-//      index (TrainingLinkId, LearnerKey) — ไม่ unique
-//
-// 3. SessionQuestion — เพิ่ม ReviewResult / ReviewNote / ReviewedAt (nullable ทั้งสาม)
-//
-// 4. DROP TABLE SessionSummary — ทั้งสามคอลัมน์ซ้ำซ้อนหลังแยกตาราง
-//      CompletedAllSlides / LastSlideObjectId ย้ายไป LearningSession
-//      UnansweredPoints คำนวณจาก SessionQuestion ที่ AnswerStatus = 'not_found' ตอนอ่าน
-//
-// 5. ข้อมูลเดิม (ถ้ามีใน environment ไหน) — TrainingSession 1 แถวเดิม = ลิงก์ + การเรียนรวมกัน
-//      ต้องแตกเป็น TrainingLink 1 + LearningSession 1 แล้วชี้ SessionQuestion.SessionId /
-//      ChatMessage.SessionId ไปที่ LearningSession ที่แตกออกมา
-//      LearnerKey ของแถวเก่าไม่มีค่าจริง ให้ generate ใหม่ (คนเดิมกลับมาต่อไม่ได้อยู่แล้ว
-//      เพราะ browser ไม่เคยเก็บ key ไว้)
-//
-// 6. นอกฐานข้อมูล — ไม่มีผลกับ Pinecone namespace (ยังเป็น "{CompanyId}:{LessonSlug}")
+// รัน apply เมื่อพร้อม:
+//   dotnet ef database update --project src/SupportRoom.Providers.Data --startup-project src/SupportRoom.Api
+// ต้องตั้ง JWT_SECRET (≥32 ตัว) ก่อน backend จะสตาร์ทไม่ขึ้นถ้าไม่มี — ดู .env.example
 // ──────────────────────────────────────────────────────────────
