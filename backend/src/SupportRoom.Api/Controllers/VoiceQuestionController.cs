@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
 using SupportRoom.Application.Dto;
@@ -35,6 +36,7 @@ public sealed class VoiceQuestionController : ControllerBase
         _service = serviceProvider.GetRequiredService<IVoiceQuestionService>();
     }
 
+    [AllowAnonymous]
     [HttpPost]
     [RequestSizeLimit(10 * 1024 * 1024)]
     public async Task<ActionResult> Ask([FromForm] VoiceQuestionRequest request)

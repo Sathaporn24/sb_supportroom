@@ -6,8 +6,11 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.10" />
+    <!-- `compile` is included here (unlike the default template) because this project now contains
+         DesignTimeDbContextFactory, which implements IDesignTimeDbContextFactory<T> from this
+         package. PrivateAssets=all still keeps it out of anything that references this project. -->
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.10">
-      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <IncludeAssets>compile; runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />

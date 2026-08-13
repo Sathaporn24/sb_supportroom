@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
 using SupportRoom.Application.Dto;
@@ -23,19 +24,23 @@ public sealed class LearningSessionController : ControllerBase
 
     /// <summary>Idempotent by design - a browser that already has a session on this link gets it
     /// back instead of a second one, which is what makes reconnecting free.</summary>
+    [AllowAnonymous]
     [HttpPost("{token}/join")]
     public ActionResult Join([FromRoute] string token, [FromBody] JoinLearningSessionDto input)
         => Ok(new { learningSession = _service.Join(token, input) });
 
     /// <summary>"เรียนอีกครั้ง" - explicitly starts a new round rather than reopening the old one.</summary>
+    [AllowAnonymous]
     [HttpPost("{token}/restart")]
     public ActionResult Restart([FromRoute] string token, [FromBody] JoinLearningSessionDto input)
         => StatusCode(StatusCodes.Status201Created, new { learningSession = _service.Restart(token, input) });
 
+    [AllowAnonymous]
     [HttpPatch("{token}/progress")]
     public ActionResult UpdateProgress([FromRoute] string token, [FromBody] UpdateLearningProgressDto input)
         => Ok(new { learningSession = _service.UpdateProgress(token, input) });
 
+    [AllowAnonymous]
     [HttpPatch("{token}/end")]
     public ActionResult End([FromRoute] string token, [FromBody] EndLearningSessionDto input)
         => Ok(new { learningSession = _service.End(token, input) });
@@ -48,6 +53,7 @@ public sealed class LearningSessionController : ControllerBase
     /// screen renders questions only. It is served here because the CS console reuses the shape;
     /// splitting the two payloads is the follow-up if that stops being true.
     /// </summary>
+    [AllowAnonymous]
     [HttpGet("{token}/summary")]
     public ActionResult GetOwnSummary([FromRoute] string token, [FromQuery] string learnerKey)
     {

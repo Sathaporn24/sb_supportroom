@@ -25,6 +25,11 @@ public static class GeneralException
     public static HttpStatusCodeException Unauthorized(string messageTh)
         => new(HttpStatusCode.Unauthorized, ApiErrorCode.Unauthorized, messageTh);
 
+    /// <summary>Signed in, but not allowed. Distinct from Unauthorized so the frontend can tell
+    /// "go log in" apart from "logging in again won't help" - see ApiErrorCode.</summary>
+    public static HttpStatusCodeException Forbidden(string messageTh)
+        => new(HttpStatusCode.Forbidden, ApiErrorCode.Forbidden, messageTh);
+
     public static HttpStatusCodeException UpstreamError(string messageTh)
         => new(HttpStatusCode.BadGateway, ApiErrorCode.UpstreamError, messageTh);
 

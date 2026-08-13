@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
 using SupportRoom.Application.Dto;
@@ -23,6 +24,7 @@ public sealed class SessionQuestionController : ControllerBase
 
     /// <summary>The learner's own questions - needs the browser key, because the token alone now
     /// covers everyone on the link.</summary>
+    [AllowAnonymous]
     [HttpGet]
     public ActionResult GetForLearner([FromQuery] string token, [FromQuery] string learnerKey)
         => Ok(new { questions = _service.GetForLearner(token, learnerKey) });

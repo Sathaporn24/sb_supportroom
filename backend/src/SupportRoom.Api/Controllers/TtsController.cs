@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
 using SupportRoom.Application.Dto;
@@ -16,6 +17,7 @@ public sealed class TtsController : ControllerBase
         _service = serviceProvider.GetRequiredService<ITtsService>();
     }
 
+    [AllowAnonymous]
     [HttpPost]
     public async Task<IActionResult> Synthesize([FromBody] SynthesizeSpeechDto input)
     {

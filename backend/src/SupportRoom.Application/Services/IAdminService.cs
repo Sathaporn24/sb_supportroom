@@ -35,14 +35,25 @@ public sealed class AdminService(
     IUnitOfWork unitOfWork,
     IServiceProvider serviceProvider,
     ILogger<IAdminService> logger,
+    IAuthorizationGuard guard,
     IDocumentStorageProvider storageProvider,
     IKnowledgeIndexingService knowledgeIndexingService,
     IKnowledgeIndexProvider knowledgeIndexProvider,
     ISlidesProvider slidesProvider)
     : ServiceBase<IAdminService>(unitOfWork, serviceProvider, logger), IAdminService
 {
-    private static void EnsureResetAllowed()
+    /// <summary>
+    /// Both operations here are destructive and act on whatever company the request resolved to,
+    /// so they are owner-only (TD-014). A customer's own admin must never be able to wipe data or
+    /// trigger a full re-index - the latter also spends real money on embeddings.
+    ///
+    /// The ALLOW_DATA_RESET switch stays as a second, independent lock: being an owner is about
+    /// who you are, that flag is about whether this deployment is a demo at all.
+    /// </summary>
+    private void EnsureAllowed()
     {
+        guard.EnsureOwner();
+
         if (Environment.GetEnvironmentVariable("ALLOW_DATA_RESET") != "true")
         {
             throw GeneralException.ConfigError("การดำเนินการนี้ถูกปิดใช้งาน - ตั้ง ALLOW_DATA_RESET=true เพื่อเปิดใช้ (ใช้เฉพาะฐานข้อมูล Demo เท่านั้น)");
@@ -51,7 +62,7 @@ public sealed class AdminService(
 
     public void ResetDemoData()
     {
-        EnsureResetAllowed();
+        EnsureAllowed();
 
         var questionRepository = UnitOfWork.GetRepository<ISessionQuestionRepository>();
         var questions = questionRepository.GetAll().ToList();
@@ -90,7 +101,7 @@ public sealed class AdminService(
 
     public async Task<ReindexResult> ReindexAllAsync()
     {
-        EnsureResetAllowed();
+        EnsureAllowed();
 
         var lessonRepository = UnitOfWork.GetRepository<ILessonConfigRepository>();
         var documentRepository = UnitOfWork.GetRepository<IDocumentResourceRepository>();

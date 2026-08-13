@@ -32,6 +32,10 @@ public class AdminServiceTests
             _unitOfWork,
             new FakeServiceProvider(),
             NullLogger<IAdminService>.Instance,
+            // Reset and reindex are owner-only (TD-014); these tests exercise the rest of the
+            // behaviour, so they run as an owner. The refusal path has its own tests in
+            // AuthorizationTests.
+            TestFixtures.OwnerGuard(),
             new FakeDocumentStorageProvider(),
             new FakeKnowledgeIndexingService(),
             new FakeKnowledgeIndexProvider(),

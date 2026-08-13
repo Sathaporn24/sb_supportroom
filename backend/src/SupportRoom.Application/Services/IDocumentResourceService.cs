@@ -81,6 +81,7 @@ public sealed class DocumentResourceService(
             ObsKey = obsKey,
             IndexingStatus = DocumentIndexingStatus.Pending,
             IndexedChunkCount = 0,
+            CreateBy = CurrentUserId,
             CreateDate = DateTime.UtcNow,
         };
         _repository.Add(entity);

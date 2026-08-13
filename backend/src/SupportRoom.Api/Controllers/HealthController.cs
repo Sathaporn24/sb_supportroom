@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
 using SupportRoom.Application.Services;
@@ -16,6 +17,7 @@ public sealed class HealthController : ControllerBase
         _service = serviceProvider.GetRequiredService<IHealthService>();
     }
 
+    [AllowAnonymous]
     [HttpGet]
     public ActionResult<HealthViewModel> Get() => Ok(_service.Get());
 }

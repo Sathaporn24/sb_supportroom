@@ -47,6 +47,10 @@ public sealed class ChatMessageService(
             SenderRole = input.SenderRole,
             SenderName = input.SenderName,
             Text = input.Text,
+            // Deliberately unconditional: null when the learner typed it (they have no
+            // account), the agent's user id when CS did. No branching needed - the absence of
+            // a signed-in user IS the answer.
+            CreateBy = CurrentUserId,
             CreateDate = DateTime.UtcNow,
         };
 

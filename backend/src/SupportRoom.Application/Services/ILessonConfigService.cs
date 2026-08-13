@@ -131,7 +131,9 @@ public sealed class LessonConfigService(
                 FinalQuestionWaitMs = input.FinalQuestionWaitMs,
                 SlideConfigs = slideConfigs,
                 IsActive = input.IsActive,
+                CreateBy = CurrentUserId,
                 CreateDate = now,
+                UpdateBy = CurrentUserId,
                 UpdateDate = now,
             };
             _repository.Add(entity);
@@ -153,6 +155,7 @@ public sealed class LessonConfigService(
             existing.FinalQuestionWaitMs = input.FinalQuestionWaitMs;
             existing.SlideConfigs = slideConfigs;
             existing.IsActive = input.IsActive;
+            existing.UpdateBy = CurrentUserId;
             existing.UpdateDate = now;
             _repository.Update(existing);
             entity = existing;

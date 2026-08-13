@@ -70,6 +70,9 @@ public sealed class TrainingLinkService(IUnitOfWork unitOfWork, IServiceProvider
             RecipientOrgName = input.RecipientOrgName,
             ExpiresAt = expiresAt,
             MaxAttendees = input.MaxAttendees,
+            // CS created this link. Null would mean the learner surface made it, which cannot
+            // happen here - links are only ever created from the back office.
+            CreateBy = CurrentUserId,
             CreateDate = DateTime.UtcNow,
         };
 

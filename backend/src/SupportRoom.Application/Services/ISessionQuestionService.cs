@@ -48,6 +48,10 @@ public sealed class SessionQuestionService(IUnitOfWork unitOfWork, IServiceProvi
             Transcript = input.Transcript,
             Answer = input.Answer,
             AnswerStatus = input.AnswerStatus,
+            // Stays null in practice: a question is only ever written from POST /api/voice-question,
+            // which the learner calls anonymously. Kept for the same reason as ChatMessage -
+            // if that ever changes, the row records who without anyone remembering to add it.
+            CreateBy = CurrentUserId,
             CreateDate = DateTime.UtcNow,
         };
 
@@ -87,6 +91,10 @@ public sealed class SessionQuestionService(IUnitOfWork unitOfWork, IServiceProvi
         entity.ReviewResult = input.ReviewResult;
         entity.ReviewNote = string.IsNullOrWhiteSpace(input.ReviewNote) ? null : input.ReviewNote.Trim();
         entity.ReviewedAt = DateTime.UtcNow;
+        // The one place a back-office user edits a row the learner created. Without this there is
+        // no way to answer "who reviewed this?" afterwards, and the answer cannot be reconstructed
+        // later from anything else - ReviewedAt only says when.
+        entity.UpdateBy = CurrentUserId;
         entity.UpdateDate = DateTime.UtcNow;
 
         _repository.Update(entity);
@@ -94,8 +102,8 @@ public sealed class SessionQuestionService(IUnitOfWork unitOfWork, IServiceProvi
 
         // The note itself stays out of the log - it quotes the answer it is about.
         Logger.LogInformation(
-            "Question reviewed: {QuestionId} result={ReviewResult} hasNote={HasNote}",
-            questionId, entity.ReviewResult, entity.ReviewNote is not null);
+            "Question reviewed: {QuestionId} result={ReviewResult} hasNote={HasNote} by={ActorId}",
+            questionId, entity.ReviewResult, entity.ReviewNote is not null, CurrentUserId);
 
         return entity.Adapt<SessionQuestionViewModel>();
     }

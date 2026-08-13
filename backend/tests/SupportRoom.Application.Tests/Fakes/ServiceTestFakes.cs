@@ -5,6 +5,7 @@ using SupportRoom.Application.Services;
 using SupportRoom.Application.ViewModel;
 using SupportRoom.Domain;
 using SupportRoom.Domain.Entities;
+using SupportRoom.Domain.Enums;
 using SupportRoom.Providers.Data.Data.UnitOfWork;
 using SupportRoom.Providers.Data.Repository;
 using SupportRoom.Providers.Knowledge;
@@ -67,6 +68,54 @@ internal sealed class FakeDocumentResourceRepository : IDocumentResourceReposito
 
     public IQueryable<DocumentResource> GetByLessonId(string lessonId) => Items.AsQueryable().Where(x => x.LessonId == lessonId);
     public IQueryable<DocumentResource> GetStandalone() => Items.AsQueryable().Where(x => x.LessonId == null);
+}
+
+/// <summary>
+/// ⚠️ Mirrors the real repository's most important property: NOTHING here is scoped by company,
+/// because the real table has no query filter either (Company is the tenant registry). A fake that
+/// helpfully filtered would hide exactly the bugs these tests exist to catch.
+/// </summary>
+internal sealed class FakeCompanyRepository : ICompanyRepository
+{
+    public readonly List<Company> Items = [];
+
+    public IQueryable<Company> GetAll() => Items.AsQueryable();
+    public IQueryable<Company> FindBy(Expression<Func<Company, bool>> predicate) => Items.AsQueryable().Where(predicate);
+    public Company? Get(string id) => Items.FirstOrDefault(x => x.Id == id);
+    public Task<Company?> GetAsync(string id) => Task.FromResult(Get(id));
+    public void Add(Company entity) => Items.Add(entity);
+    public void Update(Company entity) { }
+    public void Delete(Company entity) => Items.Remove(entity);
+
+    public IQueryable<Company> GetAllActive() => Items.AsQueryable().Where(x => x.IsActive).OrderBy(x => x.Name);
+    public bool ExistsActive(string id) => Items.Any(x => x.Id == id && x.IsActive);
+}
+
+/// <summary>⚠️ Unscoped for the same reason as FakeCompanyRepository - see its note.</summary>
+internal sealed class FakeAdminUserRepository : IAdminUserRepository
+{
+    public readonly List<AdminUser> Items = [];
+
+    public IQueryable<AdminUser> GetAll() => Items.AsQueryable();
+    public IQueryable<AdminUser> FindBy(Expression<Func<AdminUser, bool>> predicate) => Items.AsQueryable().Where(predicate);
+    public AdminUser? Get(string id) => Items.FirstOrDefault(x => x.Id == id);
+    public Task<AdminUser?> GetAsync(string id) => Task.FromResult(Get(id));
+    public void Add(AdminUser entity) => Items.Add(entity);
+    public void Update(AdminUser entity) { }
+    public void Delete(AdminUser entity) => Items.Remove(entity);
+
+    public AdminUser? GetByEmail(string email)
+        => Items.FirstOrDefault(x => string.Equals(x.Email, email, StringComparison.OrdinalIgnoreCase));
+
+    public IQueryable<AdminUser> GetByCompanyId(string companyId)
+        => Items.AsQueryable().Where(x => x.CompanyId == companyId).OrderBy(x => x.DisplayName);
+
+    public int CountActiveAdmins(string companyId)
+        => Items.Count(x => x.CompanyId == companyId && x.Role == AdminRole.Admin && x.IsActive);
+
+    public int CountActiveOwners() => Items.Count(x => x.Role == AdminRole.Owner && x.IsActive);
+
+    public bool IsEmpty() => Items.Count == 0;
 }
 
 internal sealed class FakeTrainingLinkRepository : ITrainingLinkRepository

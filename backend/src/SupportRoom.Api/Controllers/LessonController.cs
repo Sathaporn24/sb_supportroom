@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
 using SupportRoom.Application.Dto;
@@ -20,6 +21,7 @@ public sealed class LessonController : ControllerBase
     [HttpGet]
     public ActionResult GetAll() => Ok(new { lessons = _service.GetAll() });
 
+    [AllowAnonymous]
     [HttpGet("{slug}")]
     public async Task<ActionResult> GetBySlug([FromRoute] string slug)
     {
@@ -44,6 +46,7 @@ public sealed class LessonController : ControllerBase
         return Ok(await _service.PreviewPdfAsync(documentId));
     }
 
+    [AllowAnonymous]
     [HttpGet("pdf-pages/{documentId}/{pageNumber:int}")]
     public async Task<ActionResult> GetPdfPage([FromRoute] string documentId, [FromRoute] int pageNumber)
     {

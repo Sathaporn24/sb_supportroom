@@ -12,6 +12,8 @@ public sealed class UnitOfWork(ApplicationDbContext dbContext, IServiceProvider 
 {
     private static readonly Dictionary<Type, Type> Register = new()
     {
+        { typeof(ICompanyRepository), typeof(CompanyRepository) },
+        { typeof(IAdminUserRepository), typeof(AdminUserRepository) },
         { typeof(ITrainingLinkRepository), typeof(TrainingLinkRepository) },
         { typeof(ILearningSessionRepository), typeof(LearningSessionRepository) },
         { typeof(ISessionQuestionRepository), typeof(SessionQuestionRepository) },

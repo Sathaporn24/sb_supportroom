@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
 using SupportRoom.Application.Dto;
@@ -31,6 +32,7 @@ public sealed class TrainingLinkController : ControllerBase
 
     /// <summary>What the join screen loads before anyone has typed a name - the lesson title is
     /// all it needs to render.</summary>
+    [AllowAnonymous]
     [HttpGet("{token}")]
     public ActionResult GetByToken([FromRoute] string token)
     {

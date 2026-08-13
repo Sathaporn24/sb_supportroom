@@ -24,7 +24,9 @@ public sealed class LessonConfig : IEntityMaster<string>, ICompanyScoped
     public required string CompanyId { get; init; }
     public string? CreateBy { get; init; }
     public DateTime CreateDate { get; init; }
-    public string? UpdateBy { get; init; }
+    // set, not init: SaveAsync is an upsert that mutates the tracked instance in place, so an
+    // edit must be able to record who made it.
+    public string? UpdateBy { get; set; }
     public DateTime? UpdateDate { get; set; }
     public string? DeleteBy { get; init; }
     public bool IsDelete { get; init; }

@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
 using SupportRoom.Application.Services;
@@ -21,6 +22,7 @@ public sealed class ChatMessagesController : ControllerBase
     }
 
     /// <summary>The learner's own chat history.</summary>
+    [AllowAnonymous]
     [HttpGet]
     public ActionResult GetForLearner([FromQuery] string token, [FromQuery] string learnerKey)
         => Ok(new { messages = _service.GetForLearner(token, learnerKey) });
