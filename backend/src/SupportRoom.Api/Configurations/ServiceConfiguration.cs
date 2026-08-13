@@ -18,9 +18,9 @@ public static class ServiceConfiguration
     public static IServiceCollection AddServiceConfiguration(this IServiceCollection services)
     {
         services.AddScoped<IHealthService, HealthService>();
-        services.AddScoped<ITrainingSessionService, TrainingSessionService>();
+        services.AddScoped<ITrainingLinkService, TrainingLinkService>();
+        services.AddScoped<ILearningSessionService, LearningSessionService>();
         services.AddScoped<ISessionQuestionService, SessionQuestionService>();
-        services.AddScoped<ISessionSummaryService, SessionSummaryService>();
         services.AddScoped<ILessonConfigService, LessonConfigService>();
         services.AddScoped<ISlidesService, SlidesService>();
         services.AddScoped<ITtsService, TtsService>();

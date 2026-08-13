@@ -17,24 +17,30 @@ sequenceDiagram
     API->>DB: upsert LessonConfig
     API-->>Index: best-effort re-index
     API-->>FE: LessonConfig
-    CS->>FE: Create session
-    FE->>API: POST /api/sessions
-    API->>DB: insert TrainingSession
-    API-->>FE: token/join link
+    CS->>FE: Create link
+    FE->>API: POST /api/training-links
+    API->>DB: insert TrainingLink
+    API-->>FE: token/join link (ส่งให้ได้หลายคน)
 ```
 
 ## Join and Teaching
 
+หลายคนเดินผ่าน diagram นี้พร้อมกันบนลิงก์เดียวกัน แต่ละคนได้ `LearningSession` ของตัวเอง
+
 ```mermaid
 sequenceDiagram
-    actor Teacher
-    participant FE as Room + Tutor Hook
+    actor Learner as ผู้เรียน
+    participant FE as Join + Room + Tutor Hook
     participant API as ASP.NET Core API
     participant TTS as Edge TTS
 
-    Teacher->>FE: Open token
-    FE->>API: GET /api/sessions/{token}
-    FE->>API: PATCH action=start
+    Learner->>FE: Open token
+    FE->>API: GET /api/training-links/{token}
+    FE->>FE: อ่าน/สร้าง learnerKey ใน localStorage
+    Learner->>FE: กรอกชื่อ
+    FE->>API: POST /api/learning-sessions/{token}/join
+    Note over API: idempotent ต่อ learnerKey<br/>กลับมาใหม่ = ได้แถวเดิม + lastSlideIndex
+    API-->>FE: LearningSession
     FE->>API: GET /api/lessons/{slug}
     API-->>FE: lesson + resolved slides
     FE->>API: POST /api/tts (intro)
@@ -45,7 +51,10 @@ sequenceDiagram
         FE->>API: POST /api/tts (speaker notes)
         API-->>FE: audio
         FE->>FE: play + wait remaining video/breath time
+        FE-->>API: PATCH /api/learning-sessions/{token}/progress
+        Note over API: อัปเดตแถวเดิม + LastActivityAt<br/>(ตัวเดียวที่ใช้คำนวณ "หยุดกลางคัน")
     end
+    FE->>API: PATCH /api/learning-sessions/{token}/end
 ```
 
 ## Push-to-Talk RAG

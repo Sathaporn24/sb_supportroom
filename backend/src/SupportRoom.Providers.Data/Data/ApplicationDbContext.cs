@@ -16,10 +16,10 @@ namespace SupportRoom.Providers.Data.Data;
 /// </summary>
 public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options, ICompanyContext companyContext) : DbContext(options)
 {
-    public DbSet<TrainingSession> TrainingSession => Set<TrainingSession>();
+    public DbSet<TrainingLink> TrainingLink => Set<TrainingLink>();
+    public DbSet<LearningSession> LearningSession => Set<LearningSession>();
     public DbSet<SessionQuestion> SessionQuestion => Set<SessionQuestion>();
     public DbSet<LessonConfig> LessonConfig => Set<LessonConfig>();
-    public DbSet<SessionSummary> SessionSummary => Set<SessionSummary>();
     public DbSet<ChatMessage> ChatMessage => Set<ChatMessage>();
     public DbSet<DocumentResource> DocumentResource => Set<DocumentResource>();
 
@@ -27,13 +27,23 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     {
         base.OnModelCreating(builder);
 
-        builder.Entity<TrainingSession>(entity =>
+        builder.Entity<TrainingLink>(entity =>
         {
             entity.HasKey(x => x.Id);
             // Token stays globally unique - it is the public join secret and is looked up before
             // any company is known (GetByToken bypasses the filter), so it must not collide
             // across companies.
             entity.HasIndex(x => x.Token).IsUnique();
+            entity.HasIndex(x => x.CompanyId);
+            entity.HasQueryFilter(x => x.CompanyId == companyContext.CompanyId);
+        });
+
+        builder.Entity<LearningSession>(entity =>
+        {
+            entity.HasKey(x => x.Id);
+            // Not unique: pressing "เรียนอีกครั้ง" creates another round under the same key, so
+            // the same (link, learner) pair legitimately has several rows.
+            entity.HasIndex(x => new { x.TrainingLinkId, x.LearnerKey });
             entity.HasIndex(x => x.CompanyId);
             entity.HasQueryFilter(x => x.CompanyId == companyContext.CompanyId);
         });
@@ -54,15 +64,6 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             // company onboarded unable to use the obvious names.
             entity.HasIndex(x => new { x.CompanyId, x.Slug }).IsUnique();
             entity.OwnsMany(x => x.SlideConfigs, owned => owned.ToJson());
-            entity.HasQueryFilter(x => x.CompanyId == companyContext.CompanyId);
-        });
-
-        builder.Entity<SessionSummary>(entity =>
-        {
-            entity.HasKey(x => x.Id);
-            entity.HasIndex(x => x.SessionId).IsUnique();
-            entity.HasIndex(x => x.CompanyId);
-            // List<string> maps natively to a Postgres text[] column via Npgsql - no JSON needed.
             entity.HasQueryFilter(x => x.CompanyId == companyContext.CompanyId);
         });
 

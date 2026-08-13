@@ -1,0 +1,235 @@
+using Microsoft.Extensions.Logging.Abstractions;
+using SupportRoom.Application.Common;
+using SupportRoom.Application.Dto;
+using SupportRoom.Application.Exceptions;
+using SupportRoom.Application.Services;
+using SupportRoom.Application.Tests.Fakes;
+using SupportRoom.Domain.Configuration;
+using SupportRoom.Domain.Entities;
+using SupportRoom.Domain.Enums;
+using SupportRoom.Providers.Data.Repository;
+
+namespace SupportRoom.Application.Tests;
+
+/// <summary>
+/// The behaviours the link/session split exists for: one link serving many people who never see
+/// each other, and a browser that can come back to its own row.
+/// </summary>
+public class LearningSessionServiceTests
+{
+    private readonly FakeTrainingLinkRepository _links = new();
+    private readonly FakeLearningSessionRepository _learningSessions = new();
+    private readonly FakeLessonConfigRepository _lessons = new();
+    private readonly FakeSessionQuestionRepository _questions = new();
+    private readonly FakeUnitOfWork _unitOfWork = new();
+    private readonly LearningSessionService _service;
+    private readonly TrainingLinkService _linkService;
+
+    public LearningSessionServiceTests()
+    {
+        MapsterConfig.Apply();
+        _unitOfWork
+            .Register<ITrainingLinkRepository>(_links)
+            .Register<ILearningSessionRepository>(_learningSessions)
+            .Register<ILessonConfigRepository>(_lessons)
+            .Register<ISessionQuestionRepository>(_questions);
+
+        _linkService = new TrainingLinkService(_unitOfWork, new FakeServiceProvider(), NullLogger<ITrainingLinkService>.Instance);
+        var serviceProvider = new FakeServiceProvider().Register<ITrainingLinkService>(_linkService);
+        _service = new LearningSessionService(_unitOfWork, serviceProvider, NullLogger<ILearningSessionService>.Instance);
+    }
+
+    private string SeedLink(DateTime? expiresAt = null)
+    {
+        _lessons.Items.Add(new LessonConfig
+        {
+            Id = "lesson-a",
+            CompanyId = TestFixtures.CompanyId,
+            Slug = "lesson-a",
+            Title = "บทเรียน",
+            SlidesSourceUrl = "",
+            ContentSourceType = LessonContentSourceType.GoogleSlides,
+            IntroWaitMs = 5000,
+            BreathPauseMs = 500,
+            FinalQuestionWaitMs = 5000,
+            SlideConfigs = [],
+            IsActive = true,
+        });
+        var created = _linkService.Create(new CreateTrainingLinkDto
+        {
+            LessonSlug = "lesson-a",
+            ExpiresAt = (expiresAt ?? DateTime.UtcNow.AddHours(24)).ToString("O"),
+        });
+        return created.Token;
+    }
+
+    [Fact]
+    public void Join_IsIdempotent_SoAReconnectLandsBackOnTheSameRow()
+    {
+        var token = SeedLink();
+
+        var first = _service.Join(token, new JoinLearningSessionDto { RecipientName = "ครูเอ", LearnerKey = "key-1" });
+        var second = _service.Join(token, new JoinLearningSessionDto { RecipientName = "ครูเอ", LearnerKey = "key-1" });
+
+        Assert.Equal(first.Id, second.Id);
+        Assert.Single(_learningSessions.Items);
+    }
+
+    [Fact]
+    public void TwoPeopleOnTheSameLink_GetSeparateSessions()
+    {
+        var token = SeedLink();
+
+        var a = _service.Join(token, new JoinLearningSessionDto { RecipientName = "ครูเอ", LearnerKey = "key-a" });
+        var b = _service.Join(token, new JoinLearningSessionDto { RecipientName = "ครูบี", LearnerKey = "key-b" });
+
+        Assert.NotEqual(a.Id, b.Id);
+        Assert.Equal("ครูเอ", a.RecipientName);
+        Assert.Equal("ครูบี", b.RecipientName);
+        Assert.Equal(2, _learningSessions.Items.Count);
+    }
+
+    [Fact]
+    public void DuplicateNamesAreFine_TheKeyIsWhatSeparatesPeople()
+    {
+        var token = SeedLink();
+
+        var a = _service.Join(token, new JoinLearningSessionDto { RecipientName = "สมชาย", LearnerKey = "key-a" });
+        var b = _service.Join(token, new JoinLearningSessionDto { RecipientName = "สมชาย", LearnerKey = "key-b" });
+
+        Assert.NotEqual(a.Id, b.Id);
+    }
+
+    [Fact]
+    public void Join_ReturnsAnEndedSessionAsIs_SoTheRecapCanBeShown()
+    {
+        var token = SeedLink();
+        var joined = _service.Join(token, new JoinLearningSessionDto { RecipientName = "ครูเอ", LearnerKey = "key-1" });
+        _service.End(token, new EndLearningSessionDto { LearnerKey = "key-1", CompletedAllSlides = true });
+
+        var reopened = _service.Join(token, new JoinLearningSessionDto { RecipientName = "ครูเอ", LearnerKey = "key-1" });
+
+        Assert.Equal(joined.Id, reopened.Id);
+        Assert.Equal(SessionStatus.Ended, reopened.Status);
+        Assert.Single(_learningSessions.Items);
+    }
+
+    [Fact]
+    public void Restart_StartsAFreshRound_LeavingTheFinishedOneAlone()
+    {
+        var token = SeedLink();
+        var first = _service.Join(token, new JoinLearningSessionDto { RecipientName = "ครูเอ", LearnerKey = "key-1" });
+        _service.End(token, new EndLearningSessionDto { LearnerKey = "key-1", CompletedAllSlides = true });
+
+        var second = _service.Restart(token, new JoinLearningSessionDto { RecipientName = "ครูเอ", LearnerKey = "key-1" });
+
+        Assert.NotEqual(first.Id, second.Id);
+        Assert.Equal(SessionStatus.InProgress, second.Status);
+        Assert.Equal(2, _learningSessions.Items.Count);
+        // The finished round keeps its status - restarting must not rewrite history.
+        Assert.Equal(SessionStatus.Ended, _learningSessions.Items.Single(x => x.Id == first.Id).Status);
+    }
+
+    [Fact]
+    public void Join_RefusesAnExpiredLink()
+    {
+        var token = SeedLink(DateTime.UtcNow.AddHours(-1));
+
+        var ex = Assert.Throws<HttpStatusCodeException>(
+            () => _service.Join(token, new JoinLearningSessionDto { RecipientName = "ครูเอ", LearnerKey = "key-1" }));
+        Assert.Equal(400, (int)ex.StatusCode);
+    }
+
+    [Fact]
+    public void Join_RejectsABlankName()
+    {
+        var token = SeedLink();
+
+        Assert.Throws<HttpStatusCodeException>(
+            () => _service.Join(token, new JoinLearningSessionDto { RecipientName = "   ", LearnerKey = "key-1" }));
+    }
+
+    [Fact]
+    public void UpdateProgress_MovesTheSameRow_AndBumpsLastActivity()
+    {
+        var token = SeedLink();
+        var joined = _service.Join(token, new JoinLearningSessionDto { RecipientName = "ครูเอ", LearnerKey = "key-1" });
+
+        var moved = _service.UpdateProgress(token, new UpdateLearningProgressDto
+        {
+            LearnerKey = "key-1",
+            LastSlideObjectId = "slide-7",
+            LastSlideIndex = 6,
+        });
+
+        Assert.Equal(joined.Id, moved.Id);
+        Assert.Equal("slide-7", moved.LastSlideObjectId);
+        Assert.Equal(6, moved.LastSlideIndex);
+        Assert.Single(_learningSessions.Items);
+    }
+
+    [Fact]
+    public void IsStalled_IsDerivedFromTheClock_AndNeverStored()
+    {
+        var token = SeedLink();
+        _service.Join(token, new JoinLearningSessionDto { RecipientName = "ครูเอ", LearnerKey = "key-1" });
+
+        var row = _learningSessions.Items.Single();
+        row.LastActivityAt = DateTime.UtcNow.AddMinutes(-(ServerDefaults.GetInactiveThresholdMinutes() + 1));
+
+        Assert.True(_service.GetById(row.Id).IsStalled);
+        Assert.Equal(SessionStatus.InProgress, row.Status);
+    }
+
+    [Fact]
+    public void AFinishedSessionIsNeverStalled_HoweverLongAgoItEnded()
+    {
+        var token = SeedLink();
+        _service.Join(token, new JoinLearningSessionDto { RecipientName = "ครูเอ", LearnerKey = "key-1" });
+        _service.End(token, new EndLearningSessionDto { LearnerKey = "key-1", CompletedAllSlides = true });
+
+        var row = _learningSessions.Items.Single();
+        row.LastActivityAt = DateTime.UtcNow.AddDays(-30);
+
+        Assert.False(_service.GetById(row.Id).IsStalled);
+    }
+
+    [Fact]
+    public void GetSummary_ComputesUnansweredPointsFromQuestions_WithNoSummaryTable()
+    {
+        var token = SeedLink();
+        var joined = _service.Join(token, new JoinLearningSessionDto { RecipientName = "ครูเอ", LearnerKey = "key-1" });
+
+        _questions.Items.Add(SeedQuestion(joined.Id, AnswerStatus.Answered, "ถามเรื่องที่ตอบได้"));
+        _questions.Items.Add(SeedQuestion(joined.Id, AnswerStatus.NotFound, "ถามเรื่องที่ไม่มีข้อมูล"));
+
+        var summary = _service.GetSummary(joined.Id);
+
+        Assert.Equal(2, summary.Questions.Count);
+        Assert.Equal("ถามเรื่องที่ไม่มีข้อมูล", Assert.Single(summary.UnansweredPoints));
+    }
+
+    [Fact]
+    public void GetSummary_OnlySeesItsOwnLearnersQuestions()
+    {
+        var token = SeedLink();
+        var a = _service.Join(token, new JoinLearningSessionDto { RecipientName = "ครูเอ", LearnerKey = "key-a" });
+        var b = _service.Join(token, new JoinLearningSessionDto { RecipientName = "ครูบี", LearnerKey = "key-b" });
+
+        _questions.Items.Add(SeedQuestion(a.Id, AnswerStatus.NotFound, "คำถามของเอ"));
+        _questions.Items.Add(SeedQuestion(b.Id, AnswerStatus.NotFound, "คำถามของบี"));
+
+        Assert.Equal("คำถามของเอ", Assert.Single(_service.GetSummary(a.Id).UnansweredPoints));
+        Assert.Equal("คำถามของบี", Assert.Single(_service.GetSummary(b.Id).UnansweredPoints));
+    }
+
+    private static SessionQuestion SeedQuestion(string learningSessionId, string answerStatus, string transcript) => new()
+    {
+        Id = $"question-{Guid.NewGuid()}",
+        CompanyId = TestFixtures.CompanyId,
+        SessionId = learningSessionId,
+        Transcript = transcript,
+        AnswerStatus = answerStatus,
+        CreateDate = DateTime.UtcNow,
+    };
+}

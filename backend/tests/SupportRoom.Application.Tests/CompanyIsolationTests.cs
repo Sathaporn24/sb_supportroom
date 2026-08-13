@@ -64,15 +64,27 @@ public class CompanyIsolationTests : IDisposable
         CreateDate = DateTime.UtcNow,
     };
 
-    private static TrainingSession Session(string companyId, string token) => new()
+    private static TrainingLink Link(string companyId, string token) => new()
     {
-        Id = $"session-{token}",
+        Id = $"link-{token}",
         CompanyId = companyId,
         Token = token,
         LessonId = $"lesson-{companyId}-shared-slug",
         LessonSlug = "shared-slug",
-        Status = SessionStatus.NotStarted,
         ExpiresAt = DateTime.UtcNow.AddHours(1),
+        CreateDate = DateTime.UtcNow,
+    };
+
+    private static LearningSession Learning(string companyId, string token) => new()
+    {
+        Id = $"learning-{token}",
+        CompanyId = companyId,
+        TrainingLinkId = $"link-{token}",
+        LearnerKey = $"key-{token}",
+        RecipientName = "ผู้เรียน",
+        Status = SessionStatus.InProgress,
+        StartedAt = DateTime.UtcNow,
+        LastActivityAt = DateTime.UtcNow,
         CreateDate = DateTime.UtcNow,
     };
 
@@ -81,10 +93,11 @@ public class CompanyIsolationTests : IDisposable
     private void SeedBothCompanies()
     {
         _db.LessonConfig.AddRange(Lesson(CompanyA, "shared-slug"), Lesson(CompanyB, "shared-slug"));
-        _db.TrainingSession.AddRange(Session(CompanyA, "token-a"), Session(CompanyB, "token-b"));
+        _db.TrainingLink.AddRange(Link(CompanyA, "token-a"), Link(CompanyB, "token-b"));
+        _db.LearningSession.AddRange(Learning(CompanyA, "token-a"), Learning(CompanyB, "token-b"));
         _db.ChatMessage.AddRange(
-            new ChatMessage { Id = "chat-a", CompanyId = CompanyA, SessionId = "session-token-a", SenderRole = "agent", Text = "ของบริษัท A", CreateDate = DateTime.UtcNow },
-            new ChatMessage { Id = "chat-b", CompanyId = CompanyB, SessionId = "session-token-b", SenderRole = "agent", Text = "ของบริษัท B", CreateDate = DateTime.UtcNow });
+            new ChatMessage { Id = "chat-a", CompanyId = CompanyA, SessionId = "learning-token-a", SenderRole = ChatSenderRole.Agent, Text = "ของบริษัท A", CreateDate = DateTime.UtcNow },
+            new ChatMessage { Id = "chat-b", CompanyId = CompanyB, SessionId = "learning-token-b", SenderRole = ChatSenderRole.Agent, Text = "ของบริษัท B", CreateDate = DateTime.UtcNow });
         _db.SaveChanges();
     }
 
@@ -95,7 +108,8 @@ public class CompanyIsolationTests : IDisposable
         _companyContext.Resolve(CompanyA);
 
         Assert.Equal([CompanyA], _db.LessonConfig.Select(x => x.CompanyId).Distinct().ToList());
-        Assert.Equal([CompanyA], _db.TrainingSession.Select(x => x.CompanyId).Distinct().ToList());
+        Assert.Equal([CompanyA], _db.TrainingLink.Select(x => x.CompanyId).Distinct().ToList());
+        Assert.Equal([CompanyA], _db.LearningSession.Select(x => x.CompanyId).Distinct().ToList());
         Assert.Equal([CompanyA], _db.ChatMessage.Select(x => x.CompanyId).Distinct().ToList());
     }
 
@@ -110,7 +124,8 @@ public class CompanyIsolationTests : IDisposable
 
         Assert.Null(_db.LessonConfig.FirstOrDefault(x => x.Id == $"lesson-{CompanyB}-shared-slug"));
         Assert.Null(_db.ChatMessage.FirstOrDefault(x => x.Id == "chat-b"));
-        Assert.Null(_db.TrainingSession.FirstOrDefault(x => x.Id == "session-token-b"));
+        Assert.Null(_db.TrainingLink.FirstOrDefault(x => x.Id == "link-token-b"));
+        Assert.Null(_db.LearningSession.FirstOrDefault(x => x.Id == "learning-token-b"));
     }
 
     [Fact]
@@ -138,12 +153,13 @@ public class CompanyIsolationTests : IDisposable
         SeedBothCompanies();
 
         Assert.Empty(_db.LessonConfig.ToList());
-        Assert.Empty(_db.TrainingSession.ToList());
+        Assert.Empty(_db.TrainingLink.ToList());
+        Assert.Empty(_db.LearningSession.ToList());
         Assert.Empty(_db.ChatMessage.ToList());
     }
 
     [Fact]
-    public void LookingUpASessionByTokenCrossesTheFilterAndSwitchesTheRequestToThatCompany()
+    public void LookingUpALinkByTokenCrossesTheFilterAndSwitchesTheRequestToThatCompany()
     {
         // The one deliberate hole in the filter, and the mechanism the whole recipient-side flow
         // depends on: someone holding a join link has no identity and no company yet, so the
@@ -151,7 +167,7 @@ public class CompanyIsolationTests : IDisposable
         SeedBothCompanies();
         _companyContext.Resolve(CompanyA);
 
-        var repository = new TrainingSessionRepository(_db);
+        var repository = new TrainingLinkRepository(_db);
         var found = repository.GetByToken("token-b");
 
         Assert.NotNull(found);

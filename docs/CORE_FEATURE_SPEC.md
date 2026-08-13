@@ -1,6 +1,7 @@
 # CORE_FEATURE_SPEC — ฟีเจอร์หลัก: สร้างลิงก์ → เรียน → เก็บ log
 
-> เคาะกันเมื่อ 11 ส.ค. 2026 · **ยังไม่ได้ลงมือ** — เอกสารนี้คือสเปกที่ตกลงแล้ว รอ implement
+> เคาะกันเมื่อ 11 ส.ค. 2026 · ข้อที่ค้างเคาะครบเมื่อ 13 ส.ค. 2026 ([TD-013](./TECH_DECISIONS.md))
+> **ยังไม่ได้ลงมือ** — เอกสารนี้คือสเปกที่ตกลงแล้ว รอ implement
 > ต่อยอดจาก [`PRODUCTION_ROADMAP.md`](./PRODUCTION_ROADMAP.md) และ [`TECH_DECISIONS.md`](./TECH_DECISIONS.md)
 
 ---
@@ -97,7 +98,7 @@ CS ทำเครื่องหมาย **ถูก/ผิด** + เขี�
 
 ## 3. Schema ที่จะได้
 
-### 3.1 `TrainingSession` — กลายเป็น "ลิงก์เชิญ"
+### 3.1 `TrainingSession` → **`TrainingLink`** (rename)
 
 ```
 คงไว้    Id · CompanyId · Token · LessonId · LessonSlug · ExpiresAt
@@ -110,15 +111,27 @@ CS ทำเครื่องหมาย **ถูก/ผิด** + เขี�
          CompletedAllSlides · LastSlideObjectId
 ```
 
-⚠️ ชื่อ `TrainingSession` จะไม่ตรงความหมายอีกต่อไป (มันคือ "ลิงก์" ไม่ใช่ "การเรียน")
-— ยังไม่ตัดสินใจว่าจะ rename ไหม
+**rename เพราะความหมายของแถวกลับด้าน** — วันนี้ 1 แถว = การเรียนของคน 1 คน
+หลังแยกแล้ว 1 แถว = ลิงก์ที่หลายคนใช้ร่วมกัน ชื่อคลาสเดิมจะหมายถึงคนละอย่างกับเมื่อวาน
 
-### 3.2 ตารางใหม่ — การเรียนของแต่ละคน
+ผลพลอยได้ที่ใหญ่กว่านั้น: พอคำว่า "Session" หายไปจากฝั่งลิงก์
+`SessionQuestion.SessionId` · `ChatMessage.SessionId` · route `api/session-questions`
+**ไม่ต้องเปลี่ยนชื่อเลย** — แค่เปลี่ยน FK ให้ชี้ `LearningSession` แล้วชื่อพวกนี้กลับมา*ถูก*
+(คำถาม/แชตเป็นของ "การเรียน" อยู่แล้วโดยธรรมชาติ)
+
+ถ้าคงชื่อเดิมไว้จะได้ระบบที่ `SessionQuestion.SessionId` ชี้ไปตารางที่ไม่ได้ชื่อ Session
+ส่วนตารางที่ชื่อ Session กลับไม่ใช่ตัวที่มันชี้ — และ `GetBySessionId()` ที่มีอยู่ 4–5 ที่
+จะอ่านแล้วตอบไม่ได้ว่า session ไหน ตลอดไป
+
+route `api/sessions` → `api/training-links` ไปด้วย (ยังไม่มีผู้ใช้ภายนอก)
+และหน้า `/admin/sessions` → `/admin/links`
+
+### 3.2 ตารางใหม่ **`LearningSession`** — การเรียนของแต่ละคน
 
 ```
 Id
 CompanyId              ← ตามแบบแผน multi-company (ต้องมี query filter ด้วย)
-TrainingSessionId      ← ลิงก์ที่ใช้เข้ามา
+TrainingLinkId         ← ลิงก์ที่ใช้เข้ามา
 LearnerKey             ← key ที่ browser เก็บ ใช้แยกคนบนลิงก์เดียวกัน + กลับมาเรียนต่อ
 RecipientName          ← ผู้ใช้กรอกเอง
 Status                 ← IN_PROGRESS | ENDED
@@ -145,17 +158,30 @@ CreateBy/CreateDate/...
 เปลี่ยน  ผูกกับ "การเรียน" แทน "ลิงก์"
 ```
 
-### 3.5 `SessionSummary` — น่าจะลบทิ้งได้
+### 3.5 `SessionSummary` — **ลบทิ้ง** คำนวณสดตอนอ่านแทน
 
 ตารางนี้เก็บ 3 อย่าง ซึ่งหลังแยกโครงสร้างแล้วซ้ำซ้อนทั้งหมด:
 
 | เก็บอะไร | หลังแยกแล้ว |
 |---|---|
-| `CompletedAllSlides` | ย้ายไปอยู่ที่ "การเรียน" |
-| `LastSlideObjectId` | ย้ายไปอยู่ที่ "การเรียน" |
-| `UnansweredPoints` | คำนวณจาก `SessionQuestion` ที่ `AnswerStatus = not_found` ได้ |
+| `CompletedAllSlides` | ย้ายไปอยู่ที่ `LearningSession` → **มี 2 ที่เก็บความจริงเดียวกัน** |
+| `LastSlideObjectId` | เหมือนกันเป๊ะ |
+| `UnansweredPoints` | derived — คำนวณจาก `SessionQuestion` ที่ `AnswerStatus = not_found` ได้ |
 
-**รอตัดสินใจ** ว่าจะลบทิ้งหรือเก็บไว้
+เหตุผลเดียวที่ปกติจะเก็บ snapshot ไว้คือ "อยากได้ภาพ ณ เวลานั้น แช่แข็งไม่เปลี่ยน"
+**แต่โค้ดนี้ไม่ได้ทำแบบนั้นอยู่แล้ว** — comment ในไฟล์เขียนเองว่ารายการคำถามไม่ได้ copy เก็บ
+แล้ว `GetBySessionId` ก็ join สดจาก `SessionQuestion` ตอนอ่าน → ได้ของครึ่งแช่แข็งครึ่งสด
+ซึ่งแย่กว่าทั้งสองแบบ
+
+ฟีเจอร์รีวิว (§2.7) ทำให้มันผิดหนักขึ้น: CS จะแก้ `ReviewResult`/`ReviewNote` บน
+`SessionQuestion` *หลัง*เรียนจบ แต่ `UnansweredPoints` แช่แข็งไว้ตั้งแต่วินาทีที่จบ
+นานไปสองอันจะเล่าเรื่องไม่ตรงกัน แล้วไม่มีใครรู้ว่าอันไหนถูก
+
+```
+ลบ    entity + ตาราง + ISessionSummaryRepository + ISessionSummaryService
+คงไว้  SessionSummaryViewModel  ← เปลี่ยนจาก "อ่านจากตาราง" เป็น "คำนวณสด"
+                                  frontend กับ api-client.ts ไม่ต้องแก้
+```
 
 ---
 
@@ -167,12 +193,36 @@ INACTIVE_THRESHOLD_MINUTES=30    # เกินนี้ไม่ขยับ = 
 
 ---
 
-## 5. ที่ยังไม่ได้ตัดสินใจ
+## 5. ที่ตัดสินใจแล้ว (เคาะ 13 ส.ค. 2026 — ดู TD-013)
 
-- [ ] rename `TrainingSession` → ชื่อที่สื่อว่าเป็น "ลิงก์" ไหม
-- [ ] ตั้งชื่อตารางใหม่ว่าอะไร
-- [ ] ลบ `SessionSummary` ทิ้งไหม
-- [ ] ผู้ใช้กรอกอะไรบ้างตอน join นอกจากชื่อ (คิดว่าชื่ออย่างเดียว)
+- [x] rename `TrainingSession` → **`TrainingLink`** (§3.1)
+- [x] ตารางใหม่ชื่อ **`LearningSession`** (§3.2)
+- [x] **ลบ** `SessionSummary` คง ViewModel ไว้แบบคำนวณสด (§3.5)
+- [x] ตอน join กรอก **ชื่ออย่างเดียว** (§5.1)
+
+### 5.1 หน้า join — กรอกชื่ออย่างเดียว
+
+```
+        [ ชื่อบทเรียน ]
+
+  ชื่อของคุณ
+  ┌──────────────────────────┐
+  │                          │   ← ช่องเดียว required, trim, ≤100 ตัว
+  └──────────────────────────┘
+
+       [  เข้าห้องเรียน  ]
+```
+
+ลง DB แค่ `RecipientName` = ค่าที่พิมพ์ · `LearnerKey` = key ที่ browser สร้างเอง
+
+**ไม่เก็บ**: อีเมล · เบอร์โทร · โรงเรียน/สาขา (CS กรอกที่ `RecipientOrgName` ตอนสร้างลิงก์แล้ว)
+· รหัสพนักงาน · ตำแหน่ง — เป็น PII ที่ยังไม่มี flow ไหนใช้
+
+**ครั้งที่สองเป็นต้นไป**: มี `LearnerKey` ใน browser storage แล้ว → **ข้ามหน้านี้ทั้งหน้า**
+เข้าห้องต่อจากสไลด์เดิมทันที ไม่ถามชื่อซ้ำ
+
+ที่ตามมาโดยอัตโนมัติ: ชื่อซ้ำกันได้ (ตัวแยกคนคือ `LearnerKey` ไม่ใช่ชื่อ) และชื่อไม่ใช่ตัวตน
+— ตรงกับ comment ที่มีอยู่แล้วบน `RecipientName` ว่า *"not an identity, not authentication"*
 
 ---
 

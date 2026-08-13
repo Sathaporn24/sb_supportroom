@@ -46,8 +46,9 @@ public static class MapsterConfig
         // Mapster matches by property NAME - IEntityMaster's CreateDate/UpdateDate don't match
         // the wire contract's CreatedAt/UpdatedAt, so every Entity -> ViewModel pair that exposes
         // them needs an explicit override or the field silently comes back null.
-        TypeAdapterConfig<TrainingSession, TrainingSessionViewModel>.NewConfig()
-            .Map(dest => dest.CreatedAt, src => src.CreateDate);
+        // TrainingLink and LearningSession are built by hand in their services instead of mapped -
+        // both carry a field computed at read time (Status/IsStalled) that has no entity column to
+        // map from, so a half-mapped, half-patched object would be the more confusing option.
         TypeAdapterConfig<SessionQuestion, SessionQuestionViewModel>.NewConfig()
             .Map(dest => dest.CreatedAt, src => src.CreateDate);
         TypeAdapterConfig<LessonConfig, LessonConfigViewModel>.NewConfig()

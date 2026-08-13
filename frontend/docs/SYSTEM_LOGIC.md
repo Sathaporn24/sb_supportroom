@@ -4,12 +4,17 @@
 
 1. Admin สร้าง lesson โดยเลือก `google_slides` หรือ `pdf`
 2. Backend เก็บ metadata/timing ใน PostgreSQL และ resolve content สดจากแหล่งจริง
-3. Admin สร้าง session link ที่มี UUID token
-4. ครูเข้า join/room; frontend โหลด session และ teaching content จาก .NET API
+3. Admin สร้าง `TrainingLink` ที่มี UUID token — ส่งให้กี่คนก็ได้จนกว่าจะหมดอายุ
+4. ผู้เรียนเปิดลิงก์ กรอกชื่อตัวเอง แล้ว backend สร้าง `LearningSession` ของคนนั้น
+   browser เก็บ `learnerKey` ไว้ ทำสองหน้าที่: กลับมาเรียนต่อได้ และแยกคนบนลิงก์เดียวกัน
 5. Tutor reducer ขับ intro → readiness → slides → final question → closing
-6. เมื่อจบ backend บันทึก `SessionSummary` จากคำถามของ session
+   เริ่มที่ `lastSlideIndex` ที่ join ส่งกลับมา จึงเรียนต่อจากจุดเดิมได้หลังเน็ตหลุด/ปิดแท็บ
+6. ทุกครั้งที่เปลี่ยนสไลด์ frontend ยิง progress อัปเดตแถวเดิม (ไม่สร้างแถวใหม่)
+7. เมื่อจบ สรุปถูก**คำนวณสดตอนอ่าน** จาก `LearningSession` + `SessionQuestion` — ไม่มีตาราง summary
+8. CS ตรวจคำตอบ AI ถูก/ผิด พร้อมหมายเหตุอิสระ (ผู้เรียนไม่เห็นส่วนนี้)
 
-Frontend ตรวจ expiry/status ก่อนเข้าห้อง แต่ backend ยังไม่ enforce expiry เองในปัจจุบัน
+Backend enforce expiry ตอน join แล้ว — แต่จงใจไม่บล็อกคนที่เรียนค้างอยู่ไม่ให้จบหรือดูสรุป
+"หยุดกลางคัน" ไม่ใช่สถานะใน DB แต่คำนวณจาก `LastActivityAt` เทียบ `INACTIVE_THRESHOLD_MINUTES`
 
 ## Voice Question
 

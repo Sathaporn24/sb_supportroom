@@ -1,5 +1,8 @@
 // SupportRoom AI — PostgreSQL schema
-// สร้างจาก EF Core migrations จริง (ถึง 20260807205425_AddLessonPdfSource) เมื่อ 11 ส.ค. 2026
+// สร้างจาก EF Core migrations จริง (ถึง 20260811064348_RenameChatSenderRoles) + การแยก
+// TrainingLink/LearningSession ที่โค้ดทำแล้วแต่ยังไม่มี migration — อัปเดต 13 ส.ค. 2026
+// ⚠️ ตาราง TrainingLink/LearningSession และคอลัมน์ Review* ด้านล่างสะท้อน "โค้ดปัจจุบัน"
+//    ไม่ใช่ "ฐานข้อมูลปัจจุบัน" จนกว่าจะรัน migration ที่ค้างอยู่ (ดูท้ายไฟล์)
 // วางลง https://dbdiagram.io ได้เลย
 //
 // ⚠️ ความสัมพันธ์ทุกเส้นด้านล่างเป็น "logical" เท่านั้น
@@ -13,7 +16,7 @@ Project supportroom {
 
   ข้อมูลที่ไม่ได้อยู่ในฐานข้อมูลนี้:
   - Vector สำหรับ RAG อยู่ใน Pinecone (นอก PostgreSQL)
-    namespace = LessonConfig.Slug หรือค่าคงที่ "kb-global"
+    namespace = "{CompanyId}:{LessonSlug}" หรือ "{CompanyId}:kb-global"
     ไม่มีคอลัมน์ใดในฐานข้อมูลนี้ชี้ไปยัง vector id
   - ไฟล์เอกสารจริงอยู่ใน object storage (local disk หรือ Huawei OBS)
     DocumentResource เก็บแค่ metadata + pointer (ObsBucket/ObsKey)
@@ -22,13 +25,16 @@ Project supportroom {
   '''
 }
 
-// ทุกตารางมีคอลัมน์ audit ชุดเดียวกันจาก IEntityMaster<string>:
+// ทุกตารางมี CompanyId + คอลัมน์ audit ชุดเดียวกันจาก IEntityMaster<string>:
 // CreateBy, CreateDate, UpdateBy, UpdateDate, DeleteBy, IsDelete, DeletedAt
+// CompanyId มี EF Core global query filter ทุกตาราง (TD-010) — ยกเว้นทางเดียวคือ
+// TrainingLinkRepository.GetByToken ที่ต้อง IgnoreQueryFilters เพราะยังไม่รู้ company
 // หมายเหตุ: IsDelete/DeletedAt ยังไม่มีพฤติกรรมจริง โค้ดลบแบบ hard delete ทุกครั้ง
 //           และไม่มี global query filter
 
 Table LessonConfig {
   Id text [pk, note: 'prefix "lesson_" สร้างโดย IdGenerator']
+  CompanyId text [not null]
   CreateBy text [null]
   CreateDate timestamptz [not null]
   UpdateBy text [null]
@@ -37,7 +43,7 @@ Table LessonConfig {
   IsDelete boolean [not null]
   DeletedAt timestamptz [null]
 
-  Slug text [not null, unique, note: '🔴 unique ทั้งระบบ — ชนกันทันทีเมื่อมีหลาย company']
+  Slug text [not null, note: 'unique ต่อ company ไม่ใช่ทั้งระบบ — สอง company ต้องตั้งชื่อซ้ำกันได้']
   Title text [not null]
   Description text [null]
   SlidesSourceUrl text [not null]
@@ -52,14 +58,15 @@ Table LessonConfig {
   IsActive boolean [not null]
 
   Indexes {
-    Slug [unique, name: 'IX_LessonConfig_Slug']
+    (CompanyId, Slug) [unique, name: 'IX_LessonConfig_CompanyId_Slug']
   }
 
   Note: 'เก็บเฉพาะ metadata ที่ admin ตั้ง ห้ามเก็บสำเนาเนื้อหาสอน (architecture rule 8)'
 }
 
-Table TrainingSession {
-  Id text [pk, note: 'prefix "session_"']
+Table TrainingLink {
+  Id text [pk, note: 'prefix "link_"']
+  CompanyId text [not null]
   CreateBy text [null]
   CreateDate timestamptz [not null]
   UpdateBy text [null]
@@ -68,25 +75,54 @@ Table TrainingSession {
   IsDelete boolean [not null]
   DeletedAt timestamptz [null]
 
-  Token text [not null, unique, note: 'ลิงก์สาธารณะ + ใช้เป็น SignalR group key — ความลับเดียวที่ระบบมีตอนนี้']
+  Token text [not null, unique, note: 'ลิงก์สาธารณะ — unique ทั้งระบบเพราะถูก lookup ก่อนรู้ company']
   LessonId text [not null]
-  LessonSlug text [not null, note: 'denormalized — ใช้เป็น Pinecone namespace ตอนถามคำถาม']
-  TeacherName text [null]
-  SchoolName text [null]
-  Status text [not null, note: '"NOT_STARTED" | "IN_PROGRESS" | "ENDED" ("EXPIRED" คำนวณที่ frontend ไม่ได้เก็บ)']
-  ExpiresAt timestamptz [not null, note: 'บังคับที่ frontend เท่านั้น backend ยังรับ token ที่หมดอายุ']
-  StartedAt timestamptz [null]
-  EndedAt timestamptz [null]
-  CompletedAllSlides boolean [not null]
-  LastSlideObjectId text [null]
+  LessonSlug text [not null, note: 'denormalized — ประกอบเป็น Pinecone namespace ตอนถามคำถาม']
+  RecipientOrgName text [null, note: 'หน่วยงานของผู้รับ (โรงเรียน/สาขา/ฝ่าย) — label เฉย ๆ คนละชั้นกับ CompanyId']
+  ExpiresAt timestamptz [not null, note: 'บังคับที่ backend ตอน join — ไม่บล็อกคนที่เรียนค้างอยู่ไม่ให้จบ']
+  MaxAttendees integer [null, note: 'null = ไม่จำกัด — มีคอลัมน์ไว้ก่อน ยังไม่บังคับใช้']
 
   Indexes {
-    Token [unique, name: 'IX_TrainingSession_Token']
+    Token [unique, name: 'IX_TrainingLink_Token']
+    CompanyId [name: 'IX_TrainingLink_CompanyId']
   }
+
+  Note: 'ลิงก์ ไม่ใช่การเรียน — 1 แถวเปิดได้หลายคน แต่ละคนได้ LearningSession ของตัวเอง. ไม่มีคอลัมน์ Status: ACTIVE/EXPIRED คำนวณจาก ExpiresAt ตอนอ่าน'
+}
+
+Table LearningSession {
+  Id text [pk, note: 'prefix "learning_"']
+  CompanyId text [not null]
+  CreateBy text [null]
+  CreateDate timestamptz [not null]
+  UpdateBy text [null]
+  UpdateDate timestamptz [null]
+  DeleteBy text [null]
+  IsDelete boolean [not null]
+  DeletedAt timestamptz [null]
+
+  TrainingLinkId text [not null]
+  LearnerKey text [not null, note: 'key ที่ browser สร้างและเก็บเอง — แยกคนบนลิงก์เดียวกัน + กลับมาเรียนต่อ. ไม่ใช่ credential']
+  RecipientName text [not null, note: 'ผู้เรียนกรอกเองตอน join — ไม่ใช่ตัวตน ชื่อซ้ำกันได้']
+  Status text [not null, note: '"IN_PROGRESS" | "ENDED" — ไม่มี NOT_STARTED เพราะแถวเกิดตอน join เท่านั้น']
+  StartedAt timestamptz [not null]
+  EndedAt timestamptz [null]
+  LastActivityAt timestamptz [not null, note: '🔴 ตัวเดียวที่ใช้คำนวณ "หยุดกลางคัน" — bump ทุกครั้งที่เปลี่ยนสไลด์']
+  LastSlideObjectId text [null]
+  LastSlideIndex integer [not null, note: 'เก็บคู่กับ ObjectId เพื่อแสดง "7/20" โดยไม่ต้อง resolve deck ใหม่']
+  CompletedAllSlides boolean [not null]
+
+  Indexes {
+    (TrainingLinkId, LearnerKey) [name: 'IX_LearningSession_TrainingLinkId_LearnerKey']
+    CompanyId [name: 'IX_LearningSession_CompanyId']
+  }
+
+  Note: 'การเรียนของคนหนึ่งคน. index ไม่ unique โดยตั้งใจ — กด "เรียนอีกครั้ง" สร้างแถวใหม่ใต้ LearnerKey เดิม. "หยุดกลางคัน" ไม่ใช่คอลัมน์ แต่คำนวณจาก LastActivityAt เทียบ INACTIVE_THRESHOLD_MINUTES ตอนแสดงผล'
 }
 
 Table SessionQuestion {
   Id text [pk]
+  CompanyId text [not null]
   CreateBy text [null]
   CreateDate timestamptz [not null]
   UpdateBy text [null]
@@ -95,21 +131,26 @@ Table SessionQuestion {
   IsDelete boolean [not null]
   DeletedAt timestamptz [null]
 
-  SessionId text [not null]
+  SessionId text [not null, note: '→ LearningSession.Id (ไม่ใช่ลิงก์) — คำถามเป็นของคนที่ถาม']
   SlideObjectId text [null]
   Transcript text [null]
   Answer text [null]
   AnswerStatus text [not null, note: '"answered" | "not_found" | "out_of_scope" | "no_speech" | "transcription_failed"']
+  ReviewResult text [null, note: '"correct" | "incorrect" — null = CS ยังไม่ตรวจ']
+  ReviewNote text [null, note: 'free text ไม่ใช่ enum: "ตอบผิด" มี 3 สาเหตุที่แก้คนละทาง (ไม่มีเอกสาร / ค้นไม่เจอ / AI เดาเอง)']
+  ReviewedAt timestamptz [null]
 
   Indexes {
     SessionId [name: 'IX_SessionQuestion_SessionId']
+    CompanyId [name: 'IX_SessionQuestion_CompanyId']
   }
 
-  Note: 'บันทึกคำถาม Push-to-Talk — คำถาม readiness ("พร้อมหรือยัง") ไม่ถูกบันทึกที่นี่'
+  Note: 'บันทึกคำถาม Push-to-Talk — คำถาม readiness ("พร้อมหรือยัง") ไม่ถูกบันทึกที่นี่. ผู้เรียนไม่เห็นคอลัมน์ Review* — เป็นข้อมูลภายในของ CS'
 }
 
 Table ChatMessage {
   Id text [pk]
+  CompanyId text [not null]
   CreateBy text [null]
   CreateDate timestamptz [not null]
   UpdateBy text [null]
@@ -118,42 +159,22 @@ Table ChatMessage {
   IsDelete boolean [not null]
   DeletedAt timestamptz [null]
 
-  SessionId text [not null]
-  SenderRole text [not null, note: '"teacher" | "cs"']
+  SessionId text [not null, note: '→ LearningSession.Id (ไม่ใช่ลิงก์)']
+  SenderRole text [not null, note: '"recipient" | "agent" | "system"']
   SenderName text [null]
   Text text [not null]
 
   Indexes {
     SessionId [name: 'IX_ChatMessage_SessionId']
+    CompanyId [name: 'IX_ChatMessage_CompanyId']
   }
 
   Note: 'ช่องข้อความสำรอง แยกจาก SessionQuestion — เก็บไว้ให้คนเข้ากลางคันเห็นย้อนหลัง'
 }
 
-Table SessionSummary {
-  Id text [pk]
-  CreateBy text [null]
-  CreateDate timestamptz [not null]
-  UpdateBy text [null]
-  UpdateDate timestamptz [null]
-  DeleteBy text [null]
-  IsDelete boolean [not null]
-  DeletedAt timestamptz [null]
-
-  SessionId text [not null, unique]
-  CompletedAllSlides boolean [not null]
-  LastSlideObjectId text [null]
-  UnansweredPoints text[] [not null, note: 'Postgres text[] ผ่าน Npgsql ไม่ได้ใช้ JSON']
-
-  Indexes {
-    SessionId [unique, name: 'IX_SessionSummary_SessionId']
-  }
-
-  Note: 'snapshot เขียนครั้งเดียวตอนจบ session ไม่ recompute — รายการคำถามไม่ถูก duplicate มาที่นี่ อ่านจาก SessionQuestion แทน'
-}
-
 Table DocumentResource {
   Id text [pk, note: 'prefix "doc_" — chunk id ใน Pinecone คือ "{Id}-{chunkId}"']
+  CompanyId text [not null]
   CreateBy text [null]
   CreateDate timestamptz [not null]
   UpdateBy text [null]
@@ -173,57 +194,60 @@ Table DocumentResource {
 
   Indexes {
     LessonId [name: 'IX_DocumentResource_LessonId']
+    CompanyId [name: 'IX_DocumentResource_CompanyId']
   }
 }
 
 // ── ความสัมพันธ์ (logical เท่านั้น ไม่มี FK จริงในฐานข้อมูล) ──
 
-Ref: TrainingSession.LessonId > LessonConfig.Id
+Ref: TrainingLink.LessonId > LessonConfig.Id
 Ref: DocumentResource.LessonId > LessonConfig.Id
 Ref: LessonConfig.PdfDocumentResourceId - DocumentResource.Id
-Ref: SessionQuestion.SessionId > TrainingSession.Id
-Ref: ChatMessage.SessionId > TrainingSession.Id
-Ref: SessionSummary.SessionId - TrainingSession.Id
+Ref: LearningSession.TrainingLinkId > TrainingLink.Id
+Ref: SessionQuestion.SessionId > LearningSession.Id
+Ref: ChatMessage.SessionId > LearningSession.Id
 
 TableGroup lesson_content {
   LessonConfig
   DocumentResource
 }
 
+TableGroup invite {
+  TrainingLink
+}
+
 TableGroup session_runtime {
-  TrainingSession
+  LearningSession
   SessionQuestion
   ChatMessage
-  SessionSummary
 }
 
 // ──────────────────────────────────────────────────────────────
-// migration ถัดไป — multi-company (ตัดสินใจแล้ว: TD-010 / TD-011 / TD-012)
-// ยังไม่ได้ลงมือ ดูลำดับงานใน PRODUCTION_ROADMAP.md §0.1
+// migration ที่ยังค้าง — แยก "ลิงก์" ออกจาก "การเรียน" (TD-013, CORE_FEATURE_SPEC)
+// โค้ดทุกชั้นทำเสร็จแล้ว แต่ยังไม่ได้สร้าง migration:
+//   dotnet ef migrations add SplitTrainingLinkAndLearningSession \
+//     --project src/SupportRoom.Providers.Data --startup-project src/SupportRoom.Api
+// (ต้องใช้ .NET 10 SDK — เครื่องที่ทำงานล่าสุดมีแค่ SDK 8 จึงยังรันไม่ได้)
 //
-// 1. เพิ่ม CompanyId text [not null] ทุกตาราง + index ทุกตาราง
-//      CompanyId [name: 'IX_<Table>_CompanyId']
-//    ไม่มีตาราง Company — CompanyId เป็น string ที่ derive จาก IdP claim (TD-012)
-//    ฝั่งผู้รับลิงก์ derive จาก TrainingSession.Token เท่านั้น ห้ามเชื่อค่าจาก client (TD-011)
+// 1. rename TrainingSession → TrainingLink
+//      ตัดออก: RecipientName, Status, StartedAt, EndedAt, CompletedAllSlides, LastSlideObjectId
+//      เพิ่ม:   MaxAttendees integer [null]
+//      คงไว้:   Id, CompanyId, Token, LessonId, LessonSlug, RecipientOrgName, ExpiresAt, audit
 //
-// 2. LessonConfig — เปลี่ยน unique จาก Slug เดี่ยว เป็น composite:
-//      Indexes {
-//        (CompanyId, Slug) [unique]
-//      }
+// 2. ตารางใหม่ LearningSession (ดูรายละเอียดคอลัมน์ด้านบน)
+//      index (TrainingLinkId, LearnerKey) — ไม่ unique
 //
-// 3. TrainingSession — rename ให้เป็นกลาง (ไปกับ migration เดียวกัน):
-//      TeacherName      → RecipientName      ชื่อคนที่ได้รับลิงก์
-//      SchoolName       → RecipientOrgName   องค์กรของผู้รับ (คนละชั้นกับ CompanyId)
+// 3. SessionQuestion — เพิ่ม ReviewResult / ReviewNote / ReviewedAt (nullable ทั้งสาม)
 //
-//    สามชั้นที่ต้องแยกให้ออก:
-//      CompanyId        = เจ้าของ support room   → School Bright / SCB
-//      RecipientOrgName = องค์กรของผู้รับลิงก์     → โรงเรียนวัดโพธิ์ / สาขาสีลม
-//      RecipientName    = ตัวบุคคล               → สมชาย / มานี
+// 4. DROP TABLE SessionSummary — ทั้งสามคอลัมน์ซ้ำซ้อนหลังแยกตาราง
+//      CompletedAllSlides / LastSlideObjectId ย้ายไป LearningSession
+//      UnansweredPoints คำนวณจาก SessionQuestion ที่ AnswerStatus = 'not_found' ตอนอ่าน
 //
-// 4. ChatMessage.SenderRole — "teacher" → "recipient", "cs" → "agent" ("system" คงเดิม)
+// 5. ข้อมูลเดิม (ถ้ามีใน environment ไหน) — TrainingSession 1 แถวเดิม = ลิงก์ + การเรียนรวมกัน
+//      ต้องแตกเป็น TrainingLink 1 + LearningSession 1 แล้วชี้ SessionQuestion.SessionId /
+//      ChatMessage.SessionId ไปที่ LearningSession ที่แตกออกมา
+//      LearnerKey ของแถวเก่าไม่มีค่าจริง ให้ generate ใหม่ (คนเดิมกลับมาต่อไม่ได้อยู่แล้ว
+//      เพราะ browser ไม่เคยเก็บ key ไว้)
 //
-// 5. นอกฐานข้อมูล — Pinecone namespace ต้องเปลี่ยนเป็น
-//      "{CompanyId}:{LessonSlug}" และ "{CompanyId}:kb-global"
-//      ข้อนี้ dbdiagram ไม่แสดง แต่เป็นจุดที่รั่วง่ายที่สุด
-//      และการแยก database ต่อ company ก็ไม่ได้แก้ข้อนี้ให้อัตโนมัติ
+// 6. นอกฐานข้อมูล — ไม่มีผลกับ Pinecone namespace (ยังเป็น "{CompanyId}:{LessonSlug}")
 // ──────────────────────────────────────────────────────────────

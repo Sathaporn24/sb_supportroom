@@ -20,7 +20,7 @@ public sealed class ReindexResult
 
 public interface IAdminService
 {
-    /// <summary>Deletes all TrainingSession/SessionQuestion/SessionSummary rows - keeps LessonConfig.</summary>
+    /// <summary>Deletes all TrainingLink/LearningSession/SessionQuestion rows - keeps LessonConfig.</summary>
     void ResetDemoData();
 
     /// <summary>Rebuilds the entire RAG index from source (stored lesson decks + document files).
@@ -60,25 +60,32 @@ public sealed class AdminService(
             questionRepository.Delete(question);
         }
 
-        var summaryRepository = UnitOfWork.GetRepository<ISessionSummaryRepository>();
-        var summaries = summaryRepository.GetAll().ToList();
-        foreach (var summary in summaries)
+        var chatRepository = UnitOfWork.GetRepository<IChatMessageRepository>();
+        var chatMessages = chatRepository.GetAll().ToList();
+        foreach (var chatMessage in chatMessages)
         {
-            summaryRepository.Delete(summary);
+            chatRepository.Delete(chatMessage);
         }
 
-        var sessionRepository = UnitOfWork.GetRepository<ITrainingSessionRepository>();
-        var sessions = sessionRepository.GetAll().ToList();
-        foreach (var session in sessions)
+        var learningSessionRepository = UnitOfWork.GetRepository<ILearningSessionRepository>();
+        var learningSessions = learningSessionRepository.GetAll().ToList();
+        foreach (var learningSession in learningSessions)
         {
-            sessionRepository.Delete(session);
+            learningSessionRepository.Delete(learningSession);
+        }
+
+        var linkRepository = UnitOfWork.GetRepository<ITrainingLinkRepository>();
+        var links = linkRepository.GetAll().ToList();
+        foreach (var link in links)
+        {
+            linkRepository.Delete(link);
         }
 
         UnitOfWork.Commit();
 
         Logger.LogWarning(
-            "Demo data reset: deleted {SessionCount} sessions, {QuestionCount} questions, {SummaryCount} summaries",
-            sessions.Count, questions.Count, summaries.Count);
+            "Demo data reset: deleted {LinkCount} links, {LearningSessionCount} learning sessions, {QuestionCount} questions, {ChatCount} chat messages",
+            links.Count, learningSessions.Count, questions.Count, chatMessages.Count);
     }
 
     public async Task<ReindexResult> ReindexAllAsync()

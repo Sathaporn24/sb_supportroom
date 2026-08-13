@@ -4,12 +4,12 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import * as api from "@/lib/api-client";
 import type { LessonConfig } from "@/types/domain";
-import { CreateSessionModal } from "@/components/admin/CreateSessionModal";
+import { CreateTrainingLinkModal } from "@/components/admin/CreateTrainingLinkModal";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { LoadingBlock } from "@/components/ui/LoadingBlock";
 
-export default function NewSessionPage() {
+export default function NewTrainingLinkPage() {
   // null = still loading, distinct from "loaded but empty" - a bare [] initial value
   // made this page flash "ไม่พบสื่อการสอนที่ค้นหา" every time while the real fetch was
   // still in flight.
@@ -40,8 +40,8 @@ export default function NewSessionPage() {
         <Link href="/admin" className="text-xs text-room-muted hover:text-room-text">
           ← กลับหน้า Admin
         </Link>
-        <h1 className="mt-1 text-xl font-semibold text-room-text">สร้างลิงก์การสอน</h1>
-        <p className="mt-1 text-sm text-room-muted">เลือกสื่อการสอนที่ต้องการสร้างลิงก์ห้องสอนให้ผู้ใช้</p>
+        <h1 className="mt-1 text-xl font-semibold text-room-text">สร้างลิงก์การเรียน</h1>
+        <p className="mt-1 text-sm text-room-muted">เลือกสื่อการสอนที่ต้องการสร้างลิงก์ห้องเรียนให้ผู้ใช้</p>
       </div>
 
       <input
@@ -88,7 +88,7 @@ export default function NewSessionPage() {
                       variant={lesson.isActive ? "primary" : "ghost"}
                       className="whitespace-nowrap"
                     >
-                      สร้างลิงก์การสอน
+                      สร้างลิงก์การเรียน
                     </Button>
                   </td>
                 </tr>
@@ -105,7 +105,7 @@ export default function NewSessionPage() {
         </div>
       )}
 
-      <CreateSessionModal open={modalOpen} onClose={() => setModalOpen(false)} lesson={selectedLesson} />
+      <CreateTrainingLinkModal open={modalOpen} onClose={() => setModalOpen(false)} lesson={selectedLesson} />
     </main>
   );
 }

@@ -37,8 +37,11 @@ Backend หลักคือ ASP.NET Core .NET 10 ใน `backend/`; Next.js Ro
 ## Outstanding Risks
 
 - ไม่มี authentication/authorization/rate limiting
-- Session expiry ยังไม่ enforce ฝั่ง backend
-- `PATCH /api/sessions/{token}` ยังตีความ unknown action เป็น end
+- ~~Session expiry ยังไม่ enforce ฝั่ง backend~~ — enforce ที่ join แล้ว
+- ~~`PATCH /api/sessions/{token}` ยังตีความ unknown action เป็น end~~ — endpoint นั้นถูกแทนที่
+  ด้วย `/api/learning-sessions/{token}/progress` กับ `/end` ที่แยกกัน ไม่มี action string แล้ว
+- **migration ของการแยก TrainingLink/LearningSession ยังไม่ได้สร้าง** และ backend ยังไม่เคย
+  build/test หลังการแยก (ต้องใช้ .NET 10 SDK)
 - Background queue เป็น in-memory/unbounded
 - Document deletion ยังทิ้ง Pinecone vectors
 - EF Core package versions conflict

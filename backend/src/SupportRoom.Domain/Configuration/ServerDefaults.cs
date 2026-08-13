@@ -7,6 +7,10 @@ public static class TutorConfig
     public const int DefaultBreathPauseMs = 500;
     public const int DefaultFinalQuestionWaitMs = 5_000;
     public const int DefaultSessionExpiryHours = 24;
+
+    /// <summary>A LearningSession that has not moved a slide in this long is *displayed* as
+    /// stalled. Never written to the database - see CORE_FEATURE_SPEC §2.6.</summary>
+    public const int DefaultInactiveThresholdMinutes = 30;
 }
 
 public sealed class LessonTimingDefaults
@@ -40,6 +44,9 @@ public static class ServerDefaults
 
     public static int GetDefaultSessionExpiryHours() =>
         NumberEnv("DEFAULT_SESSION_EXPIRY_HOURS", TutorConfig.DefaultSessionExpiryHours);
+
+    public static int GetInactiveThresholdMinutes() =>
+        NumberEnv("INACTIVE_THRESHOLD_MINUTES", TutorConfig.DefaultInactiveThresholdMinutes);
 }
 
 /// <summary>Mirrors src/config/env.ts's uploadLimits.</summary>

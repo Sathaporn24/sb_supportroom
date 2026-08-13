@@ -15,7 +15,7 @@ public interface ICompanyContext
 
     /// <summary>
     /// Set once per request. Callers: the middleware (admin side) and any service that has just
-    /// loaded a TrainingSession by its token (recipient side - see ITrainingSessionRepository.
+    /// loaded a TrainingLink by its token (recipient side - see ITrainingLinkRepository.
     /// GetByToken, which bypasses the filter precisely so this can be resolved).
     /// </summary>
     void Resolve(string companyId);

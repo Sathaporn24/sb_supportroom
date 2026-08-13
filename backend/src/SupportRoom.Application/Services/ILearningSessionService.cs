@@ -1,0 +1,244 @@
+using Mapster;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using SupportRoom.Application.Common;
+using SupportRoom.Application.Dto;
+using SupportRoom.Application.Exceptions;
+using SupportRoom.Application.ViewModel;
+using SupportRoom.Domain;
+using SupportRoom.Domain.Configuration;
+using SupportRoom.Domain.Entities;
+using SupportRoom.Domain.Enums;
+using SupportRoom.Providers.Data.Data.UnitOfWork;
+using SupportRoom.Providers.Data.Repository;
+
+namespace SupportRoom.Application.Services;
+
+public interface ILearningSessionService
+{
+    /// <summary>
+    /// "Give me my session on this link, creating one if I have none." Called every time the room
+    /// is opened, including after a reconnect - a returning browser sends the LearnerKey it
+    /// already has and lands back on its own row rather than starting over.
+    /// </summary>
+    LearningSessionViewModel Join(string token, JoinLearningSessionDto input);
+
+    /// <summary>Starts a fresh round for someone who already finished. Same person, same browser
+    /// key, new row - one learner legitimately has several rounds (CORE_FEATURE_SPEC §2.5).</summary>
+    LearningSessionViewModel Restart(string token, JoinLearningSessionDto input);
+
+    LearningSessionViewModel UpdateProgress(string token, UpdateLearningProgressDto input);
+    LearningSessionViewModel End(string token, EndLearningSessionDto input);
+
+    /// <summary>Resolves the entity behind a (token, learnerKey) pair. The recipient-side flows
+    /// that need to attribute something to a person - a voice question, a chat message - go
+    /// through here rather than accepting a session id from the caller.</summary>
+    LearningSession GetEntityByLearnerKey(string token, string learnerKey);
+
+    LearningSessionViewModel GetById(string learningSessionId);
+
+    /// <summary>Everyone who has opened one link. CS-facing.</summary>
+    IReadOnlyList<LearningSessionViewModel> GetByTrainingLinkId(string trainingLinkId);
+
+    /// <summary>Computed fresh on every call - there is no summary table (TD-013).</summary>
+    SessionSummaryViewModel GetSummary(string learningSessionId);
+}
+
+public sealed class LearningSessionService(IUnitOfWork unitOfWork, IServiceProvider serviceProvider, ILogger<ILearningSessionService> logger)
+    : ServiceBase<ILearningSessionService>(unitOfWork, serviceProvider, logger), ILearningSessionService
+{
+    private readonly ILearningSessionRepository _repository = unitOfWork.GetRepository<ILearningSessionRepository>();
+    private readonly ISessionQuestionRepository _questionRepository = unitOfWork.GetRepository<ISessionQuestionRepository>();
+
+    public LearningSessionViewModel Join(string token, JoinLearningSessionDto input)
+    {
+        var link = ResolveLinkForJoin(token);
+
+        var existing = _repository.GetActiveByLearnerKey(link.Id, input.LearnerKey);
+        if (existing is not null)
+        {
+            // Deliberately returns an ENDED session as-is instead of silently opening a new one:
+            // reopening a finished link must show the recap and let the learner decide to go again
+            // (§2.5). Restart() is the explicit path for that.
+            return ToViewModel(existing);
+        }
+
+        var entity = CreateSession(link.Id, input);
+        Logger.LogInformation("Learning session joined: {SessionId} link={LinkId}", entity.Id, link.Id);
+        return ToViewModel(entity);
+    }
+
+    public LearningSessionViewModel Restart(string token, JoinLearningSessionDto input)
+    {
+        var link = ResolveLinkForJoin(token);
+        var entity = CreateSession(link.Id, input);
+        Logger.LogInformation("Learning session restarted: {SessionId} link={LinkId}", entity.Id, link.Id);
+        return ToViewModel(entity);
+    }
+
+    public LearningSessionViewModel UpdateProgress(string token, UpdateLearningProgressDto input)
+    {
+        var entity = GetEntityByLearnerKey(token, input.LearnerKey);
+
+        entity.LastSlideObjectId = input.LastSlideObjectId;
+        entity.LastSlideIndex = input.LastSlideIndex;
+        // The whole point of the write: this timestamp is what the stalled calculation reads.
+        entity.LastActivityAt = DateTime.UtcNow;
+        entity.UpdateDate = DateTime.UtcNow;
+
+        _repository.Update(entity);
+        UnitOfWork.Commit();
+
+        return ToViewModel(entity);
+    }
+
+    public LearningSessionViewModel End(string token, EndLearningSessionDto input)
+    {
+        var entity = GetEntityByLearnerKey(token, input.LearnerKey);
+
+        entity.Status = SessionStatus.Ended;
+        entity.CompletedAllSlides = input.CompletedAllSlides;
+        entity.LastSlideObjectId = input.LastSlideObjectId ?? entity.LastSlideObjectId;
+        entity.LastSlideIndex = input.LastSlideIndex;
+        entity.EndedAt = DateTime.UtcNow;
+        entity.LastActivityAt = DateTime.UtcNow;
+        entity.UpdateDate = DateTime.UtcNow;
+
+        _repository.Update(entity);
+        UnitOfWork.Commit();
+
+        Logger.LogInformation(
+            "Learning session ended: {SessionId} completedAllSlides={CompletedAllSlides}", entity.Id, entity.CompletedAllSlides);
+
+        return ToViewModel(entity);
+    }
+
+    public LearningSession GetEntityByLearnerKey(string token, string learnerKey)
+    {
+        var link = ServiceProvider.GetRequiredService<ITrainingLinkService>().GetEntityByToken(token);
+        return _repository.GetActiveByLearnerKey(link.Id, learnerKey)
+            ?? throw GeneralException.NotFound("การเรียนของผู้ใช้นี้");
+    }
+
+    public LearningSessionViewModel GetById(string learningSessionId)
+    {
+        var entity = _repository.Get(learningSessionId) ?? throw GeneralException.NotFound("การเรียน");
+        return ToViewModel(entity);
+    }
+
+    public IReadOnlyList<LearningSessionViewModel> GetByTrainingLinkId(string trainingLinkId)
+    {
+        var sessions = _repository.GetByTrainingLinkId(trainingLinkId)
+            .OrderByDescending(x => x.StartedAt)
+            .ToList();
+
+        // One grouped count for the whole list - counting per row turns a link with 40 learners
+        // into 41 queries.
+        var sessionIds = sessions.Select(x => x.Id).ToList();
+        var questionCounts = _questionRepository.GetAll()
+            .Where(q => sessionIds.Contains(q.SessionId))
+            .GroupBy(q => q.SessionId)
+            .Select(g => new { SessionId = g.Key, Count = g.Count() })
+            .ToDictionary(x => x.SessionId, x => x.Count);
+
+        return sessions
+            .Select(x => ToViewModel(x, questionCounts.GetValueOrDefault(x.Id)))
+            .ToList();
+    }
+
+    public SessionSummaryViewModel GetSummary(string learningSessionId)
+    {
+        var session = _repository.Get(learningSessionId) ?? throw GeneralException.NotFound("การเรียน");
+        var questions = _questionRepository.GetBySessionId(learningSessionId).OrderBy(q => q.CreateDate).ToList();
+
+        return new SessionSummaryViewModel
+        {
+            SessionId = session.Id,
+            CompletedAllSlides = session.CompletedAllSlides,
+            LastSlideObjectId = session.LastSlideObjectId,
+            Questions = questions.Adapt<List<SessionQuestionViewModel>>(),
+            UnansweredPoints = questions
+                .Where(q => q.AnswerStatus == AnswerStatus.NotFound)
+                .Select(q => q.Transcript ?? q.Answer ?? "")
+                .Where(text => !string.IsNullOrEmpty(text))
+                .ToList(),
+            CreatedAt = (session.EndedAt ?? session.StartedAt).Adapt<string>(),
+        };
+    }
+
+    /// <summary>
+    /// Resolves the link and the request's company, then refuses an expired one. Expiry used to be
+    /// enforced in the browser only, which meant it was not enforced at all - the explicit join
+    /// step is the natural chokepoint for it.
+    ///
+    /// Only STARTING is gated. Reading back or finishing a session that began while the link was
+    /// still valid keeps working after expiry: someone mid-lesson when the clock runs out should
+    /// be able to finish and see their recap, and locking them out would look like data loss
+    /// rather than an expiry policy.
+    /// </summary>
+    private TrainingLink ResolveLinkForJoin(string token)
+    {
+        var link = ServiceProvider.GetRequiredService<ITrainingLinkService>().GetEntityByToken(token);
+        if (link.ExpiresAt <= DateTime.UtcNow)
+        {
+            throw GeneralException.ValidationError("ลิงก์นี้หมดอายุแล้ว กรุณาติดต่อผู้ดูแลเพื่อขอลิงก์ใหม่");
+        }
+        return link;
+    }
+
+    private LearningSession CreateSession(string trainingLinkId, JoinLearningSessionDto input)
+    {
+        var name = input.RecipientName.Trim();
+        if (name.Length == 0)
+        {
+            throw GeneralException.ValidationError("กรุณากรอกชื่อของคุณก่อนเข้าห้องเรียน");
+        }
+
+        var now = DateTime.UtcNow;
+        var entity = new LearningSession
+        {
+            Id = IdGenerator.GenerateId("learning"),
+            CompanyId = CurrentCompanyId,
+            TrainingLinkId = trainingLinkId,
+            LearnerKey = input.LearnerKey,
+            RecipientName = name,
+            Status = SessionStatus.InProgress,
+            StartedAt = now,
+            LastActivityAt = now,
+            LastSlideIndex = 0,
+            CompletedAllSlides = false,
+            CreateDate = now,
+        };
+
+        _repository.Add(entity);
+        UnitOfWork.Commit();
+        return entity;
+    }
+
+    /// <summary>Single-row convenience overload - counts questions itself.</summary>
+    private LearningSessionViewModel ToViewModel(LearningSession entity)
+        => ToViewModel(entity, _questionRepository.GetBySessionId(entity.Id).Count());
+
+    private static LearningSessionViewModel ToViewModel(LearningSession entity, int questionCount)
+    {
+        var threshold = TimeSpan.FromMinutes(ServerDefaults.GetInactiveThresholdMinutes());
+        return new LearningSessionViewModel
+        {
+            Id = entity.Id,
+            TrainingLinkId = entity.TrainingLinkId,
+            RecipientName = entity.RecipientName,
+            Status = entity.Status,
+            StartedAt = entity.StartedAt.Adapt<string>(),
+            EndedAt = entity.EndedAt.Adapt<string>(),
+            LastActivityAt = entity.LastActivityAt.Adapt<string>(),
+            LastSlideObjectId = entity.LastSlideObjectId,
+            LastSlideIndex = entity.LastSlideIndex,
+            CompletedAllSlides = entity.CompletedAllSlides,
+            // A finished session is never "stalled" no matter how long ago it ended - stalling
+            // describes someone who walked away mid-lesson, not someone who got to the end.
+            IsStalled = entity.Status == SessionStatus.InProgress
+                && DateTime.UtcNow - entity.LastActivityAt > threshold,
+            QuestionCount = questionCount,
+        };
+    }
+}

@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git mv *)",
+      "Bash(git rm *)",
+      "Bash(dotnet build *)",
+      "Bash(dotnet --list-sdks)",
+      "Bash(dotnet tool *)",
+      "Read(//usr/local/share/dotnet/sdk/**)",
+      "Read(//opt/homebrew/**)",
+      "Bash(rm src/app/session-ended/page.tsx && mkdir -p src/app/session-ended/\\\\[token\\\\] && echo ok)",
+      "Bash(npm run *)",
+      "Bash(npm install *)",
+      "Bash(node --version; echo \"=== nvm/other node ===\"; ls ~/.nvm/versions/node 2>/dev/null; which -a node)",
+      "Bash(python3 -)",
+      "Bash(python3 -c \"import xml.etree.ElementTree as ET; ET.parse\\('backend/docs/WORKFLOW.drawio'\\); print\\('valid XML'\\)\")"
+    ]
+  }
+}

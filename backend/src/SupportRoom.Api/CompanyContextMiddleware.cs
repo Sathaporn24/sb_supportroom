@@ -13,7 +13,7 @@ namespace SupportRoom.Api;
 /// request to DEFAULT_COMPANY_ID.
 ///
 /// Recipient-side flows (join link, room, voice question, chat) do not rely on this: they
-/// overwrite the company from the TrainingSession the token points at, which is the only value
+/// overwrite the company from the TrainingLink the token points at, which is the only value
 /// that can be trusted today.
 /// </summary>
 public sealed class CompanyContextMiddleware(RequestDelegate next)

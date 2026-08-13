@@ -438,6 +438,54 @@ schema และ UI เขียนด้วยภาษาของ School Brig
 
 ---
 
+## TD-013 — ตั้งชื่อและขอบเขตตาราง เมื่อแยก "ลิงก์" ออกจาก "การเรียน"
+
+**Problem**
+[`CORE_FEATURE_SPEC.md`](./CORE_FEATURE_SPEC.md) เคาะให้ 1 ลิงก์รองรับหลายการเรียน
+ผลคือ **ความหมายของแถวใน `TrainingSession` กลับด้าน** — วันนี้ 1 แถว = การเรียนของคน 1 คน
+(มี `StartedAt`, `Status`, `LastSlideObjectId` อยู่ในตัว) หลังแยกแล้ว 1 แถว = ลิงก์ที่หลายคนใช้ร่วมกัน
+
+จุดที่เจ็บจริงคือ `SessionQuestion.SessionId` และ `ChatMessage.SessionId` ซึ่งหลังแยกแล้ว
+**ต้อง**ชี้ไปที่ "การเรียน" (คำถามเป็นของคนที่ถาม ไม่ใช่ของลิงก์) พร้อมกันนั้น `SessionSummary`
+ก็ซ้ำซ้อนทั้ง 3 คอลัมน์
+
+**Options**
+
+- **A — `TrainingLink` + `LearningSession`** rename ของเดิม แล้วตั้งของใหม่เป็น `LearningSession`
+- **B — คงชื่อ `TrainingSession` + เพิ่ม `LearningSession`** churn น้อยที่สุดตอนนี้
+- **C — `TrainingInvite` + `LearningSession`** เหมือน A แต่ใช้คำว่า Invite
+
+**Comparison**
+
+| | A: TrainingLink | B: คงชื่อเดิม | C: TrainingInvite |
+|---|---|---|---|
+| `SessionQuestion.SessionId` อ่านแล้วเข้าใจตรง | **ใช่** (Session = การเรียน ที่เดียว) | **ไม่** — ชี้ไปตารางที่ไม่ชื่อ Session | ใช่ |
+| ต้อง rename `SessionQuestion`/`ChatMessage`/route | ไม่ต้อง | ไม่ต้อง แต่ชื่อโกหกถาวร | ไม่ต้อง |
+| `GetBySessionId()` (มี 4–5 ที่) กำกวมไหม | ไม่ | **กำกวมตลอดไป** | ไม่ |
+| churn รอบนี้ | ~148 จุด แต่ compiler จับครบ | ต่ำสุด | เท่า A |
+| ความแม่นของคำ | ลิงก์ส่งให้หลายคน = "link" ตรง | — | "invite" สื่อว่าเจาะจงคน — ไม่ตรง |
+
+**Recommendation**
+**Option A** — เหตุผลหลักไม่ใช่ความสวยของชื่อ แต่คือ พอคำว่า "Session" หายจากฝั่งลิงก์
+ชื่อ `SessionQuestion` · `ChatMessage.SessionId` · `api/session-questions` กลับมา*ถูกต้อง*
+โดยไม่ต้องแตะ — เปลี่ยนแค่ FK
+
+ต้นทุนต่ำกว่าเลข 148 มาก เพราะ (ก) rename คลาส/property ใน C# compiler จับให้ครบ
+(ข) `migrationBuilder.RenameTable` บรรทัดเดียว (ค) ไฟล์ส่วนใหญ่ **ต้องแก้อยู่แล้ว**
+เพราะ `Status`/`StartedAt`/`LastSlideObjectId` ย้ายออกตามสเปก — การ rename เกาะไปกับ
+churn ที่เกิดแน่นอนอยู่แล้ว และยังไม่เคย deploy migration จริง (ดู TD-006) จึงทำตอนนี้ถูกที่สุด
+
+พ่วงในรายการเดียวกัน — **ลบ `SessionSummary`**: เหตุผลเดียวที่จะเก็บ snapshot คือ
+"แช่แข็งภาพ ณ เวลานั้น" แต่โค้ดไม่ได้ทำแบบนั้นอยู่แล้ว (`GetBySessionId` join คำถามสดตอนอ่าน
+ตาม comment ในไฟล์เอง) ได้ของครึ่งแช่แข็งครึ่งสด และฟีเจอร์รีวิวของ CS จะแก้ `SessionQuestion`
+*หลัง*เรียนจบ ทำให้ `UnansweredPoints` ที่แช่แข็งไว้ค่อย ๆ ขัดกับความจริง
+→ ลบ entity/ตาราง/repository/service แต่ **คง `SessionSummaryViewModel`** ไว้แบบคำนวณสด
+frontend ไม่ต้องแก้
+
+**Status** `Accepted` (13 ส.ค. 2026)
+
+---
+
 ## รายการที่รอข้อมูลจากทีมก่อนตัดสินใจ
 
 | คำถาม | ทำไมถึงบล็อก |

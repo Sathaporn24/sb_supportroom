@@ -32,7 +32,8 @@ public class VoiceQuestionServiceTests
     // unclear speech, so there's no such thing as "garbage audio that still parses."
     private static readonly byte[] GarbageAudio = [1, 2, 3];
 
-    private readonly FakeTrainingSessionRepository _sessions = new();
+    private readonly FakeTrainingLinkRepository _links = new();
+    private readonly FakeLearningSessionRepository _learningSessions = new();
     private readonly FakeLessonConfigRepository _lessons = new();
     private readonly FakeSessionQuestionRepository _questions = new();
     private readonly FakeRealtimeNotifier _notifier = new();
@@ -42,7 +43,8 @@ public class VoiceQuestionServiceTests
     {
         MapsterConfig.Apply();
         var uow = new FakeUnitOfWork()
-            .Register<ITrainingSessionRepository>(_sessions)
+            .Register<ITrainingLinkRepository>(_links)
+            .Register<ILearningSessionRepository>(_learningSessions)
             .Register<ILessonConfigRepository>(_lessons)
             .Register<IDocumentResourceRepository>(new FakeDocumentResourceRepository())
             .Register<ISessionQuestionRepository>(_questions);
@@ -57,11 +59,14 @@ public class VoiceQuestionServiceTests
         var serviceProvider = new FakeServiceProvider()
             .Register<ILessonConfigService>(lessonService)
             .Register<ISessionQuestionService>(questionService);
-        // AskAsync now starts by resolving the session from its token - that lookup is what
-        // scopes the request to a company and supplies the lesson slug, instead of trusting a
-        // slug the caller sent alongside an unrelated session id.
-        serviceProvider.Register<ITrainingSessionService>(
-            new TrainingSessionService(uow, serviceProvider, NullLogger<ITrainingSessionService>.Instance));
+        // AskAsync starts by resolving the link from its token - that lookup is what scopes the
+        // request to a company and supplies the lesson slug, instead of trusting a slug the caller
+        // sent alongside an unrelated session id. The learner key then picks WHICH person on that
+        // link is asking, so the question is filed under, and broadcast to, the right session.
+        serviceProvider.Register<ITrainingLinkService>(
+            new TrainingLinkService(uow, serviceProvider, NullLogger<ITrainingLinkService>.Instance));
+        serviceProvider.Register<ILearningSessionService>(
+            new LearningSessionService(uow, serviceProvider, NullLogger<ILearningSessionService>.Instance));
 
         // Active Google-Slides lesson so GetTeachingContentBySlugAsync returns the real deck.
         _lessons.Items.Add(new LessonConfig
@@ -79,15 +84,25 @@ public class VoiceQuestionServiceTests
             SlideConfigs = [],
             IsActive = true,
         });
-        _sessions.Items.Add(new TrainingSession
+        _links.Items.Add(new TrainingLink
         {
-            Id = "session-1",
+            Id = "link-1",
             CompanyId = TestFixtures.CompanyId,
             Token = "tok-1",
             LessonId = "lesson-1",
             LessonSlug = "lesson-a",
-            Status = SessionStatus.InProgress,
             ExpiresAt = DateTime.UtcNow.AddHours(1),
+        });
+        _learningSessions.Items.Add(new LearningSession
+        {
+            Id = "learning-1",
+            CompanyId = TestFixtures.CompanyId,
+            TrainingLinkId = "link-1",
+            LearnerKey = "key-1",
+            RecipientName = "ครูเอ",
+            Status = SessionStatus.InProgress,
+            StartedAt = DateTime.UtcNow,
+            LastActivityAt = DateTime.UtcNow,
         });
 
         _service = new VoiceQuestionService(
@@ -101,6 +116,7 @@ public class VoiceQuestionServiceTests
         Audio = audio,
         MimeType = "audio/mpeg",
         Token = "tok-1",
+        LearnerKey = "key-1",
         DurationMs = durationMs,
         CurrentSlideObjectId = "slide-1",
         Expecting = expecting,
@@ -122,7 +138,10 @@ public class VoiceQuestionServiceTests
         Assert.NotEqual(AnswerStatus.NoSpeech, result.AnswerStatus);
         Assert.Single(_questions.Items);            // a reviewable question was persisted
         Assert.Equal(1, _notifier.NewQuestionCount); // and pushed live to the CS dashboard
-        Assert.Equal("tok-1", _notifier.LastQuestionToken);
+        // Filed under, and broadcast to, this learner's own session - not the link token, which
+        // would fan it out to everyone else who happens to hold the same link.
+        Assert.Equal("learning-1", _notifier.LastQuestionTarget);
+        Assert.Equal("learning-1", _questions.Items.Single().SessionId);
     }
 
     [Fact]

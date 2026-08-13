@@ -9,6 +9,15 @@ export type TutorContext = {
   introWaitMs: number;
   breathPauseMs: number;
   finalQuestionWaitMs: number;
+  /**
+   * Where the lesson picks up when it starts - 0 for someone new, the slide they left off on for
+   * someone coming back after a closed tab or a dropped connection (CORE_FEATURE_SPEC §2.4).
+   *
+   * Carried in the context rather than in an event payload so the reducer stays a pure function
+   * of (runtime, event, context): resuming is a property of who is learning, not of the START
+   * they just pressed.
+   */
+  resumeSlideIndex: number;
 };
 
 export function createInitialRuntime(): TutorRuntime {
@@ -69,6 +78,20 @@ function loadSlide(runtime: TutorRuntime, slideIndex: number): { runtime: TutorR
     },
     effect: { kind: "LOAD_SLIDE", slideIndex },
   };
+}
+
+/**
+ * The lesson's opening slide. Three different things reach it - pressing the start button, the
+ * intro timing out, and answering "พร้อมแล้ว" out loud - so the resume point is resolved here
+ * once instead of at each of them, which is how the first version of this shipped with two of the
+ * three still hardcoded to 0.
+ *
+ * Clamped because a deck can lose slides between two visits: resuming past the end would load
+ * nothing at all.
+ */
+function startFirstSlide(runtime: TutorRuntime, ctx: TutorContext): { runtime: TutorRuntime; effect: TutorEffect } {
+  const lastIndex = Math.max(0, ctx.slides.length - 1);
+  return loadSlide(runtime, Math.min(Math.max(0, ctx.resumeSlideIndex), lastIndex));
 }
 
 function restartCurrentSlide(
@@ -155,7 +178,7 @@ export function tutorReducer(
         case "RESUME_AFTER_ANSWER":
           return restartCurrentSlide({ ...runtime, isAiSpeaking: false, afterSpeech: null }, true);
         case "START_FIRST_SLIDE":
-          return loadSlide({ ...runtime, isAiSpeaking: false, afterSpeech: null }, 0);
+          return startFirstSlide({ ...runtime, isAiSpeaking: false, afterSpeech: null }, ctx);
         case "AWAIT_READINESS":
           return {
             runtime: { ...runtime, state: "ready", isAiSpeaking: false, afterSpeech: null },
@@ -184,12 +207,12 @@ export function tutorReducer(
 
     case "START": {
       if (runtime.state !== "ready") return noEffect(runtime);
-      return loadSlide(runtime, 0);
+      return startFirstSlide(runtime, ctx);
     }
 
     case "INTRO_TIMEOUT": {
       if (runtime.state !== "ready") return noEffect(runtime);
-      return loadSlide(runtime, 0);
+      return startFirstSlide(runtime, ctx);
     }
 
     case "SLIDE_READY": {

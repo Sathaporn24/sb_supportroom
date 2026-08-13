@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import * as api from "@/lib/api-client";
-import { isSessionJoinable } from "@/utils/session-status";
+import { isLinkUsable } from "@/utils/session-status";
+import { getLearnerName, peekLearnerKey } from "@/utils/learner-key";
 import { useTutorSession } from "@/hooks/use-tutor-session";
 import { useLocalMedia } from "@/hooks/use-local-media";
 import { useSessionChat } from "@/hooks/use-session-chat";
@@ -15,34 +16,64 @@ import { ChatDrawer } from "@/components/meeting/ChatDrawer";
 import { Button } from "@/components/ui/Button";
 import { LoadingBlock } from "@/components/ui/LoadingBlock";
 import type { PushToTalkStatus } from "@/components/meeting/PushToTalkButton";
-import type { TrainingSession } from "@/types/domain";
+import type { LearningSession, TrainingLink } from "@/types/domain";
 
 type LoadState = "loading" | "ready";
+
+type RoomData = { link: TrainingLink; learningSession: LearningSession; learnerKey: string };
 
 export default function RoomPage() {
   const params = useParams<{ token: string }>();
   const router = useRouter();
-  const [session, setSession] = useState<TrainingSession | null>(null);
+  const [data, setData] = useState<RoomData | null>(null);
   const [loadState, setLoadState] = useState<LoadState>("loading");
 
   useEffect(() => {
     let active = true;
     void (async () => {
+      // Missing either one means this browser never completed the join screen, so there is no
+      // learner to attribute anything to. The room cannot invent one - send them to type a name.
+      const learnerKey = peekLearnerKey(params.token);
+      const storedName = getLearnerName(params.token);
+      if (!learnerKey || !storedName) {
+        router.replace(`/join/${params.token}`);
+        return;
+      }
+
+      let link: TrainingLink;
       try {
-        const { session: found } = await api.getSessionByToken(params.token);
-        if (!active) return;
-        if (found.status === "ENDED") {
-          router.replace("/session-ended");
-          return;
-        }
-        if (!isSessionJoinable(found)) {
-          router.replace("/link-expired");
-          return;
-        }
-        setSession(found);
-        setLoadState("ready");
+        link = (await api.getTrainingLinkByToken(params.token)).link;
       } catch {
         if (active) router.replace("/link-expired");
+        return;
+      }
+      if (!active) return;
+      if (!isLinkUsable(link)) {
+        router.replace("/link-expired");
+        return;
+      }
+
+      try {
+        // Idempotent: this browser already has a session on this link, so join hands the same one
+        // back rather than starting a second. That is what makes a reconnect or a reopened tab
+        // free - and what carries lastSlideIndex so the lesson picks up where it stopped. The
+        // stored name only matters in the one case where the row is gone (an admin reset), where
+        // it saves the learner from retyping it.
+        const { learningSession } = await api.joinLearningSession(params.token, {
+          recipientName: storedName,
+          learnerKey,
+        });
+        if (!active) return;
+        if (learningSession.status === "ENDED") {
+          router.replace(`/session-ended/${params.token}`);
+          return;
+        }
+        setData({ link, learningSession, learnerKey });
+        setLoadState("ready");
+      } catch {
+        // The link loaded fine, so this is about the session, not the link - the join screen is
+        // the honest place to land, not the expired-link dead end.
+        if (active) router.replace(`/join/${params.token}`);
       }
     })();
     return () => {
@@ -51,15 +82,15 @@ export default function RoomPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params.token]);
 
-  if (loadState !== "ready" || !session) {
+  if (loadState !== "ready" || !data) {
     return (
       <main className="flex min-h-screen items-center justify-center p-6">
-        <LoadingBlock label="กำลังโหลดห้องสอน..." />
+        <LoadingBlock label="กำลังโหลดห้องเรียน..." />
       </main>
     );
   }
 
-  return <RoomContent session={session} />;
+  return <RoomContent {...data} />;
 }
 
 // "ready" included so the teacher can answer the start prompt by voice, not just by click.
@@ -70,7 +101,7 @@ const PUSH_TO_TALK_ENABLED_STATES = [
   "final-question-window",
 ];
 
-function RoomContent({ session }: { session: TrainingSession }) {
+function RoomContent({ link, learningSession, learnerKey }: RoomData) {
   const router = useRouter();
   const {
     runtime,
@@ -83,16 +114,16 @@ function RoomContent({ session }: { session: TrainingSession }) {
     sendEvent,
     aiVolume,
     setAiVolume,
-  } = useTutorSession(session);
+  } = useTutorSession(link, learningSession, learnerKey);
   const media = useLocalMedia();
   const [chatOpen, setChatOpen] = useState(false);
-  const chat = useSessionChat(session.token, "recipient", session.recipientName);
+  const chat = useSessionChat(link.token, learnerKey, "recipient", learningSession.recipientName);
 
   useEffect(() => {
     if (runtime.state === "completed") {
-      router.replace("/session-ended");
+      router.replace(`/session-ended/${link.token}`);
     }
-  }, [runtime.state, router]);
+  }, [runtime.state, router, link.token]);
 
   // Auto-dismiss the mic notice after a few seconds so it doesn't linger indefinitely if the
   // teacher doesn't press push-to-talk again (which would also clear it, per the reducer).
@@ -160,7 +191,7 @@ function RoomContent({ session }: { session: TrainingSession }) {
               cameraOn={media.cameraOn}
               micOn={runtime.isMicEnabled}
               speaking={runtime.state === "push-to-talk-recording"}
-              recipientName={session.recipientName}
+              recipientName={learningSession.recipientName}
             />
           </div>
         </div>

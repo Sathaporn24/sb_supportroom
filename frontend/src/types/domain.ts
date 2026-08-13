@@ -67,34 +67,78 @@ export type TeachingSlide = ResolvedSlide & {
   videoDurationMs: number;
 };
 
-export type SessionStatus = "NOT_STARTED" | "IN_PROGRESS" | "ENDED" | "EXPIRED";
+// A link and one person's run through it are two different things (CORE_FEATURE_SPEC §1).
+// CS creates a TrainingLink and sends it to a whole department; each person who opens it gets
+// their own LearningSession. "Session" means the latter everywhere - SessionQuestion.sessionId
+// and ChatMessage.sessionId both point at a LearningSession.
 
-export type TrainingSession = {
+/** Computed from expiresAt server-side, never stored. */
+export type LinkStatus = "ACTIVE" | "EXPIRED";
+
+export type TrainingLink = {
   id: string;
   token: string;
   lessonId: string;
   lessonSlug: string;
-  recipientName?: string;
+  /** The receiving organization (a school, a branch, a department) - a display label CS types. */
   recipientOrgName?: string;
-  status: SessionStatus;
+  status: LinkStatus;
   createdAt: string;
   expiresAt: string;
-  startedAt?: string;
-  endedAt?: string;
-  completedAllSlides: boolean;
-  lastSlideObjectId?: string;
+  /** null = unlimited. Stored but not enforced yet. */
+  maxAttendees?: number;
+  /** How many people have opened this link. */
+  learningSessionCount: number;
 };
 
-export type CreateSessionInput = {
+export type CreateTrainingLinkInput = {
   lessonSlug: string;
-  recipientName?: string;
   recipientOrgName?: string;
   expiresAt: string;
+  maxAttendees?: number;
 };
 
-export type EndSessionInput = {
+/** No NOT_STARTED: a row only exists once someone has joined. Expiry belongs to the link. */
+export type LearningSessionStatus = "IN_PROGRESS" | "ENDED";
+
+export type LearningSession = {
+  id: string;
+  trainingLinkId: string;
+  /** What the learner typed on the join screen. Not an identity - duplicates are fine. */
+  recipientName: string;
+  status: LearningSessionStatus;
+  startedAt: string;
+  endedAt?: string;
+  lastActivityAt: string;
+  lastSlideObjectId?: string;
+  lastSlideIndex: number;
+  completedAllSlides: boolean;
+  /**
+   * Derived server-side from lastActivityAt, never stored: still IN_PROGRESS but nothing has
+   * moved for longer than INACTIVE_THRESHOLD_MINUTES. A browser "I'm leaving" signal would miss
+   * exactly the cases that matter (closed laptop, dead battery, lost connection).
+   */
+  isStalled: boolean;
+  questionCount: number;
+};
+
+/** What the join screen posts. Name only - see CORE_FEATURE_SPEC §5.1 for why nothing else. */
+export type JoinLearningSessionInput = {
+  recipientName: string;
+  learnerKey: string;
+};
+
+export type UpdateLearningProgressInput = {
+  learnerKey: string;
+  lastSlideObjectId?: string;
+  lastSlideIndex: number;
+};
+
+export type EndLearningSessionInput = {
+  learnerKey: string;
   completedAllSlides: boolean;
   lastSlideObjectId?: string;
+  lastSlideIndex: number;
 };
 
 /**
@@ -103,17 +147,35 @@ export type EndSessionInput = {
  */
 export type AnswerStatus = "answered" | "not_found" | "out_of_scope" | "no_speech" | "transcription_failed";
 
+/** CS's verdict on one AI answer. The free-text note lives alongside it - "incorrect" alone can't
+ * tell a missing document from a retrieval miss from the model inventing an answer, and those are
+ * fixed in three different places (CORE_FEATURE_SPEC §2.7). */
+export type ReviewResult = "correct" | "incorrect";
+
 export type SessionQuestion = {
   id: string;
+  /** A LearningSession id - the question belongs to the person who asked it. */
   sessionId: string;
   slideObjectId?: string;
   transcript?: string;
   answer?: string;
   answerStatus: AnswerStatus;
   createdAt: string;
+  /** CS-facing only. The learner's own recap never renders these. */
+  reviewResult?: ReviewResult;
+  reviewNote?: string;
+  reviewedAt?: string;
 };
 
-export type CreateSessionQuestionInput = Omit<SessionQuestion, "id" | "createdAt">;
+export type CreateSessionQuestionInput = Omit<
+  SessionQuestion,
+  "id" | "createdAt" | "reviewResult" | "reviewNote" | "reviewedAt"
+>;
+
+export type ReviewSessionQuestionInput = {
+  reviewResult: ReviewResult;
+  reviewNote?: string;
+};
 
 /** Response shape for POST /api/voice-question. */
 export type VoiceQuestionResult = {
@@ -125,11 +187,18 @@ export type VoiceQuestionResult = {
   readiness?: "ready" | "not_ready";
 };
 
+/**
+ * Computed server-side on every read - there is no summary table (TD-013). Shape unchanged from
+ * when it was table-backed.
+ */
 export type SessionSummary = {
+  /** A LearningSession id. */
   sessionId: string;
   completedAllSlides: boolean;
   lastSlideObjectId?: string;
   questions: SessionQuestion[];
+  /** ⚠️ Internal - what CS follows up on. Never render this on the learner's own recap
+   * (CORE_FEATURE_SPEC §2.5). */
   unansweredPoints: string[];
   createdAt: string;
 };
@@ -142,6 +211,7 @@ export type ChatSenderRole = "recipient" | "agent" | "system";
 
 export type ChatMessage = {
   id: string;
+  /** A LearningSession id. */
   sessionId: string;
   senderRole: ChatSenderRole;
   senderName?: string;

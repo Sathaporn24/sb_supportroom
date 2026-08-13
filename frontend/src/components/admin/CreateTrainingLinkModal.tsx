@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import * as api from "@/lib/api-client";
 import { tutorConfig } from "@/config/tutor-config";
 import { addHours } from "@/utils/format";
-import type { LessonConfig, TrainingSession } from "@/types/domain";
+import type { LessonConfig, TrainingLink } from "@/types/domain";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
@@ -24,18 +24,16 @@ function toLocalInputValue(iso: string): string {
   return new Date(date.getTime() - offsetMs).toISOString().slice(0, 16);
 }
 
-export function CreateSessionModal({ open, onClose, lesson }: Props) {
-  const [recipientName, setRecipientName] = useState("");
+export function CreateTrainingLinkModal({ open, onClose, lesson }: Props) {
   const [recipientOrgName, setRecipientOrgName] = useState("");
   const [expiresAt, setExpiresAt] = useState("");
-  const [created, setCreated] = useState<TrainingSession | null>(null);
+  const [created, setCreated] = useState<TrainingLink | null>(null);
   const [origin, setOrigin] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
 
   useEffect(() => {
     if (open) {
-      setRecipientName("");
       setRecipientOrgName("");
       setExpiresAt(toLocalInputValue(addHours(new Date().toISOString(), tutorConfig.defaultSessionExpiryHours)));
       setCreated(null);
@@ -50,22 +48,21 @@ export function CreateSessionModal({ open, onClose, lesson }: Props) {
     setError(null);
     setIsCreating(true);
     try {
-      const { session } = await api.createSession({
+      const { link } = await api.createTrainingLink({
         lessonSlug: lesson.slug,
-        recipientName: recipientName || undefined,
         recipientOrgName: recipientOrgName || undefined,
         expiresAt: new Date(expiresAt).toISOString(),
       });
-      setCreated(session);
+      setCreated(link);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "สร้างลิงก์การสอนไม่สำเร็จ");
+      setError(err instanceof Error ? err.message : "สร้างลิงก์การเรียนไม่สำเร็จ");
     } finally {
       setIsCreating(false);
     }
   }
 
   return (
-    <Modal open={open} onClose={onClose} title={created ? "สร้างลิงก์การสอนสำเร็จ" : "สร้างลิงก์การสอน"}>
+    <Modal open={open} onClose={onClose} title={created ? "สร้างลิงก์การเรียนสำเร็จ" : "สร้างลิงก์การเรียน"}>
       {created ? (
         <div className="space-y-4">
           <p className="break-all rounded-lg border border-room-border bg-room-panelAlt px-3 py-2 text-sm text-room-text">
@@ -94,19 +91,14 @@ export function CreateSessionModal({ open, onClose, lesson }: Props) {
 
           {error && <p className="text-xs text-red-600">{error}</p>}
 
+          {/* No "ชื่อผู้รับลิงก์" field any more - one link goes to a whole department and each
+              person types their own name on the join screen (CORE_FEATURE_SPEC §2.1). */}
           <label className="block text-sm">
-            <span className="mb-1 block text-room-muted">ชื่อผู้รับลิงก์ (ไม่บังคับ)</span>
-            <input
-              value={recipientName}
-              onChange={(e) => setRecipientName(e.target.value)}
-              className="w-full rounded-lg border border-room-border bg-room-bg px-3 py-2 text-room-text outline-none focus:border-room-accent"
-            />
-          </label>
-          <label className="block text-sm">
-            <span className="mb-1 block text-room-muted">องค์กร (ไม่บังคับ)</span>
+            <span className="mb-1 block text-room-muted">หน่วยงาน (ไม่บังคับ)</span>
             <input
               value={recipientOrgName}
               onChange={(e) => setRecipientOrgName(e.target.value)}
+              placeholder="เช่น โรงเรียนวัดโพธิ์ / สาขาสีลม / ฝ่ายบุคคล"
               className="w-full rounded-lg border border-room-border bg-room-bg px-3 py-2 text-room-text outline-none focus:border-room-accent"
             />
           </label>
@@ -126,7 +118,7 @@ export function CreateSessionModal({ open, onClose, lesson }: Props) {
                 กำลังสร้างลิงก์...
               </>
             ) : (
-              "สร้างลิงก์การสอน"
+              "สร้างลิงก์การเรียน"
             )}
           </Button>
         </div>

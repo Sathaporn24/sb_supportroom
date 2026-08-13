@@ -3,15 +3,21 @@
 import type { ApiErrorResponse } from "@/types/api";
 import type {
   ChatMessage,
+  CreateTrainingLinkInput,
   DocumentResource,
+  EndLearningSessionInput,
+  JoinLearningSessionInput,
+  LearningSession,
   LessonConfig,
   LessonConfigInput,
   ResolvedPresentation,
+  ReviewSessionQuestionInput,
   SessionQuestion,
   SessionSummary,
   SlidesLessonContent,
   TeachingSlide,
-  TrainingSession,
+  TrainingLink,
+  UpdateLearningProgressInput,
   VoiceQuestionResult,
 } from "@/types/domain";
 
@@ -86,58 +92,144 @@ export function getLessonBySlug(
   return request(apiUrl(`/api/lessons/${encodeURIComponent(slug)}`));
 }
 
-export function listSessions(): Promise<{ sessions: TrainingSession[] }> {
-  return request(apiUrl("/api/sessions"));
+// --- Training links (CS creates, one link serves many people) -------------------------------
+
+export function listTrainingLinks(): Promise<{ links: TrainingLink[] }> {
+  return request(apiUrl("/api/training-links"));
 }
 
-export function createSession(input: {
-  lessonSlug: string;
-  recipientName?: string;
-  recipientOrgName?: string;
-  expiresAt?: string;
-}): Promise<{ session: TrainingSession }> {
-  return request(apiUrl("/api/sessions"), { method: "POST", headers: jsonHeaders, body: JSON.stringify(input) });
+export function createTrainingLink(input: CreateTrainingLinkInput): Promise<{ link: TrainingLink }> {
+  return request(apiUrl("/api/training-links"), { method: "POST", headers: jsonHeaders, body: JSON.stringify(input) });
 }
 
-export function getSessionByToken(token: string): Promise<{ session: TrainingSession; lessonTitle: string }> {
-  return request(apiUrl(`/api/sessions/${encodeURIComponent(token)}`));
+/** What the join screen loads before anyone has typed a name. */
+export function getTrainingLinkByToken(token: string): Promise<{ link: TrainingLink; lessonTitle: string }> {
+  return request(apiUrl(`/api/training-links/${encodeURIComponent(token)}`));
 }
 
-export function markSessionStarted(token: string): Promise<{ session: TrainingSession }> {
-  return request(apiUrl(`/api/sessions/${encodeURIComponent(token)}`), {
-    method: "PATCH",
+/** CS drill-down: everyone who has opened one link. */
+export function listLearningSessionsForLink(
+  linkId: string,
+): Promise<{ learningSessions: LearningSession[] }> {
+  return request(apiUrl(`/api/training-links/${encodeURIComponent(linkId)}/learning-sessions`));
+}
+
+// --- Learning sessions (one person's run) ---------------------------------------------------
+//
+// Every recipient-side call carries the link token AND the browser's learnerKey. The token says
+// which lesson and which company; the key says which of the many people on that link is calling.
+// Sending only the token would let any learner read every other learner's data on the same link.
+
+/** Idempotent - a browser that already has a session on this link gets it back, which is what
+ * makes reconnecting free. */
+export function joinLearningSession(
+  token: string,
+  input: JoinLearningSessionInput,
+): Promise<{ learningSession: LearningSession }> {
+  return request(apiUrl(`/api/learning-sessions/${encodeURIComponent(token)}/join`), {
+    method: "POST",
     headers: jsonHeaders,
-    body: JSON.stringify({ action: "start" }),
+    body: JSON.stringify(input),
   });
 }
 
-export function endSession(
+/** "เรียนอีกครั้ง" - explicitly a new round, not a reopen of the finished one. */
+export function restartLearningSession(
   token: string,
-  input: { completedAllSlides: boolean; lastSlideObjectId?: string },
-): Promise<{ session: TrainingSession }> {
-  return request(apiUrl(`/api/sessions/${encodeURIComponent(token)}`), {
-    method: "PATCH",
+  input: JoinLearningSessionInput,
+): Promise<{ learningSession: LearningSession }> {
+  return request(apiUrl(`/api/learning-sessions/${encodeURIComponent(token)}/restart`), {
+    method: "POST",
     headers: jsonHeaders,
-    body: JSON.stringify({ action: "end", ...input }),
+    body: JSON.stringify(input),
   });
 }
 
-export function getSessionSummary(
+export function updateLearningProgress(
   token: string,
-): Promise<{ session: TrainingSession; summary: SessionSummary | null }> {
-  return request(apiUrl(`/api/sessions/${encodeURIComponent(token)}/summary`));
+  input: UpdateLearningProgressInput,
+): Promise<{ learningSession: LearningSession }> {
+  return request(apiUrl(`/api/learning-sessions/${encodeURIComponent(token)}/progress`), {
+    method: "PATCH",
+    headers: jsonHeaders,
+    body: JSON.stringify(input),
+  });
 }
 
-// Both of these key on the session token rather than its id. The token is the credential the
-// caller already holds, and the backend derives the company from it before reading anything -
-// a raw session id would identify a row without proving the caller may see it.
-
-export function listSessionQuestions(token: string): Promise<{ questions: SessionQuestion[] }> {
-  return request(apiUrl(`/api/session-questions?token=${encodeURIComponent(token)}`));
+export function endLearningSession(
+  token: string,
+  input: EndLearningSessionInput,
+): Promise<{ learningSession: LearningSession }> {
+  return request(apiUrl(`/api/learning-sessions/${encodeURIComponent(token)}/end`), {
+    method: "PATCH",
+    headers: jsonHeaders,
+    body: JSON.stringify(input),
+  });
 }
 
-export function getChatMessages(token: string): Promise<{ messages: ChatMessage[] }> {
-  return request(apiUrl(`/api/chat-messages?token=${encodeURIComponent(token)}`));
+/** The learner's own recap. ⚠️ summary.unansweredPoints is internal - don't render it here. */
+export function getOwnLearningSummary(
+  token: string,
+  learnerKey: string,
+): Promise<{ learningSession: LearningSession; summary: SessionSummary }> {
+  return request(
+    apiUrl(
+      `/api/learning-sessions/${encodeURIComponent(token)}/summary?learnerKey=${encodeURIComponent(learnerKey)}`,
+    ),
+  );
+}
+
+/** CS-facing: any learning session's full summary by id. */
+export function getLearningSummaryById(learningSessionId: string): Promise<{ summary: SessionSummary }> {
+  return request(apiUrl(`/api/learning-sessions/${encodeURIComponent(learningSessionId)}/summary/by-id`));
+}
+
+// --- Questions and chat ---------------------------------------------------------------------
+
+export function listOwnQuestions(
+  token: string,
+  learnerKey: string,
+): Promise<{ questions: SessionQuestion[] }> {
+  return request(
+    apiUrl(
+      `/api/session-questions?token=${encodeURIComponent(token)}&learnerKey=${encodeURIComponent(learnerKey)}`,
+    ),
+  );
+}
+
+export function listQuestionsByLearningSession(
+  learningSessionId: string,
+): Promise<{ questions: SessionQuestion[] }> {
+  return request(
+    apiUrl(`/api/session-questions/by-learning-session/${encodeURIComponent(learningSessionId)}`),
+  );
+}
+
+export function reviewSessionQuestion(
+  questionId: string,
+  input: ReviewSessionQuestionInput,
+): Promise<{ question: SessionQuestion }> {
+  return request(apiUrl(`/api/session-questions/${encodeURIComponent(questionId)}/review`), {
+    method: "PATCH",
+    headers: jsonHeaders,
+    body: JSON.stringify(input),
+  });
+}
+
+export function getOwnChatMessages(token: string, learnerKey: string): Promise<{ messages: ChatMessage[] }> {
+  return request(
+    apiUrl(
+      `/api/chat-messages?token=${encodeURIComponent(token)}&learnerKey=${encodeURIComponent(learnerKey)}`,
+    ),
+  );
+}
+
+export function getChatMessagesByLearningSession(
+  learningSessionId: string,
+): Promise<{ messages: ChatMessage[] }> {
+  return request(
+    apiUrl(`/api/chat-messages/by-learning-session/${encodeURIComponent(learningSessionId)}`),
+  );
 }
 
 /** `rate` is an SSML percentage ("-45%") for utterances that shouldn't run at lesson pace. */
@@ -156,9 +248,12 @@ export async function synthesizeSpeech(text: string, rate?: string): Promise<Blo
 
 export function askVoiceQuestion(input: {
   audioBlob: Blob;
-  /** The session token. The backend derives company, session and lesson from it - sending a
-   * lesson slug separately would let the two disagree. */
+  /** The link token. The backend derives company and lesson from it - sending a lesson slug
+   * separately would let the two disagree. */
   token: string;
+  /** Which learner on that link is asking. Without it the answer would be filed under, and
+   * broadcast to, the wrong person. */
+  learnerKey: string;
   currentSlideObjectId?: string;
   durationMs: number;
   /** "readiness" answers the start prompt; omitted means a normal lesson question. */
@@ -167,6 +262,7 @@ export function askVoiceQuestion(input: {
   const formData = new FormData();
   formData.append("audio", input.audioBlob, "question.webm");
   formData.append("token", input.token);
+  formData.append("learnerKey", input.learnerKey);
   formData.append("durationMs", String(input.durationMs));
   if (input.expecting) {
     formData.append("expecting", input.expecting);

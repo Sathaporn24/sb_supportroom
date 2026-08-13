@@ -7,11 +7,11 @@
 
 ```mermaid
 erDiagram
-    LESSON_CONFIG ||--o{ TRAINING_SESSION : creates
+    LESSON_CONFIG ||--o{ TRAINING_LINK : creates
     LESSON_CONFIG ||--o{ DOCUMENT_RESOURCE : attaches
-    TRAINING_SESSION ||--o{ SESSION_QUESTION : records
-    TRAINING_SESSION ||--o{ CHAT_MESSAGE : contains
-    TRAINING_SESSION ||--o| SESSION_SUMMARY : summarizes
+    TRAINING_LINK ||--o{ LEARNING_SESSION : "opened by many people"
+    LEARNING_SESSION ||--o{ SESSION_QUESTION : records
+    LEARNING_SESSION ||--o{ CHAT_MESSAGE : contains
 
     LESSON_CONFIG {
         string Id PK
@@ -24,40 +24,50 @@ erDiagram
         bool IsActive
     }
 
-    TRAINING_SESSION {
+    TRAINING_LINK {
         string Id PK
         string Token UK
         string LessonId
         string LessonSlug
-        string Status "NOT_STARTED|IN_PROGRESS|ENDED|EXPIRED"
+        string RecipientOrgName "nullable"
         datetime ExpiresAt
+        int MaxAttendees "nullable, ยังไม่บังคับใช้"
+    }
+
+    LEARNING_SESSION {
+        string Id PK
+        string TrainingLinkId
+        string LearnerKey "key ที่ browser เก็บ - แยกคนบนลิงก์เดียวกัน + กลับมาเรียนต่อ"
+        string RecipientName "ผู้ใช้กรอกเอง"
+        string Status "IN_PROGRESS|ENDED"
+        datetime StartedAt
+        datetime EndedAt "nullable"
+        datetime LastActivityAt "ใช้คำนวณ หยุดกลางคัน"
+        string LastSlideObjectId "nullable"
+        int LastSlideIndex
         bool CompletedAllSlides
     }
 
     SESSION_QUESTION {
         string Id PK
-        string SessionId
+        string SessionId "→ LEARNING_SESSION.Id
         string SlideObjectId "nullable"
         string Transcript "nullable"
         string Answer "nullable"
         string AnswerStatus
+        string ReviewResult "nullable: correct|incorrect"
+        string ReviewNote "nullable, free text"
+        datetime ReviewedAt "nullable"
     }
 
     CHAT_MESSAGE {
         string Id PK
-        string SessionId
+        string SessionId "→ LEARNING_SESSION.Id
         string SenderRole
         string SenderName "nullable"
         string Text
     }
 
-    SESSION_SUMMARY {
-        string Id PK
-        string SessionId UK
-        bool CompletedAllSlides
-        string LastSlideObjectId "nullable"
-        text_array UnansweredPoints
-    }
 
     DOCUMENT_RESOURCE {
         string Id PK
@@ -81,7 +91,10 @@ diagram แสดงความสัมพันธ์เชิง domain ท�
 - Google Slides/PDF content ไม่ถูก snapshot ลงตาราง lesson
 - PDF/knowledge file bytes อยู่ใน storage; `DocumentResource` เก็บ metadata/pointer
 - Pinecone อยู่นอก PostgreSQL และ partition ด้วย lesson slug หรือ `kb-global`
-- Summary เก็บ unanswered points; question records อ่านแยกตาม session ID
+- **ไม่มีตาราง summary แล้ว** (TD-013) — สรุปการเรียนถูกคำนวณสดตอนอ่านจาก `LearningSession`
+  + `SessionQuestion`; `unansweredPoints` = คำถามที่ `AnswerStatus = not_found`
+- 1 `TrainingLink` มีได้หลาย `LearningSession` และคนหนึ่งคนมีได้หลายรอบ (กด "เรียนอีกครั้ง")
+- "หยุดกลางคัน" ไม่ใช่คอลัมน์ — คำนวณจาก `LastActivityAt` เทียบ `INACTIVE_THRESHOLD_MINUTES`
 
 ## Main Workflow
 
@@ -93,15 +106,20 @@ flowchart TD
     Google --> Lesson[(LessonConfig)]
     Pdf --> Lesson
     Lesson --> Index[Best-effort RAG indexing]
-    Lesson --> Session[(TrainingSession)]
-    Session --> Room[Teacher room]
+    Lesson --> Link[(TrainingLink)]
+    Link --> Join[ผู้ใช้เปิดลิงก์ กรอกชื่อ]
+    Join --> Learning[(LearningSession)]
+    Learning --> Room[ห้องเรียน 1:1]
+    Room --> Progress[อัปเดตสไลด์ล่าสุด + LastActivityAt]
+    Progress --> Learning
     Room --> Voice[Voice question]
     Voice --> Question[(SessionQuestion)]
-    Voice --> Live[SignalR broadcast]
+    Voice --> Live[SignalR broadcast ต่อ LearningSession]
     Room --> Chat[(ChatMessage)]
     Chat --> Live
-    Room --> End[End session]
-    End --> Summary[(SessionSummary)]
+    Room --> End[จบการเรียน]
+    End --> Learning
+    Question --> Review[CS ทำเครื่องหมายถูก/ผิด + หมายเหตุ]
 ```
 
 ## Document Indexing Workflow

@@ -3,22 +3,22 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import * as api from "@/lib/api-client";
-import type { TrainingSession } from "@/types/domain";
-import { SessionsTable } from "@/components/admin/SessionsTable";
+import type { TrainingLink } from "@/types/domain";
+import { TrainingLinksTable } from "@/components/admin/TrainingLinksTable";
 import { Button } from "@/components/ui/Button";
 import { LoadingBlock } from "@/components/ui/LoadingBlock";
 import { Spinner } from "@/components/ui/Spinner";
 
 export default function AdminPage() {
-  const [sessions, setSessions] = useState<TrainingSession[]>([]);
+  const [links, setLinks] = useState<TrainingLink[]>([]);
   const [origin, setOrigin] = useState("");
   const [loading, setLoading] = useState(true);
   const [resetting, setResetting] = useState(false);
 
   async function reload() {
     setLoading(true);
-    const { sessions: list } = await api.listSessions();
-    setSessions(list);
+    const { links: list } = await api.listTrainingLinks();
+    setLinks(list);
     setLoading(false);
   }
 
@@ -55,8 +55,8 @@ export default function AdminPage() {
         <Link href="/admin/documents">
           <Button variant="secondary">คลังเอกสาร</Button>
         </Link>
-        <Link href="/admin/sessions/new">
-          <Button>สร้างลิงก์การสอน</Button>
+        <Link href="/admin/links/new">
+          <Button>สร้างลิงก์การเรียน</Button>
         </Link>
         <Button variant="ghost" onClick={handleReset} disabled={resetting}>
           {resetting ? (
@@ -71,8 +71,8 @@ export default function AdminPage() {
       </div>
 
       <section className="space-y-3">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-room-muted">รายการ Sessions</h2>
-        {loading ? <LoadingBlock label="กำลังโหลดรายการ Session..." /> : <SessionsTable sessions={sessions} origin={origin} />}
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-room-muted">รายการลิงก์</h2>
+        {loading ? <LoadingBlock label="กำลังโหลดรายการลิงก์..." /> : <TrainingLinksTable links={links} origin={origin} />}
       </section>
     </main>
   );

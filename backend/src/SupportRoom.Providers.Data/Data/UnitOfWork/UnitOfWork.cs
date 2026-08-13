@@ -12,10 +12,10 @@ public sealed class UnitOfWork(ApplicationDbContext dbContext, IServiceProvider 
 {
     private static readonly Dictionary<Type, Type> Register = new()
     {
-        { typeof(ITrainingSessionRepository), typeof(TrainingSessionRepository) },
+        { typeof(ITrainingLinkRepository), typeof(TrainingLinkRepository) },
+        { typeof(ILearningSessionRepository), typeof(LearningSessionRepository) },
         { typeof(ISessionQuestionRepository), typeof(SessionQuestionRepository) },
         { typeof(ILessonConfigRepository), typeof(LessonConfigRepository) },
-        { typeof(ISessionSummaryRepository), typeof(SessionSummaryRepository) },
         { typeof(IChatMessageRepository), typeof(ChatMessageRepository) },
         { typeof(IDocumentResourceRepository), typeof(DocumentResourceRepository) },
     };

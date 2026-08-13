@@ -20,7 +20,7 @@ Push-to-Talk ถามได้ตลอด → AI ตอบโดยอ้า�
 | ทางเลือกเทคโนโลยี, build vs buy, MVP/Production/Scale | [`docs/SOLUTION_ARCHITECTURE.md`](./docs/SOLUTION_ARCHITECTURE.md) |
 | การตัดสินใจเชิงเทคนิคและเหตุผล | [`docs/TECH_DECISIONS.md`](./docs/TECH_DECISIONS.md) |
 | ลำดับงานเพื่อขึ้น production | [`docs/PRODUCTION_ROADMAP.md`](./docs/PRODUCTION_ROADMAP.md) |
-| สเปกฟีเจอร์หลักที่เคาะแล้วแต่ยังไม่ได้ทำ | [`docs/CORE_FEATURE_SPEC.md`](./docs/CORE_FEATURE_SPEC.md) |
+| สเปกฟีเจอร์หลัก: ลิงก์ vs การเรียน, รีวิวคำตอบ | [`docs/CORE_FEATURE_SPEC.md`](./docs/CORE_FEATURE_SPEC.md) |
 
 ## Current Architecture
 
@@ -188,7 +188,10 @@ Convention ที่ไม่ปกติแต่จงใจ — ทำตา�
 - Background indexing queue เป็น in-memory — restart แล้วงานค้างที่ `pending` ตลอดไป (TD-003)
 - Document deletion ยังทิ้ง vectors ไว้ใน Pinecone (TD-004 — chunk id เป็น `{documentId}-{chunkId}`
   อยู่แล้ว ลบด้วย ID prefix ได้; serverless ไม่รองรับ delete by metadata filter)
-- Session expiry ยังบังคับเฉพาะ frontend
+- **migration สำหรับการแยก TrainingLink/LearningSession ยังไม่ได้สร้าง** — โค้ดทุกชั้นทำแล้ว
+  แต่ต้องรัน `dotnet ef migrations add SplitTrainingLinkAndLearningSession` บนเครื่องที่มี .NET 10 SDK
+  (เครื่องที่ทำงานล่าสุดมีแค่ SDK 8 จึง build/test backend ไม่ได้เลย)
+- backend ยังไม่เคยถูก build/test หลังการแยก TrainingLink/LearningSession ด้วยเหตุผลข้างบน
 - API integration test project ยังไม่มี test ที่ยืนยัน endpoint จริง (`UnitTest1.cs` ยังเป็น template)
 - test บางชุดใน Application/Providers ยิงไปยัง provider จริง — ต้องแยกด้วย xUnit trait ก่อนตั้ง CI
 - EF Core version conflict (MSB3277 ×5): Npgsql 10.0.3 ดึง EF Relational 10.0.4 vs ที่อ้าง 10.0.10
