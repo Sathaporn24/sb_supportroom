@@ -49,6 +49,10 @@ Table Company {
   IsDelete boolean [not null]
   DeletedAt timestamptz [null]
 
+  Indexes {
+    IsActive [name: 'IX_Company_IsActive']
+  }
+
   Note: '🔴 ไม่มี query filter — เป็นทะเบียนบริษัทเอง filter ตัวเองไม่ได้ (ตัวสลับบริษัทต้อง list ได้ทุกแถวสำหรับ owner) ทุก query ต้องกรองเองผ่าน IAuthorizationGuard ไม่ใช่พึ่ง EF (TD-014)'
 }
 
