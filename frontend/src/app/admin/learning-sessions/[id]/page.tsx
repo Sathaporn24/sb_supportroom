@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
+import { AdminLink } from "@/components/admin/AdminLink";
 import { useParams } from "next/navigation";
 import * as api from "@/lib/api-client";
 import { answerStatusLabels, reviewResultLabels } from "@/utils/session-status";
@@ -79,9 +79,9 @@ export default function LearningSessionSummaryPage() {
     <main className="mx-auto max-w-2xl space-y-6 p-6">
       <div className="flex items-start justify-between">
         <div>
-          <Link href="/admin" className="text-xs text-room-muted hover:text-room-text">
+          <AdminLink href="/admin" className="text-xs text-room-muted hover:text-room-text">
             ← กลับหน้า Admin
-          </Link>
+          </AdminLink>
           <h1 className="mt-1 text-xl font-semibold text-room-text">สรุปการเรียน</h1>
         </div>
         <button

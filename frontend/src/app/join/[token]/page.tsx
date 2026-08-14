@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import * as api from "@/lib/api-client";
 import { isLinkUsable } from "@/utils/session-status";
-import { getLearnerName, getOrCreateLearnerKey, setLearnerName } from "@/utils/learner-key";
+import { getLearnerName, getOrCreateLearnerKey, peekLearnerKey, setLearnerName } from "@/utils/learner-key";
 import { useLocalMedia } from "@/hooks/use-local-media";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
@@ -12,7 +12,7 @@ import { IconButton } from "@/components/ui/IconButton";
 import { LoadingBlock } from "@/components/ui/LoadingBlock";
 import { Spinner } from "@/components/ui/Spinner";
 import { CameraIcon, CameraOffIcon, MicIcon, MicOffIcon } from "@/components/ui/icons";
-import type { TrainingLink } from "@/types/domain";
+import type { PublicTrainingLink } from "@/types/domain";
 
 const errorMessages: Record<string, string> = {
   denied: "ไม่ได้รับอนุญาตให้เข้าถึงกล้องหรือไมโครโฟน กรุณาอนุญาตการใช้งานจากเบราว์เซอร์แล้วลองใหม่อีกครั้งค่ะ",
@@ -27,7 +27,7 @@ const NAME_MAX_LENGTH = 100;
 export default function JoinPage() {
   const params = useParams<{ token: string }>();
   const router = useRouter();
-  const [link, setLink] = useState<TrainingLink | null | "loading">("loading");
+  const [link, setLink] = useState<PublicTrainingLink | null | "loading">("loading");
   const [lessonTitle, setLessonTitle] = useState("");
   const [name, setName] = useState("");
   const [joining, setJoining] = useState(false);
@@ -38,8 +38,37 @@ export default function JoinPage() {
     let active = true;
     void api
       .getTrainingLinkByToken(params.token)
-      .then(({ link: found, lessonTitle: title }) => {
+      .then(async ({ link: found, lessonTitle: title }) => {
         if (!active) return;
+
+        // Returning learners skip this screen entirely, exactly as CORE_FEATURE_SPEC §5.1 says.
+        // Join is idempotent and now returns an existing run even after link expiry, so someone
+        // who started in time can reconnect and finish without being locked out by the clock.
+        const existingKey = peekLearnerKey(params.token);
+        const existingName = getLearnerName(params.token);
+        if (existingKey && existingName) {
+          try {
+            const { learningSession } = await api.joinLearningSession(params.token, {
+              recipientName: existingName,
+              learnerKey: existingKey,
+            });
+            if (!active) return;
+            router.replace(
+              learningSession.status === "ENDED"
+                ? `/session-ended/${params.token}`
+                : `/room/${params.token}`,
+            );
+            return;
+          } catch {
+            // A cleared DB plus an expired link, for example, is honestly an expired-link case.
+            // For an active link fall through and let the learner join again with the saved name.
+            if (!isLinkUsable(found)) {
+              router.replace("/link-expired");
+              return;
+            }
+          }
+        }
+
         if (!isLinkUsable(found)) {
           router.replace("/link-expired");
           return;
@@ -48,7 +77,7 @@ export default function JoinPage() {
         setLessonTitle(title);
         // A returning learner never retypes their name - the field is prefilled from the last
         // time this browser joined this link.
-        setName(getLearnerName(params.token) ?? "");
+        setName(existingName ?? "");
       })
       .catch(() => {
         if (active) router.replace("/link-expired");

@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useAdminSession } from "@/components/admin/AdminSessionProvider";
 import { CompanySwitcher } from "@/components/admin/CompanySwitcher";
+import { AdminLink } from "@/components/admin/AdminLink";
 
 /**
  * Keeps signed-out visitors out of the back office and forces a first-sign-in password change
@@ -15,7 +16,7 @@ import { CompanySwitcher } from "@/components/admin/CompanySwitcher";
  * screen instead of a page that renders and then fails every request.
  */
 export function AdminGuard({ children }: { children: React.ReactNode }) {
-  const { user, ready } = useAdminSession();
+  const { user, ready, activeCompanyId } = useAdminSession();
   const router = useRouter();
   const pathname = usePathname();
 
@@ -40,6 +41,23 @@ export function AdminGuard({ children }: { children: React.ReactNode }) {
   if (isLoginPage) return <>{children}</>;
   if (!user) return null;
   if (user.mustChangePassword && !isChangePasswordPage) return null;
+
+  // Every implemented work screen is company-scoped. An owner has no company baked into the
+  // token, so rendering a child before they choose one only fires requests that must fail with
+  // "company unknown". Keep the navigation/switcher visible and hold the work screen until the
+  // URL has a real context. Future system-wide routes (provider settings/company registry) should
+  // be explicitly exempted here when they are implemented.
+  if (user.role === "owner" && !activeCompanyId && !isChangePasswordPage) {
+    return (
+      <>
+        <AdminBar />
+        <main style={{ padding: 24 }}>
+          <h1>เลือกบริษัทก่อนเริ่มทำงาน</h1>
+          <p>กรุณาเลือกบริษัทจากแถบด้านบน เพื่อให้ทุกหน้ารู้ว่ากำลังดูข้อมูลของใคร</p>
+        </main>
+      </>
+    );
+  }
 
   return (
     <>
@@ -74,8 +92,8 @@ function AdminBar() {
       <span style={{ marginLeft: "auto" }}>
         {user.displayName} ({user.role})
       </span>
-      {user.role !== "cs" && <a href="/admin/users">จัดการผู้ใช้</a>}
-      <a href="/admin/change-password">เปลี่ยนรหัสผ่าน</a>
+      {user.role !== "cs" && <AdminLink href="/admin/users">จัดการผู้ใช้</AdminLink>}
+      <AdminLink href="/admin/change-password">เปลี่ยนรหัสผ่าน</AdminLink>
       <button type="button" onClick={signOut}>
         ออกจากระบบ
       </button>

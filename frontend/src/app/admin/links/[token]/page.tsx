@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
+import { AdminLink } from "@/components/admin/AdminLink";
 import { useParams } from "next/navigation";
 import * as api from "@/lib/api-client";
 import { learningSessionStatusLabel, linkStatusLabels } from "@/utils/session-status";
@@ -26,7 +26,7 @@ export default function TrainingLinkDetailPage() {
     let active = true;
     void (async () => {
       try {
-        const { link: found, lessonTitle: title } = await api.getTrainingLinkByToken(params.token);
+        const { link: found, lessonTitle: title } = await api.getAdminTrainingLinkByToken(params.token);
         if (!active) return;
         setLink(found);
         setLessonTitle(title);
@@ -55,9 +55,9 @@ export default function TrainingLinkDetailPage() {
   return (
     <main className="mx-auto max-w-3xl space-y-6 p-6">
       <div>
-        <Link href="/admin" className="text-xs text-room-muted hover:text-room-text">
+        <AdminLink href="/admin" className="text-xs text-room-muted hover:text-room-text">
           ← กลับหน้า Admin
-        </Link>
+        </AdminLink>
         <h1 className="mt-1 text-xl font-semibold text-room-text">{lessonTitle}</h1>
         <p className="text-sm text-room-muted">{link.recipientOrgName || "ไม่ระบุหน่วยงาน"}</p>
       </div>
@@ -117,12 +117,12 @@ export default function TrainingLinkDetailPage() {
                       </Badge>
                     </td>
                     <td className="px-4 py-3">
-                      <Link
+                      <AdminLink
                         href={`/admin/learning-sessions/${session.id}`}
                         className="rounded-md border border-room-border bg-room-panelAlt px-2.5 py-1.5 text-xs text-room-text hover:border-room-accent/60"
                       >
                         ดูสรุป
-                      </Link>
+                      </AdminLink>
                     </td>
                   </tr>
                 ))}

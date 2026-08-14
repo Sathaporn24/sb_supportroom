@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { AdminLink } from "@/components/admin/AdminLink";
 import type { TrainingLink } from "@/types/domain";
 import { linkStatusLabels } from "@/utils/session-status";
 import { formatDateTimeTh } from "@/utils/format";
@@ -47,12 +47,12 @@ export function TrainingLinksTable({ links, origin }: { links: TrainingLink[]; o
               <td className="px-4 py-3">
                 <div className="flex flex-wrap items-center gap-2">
                   <CopyLinkButton url={`${origin}/join/${link.token}`} />
-                  <Link
+                  <AdminLink
                     href={`/admin/links/${link.token}`}
                     className="rounded-md border border-room-border bg-room-panelAlt px-2.5 py-1.5 text-xs text-room-text hover:border-room-accent/60"
                   >
                     ดูผู้เข้าเรียน
-                  </Link>
+                  </AdminLink>
                 </div>
               </td>
             </tr>

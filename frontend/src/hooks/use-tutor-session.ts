@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useReducer, useRef, useState } from "react";
-import type { LearningSession, LessonConfig, TeachingSlide, TrainingLink } from "@/types/domain";
+import type { LearningSession, TeachingSlide, PublicTrainingLink } from "@/types/domain";
 import type { TutorEvent, TutorUserEvent } from "@/tutor/intents";
 import type { TutorEffect, TutorRuntime } from "@/tutor/types";
 import { createInitialRuntime, tutorReducer, type TutorContext } from "@/tutor/tutor-reducer";
@@ -33,14 +33,13 @@ function pickRandom<T>(items: readonly T[]): T {
  * link this browser is. Every call that writes something down needs both - the token alone stopped
  * identifying a person once one link started serving a whole department.
  */
-export function useTutorSession(link: TrainingLink, learningSession: LearningSession, learnerKey: string) {
+export function useTutorSession(link: PublicTrainingLink, learningSession: LearningSession, learnerKey: string) {
   const runtimeRef = useRef<TutorRuntime>(createInitialRuntime());
   const [, forceRender] = useReducer((n: number) => n + 1, 0);
   const [embedUrl, setEmbedUrl] = useState("");
   const [loadError, setLoadError] = useState<string | null>(null);
 
   const slidesRef = useRef<TeachingSlide[]>([]);
-  const lessonRef = useRef<LessonConfig | null>(null);
   const ctxRef = useRef<TutorContext>({
     slides: [],
     introWaitMs: 5_000,
@@ -123,7 +122,7 @@ export function useTutorSession(link: TrainingLink, learningSession: LearningSes
       // The lead rides along in the same synthesis request as the answer, so it flows into
       // it rather than landing as a separate clip with an audible seam.
       const lead = withFoundLead ? `${pickRandom(ANSWER_FOUND_LEADS)} ` : "";
-      const blob = await api.synthesizeSpeech(`${lead}${text}`);
+      const blob = await api.synthesizeSpeech(`${lead}${text}`, link.token, learnerKey);
       if (!mountedRef.current) return;
       const url = URL.createObjectURL(blob);
       audioUrlRef.current = url;
@@ -167,7 +166,7 @@ export function useTutorSession(link: TrainingLink, learningSession: LearningSes
         dispatch({ type: "TTS_ENDED", elapsedMs: 0 });
         return;
       }
-      const blob = await api.synthesizeSpeech(combinedText);
+      const blob = await api.synthesizeSpeech(combinedText, link.token, learnerKey);
       if (!mountedRef.current) return;
       // Dispatch the state transition FIRST - dispatch() always clears any pending
       // audio/timer via clearPending(), so building the <audio> element before this
@@ -221,7 +220,7 @@ export function useTutorSession(link: TrainingLink, learningSession: LearningSes
     // In need-order, so a question asked early still finds the opening line and stage 1
     // ready even if the later rungs haven't landed yet.
     for (const { text, rate, push } of jobs) {
-      const blob = await api.synthesizeSpeech(text, rate).catch(() => null);
+      const blob = await api.synthesizeSpeech(text, link.token, learnerKey, rate).catch(() => null);
       if (!mountedRef.current) return;
       if (blob) push(blob);
     }
@@ -425,8 +424,7 @@ export function useTutorSession(link: TrainingLink, learningSession: LearningSes
       case "LOAD_LESSON":
         void (async () => {
           try {
-            const { lesson, embedUrl: url, slides } = await api.getLessonBySlug(link.lessonSlug);
-            lessonRef.current = lesson;
+            const { lesson, embedUrl: url, slides } = await api.getLessonByLinkToken(link.token);
             slidesRef.current = slides;
             ctxRef.current = {
               slides,

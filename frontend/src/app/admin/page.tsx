@@ -1,15 +1,17 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
+import { AdminLink } from "@/components/admin/AdminLink";
 import * as api from "@/lib/api-client";
 import type { TrainingLink } from "@/types/domain";
 import { TrainingLinksTable } from "@/components/admin/TrainingLinksTable";
 import { Button } from "@/components/ui/Button";
 import { LoadingBlock } from "@/components/ui/LoadingBlock";
 import { Spinner } from "@/components/ui/Spinner";
+import { useAdminSession } from "@/components/admin/AdminSessionProvider";
 
 export default function AdminPage() {
+  const { user } = useAdminSession();
   const [links, setLinks] = useState<TrainingLink[]>([]);
   const [origin, setOrigin] = useState("");
   const [loading, setLoading] = useState(true);
@@ -49,25 +51,27 @@ export default function AdminPage() {
       </div>
 
       <div className="flex flex-wrap gap-3">
-        <Link href="/admin/lessons">
+        <AdminLink href="/admin/lessons">
           <Button variant="secondary">จัดการบทเรียน</Button>
-        </Link>
-        <Link href="/admin/documents">
+        </AdminLink>
+        <AdminLink href="/admin/documents">
           <Button variant="secondary">คลังเอกสาร</Button>
-        </Link>
-        <Link href="/admin/links/new">
+        </AdminLink>
+        <AdminLink href="/admin/links/new">
           <Button>สร้างลิงก์การเรียน</Button>
-        </Link>
-        <Button variant="ghost" onClick={handleReset} disabled={resetting}>
-          {resetting ? (
-            <>
-              <Spinner className="h-4 w-4" />
-              กำลังรีเซ็ต...
-            </>
-          ) : (
-            "Reset Demo Data"
-          )}
-        </Button>
+        </AdminLink>
+        {user?.role === "owner" && (
+          <Button variant="ghost" onClick={handleReset} disabled={resetting}>
+            {resetting ? (
+              <>
+                <Spinner className="h-4 w-4" />
+                กำลังรีเซ็ต...
+              </>
+            ) : (
+              "Reset Demo Data"
+            )}
+          </Button>
+        )}
       </div>
 
       <section className="space-y-3">

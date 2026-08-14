@@ -34,6 +34,18 @@ export type LessonConfig = {
   updatedAt: string;
 };
 
+/** Anonymous lesson payload: excludes source URLs, provider ids and document ids. */
+export type LearnerLessonConfig = Pick<
+  LessonConfig,
+  | "slug"
+  | "title"
+  | "description"
+  | "contentSourceType"
+  | "introWaitMs"
+  | "breathPauseMs"
+  | "finalQuestionWaitMs"
+>;
+
 // presentationId is always derived server-side from slidesSourceUrl - CS never sets it directly.
 export type LessonConfigInput = Omit<LessonConfig, "id" | "createdAt" | "updatedAt" | "presentationId">;
 
@@ -90,6 +102,12 @@ export type TrainingLink = {
   /** How many people have opened this link. */
   learningSessionCount: number;
 };
+
+/** Anonymous pre-join payload: no database ids, lesson slug or attendance count. */
+export type PublicTrainingLink = Pick<
+  TrainingLink,
+  "token" | "recipientOrgName" | "status" | "expiresAt"
+>;
 
 export type CreateTrainingLinkInput = {
   lessonSlug: string;
@@ -167,6 +185,12 @@ export type SessionQuestion = {
   reviewedAt?: string;
 };
 
+/** Public learner shape: answer-review metadata belongs to the back office only. */
+export type LearnerSessionQuestion = Omit<
+  SessionQuestion,
+  "reviewResult" | "reviewNote" | "reviewedAt"
+>;
+
 export type CreateSessionQuestionInput = Omit<
   SessionQuestion,
   "id" | "createdAt" | "reviewResult" | "reviewNote" | "reviewedAt"
@@ -201,6 +225,11 @@ export type SessionSummary = {
    * (CORE_FEATURE_SPEC §2.5). */
   unansweredPoints: string[];
   createdAt: string;
+};
+
+/** Public learner recap: no internal follow-up list and no CS review metadata. */
+export type LearnerSessionSummary = Omit<SessionSummary, "questions" | "unansweredPoints"> & {
+  questions: LearnerSessionQuestion[];
 };
 
 /** A typed chat message - separate from SessionQuestion (Push-to-Talk log), sent live over SignalR. */

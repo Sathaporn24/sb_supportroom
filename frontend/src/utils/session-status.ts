@@ -3,7 +3,6 @@ import type {
   LearningSessionStatus,
   LinkStatus,
   ReviewResult,
-  TrainingLink,
 } from "@/types/domain";
 
 /**
@@ -11,7 +10,7 @@ import type {
  * them - these helpers exist for the places that only hold an expiry date (an optimistic check
  * before a request, a table cell) and for the Thai labels.
  */
-export function isLinkUsable(link: TrainingLink, now: Date = new Date()): boolean {
+export function isLinkUsable(link: { expiresAt: string }, now: Date = new Date()): boolean {
   return new Date(link.expiresAt).getTime() > now.getTime();
 }
 

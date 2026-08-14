@@ -3,7 +3,14 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import * as api from "@/lib/api-client";
-import { clearSession, getActiveCompanyId, loadSession, saveSession, setActiveCompanyId } from "@/lib/auth-session";
+import {
+  clearSession,
+  getActiveCompanyId,
+  loadSession,
+  saveSession,
+  saveUser,
+  setActiveCompanyId,
+} from "@/lib/auth-session";
 import type { Company, LoginResult, SignedInUser } from "@/types/domain";
 
 /**
@@ -69,10 +76,19 @@ export function AdminSessionProvider({ children }: { children: React.ReactNode }
 
   // Mirror the URL into the module the api-client reads, before any screen fires a request.
   // Falling back to the user's own company covers a company-scoped user who has no reason to ever
-  // see ?company= in their URL - they have exactly one.
+  // see ?company= in their URL - they have exactly one. For an owner, retain the current in-memory
+  // selection during client navigation and immediately canonicalize a link that accidentally
+  // dropped the query. A full reload without ?company= still asks the owner to choose, by design.
   useEffect(() => {
-    setActiveCompanyId(companyFromUrl ?? user?.companyId ?? null);
-  }, [companyFromUrl, user]);
+    const resolved = companyFromUrl ?? user?.companyId ?? getActiveCompanyId();
+    setActiveCompanyId(resolved);
+
+    if (user?.role === "owner" && !companyFromUrl && resolved) {
+      const params = new URLSearchParams(searchParams.toString());
+      params.set("company", resolved);
+      router.replace(`${pathname}?${params.toString()}`);
+    }
+  }, [companyFromUrl, pathname, router, searchParams, user]);
 
   useEffect(() => {
     if (!user) return;
@@ -107,6 +123,7 @@ export function AdminSessionProvider({ children }: { children: React.ReactNode }
 
   const refreshUser = useCallback(async () => {
     const { user: fresh } = await api.getSignedInUser();
+    saveUser(fresh);
     setUser(fresh);
   }, []);
 

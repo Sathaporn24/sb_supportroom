@@ -8,7 +8,7 @@ import { getLearnerName, peekLearnerKey } from "@/utils/learner-key";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { LoadingBlock } from "@/components/ui/LoadingBlock";
-import type { SessionQuestion } from "@/types/domain";
+import type { LearnerSessionQuestion } from "@/types/domain";
 
 // No link back to /admin here - this page is reached by anyone holding a public, unauthenticated
 // link, and /admin has no auth of its own (see CLAUDE.md). Linking to it from a public-facing
@@ -17,7 +17,7 @@ import type { SessionQuestion } from "@/types/domain";
 export default function SessionEndedPage() {
   const params = useParams<{ token: string }>();
   const router = useRouter();
-  const [questions, setQuestions] = useState<SessionQuestion[] | null>(null);
+  const [questions, setQuestions] = useState<LearnerSessionQuestion[] | null>(null);
   const [restarting, setRestarting] = useState(false);
 
   useEffect(() => {
@@ -70,8 +70,7 @@ export default function SessionEndedPage() {
   }
 
   // Only what the learner themselves asked. The "จุดที่ AI ตอบไม่ได้ รอ CS ตรวจสอบ" list is
-  // internal and stays on the CS side (CORE_FEATURE_SPEC §2.5) - summary.unansweredPoints is
-  // deliberately not read here.
+  // internal and stays on the CS side (CORE_FEATURE_SPEC §2.5); the public API shape omits it.
   const answered = questions.filter((q) => q.answerStatus !== "no_speech");
 
   return (

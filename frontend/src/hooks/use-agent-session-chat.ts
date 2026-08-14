@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import * as signalR from "@microsoft/signalr";
 import { getApiBaseUrl, getChatMessagesByLearningSession } from "@/lib/api-client";
+import { getAccessToken, getActiveCompanyId } from "@/lib/auth-session";
 import type { ChatMessage, SessionQuestion } from "@/types/domain";
 
 /**
@@ -11,8 +12,8 @@ import type { ChatMessage, SessionQuestion } from "@/types/domain";
  * A support agent has no learnerKey - that key lives in the learner's browser - so this addresses
  * a learning session by id and talks to the hub's agent methods instead.
  *
- * ⚠️ Unauthenticated, like the rest of /admin today (TD-002). The learning session id is an
- * unguessable GUID, which is what stands in for access control until auth lands.
+ * Agent hub calls carry the same JWT and company context as REST. The hub stays anonymous at the
+ * transport level because learners have no account; its agent methods enforce authentication.
  */
 export type ChatConnectionState = "connecting" | "connected" | "reconnecting" | "disconnected";
 
@@ -24,7 +25,7 @@ function mergeById<T extends { id: string; createdAt: string }>(existing: T[], i
   return [...byId.values()].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
 }
 
-export function useAgentSessionChat(learningSessionId: string, agentName = "ทีมซัพพอร์ต") {
+export function useAgentSessionChat(learningSessionId: string) {
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [liveQuestions, setLiveQuestions] = useState<SessionQuestion[]>([]);
   const [connectionState, setConnectionState] = useState<ChatConnectionState>("connecting");
@@ -36,8 +37,13 @@ export function useAgentSessionChat(learningSessionId: string, agentName = "ท�
     }
     let cancelled = false;
 
+    const companyId = getActiveCompanyId();
+    const hubUrl = `${getApiBaseUrl()}/hubs/session${companyId ? `?company=${encodeURIComponent(companyId)}` : ""}`;
     const connection = new signalR.HubConnectionBuilder()
-      .withUrl(`${getApiBaseUrl()}/hubs/session`, { withCredentials: false })
+      .withUrl(hubUrl, {
+        withCredentials: false,
+        accessTokenFactory: () => getAccessToken() ?? "",
+      })
       .withAutomaticReconnect()
       .build();
     connectionRef.current = connection;
@@ -99,9 +105,9 @@ export function useAgentSessionChat(learningSessionId: string, agentName = "ท�
       if (!connection || connection.state !== signalR.HubConnectionState.Connected) {
         throw new Error("การเชื่อมต่อแชทยังไม่พร้อม กรุณาลองใหม่อีกครั้ง");
       }
-      await connection.invoke("SendChatMessageAsAgent", learningSessionId, agentName, text);
+      await connection.invoke("SendChatMessageAsAgent", learningSessionId, text);
     },
-    [learningSessionId, agentName],
+    [learningSessionId],
   );
 
   return { chatMessages, liveQuestions, connectionState, sendChatMessage };

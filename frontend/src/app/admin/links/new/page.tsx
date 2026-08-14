@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
+import { AdminLink } from "@/components/admin/AdminLink";
 import * as api from "@/lib/api-client";
 import type { LessonConfig } from "@/types/domain";
 import { CreateTrainingLinkModal } from "@/components/admin/CreateTrainingLinkModal";
@@ -37,9 +37,9 @@ export default function NewTrainingLinkPage() {
   return (
     <main className="mx-auto max-w-4xl space-y-6 p-6">
       <div>
-        <Link href="/admin" className="text-xs text-room-muted hover:text-room-text">
+        <AdminLink href="/admin" className="text-xs text-room-muted hover:text-room-text">
           ← กลับหน้า Admin
-        </Link>
+        </AdminLink>
         <h1 className="mt-1 text-xl font-semibold text-room-text">สร้างลิงก์การเรียน</h1>
         <p className="mt-1 text-sm text-room-muted">เลือกสื่อการสอนที่ต้องการสร้างลิงก์ห้องเรียนให้ผู้ใช้</p>
       </div>

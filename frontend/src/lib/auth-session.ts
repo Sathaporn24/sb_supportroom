@@ -61,6 +61,17 @@ export function saveSession(token: string, user: SignedInUser): void {
   window.localStorage.setItem(USER_KEY, JSON.stringify(user));
 }
 
+/**
+ * Refreshes the cached profile without replacing the bearer token. The profile is persisted as
+ * well as returned by React state: otherwise a password change clears mustChangePassword only
+ * until the next full-page load, where the stale localStorage copy sends the user straight back
+ * to the forced-change screen.
+ */
+export function saveUser(user: SignedInUser): void {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(USER_KEY, JSON.stringify(user));
+}
+
 export function clearSession(): void {
   cachedToken = null;
   activeCompanyId = null;
@@ -82,5 +93,12 @@ export function setActiveCompanyId(companyId: string | null): void {
 }
 
 export function getActiveCompanyId(): string | null {
+  // The URL is the source of truth and is available synchronously in the browser. Reading it
+  // here closes a subtle first-render race: child page effects can issue their first request
+  // before AdminSessionProvider's effect has mirrored ?company= into this module.
+  if (typeof window !== "undefined") {
+    const fromUrl = new URLSearchParams(window.location.search).get("company");
+    if (fromUrl) return fromUrl;
+  }
   return activeCompanyId;
 }

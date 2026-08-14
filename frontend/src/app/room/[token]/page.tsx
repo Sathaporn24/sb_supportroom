@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import * as api from "@/lib/api-client";
-import { isLinkUsable } from "@/utils/session-status";
 import { getLearnerName, peekLearnerKey } from "@/utils/learner-key";
 import { useTutorSession } from "@/hooks/use-tutor-session";
 import { useLocalMedia } from "@/hooks/use-local-media";
@@ -16,11 +15,11 @@ import { ChatDrawer } from "@/components/meeting/ChatDrawer";
 import { Button } from "@/components/ui/Button";
 import { LoadingBlock } from "@/components/ui/LoadingBlock";
 import type { PushToTalkStatus } from "@/components/meeting/PushToTalkButton";
-import type { LearningSession, TrainingLink } from "@/types/domain";
+import type { LearningSession, PublicTrainingLink } from "@/types/domain";
 
 type LoadState = "loading" | "ready";
 
-type RoomData = { link: TrainingLink; learningSession: LearningSession; learnerKey: string };
+type RoomData = { link: PublicTrainingLink; learningSession: LearningSession; learnerKey: string };
 
 export default function RoomPage() {
   const params = useParams<{ token: string }>();
@@ -40,7 +39,7 @@ export default function RoomPage() {
         return;
       }
 
-      let link: TrainingLink;
+      let link: PublicTrainingLink;
       try {
         link = (await api.getTrainingLinkByToken(params.token)).link;
       } catch {
@@ -48,11 +47,6 @@ export default function RoomPage() {
         return;
       }
       if (!active) return;
-      if (!isLinkUsable(link)) {
-        router.replace("/link-expired");
-        return;
-      }
-
       try {
         // Idempotent: this browser already has a session on this link, so join hands the same one
         // back rather than starting a second. That is what makes a reconnect or a reopened tab
@@ -71,8 +65,8 @@ export default function RoomPage() {
         setData({ link, learningSession, learnerKey });
         setLoadState("ready");
       } catch {
-        // The link loaded fine, so this is about the session, not the link - the join screen is
-        // the honest place to land, not the expired-link dead end.
+        // The link loaded fine, so this is about the session, not the link. The join screen can
+        // distinguish an active first join from an expired link and is the honest place to land.
         if (active) router.replace(`/join/${params.token}`);
       }
     })();
@@ -117,7 +111,7 @@ function RoomContent({ link, learningSession, learnerKey }: RoomData) {
   } = useTutorSession(link, learningSession, learnerKey);
   const media = useLocalMedia();
   const [chatOpen, setChatOpen] = useState(false);
-  const chat = useSessionChat(link.token, learnerKey, "recipient", learningSession.recipientName);
+  const chat = useSessionChat(link.token, learnerKey);
 
   useEffect(() => {
     if (runtime.state === "completed") {
