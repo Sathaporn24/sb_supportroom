@@ -42,6 +42,9 @@ public interface ILearningSessionService
 
     /// <summary>Computed fresh on every call - there is no summary table (TD-013).</summary>
     SessionSummaryViewModel GetSummary(string learningSessionId);
+
+    /// <summary>Public recap without internal QA fields or the CS follow-up list.</summary>
+    LearnerSessionSummaryViewModel GetLearnerSummary(string learningSessionId);
 }
 
 public sealed class LearningSessionService(IUnitOfWork unitOfWork, IServiceProvider serviceProvider, ILogger<ILearningSessionService> logger)
@@ -52,7 +55,10 @@ public sealed class LearningSessionService(IUnitOfWork unitOfWork, IServiceProvi
 
     public LearningSessionViewModel Join(string token, JoinLearningSessionDto input)
     {
-        var link = ResolveLinkForJoin(token);
+        // Resolve the company first, then look for an existing run BEFORE enforcing expiry. A
+        // learner who started while the link was valid may refresh/reconnect and finish after it
+        // expires; only creating a brand-new run is gated by the clock.
+        var link = ServiceProvider.GetRequiredService<ITrainingLinkService>().GetEntityByToken(token);
 
         var existing = _repository.GetActiveByLearnerKey(link.Id, input.LearnerKey);
         if (existing is not null)
@@ -62,6 +68,8 @@ public sealed class LearningSessionService(IUnitOfWork unitOfWork, IServiceProvi
             // (§2.5). Restart() is the explicit path for that.
             return ToViewModel(existing);
         }
+
+        EnsureLinkNotExpired(link);
 
         var entity = CreateSession(link.Id, input);
         Logger.LogInformation("Learning session joined: {SessionId} link={LinkId}", entity.Id, link.Id);
@@ -80,6 +88,11 @@ public sealed class LearningSessionService(IUnitOfWork unitOfWork, IServiceProvi
     {
         var entity = GetEntityByLearnerKey(token, input.LearnerKey);
 
+        if (entity.Status == SessionStatus.Ended)
+        {
+            throw GeneralException.ValidationError("การเรียนนี้จบแล้ว ไม่สามารถอัปเดตความคืบหน้าได้");
+        }
+
         entity.LastSlideObjectId = input.LastSlideObjectId;
         entity.LastSlideIndex = input.LastSlideIndex;
         // The whole point of the write: this timestamp is what the stalled calculation reads.
@@ -95,6 +108,12 @@ public sealed class LearningSessionService(IUnitOfWork unitOfWork, IServiceProvi
     public LearningSessionViewModel End(string token, EndLearningSessionDto input)
     {
         var entity = GetEntityByLearnerKey(token, input.LearnerKey);
+
+        if (entity.Status == SessionStatus.Ended)
+        {
+            // Idempotent: a retry after the response was lost must not rewrite EndedAt/history.
+            return ToViewModel(entity);
+        }
 
         entity.Status = SessionStatus.Ended;
         entity.CompletedAllSlides = input.CompletedAllSlides;
@@ -166,6 +185,28 @@ public sealed class LearningSessionService(IUnitOfWork unitOfWork, IServiceProvi
         };
     }
 
+    public LearnerSessionSummaryViewModel GetLearnerSummary(string learningSessionId)
+    {
+        var summary = GetSummary(learningSessionId);
+        return new LearnerSessionSummaryViewModel
+        {
+            SessionId = summary.SessionId,
+            CompletedAllSlides = summary.CompletedAllSlides,
+            LastSlideObjectId = summary.LastSlideObjectId,
+            Questions = summary.Questions.Select(question => new LearnerSessionQuestionViewModel
+            {
+                Id = question.Id,
+                SessionId = question.SessionId,
+                SlideObjectId = question.SlideObjectId,
+                Transcript = question.Transcript,
+                Answer = question.Answer,
+                AnswerStatus = question.AnswerStatus,
+                CreatedAt = question.CreatedAt,
+            }).ToList(),
+            CreatedAt = summary.CreatedAt,
+        };
+    }
+
     /// <summary>
     /// Resolves the link and the request's company, then refuses an expired one. Expiry used to be
     /// enforced in the browser only, which meant it was not enforced at all - the explicit join
@@ -179,11 +220,16 @@ public sealed class LearningSessionService(IUnitOfWork unitOfWork, IServiceProvi
     private TrainingLink ResolveLinkForJoin(string token)
     {
         var link = ServiceProvider.GetRequiredService<ITrainingLinkService>().GetEntityByToken(token);
+        EnsureLinkNotExpired(link);
+        return link;
+    }
+
+    private static void EnsureLinkNotExpired(TrainingLink link)
+    {
         if (link.ExpiresAt <= DateTime.UtcNow)
         {
             throw GeneralException.ValidationError("ลิงก์นี้หมดอายุแล้ว กรุณาติดต่อผู้ดูแลเพื่อขอลิงก์ใหม่");
         }
-        return link;
     }
 
     private LearningSession CreateSession(string trainingLinkId, JoinLearningSessionDto input)

@@ -24,6 +24,9 @@ public interface ITrainingLinkService
     /// </summary>
     TrainingLinkViewModel GetByToken(string token);
 
+    /// <summary>Anonymous pre-join shape; excludes ids, lesson slug and attendance counts.</summary>
+    PublicTrainingLinkViewModel GetPublicByToken(string token);
+
     /// <summary>Entity-level variant for callers that need the row itself (the learning-session
     /// service needs the id and expiry, not a wire model). Resolves company identically.</summary>
     TrainingLink GetEntityByToken(string token);
@@ -55,6 +58,10 @@ public sealed class TrainingLinkService(IUnitOfWork unitOfWork, IServiceProvider
     public TrainingLinkViewModel Create(CreateTrainingLinkDto input)
     {
         var lesson = _lessonConfigRepository.GetBySlug(input.LessonSlug) ?? throw GeneralException.NotFound("บทเรียน");
+        if (!lesson.IsActive)
+        {
+            throw GeneralException.ValidationError("ต้องเปิดใช้งานบทเรียนก่อนสร้างลิงก์");
+        }
 
         var expiresAt = input.ExpiresAt is { Length: > 0 }
             ? input.ExpiresAt.Adapt<DateTime>()
@@ -96,6 +103,18 @@ public sealed class TrainingLinkService(IUnitOfWork unitOfWork, IServiceProvider
         return ToViewModel(entity, _learningSessionRepository.GetByTrainingLinkId(entity.Id).Count());
     }
 
+    public PublicTrainingLinkViewModel GetPublicByToken(string token)
+    {
+        var entity = GetEntityByToken(token);
+        return new PublicTrainingLinkViewModel
+        {
+            Token = entity.Token,
+            RecipientOrgName = entity.RecipientOrgName,
+            ExpiresAt = entity.ExpiresAt.Adapt<string>(),
+            Status = entity.ExpiresAt <= DateTime.UtcNow ? LinkStatus.Expired : LinkStatus.Active,
+        };
+    }
+
     /// <summary>
     /// The single doorway for every recipient-side request. The caller holds only a join token
     /// and no company has been resolved yet, so the lookup itself must bypass the company query
@@ -110,6 +129,15 @@ public sealed class TrainingLinkService(IUnitOfWork unitOfWork, IServiceProvider
     public TrainingLink GetEntityByToken(string token)
     {
         var entity = _repository.GetByToken(token) ?? throw GeneralException.NotFound("ลิงก์ หรือลิงก์หมดอายุ");
+        // A token is the learner-side credential, but it must not be able to replace a tenant
+        // already selected for a signed-in request. Public learner requests start unresolved;
+        // admin requests arrive resolved by middleware and a mismatch fails before any scoped
+        // query can run under the token's company.
+        if (CompanyContext.CompanyId is { Length: > 0 } selectedCompanyId
+            && !string.Equals(selectedCompanyId, entity.CompanyId, StringComparison.Ordinal))
+        {
+            throw GeneralException.Forbidden("ลิงก์นี้ไม่ได้อยู่ในบริษัทที่กำลังดู");
+        }
         CompanyContext.Resolve(entity.CompanyId);
         return entity;
     }

@@ -1,6 +1,7 @@
 using SupportRoom.Providers.Knowledge;
 using Mapster;
 using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using SupportRoom.Application.Common;
 using SupportRoom.Application.Dto;
@@ -23,6 +24,24 @@ public sealed class LessonTeachingContentViewModel
     public required IReadOnlyList<TeachingSlideViewModel> Slides { get; init; }
 }
 
+public sealed class LearnerLessonConfigViewModel
+{
+    public required string Slug { get; init; }
+    public required string Title { get; init; }
+    public string? Description { get; init; }
+    public required string ContentSourceType { get; init; }
+    public required int IntroWaitMs { get; init; }
+    public required int BreathPauseMs { get; init; }
+    public required int FinalQuestionWaitMs { get; init; }
+}
+
+public sealed class LearnerLessonTeachingContentViewModel
+{
+    public required LearnerLessonConfigViewModel Lesson { get; init; }
+    public required string EmbedUrl { get; init; }
+    public required IReadOnlyList<TeachingSlideViewModel> Slides { get; init; }
+}
+
 public interface ILessonConfigService
 {
     IReadOnlyList<LessonConfigViewModel> GetAll();
@@ -31,6 +50,10 @@ public interface ILessonConfigService
     /// <summary>Upsert by slug - mirrors lessons/route.ts's POST (re-resolves presentationId server-side on every save).</summary>
     Task<LessonConfigViewModel> SaveAsync(LessonConfigDto input);
     Task<LessonTeachingContentViewModel> GetTeachingContentBySlugAsync(string slug);
+
+    /// <summary>Learner-side variant. Adds the link token to any PDF page URLs after the link has
+    /// resolved company context, so later anonymous image requests can repeat the same safe lookup.</summary>
+    Task<LearnerLessonTeachingContentViewModel> GetTeachingContentByLinkAsync(string token);
 
     /// <summary>Preview a PDF already uploaded via /api/documents, before saving the lesson -
     /// mirrors POST /api/slides/resolve + GET /api/slides/content collapsed into one call, since
@@ -216,6 +239,50 @@ public sealed class LessonConfigService(
             EmbedUrl = !string.IsNullOrEmpty(content.EmbedUrl) ? content.EmbedUrl : (lesson.SlidesEmbedUrl ?? ""),
             Slides = slides,
         };
+    }
+
+    public async Task<LearnerLessonTeachingContentViewModel> GetTeachingContentByLinkAsync(string token)
+    {
+        var link = ServiceProvider.GetRequiredService<ITrainingLinkService>().GetEntityByToken(token);
+        var content = await GetTeachingContentBySlugAsync(link.LessonSlug);
+
+        var slides = content.Slides.Select(slide => new TeachingSlideViewModel
+        {
+            SlideObjectId = slide.SlideObjectId,
+            Index = slide.Index,
+            SpeakerNotes = slide.SpeakerNotes,
+            SlideUrl = ToPublicPdfPageUrl(slide.SlideUrl, token),
+            VideoDurationMs = slide.VideoDurationMs,
+        }).ToList();
+
+        return new LearnerLessonTeachingContentViewModel
+        {
+            Lesson = new LearnerLessonConfigViewModel
+            {
+                Slug = content.Lesson.Slug,
+                Title = content.Lesson.Title,
+                Description = content.Lesson.Description,
+                ContentSourceType = content.Lesson.ContentSourceType,
+                IntroWaitMs = content.Lesson.IntroWaitMs,
+                BreathPauseMs = content.Lesson.BreathPauseMs,
+                FinalQuestionWaitMs = content.Lesson.FinalQuestionWaitMs,
+            },
+            EmbedUrl = content.EmbedUrl,
+            Slides = slides,
+        };
+    }
+
+    private static string? ToPublicPdfPageUrl(string? slideUrl, string token)
+    {
+        if (string.IsNullOrEmpty(slideUrl) || !slideUrl.StartsWith("pdf-page:", StringComparison.Ordinal))
+        {
+            return slideUrl;
+        }
+
+        var parts = slideUrl.Split(':', 3);
+        return parts.Length == 3
+            ? $"/api/lessons/pdf-pages/{Uri.EscapeDataString(token)}/{Uri.EscapeDataString(parts[1])}/{parts[2]}"
+            : null;
     }
 
     private async Task<SlidesLessonContent> GetGoogleSlidesContentAsync(LessonConfig lesson)

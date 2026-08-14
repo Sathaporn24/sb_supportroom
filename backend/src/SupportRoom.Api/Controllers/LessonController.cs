@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using SupportRoom.Application.Dto;
 using SupportRoom.Application.Exceptions;
 using SupportRoom.Application.Services;
+using SupportRoom.Domain.Configuration;
 
 namespace SupportRoom.Api.Controllers;
 
@@ -21,11 +22,24 @@ public sealed class LessonController : ControllerBase
     [HttpGet]
     public ActionResult GetAll() => Ok(new { lessons = _service.GetAll() });
 
-    [AllowAnonymous]
+    /// <summary>Admin-side direct lookup. Learners must use by-link below: a slug is unique only
+    /// inside one company and an anonymous request has no company context to scope this query.</summary>
     [HttpGet("{slug}")]
     public async Task<ActionResult> GetBySlug([FromRoute] string slug)
     {
         var content = await _service.GetTeachingContentBySlugAsync(slug);
+        return Ok(new { lesson = content.Lesson, embedUrl = content.EmbedUrl, slides = content.Slides });
+    }
+
+    /// <summary>Learner-side lookup. Resolving the link first derives both the company and the
+    /// lesson from one unguessable token, so the caller cannot combine one company's slug with
+    /// another company's context.</summary>
+    [AllowAnonymous]
+    [HttpGet("by-link/{token}")]
+    public async Task<ActionResult> GetByLink(
+        [FromRoute] string token)
+    {
+        var content = await _service.GetTeachingContentByLinkAsync(token);
         return Ok(new { lesson = content.Lesson, embedUrl = content.EmbedUrl, slides = content.Slides });
     }
 
@@ -47,9 +61,23 @@ public sealed class LessonController : ControllerBase
     }
 
     [AllowAnonymous]
-    [HttpGet("pdf-pages/{documentId}/{pageNumber:int}")]
-    public async Task<ActionResult> GetPdfPage([FromRoute] string documentId, [FromRoute] int pageNumber)
+    [HttpGet("pdf-pages/{token}/{documentId}/{pageNumber:int}")]
+    public async Task<ActionResult> GetPdfPage(
+        [FromRoute] string token,
+        [FromRoute] string documentId,
+        [FromRoute] int pageNumber,
+        [FromServices] ITrainingLinkService trainingLinkService)
     {
+        // Resolves ICompanyContext before RenderPdfPageAsync looks up the document. Without this,
+        // the query filter sees no company on an anonymous request and every PDF page is a 404.
+        var link = trainingLinkService.GetEntityByToken(token);
+        var lesson = _service.GetBySlug(link.LessonSlug);
+        if (!lesson.IsActive
+            || lesson.ContentSourceType != LessonContentSourceType.Pdf
+            || !string.Equals(lesson.PdfDocumentResourceId, documentId, StringComparison.Ordinal))
+        {
+            throw GeneralException.NotFound("เอกสารของบทเรียน");
+        }
         var png = await _service.RenderPdfPageAsync(documentId, pageNumber);
         return File(png, "image/png");
     }

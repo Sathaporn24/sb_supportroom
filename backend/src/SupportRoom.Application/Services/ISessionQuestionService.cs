@@ -21,7 +21,7 @@ public interface ISessionQuestionService
     /// <summary>The learner's own questions. Keyed on (token, learnerKey) so one learner can only
     /// ever read back their own - two people on the same link must not see each other's
     /// (CORE_FEATURE_SPEC §2.4).</summary>
-    IReadOnlyList<SessionQuestionViewModel> GetForLearner(string token, string learnerKey);
+    IReadOnlyList<LearnerSessionQuestionViewModel> GetForLearner(string token, string learnerKey);
 
     /// <summary>CS-facing: every question in one learning session, review fields included.</summary>
     IReadOnlyList<SessionQuestionViewModel> GetByLearningSessionId(string learningSessionId);
@@ -67,10 +67,22 @@ public sealed class SessionQuestionService(IUnitOfWork unitOfWork, IServiceProvi
         return entity.Adapt<SessionQuestionViewModel>();
     }
 
-    public IReadOnlyList<SessionQuestionViewModel> GetForLearner(string token, string learnerKey)
+    public IReadOnlyList<LearnerSessionQuestionViewModel> GetForLearner(string token, string learnerKey)
     {
         var session = ServiceProvider.GetRequiredService<ILearningSessionService>().GetEntityByLearnerKey(token, learnerKey);
-        return GetByLearningSessionId(session.Id);
+        return _repository.GetBySessionId(session.Id)
+            .OrderBy(x => x.CreateDate)
+            .Select(question => new LearnerSessionQuestionViewModel
+            {
+                Id = question.Id,
+                SessionId = question.SessionId,
+                SlideObjectId = question.SlideObjectId,
+                Transcript = question.Transcript,
+                Answer = question.Answer,
+                AnswerStatus = question.AnswerStatus,
+                CreatedAt = question.CreateDate.ToString("O", System.Globalization.CultureInfo.InvariantCulture),
+            })
+            .ToList();
     }
 
     public IReadOnlyList<SessionQuestionViewModel> GetByLearningSessionId(string learningSessionId)

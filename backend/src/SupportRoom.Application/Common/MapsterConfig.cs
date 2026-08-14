@@ -39,7 +39,7 @@ public static class MapsterConfig
         // silently overwrites the same config slot instead of adding two. One null-safe config
         // per real (source, destination) Type pair - never force-unwrap with `!.Value`.
         TypeAdapterConfig<DateTime, string>.NewConfig().MapWith(d => d.ToString("O", CultureInfo.InvariantCulture));
-        TypeAdapterConfig<DateTime?, string>.NewConfig().MapWith(d => d == null ? null : d.Value.ToString("O", CultureInfo.InvariantCulture));
+        TypeAdapterConfig<DateTime?, string>.NewConfig().MapWith(d => d == null ? null! : d.Value.ToString("O", CultureInfo.InvariantCulture));
         TypeAdapterConfig<string, DateTime>.NewConfig().MapWith(s => DateTime.Parse(s, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind));
         TypeAdapterConfig<string, DateTime?>.NewConfig().MapWith(s => s == null ? null : DateTime.Parse(s, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind));
 

@@ -8,6 +8,7 @@ using SupportRoom.Application.Realtime;
 using SupportRoom.Application.ViewModel;
 using SupportRoom.Domain;
 using SupportRoom.Domain.Entities;
+using SupportRoom.Domain.Enums;
 using SupportRoom.Providers.Data.Data.UnitOfWork;
 using SupportRoom.Providers.Data.Repository;
 
@@ -37,7 +38,20 @@ public sealed class ChatMessageService(
 
     public async Task<ChatMessageViewModel> SendAsync(SendChatMessageDto input)
     {
+        if (string.IsNullOrWhiteSpace(input.Text) || input.Text.Length > DtoLimits.MaxTextLength)
+        {
+            throw GeneralException.ValidationError($"ข้อความต้องมี 1-{DtoLimits.MaxTextLength} ตัวอักษร");
+        }
+        if (input.SenderRole is not (ChatSenderRole.Recipient or ChatSenderRole.Agent or ChatSenderRole.System))
+        {
+            throw GeneralException.ValidationError("ประเภทผู้ส่งข้อความไม่ถูกต้อง");
+        }
+
         var session = _learningSessionRepository.Get(input.SessionId) ?? throw GeneralException.NotFound("การเรียน");
+        if (session.Status == SessionStatus.Ended)
+        {
+            throw GeneralException.ValidationError("การเรียนนี้จบแล้ว ไม่สามารถส่งข้อความเพิ่มได้");
+        }
 
         var entity = new ChatMessage
         {

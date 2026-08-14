@@ -141,6 +141,32 @@ public class LearningSessionServiceTests
     }
 
     [Fact]
+    public void Join_ReturnsAnExistingSessionAfterLinkExpiry_SoAReconnectCanFinish()
+    {
+        var token = SeedLink();
+        var first = _service.Join(token, new JoinLearningSessionDto { RecipientName = "ครูเอ", LearnerKey = "key-1" });
+        var link = _links.Items.Single();
+        _links.Items[0] = new TrainingLink
+        {
+            Id = link.Id,
+            CompanyId = link.CompanyId,
+            Token = link.Token,
+            LessonId = link.LessonId,
+            LessonSlug = link.LessonSlug,
+            RecipientOrgName = link.RecipientOrgName,
+            ExpiresAt = DateTime.UtcNow.AddMinutes(-1),
+            MaxAttendees = link.MaxAttendees,
+            CreateBy = link.CreateBy,
+            CreateDate = link.CreateDate,
+        };
+
+        var reopened = _service.Join(token, new JoinLearningSessionDto { RecipientName = "ครูเอ", LearnerKey = "key-1" });
+
+        Assert.Equal(first.Id, reopened.Id);
+        Assert.Single(_learningSessions.Items);
+    }
+
+    [Fact]
     public void Join_RejectsABlankName()
     {
         var token = SeedLink();
@@ -166,6 +192,40 @@ public class LearningSessionServiceTests
         Assert.Equal("slide-7", moved.LastSlideObjectId);
         Assert.Equal(6, moved.LastSlideIndex);
         Assert.Single(_learningSessions.Items);
+    }
+
+    [Fact]
+    public void UpdateProgress_RefusesToRewriteAFinishedSession()
+    {
+        var token = SeedLink();
+        _service.Join(token, new JoinLearningSessionDto { RecipientName = "ครูเอ", LearnerKey = "key-1" });
+        _service.End(token, new EndLearningSessionDto { LearnerKey = "key-1", CompletedAllSlides = true });
+
+        Assert.Throws<HttpStatusCodeException>(() => _service.UpdateProgress(token, new UpdateLearningProgressDto
+        {
+            LearnerKey = "key-1",
+            LastSlideObjectId = "slide-after-end",
+            LastSlideIndex = 99,
+        }));
+    }
+
+    [Fact]
+    public void End_IsIdempotent_AndDoesNotRewriteTheOriginalEndTime()
+    {
+        var token = SeedLink();
+        _service.Join(token, new JoinLearningSessionDto { RecipientName = "ครูเอ", LearnerKey = "key-1" });
+        var first = _service.End(token, new EndLearningSessionDto { LearnerKey = "key-1", CompletedAllSlides = true });
+
+        var second = _service.End(token, new EndLearningSessionDto
+        {
+            LearnerKey = "key-1",
+            CompletedAllSlides = false,
+            LastSlideIndex = 99,
+        });
+
+        Assert.Equal(first.EndedAt, second.EndedAt);
+        Assert.True(second.CompletedAllSlides);
+        Assert.NotEqual(99, second.LastSlideIndex);
     }
 
     [Fact]

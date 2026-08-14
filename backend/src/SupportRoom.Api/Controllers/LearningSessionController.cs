@@ -49,16 +49,15 @@ public sealed class LearningSessionController : ControllerBase
     /// The learner's own recap. Goes through (token, learnerKey) rather than accepting a session
     /// id so nobody can read another learner's recap by holding the same link.
     ///
-    /// ⚠️ UnansweredPoints in this payload is internal (CORE_FEATURE_SPEC §2.5) - the learner-facing
-    /// screen renders questions only. It is served here because the CS console reuses the shape;
-    /// splitting the two payloads is the follow-up if that stops being true.
+    /// This response deliberately uses a learner-only shape: internal unanswered-point follow-up
+    /// and CS review fields are available only from the authenticated by-id endpoint below.
     /// </summary>
     [AllowAnonymous]
     [HttpGet("{token}/summary")]
     public ActionResult GetOwnSummary([FromRoute] string token, [FromQuery] string learnerKey)
     {
         var session = _service.GetEntityByLearnerKey(token, learnerKey);
-        return Ok(new { learningSession = _service.GetById(session.Id), summary = _service.GetSummary(session.Id) });
+        return Ok(new { learningSession = _service.GetById(session.Id), summary = _service.GetLearnerSummary(session.Id) });
     }
 
     /// <summary>CS-facing: any learning session by id, with review fields on every question.</summary>

@@ -77,10 +77,41 @@ public class TrainingLinkServiceTests
     }
 
     [Fact]
+    public void Create_RefusesAnInactiveLesson()
+    {
+        var lesson = SeedLesson("lesson-a");
+        lesson.IsActive = false;
+
+        var ex = Assert.Throws<HttpStatusCodeException>(
+            () => _service.Create(new CreateTrainingLinkDto { LessonSlug = "lesson-a" }));
+
+        Assert.Equal(400, (int)ex.StatusCode);
+        Assert.Empty(_links.Items);
+    }
+
+    [Fact]
     public void GetById_And_GetByToken_ThrowNotFound_WhenMissing()
     {
         Assert.Throws<HttpStatusCodeException>(() => _service.GetById("nope"));
         Assert.Throws<HttpStatusCodeException>(() => _service.GetByToken("nope"));
+    }
+
+    [Fact]
+    public void GetByToken_RefusesToReplaceAnAlreadySelectedCompanyContext()
+    {
+        _links.Items.Add(new TrainingLink
+        {
+            Id = "link-other",
+            CompanyId = TestFixtures.OtherCompanyId,
+            Token = "token-other",
+            LessonId = "lesson-other",
+            LessonSlug = "lesson-a",
+            ExpiresAt = DateTime.UtcNow.AddHours(1),
+        });
+
+        var ex = Assert.Throws<HttpStatusCodeException>(() => _service.GetByToken("token-other"));
+
+        Assert.Equal(403, (int)ex.StatusCode);
     }
 
     [Fact]

@@ -43,7 +43,6 @@ public sealed class DocumentResourceService(
     IServiceProvider serviceProvider,
     ILogger<IDocumentResourceService> logger,
     IDocumentStorageProvider storageProvider,
-    IKnowledgeIndexingService knowledgeIndexingService,
     IBackgroundTaskQueue taskQueue)
     : ServiceBase<IDocumentResourceService>(unitOfWork, serviceProvider, logger), IDocumentResourceService
 {

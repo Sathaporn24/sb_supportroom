@@ -43,6 +43,10 @@ public sealed class VoiceQuestionService(
         // identifying a person once one link started serving a whole department.
         var learningSessionService = ServiceProvider.GetRequiredService<ILearningSessionService>();
         var session = learningSessionService.GetEntityByLearnerKey(input.Token, input.LearnerKey);
+        if (session.Status == SessionStatus.Ended)
+        {
+            throw GeneralException.ValidationError("การเรียนนี้จบแล้ว กรุณากดเรียนอีกครั้งก่อนถามคำถามใหม่");
+        }
         var link = ServiceProvider.GetRequiredService<ITrainingLinkService>().GetEntityByToken(input.Token);
 
         // Resolve slides through the single content-source-agnostic path so voice questions work

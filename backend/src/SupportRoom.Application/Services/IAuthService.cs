@@ -26,6 +26,7 @@ public static class AuthClaims
     public const string UserId = "sub";
     public const string Role = "role";
     public const string CompanyId = "company_id";
+    public const string DisplayName = "display_name";
 }
 
 public interface IAuthService
@@ -124,6 +125,7 @@ public sealed class AuthService(
         {
             new(AuthClaims.UserId, user.Id),
             new(AuthClaims.Role, user.Role),
+            new(AuthClaims.DisplayName, user.DisplayName),
         };
 
         // Absent rather than empty for an owner: an empty-string company would compare equal to

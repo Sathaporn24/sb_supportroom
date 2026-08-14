@@ -71,6 +71,31 @@ public class ChatMessageServiceTests
     }
 
     [Fact]
+    public async Task SendAsync_ValidatesHubInputEvenWithoutControllerModelBinding()
+    {
+        Seed();
+
+        var blank = await Assert.ThrowsAsync<HttpStatusCodeException>(
+            () => _service.SendAsync(new SendChatMessageDto
+            {
+                SessionId = "learning-1",
+                SenderRole = ChatSenderRole.Recipient,
+                Text = " ",
+            }));
+        var invalidRole = await Assert.ThrowsAsync<HttpStatusCodeException>(
+            () => _service.SendAsync(new SendChatMessageDto
+            {
+                SessionId = "learning-1",
+                SenderRole = "spoofed",
+                Text = "hello",
+            }));
+
+        Assert.Equal(400, (int)blank.StatusCode);
+        Assert.Equal(400, (int)invalidRole.StatusCode);
+        Assert.Empty(_messages.Items);
+    }
+
+    [Fact]
     public async Task SendAsync_BroadcastsToTheLearningSession_NotTheLinkToken()
     {
         Seed("learning-1", "tok-1");
@@ -91,6 +116,24 @@ public class ChatMessageServiceTests
         // receive this message.
         Assert.Equal("learning-1", _notifier.LastChatTarget);
         Assert.NotEqual("tok-1", _notifier.LastChatTarget);
+    }
+
+    [Fact]
+    public async Task SendAsync_RefusesMessagesAfterTheLearningSessionEnded()
+    {
+        Seed("learning-1", "tok-1");
+        _learningSessions.Items.Single().Status = SessionStatus.Ended;
+
+        var ex = await Assert.ThrowsAsync<HttpStatusCodeException>(
+            () => _service.SendAsync(new SendChatMessageDto
+            {
+                SessionId = "learning-1",
+                SenderRole = ChatSenderRole.Recipient,
+                Text = "ส่งหลังจบ",
+            }));
+
+        Assert.Equal(400, (int)ex.StatusCode);
+        Assert.Empty(_messages.Items);
     }
 
     [Fact]
