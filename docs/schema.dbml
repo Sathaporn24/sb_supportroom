@@ -1,6 +1,9 @@
-// SupportRoom AI — PostgreSQL schema
-// สร้างจาก EF Core migrations จริง รวมถึง 20260813140603_SplitLinkAndAddAuth
-// (TD-013 แยกลิงก์/การเรียน + TD-014 auth/Company) — อัปเดต 13 ส.ค. 2026
+// SupportRoom AI — CURRENT-STATE LOGICAL SCHEMA (AS-IS)
+// สถานะเอกสาร: พร้อมใช้เป็น baseline สำหรับส่งต่อทีม Backend / review ERD / วางใน dbdiagram.io
+// ไม่ใช่: production SQL, หลักฐานว่า migration ผ่าน staging, หรือแบบ To-Be ของ Provider/Knowledge
+// แหล่งจริงสำหรับสร้างฐานข้อมูล: EF Core migrations (ล่าสุด 20260813140603_SplitLinkAndAddAuth)
+// ตรวจเทียบกับ Domain entities + ApplicationDbContext + migration ล่าสุดเมื่อ 14 ส.ค. 2026
+// (TD-013 แยกลิงก์/การเรียน + TD-014 auth/Company)
 //
 // ไฟล์นี้บอก "อะไร" — เหตุผลเบื้องหลังแต่ละการตัดสินใจ ("ทำไม") อยู่ที่:
 //   TD-013 + TD-014 ใน docs/TECH_DECISIONS.md   — ตัดสินใจเชิงสถาปัตยกรรม/ความปลอดภัย
@@ -9,9 +12,12 @@
 // ⚠️ migration เขียนเสร็จและตรวจ SQL ที่ generate แล้ว (ยืนยันว่า RENAME ไม่ใช่ DROP —
 //    ข้อมูลลิงก์เดิมไม่หาย) แต่ "ยังไม่เคย apply กับฐานข้อมูลจริงสักครั้ง" — เครื่องที่เขียนโค้ด
 //    ล่าสุดไม่มีทั้ง Postgres และ Docker รันคำสั่งนี้แล้วอัปเดตบรรทัดนี้ทันทีที่ apply สำเร็จ:
-//      dotnet ef database update --project src/SupportRoom.Providers.Data --startup-project src/SupportRoom.Api
+//      dotnet ef database update --project backend/src/SupportRoom.Providers.Data --startup-project backend/src/SupportRoom.Api
 //    ต้องตั้ง JWT_SECRET (≥32 ตัว) ใน .env ก่อน ไม่งั้น backend สตาร์ทไม่ขึ้น — ดู .env.example
-// วางลง https://dbdiagram.io ได้เลย
+// วิธีส่งมอบ: ส่งไฟล์นี้คู่กับ docs/BACKEND_DB_HANDOFF.md และ migration ล่าสุดเสมอ
+// วางลง https://dbdiagram.io เพื่อดู ERD ได้เลย แต่ห้ามใช้ไฟล์นี้ apply production โดยตรง
+// Provider/API key และ Knowledge เวอร์ชันถัดไปยังไม่อยู่ใน schema นี้ เพราะยังมี decision gate
+// เรื่อง shared key/BYOK, secret storage, provider versioning และ knowledge quality workflow
 //
 // ⚠️ ความสัมพันธ์ทุกเส้นด้านล่างเป็น "logical" เท่านั้น
 //    ไม่มี FOREIGN KEY จริงในฐานข้อมูล (ไม่มี navigation property ใน OnModelCreating)
@@ -21,6 +27,10 @@ Project supportroom {
   database_type: 'PostgreSQL'
   Note: '''
   ห้องเรียนสาธิตด้วยเสียงสำหรับทีม CS ของ School Bright
+
+  สถานะ: AS-IS logical model ของระบบที่ implement แล้ว
+  Deployment: migration ล่าสุดยังไม่ผ่าน staging PostgreSQL
+  Future scope: Provider/API key management และ Knowledge workflow รุ่นถัดไปยังไม่รวม
 
   ข้อมูลที่ไม่ได้อยู่ในฐานข้อมูลนี้:
   - Vector สำหรับ RAG อยู่ใน Pinecone (นอก PostgreSQL)
@@ -259,14 +269,19 @@ Table DocumentResource {
 
 // ── ความสัมพันธ์ (logical เท่านั้น ไม่มี FK จริงในฐานข้อมูล) ──
 
-// ทุกตารางที่มี CompanyId ผูกกับ Company.Id เชิง concept — ไม่ได้วาดเส้นให้ดูรก
-// แต่ผูก 2 เส้นแรกไว้ให้เห็นภาพว่า Company เป็นรากของทั้ง identity และข้อมูล
+// ทุกเส้นเป็น logical relationship เพื่อส่งต่อ domain model — ไม่มี FK constraint จริง
+// วาด CompanyId ครบทุกตารางเพื่อให้ทีมเห็น tenant boundary ชัดเจน
 Ref: AdminUser.CompanyId > Company.Id
 Ref: LessonConfig.CompanyId > Company.Id
+Ref: TrainingLink.CompanyId > Company.Id
+Ref: LearningSession.CompanyId > Company.Id
+Ref: SessionQuestion.CompanyId > Company.Id
+Ref: ChatMessage.CompanyId > Company.Id
+Ref: DocumentResource.CompanyId > Company.Id
 
 Ref: TrainingLink.LessonId > LessonConfig.Id
 Ref: DocumentResource.LessonId > LessonConfig.Id
-Ref: LessonConfig.PdfDocumentResourceId - DocumentResource.Id
+Ref: LessonConfig.PdfDocumentResourceId > DocumentResource.Id
 Ref: LearningSession.TrainingLinkId > TrainingLink.Id
 Ref: SessionQuestion.SessionId > LearningSession.Id
 Ref: ChatMessage.SessionId > LearningSession.Id
@@ -326,6 +341,6 @@ TableGroup session_runtime {
 // (รายละเอียดขั้นตอนอยู่ในตัว migration ไฟล์เอง ไม่ใช่ที่นี่ เพื่อไม่ให้สองที่ไม่ตรงกัน)
 //
 // รัน apply เมื่อพร้อม:
-//   dotnet ef database update --project src/SupportRoom.Providers.Data --startup-project src/SupportRoom.Api
+//   dotnet ef database update --project backend/src/SupportRoom.Providers.Data --startup-project backend/src/SupportRoom.Api
 // ต้องตั้ง JWT_SECRET (≥32 ตัว) ก่อน backend จะสตาร์ทไม่ขึ้นถ้าไม่มี — ดู .env.example
 // ──────────────────────────────────────────────────────────────

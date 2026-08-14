@@ -28,7 +28,7 @@ Client) — ดู `backend/src/SupportRoom.Providers.Data/Migrations/` สำ�
 
 **ข้อดี**: Postgres เป็นมาตรฐานที่ทีมส่วนใหญ่คุ้นเคย, Supabase ให้ Dashboard/Migration
 Tool พร้อมใช้ทันทีโดยไม่ต้องดูแล Infra เอง, RLS ให้ Defense-in-depth เพิ่มจาก
-Application-level Auth (แม้ปัจจุบันยังไม่มี Auth ก็ตาม)
+Application-level Auth (ปัจจุบัน back office ใช้ JWT/RBAC แล้ว)
 
 **ข้อเสีย/ความเสี่ยงที่ยอมรับ**:
 

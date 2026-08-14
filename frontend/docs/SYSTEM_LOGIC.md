@@ -46,11 +46,11 @@ Backend enforce expiry ตอน join แล้ว — แต่จงใจไ�
 
 ## Realtime Chat
 
-- Teacher/Admin join SignalR group ด้วย session token
-- `SendChatMessage` persist PostgreSQL แล้ว broadcast `ReceiveChatMessage`
+- Teacher/Agent join SignalR group ที่ derive เป็น LearningSession id ฝั่ง server
+- `SendChatMessage(token, learnerKey, text)` persist PostgreSQL แล้ว broadcast `ReceiveChatMessage`; server derive role/name
 - Push-to-Talk question broadcast `ReceiveNewQuestion`
 - REST endpoints ใช้ hydrate history เมื่อเปิดหน้าช้าหรือ reconnect
-- ปัจจุบันยังไม่มี identity proof และ client สามารถระบุ `senderRole` เอง
+- Learner derive ชื่อจาก LearningSession; agent derive ชื่อจาก JWT และ client ระบุ role เองไม่ได้
 
 ## TTS and Volume
 

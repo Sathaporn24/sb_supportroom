@@ -2,6 +2,9 @@
 
 Base URL มาจาก `NEXT_PUBLIC_API_BASE_URL` และ response JSON ใช้ camelCase
 
+Frontend แยก request ชัดเจน: learner endpoints ไม่แนบ admin JWT และไม่แนบ `?company=` แม้เปิด
+ใน browser ที่ล็อกอินหลังบ้านอยู่; back-office endpoints แนบทั้ง JWT และ company context
+
 Error กลาง:
 
 ```json
@@ -15,28 +18,30 @@ Error กลาง:
 | GET | `/api/health` | สถานะ API และ provider selection |
 | GET | `/api/lessons` | รายการบทเรียน |
 | POST | `/api/lessons` | create/update lesson ตาม slug |
-| GET | `/api/lessons/{slug}` | lesson + resolved teaching content |
+| GET | `/api/lessons/{slug}` | lesson + resolved teaching content (back office, JWT) |
+| GET | `/api/lessons/by-link/{token}` | learner-safe lesson timing + resolved teaching content; ไม่มี source/provider/document IDs |
 | GET | `/api/lessons/pdf-preview?documentId=` | preview PDF เป็น slides |
-| GET | `/api/lessons/pdf-pages/{documentId}/{pageNumber}` | rendered PDF page image |
+| GET | `/api/lessons/pdf-pages/{token}/{documentId}/{pageNumber}` | learner PDF page; token ต้องชี้มาที่บทเรียนที่ใช้ document นี้ |
 | POST | `/api/slides/resolve` | resolve Google Slides URL |
 | GET | `/api/slides/content?presentationId=` | slide order และ speaker notes |
 | GET | `/api/training-links` | รายการลิงก์ + จำนวนผู้เข้าเรียนต่อลิงก์ |
 | POST | `/api/training-links` | สร้างลิงก์ (ไม่มีชื่อผู้รับแล้ว) |
-| GET | `/api/training-links/{token}` | ลิงก์ + lesson title (หน้า join โหลดอันนี้) |
+| GET | `/api/training-links/{token}` | public link metadata ขั้นต่ำ + lesson title (หน้า join/room) |
+| GET | `/api/training-links/by-token/{token}` | full link metadata สำหรับ back office (JWT + company scope) |
 | GET | `/api/training-links/{id}/by-id` | ลิงก์ตาม internal ID |
 | GET | `/api/training-links/{id}/learning-sessions` | ทุกคนที่เปิดลิงก์นี้ (CS) |
 | POST | `/api/learning-sessions/{token}/join` | เข้าเรียน — idempotent ต่อ learnerKey |
 | POST | `/api/learning-sessions/{token}/restart` | เรียนอีกครั้ง (รอบใหม่) |
 | PATCH | `/api/learning-sessions/{token}/progress` | อัปเดตสไลด์ล่าสุด + LastActivityAt |
 | PATCH | `/api/learning-sessions/{token}/end` | จบการเรียน |
-| GET | `/api/learning-sessions/{token}/summary?learnerKey=` | สรุปของผู้เรียนเอง |
+| GET | `/api/learning-sessions/{token}/summary?learnerKey=` | สรุปของผู้เรียนเอง; ไม่มี review fields/UnansweredPoints |
 | GET | `/api/learning-sessions/{id}/summary/by-id` | สรุปของการเรียนใดก็ได้ (CS) |
 | GET | `/api/session-questions?token=&learnerKey=` | คำถามของผู้เรียนเอง |
 | GET | `/api/session-questions/by-learning-session/{id}` | คำถามในการเรียนหนึ่ง (CS) |
 | PATCH | `/api/session-questions/{id}/review` | CS ทำเครื่องหมายถูก/ผิด + หมายเหตุ |
 | GET | `/api/chat-messages?token=&learnerKey=` | chat ของผู้เรียนเอง |
 | GET | `/api/chat-messages/by-learning-session/{id}` | chat ในการเรียนหนึ่ง (CS) |
-| POST | `/api/tts` | JSON `{ text, rate? }` → audio bytes |
+| POST | `/api/tts` | JSON `{ text, token, learnerKey, rate? }` → audio bytes |
 | POST | `/api/voice-question` | multipart audio question/readiness |
 | GET | `/api/documents?lessonSlug=` | lesson documents หรือ standalone documents |
 | POST | `/api/documents` | upload document, สูงสุดตาม `MAX_DOCUMENT_UPLOAD_MB` |
@@ -107,20 +112,20 @@ Hub: `/hubs/session`
 เดิมใช้ token ซึ่งถูกต้องตอน 1 ลิงก์ = 1 คน แต่พอลิงก์เดียวเปิดกันทั้งหน่วยงาน กลุ่มที่ผูกกับ
 token จะยัดทุกคนไว้ห้องเดียวกัน แล้วส่งคำถาม/แชตของแต่ละคนไปให้ทุกคนที่ถือลิงก์เดียวกัน
 
-Client invokes (ฝั่งผู้เรียน — server derive group key จาก (token, learnerKey) ไม่รับจาก client):
+Client invokes (ฝั่งผู้เรียน — server derive group key/role จาก (token, learnerKey) ไม่รับจาก client):
 
 - `JoinSession(token, learnerKey)`
-- `SendChatMessage(token, learnerKey, senderRole, senderName, text)`
+- `SendChatMessage(token, learnerKey, text)` — server ใช้ชื่อจาก LearningSession
 
 Client invokes (ฝั่ง CS — ไม่มี learnerKey จึงอ้างด้วย id ตรง ๆ):
 
 - `JoinSessionAsAgent(learningSessionId)`
-- `SendChatMessageAsAgent(learningSessionId, senderName, text)`
+- `SendChatMessageAsAgent(learningSessionId, text)` — server ใช้ display name จาก JWT
 
 Server events:
 
 - `ReceiveChatMessage(ChatMessage)`
 - `ReceiveNewQuestion(SessionQuestion)`
 
-⚠️ ปัจจุบันไม่มี authentication (TD-002): เมธอดฝั่ง CS สองตัวข้างบนกันด้วย "GUID เดาไม่ได้"
-เท่านั้น และ `senderRole` ยังเชื่อค่าจาก client — สองจุดนี้คือที่ที่ต้องใส่ claim check ตอนทำ auth
+Agent connection ส่ง JWT ผ่าน `accessTokenFactory` และ `?company=`; agent methods ตรวจ auth
+ใน service guard ส่วน learner hub คง anonymous เพราะผู้เรียนไม่มีบัญชี

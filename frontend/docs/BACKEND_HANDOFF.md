@@ -18,34 +18,35 @@ Backend หลักคือ ASP.NET Core .NET 10 ใน `backend/`; Next.js Ro
 - Local storage และ Huawei OBS provider
 - Background document indexing
 - Serilog, correlation ID, error envelope และ Development OpenAPI
+- JWT login/RBAC (`owner`, `admin`, `cs`), Company switcher และ user management
+- TrainingLink/LearningSession split + answer review
 
 ## Startup Requirements
 
 1. PostgreSQL connection พร้อมและ apply EF migrations แล้ว
 2. `backend/src/SupportRoom.Api/.env` มี provider selections ครบ
-3. Credentials ของ providers ที่เลือกพร้อม
+3. `JWT_SECRET` และ credentials ของ providers ที่เลือกพร้อม
 4. Frontend ตั้ง `NEXT_PUBLIC_API_BASE_URL`
 5. Production ตั้ง `ALLOWED_ORIGINS`
 
 ## Operational Notes
 
-- `ALLOW_DATA_RESET=true` เปิดทั้ง reset และ full reindex; ห้ามเปิดโดยไม่มี access control ใน production
+- `ALLOW_DATA_RESET=true` เปิด reset/full reindex เพิ่มจาก owner gate; ห้ามเปิดใน production
 - Logs อยู่ `backend/src/SupportRoom.Api/logs/` ตาม working directory ของ process
 - Local storage default อยู่ใต้ `storage/`; production ควรกำหนด path ถาวรหรือใช้ OBS
 - Application ไม่ auto-migrate database
 
 ## Outstanding Risks
 
-- ไม่มี authentication/authorization/rate limiting
+- มี authentication/authorization แล้ว แต่ยังไม่มี rate limiting/abuse controls
 - ~~Session expiry ยังไม่ enforce ฝั่ง backend~~ — enforce ที่ join แล้ว
 - ~~`PATCH /api/sessions/{token}` ยังตีความ unknown action เป็น end~~ — endpoint นั้นถูกแทนที่
   ด้วย `/api/learning-sessions/{token}/progress` กับ `/end` ที่แยกกัน ไม่มี action string แล้ว
-- **migration ของการแยก TrainingLink/LearningSession ยังไม่ได้สร้าง** และ backend ยังไม่เคย
-  build/test หลังการแยก (ต้องใช้ .NET 10 SDK)
+- migration `20260813140603_SplitLinkAndAddAuth` สร้างแล้ว แต่ยังไม่ apply กับ Postgres จริง
 - Background queue เป็น in-memory/unbounded
 - Document deletion ยังทิ้ง Pinecone vectors
 - EF Core package versions conflict
-- Tests ผสม unit และ live-provider integration tests
+- Live-provider tests แยกด้วย `Category=Integration` แล้ว; CI ยังไม่มี
 - API integration test project ยังเป็น placeholder
 - ไม่มี CI workflow
 

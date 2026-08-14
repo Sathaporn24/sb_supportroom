@@ -41,7 +41,7 @@ flowchart LR
 | สรุปผล | LearningSessionService.GetSummary (คำนวณสด ไม่มีตาราง summary) |
 | ตรวจคำตอบ | SessionQuestionService.Review |
 
-ปัจจุบันทุก use case ไม่มี authentication; link token เป็นเพียง public identifier
+Back office มี JWT/RBAC; learner flow ตั้งใจ anonymous โดย link token เป็น public capability
 ส่วน `learnerKey` ที่ browser เก็บใช้แยกคนบนลิงก์เดียวกัน ไม่ใช่ credential
 
 ผู้เรียน**ไม่เห็น** "จุดที่ตอบไม่ได้ รอ CS ตรวจสอบ" และไม่เห็นผลรีวิว — เป็นข้อมูลภายใน

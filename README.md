@@ -99,7 +99,7 @@ npm run build
 
 cd ../backend
 dotnet build SupportRoom.slnx
-dotnet test SupportRoom.slnx
+dotnet test SupportRoom.slnx --filter "Category!=Integration"
 ```
 
 Provider tests บางรายการเรียกบริการจริงและต้องมี credentials/network จึงควรแยกผล unit tests
@@ -107,15 +107,22 @@ Provider tests บางรายการเรียกบริการจ�
 
 ## สถานะและข้อจำกัดที่ต้องทราบ
 
-- ยังไม่มี authentication/authorization และ rate limiting
-- Backend ยังไม่บังคับ session expiry; frontend เป็นผู้ตรวจวันหมดอายุในปัจจุบัน
+- มี JWT authentication/authorization ฝั่ง back office (`owner`/`admin`/`cs`) แล้ว แต่ยังไม่มี rate limiting
+- Backend บังคับ session expiry สำหรับการเริ่มรอบใหม่; ผู้ที่เริ่มแล้วกลับมาเรียนต่อได้
 - Document indexing queue อยู่ใน memory และงาน Pending อาจสูญหายเมื่อ process restart
 - การลบเอกสารยังไม่ลบ vector รายเอกสารออกจาก Pinecone
 - ไม่มี CI workflow ใน repository
-- EF Core/Npgsql dependencies ต้องจัด version ให้ตรงกันเพื่อกำจัด assembly conflict warning
+- EF Core Relational ถูก pin เป็น 10.0.10 แล้ว; dependency แบบ floating ที่เหลือยังควรตรึงก่อนทำ CI
 
 ## เอกสาร
 
+- เริ่มส่งมอบงาน: [`docs/HANDOFF_MASTER.md`](./docs/HANDOFF_MASTER.md)
+- UX/UI wireframe specification: [`docs/UX_UI_WIREFRAME_SPEC.md`](./docs/UX_UI_WIREFRAME_SPEC.md)
+- UX/UI workflows: [`docs/UX_UI_WORKFLOWS.md`](./docs/UX_UI_WORKFLOWS.md)
+- UX/UI inventory/checklist: [`docs/UX_UI_HANDOFF.md`](./docs/UX_UI_HANDOFF.md)
+- Backend/DB handoff: [`docs/BACKEND_DB_HANDOFF.md`](./docs/BACKEND_DB_HANDOFF.md)
+- Provider/API key settings: [`docs/PROVIDER_SETTINGS_SPEC.md`](./docs/PROVIDER_SETTINGS_SPEC.md)
+- Knowledge roadmap: [`docs/KNOWLEDGE_ROADMAP.md`](./docs/KNOWLEDGE_ROADMAP.md)
 - ภาพรวมระบบ: [`frontend/docs/SYSTEM_ARCHITECTURE.md`](./frontend/docs/SYSTEM_ARCHITECTURE.md)
 - Environment: [`frontend/docs/ENVIRONMENT_SETUP.md`](./frontend/docs/ENVIRONMENT_SETUP.md)
 - API: [`frontend/docs/API_CONTRACT.md`](./frontend/docs/API_CONTRACT.md)

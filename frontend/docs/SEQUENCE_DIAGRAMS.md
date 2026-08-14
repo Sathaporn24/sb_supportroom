@@ -117,9 +117,9 @@ sequenceDiagram
     participant Hub as /hubs/session
     participant DB
     participant CS
-    Teacher->>Hub: JoinSession(token)
-    CS->>Hub: JoinSession(token)
-    Teacher->>Hub: SendChatMessage(...)
+    Teacher->>Hub: JoinSession(token, learnerKey)
+    CS->>Hub: JoinSessionAsAgent(learningSessionId) + JWT
+    Teacher->>Hub: SendChatMessage(token, learnerKey, text)
     Hub->>DB: persist
     Hub-->>Teacher: ReceiveChatMessage
     Hub-->>CS: ReceiveChatMessage

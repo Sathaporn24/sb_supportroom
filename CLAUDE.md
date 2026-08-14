@@ -16,6 +16,7 @@ Push-to-Talk ถามได้ตลอด → AI ตอบโดยอ้า�
 
 | ต้องการอะไร | อ่านที่ |
 |---|---|
+| ส่งมอบงานข้ามทีม / สถานะ / decision gates | [`docs/HANDOFF_MASTER.md`](./docs/HANDOFF_MASTER.md) |
 | ภาพรวมระบบตามโค้ดจริง, flow, ER, API map, หนี้เทคนิค | [`docs/PROJECT_CONTEXT.md`](./docs/PROJECT_CONTEXT.md) |
 | ทางเลือกเทคโนโลยี, build vs buy, MVP/Production/Scale | [`docs/SOLUTION_ARCHITECTURE.md`](./docs/SOLUTION_ARCHITECTURE.md) |
 | การตัดสินใจเชิงเทคนิคและเหตุผล | [`docs/TECH_DECISIONS.md`](./docs/TECH_DECISIONS.md) |
@@ -184,16 +185,15 @@ Convention ที่ไม่ปกติแต่จงใจ — ทำตา�
 
 - **Edge TTS ไม่เหมาะกับ production** — Microsoft เริ่มบล็อกการเรียก Read-Aloud แบบไม่เป็นทางการ
   (ธ.ค. 2025) และกรอง IP ของ datacenter; deploy บน cloud มีโอกาสสูงที่เสียงจะเงียบทั้งระบบ (TD-001)
-- ไม่มี auth/rate limiting — `/admin/*` เปิดสาธารณะเมื่อ deploy (TD-002)
+- มี JWT auth/RBAC หลังบ้านแล้ว แต่ยังไม่มี rate limiting/abuse controls (TD-002 ทำเพียงบางส่วน)
 - ไม่มี CI (`.github/workflows/` ว่างเปล่า) และไม่มี Dockerfile/deployment artifact (TD-006)
 - Background indexing queue เป็น in-memory — restart แล้วงานค้างที่ `pending` ตลอดไป (TD-003)
 - Document deletion ยังทิ้ง vectors ไว้ใน Pinecone (TD-004 — chunk id เป็น `{documentId}-{chunkId}`
   อยู่แล้ว ลบด้วย ID prefix ได้; serverless ไม่รองรับ delete by metadata filter)
-- **migration สำหรับการแยก TrainingLink/LearningSession ยังไม่ได้สร้าง — จงใจรอ** ให้ schema
-  ของ TD-014 (auth + ตาราง `Company`) เสร็จก่อน แล้วสร้าง migration ตัวเดียวคลุมทั้งสองอย่าง
-  ยังไม่เคย deploy migration ไหน จึงยุบรวมได้ฟรี ถ้าสร้างตอนนี้จะเสียเปล่าหนึ่งตัว
+- migration `20260813140603_SplitLinkAndAddAuth` สร้างรวม TD-013/TD-014 แล้ว แต่ยังไม่เคย apply
+  กับ PostgreSQL จริง ต้อง rehearsal บน staging และตรวจ backfill/rollback ก่อน deploy
 - API integration test project ยังไม่มี test ที่ยืนยัน endpoint จริง (`UnitTest1.cs` ยังเป็น template)
-- EF Core version conflict (MSB3277 ×15): Npgsql 10.0.3 ดึง EF Relational 10.0.4 vs ที่อ้าง 10.0.10
+- EF Core Relational conflict แก้แล้วโดย pin 10.0.10; ยังมี PackageReference แบบ floating ที่ควรตรึงก่อน CI
 - `IsDelete`/`DeletedAt` มีในทุก entity แต่โค้ดลบจริงทุกครั้ง ไม่มี global query filter
 - Frontend มี dependency ตกค้างที่ไม่มีโค้ดเรียกใช้: `googleapis`, `msedge-tts`, `zod`,
   `client-only`, `bufferutil`, `utf-8-validate`

@@ -1,7 +1,8 @@
 # CORE_FEATURE_SPEC — ฟีเจอร์หลัก: สร้างลิงก์ → เรียน → เก็บ log
 
 > เคาะกันเมื่อ 11 ส.ค. 2026 · ข้อที่ค้างเคาะครบเมื่อ 13 ส.ค. 2026 ([TD-013](./TECH_DECISIONS.md))
-> **ยังไม่ได้ลงมือ** — เอกสารนี้คือสเปกที่ตกลงแล้ว รอ implement
+> **ลงมือแล้วบน branch ปัจจุบัน** — ใช้เอกสารนี้เป็น product contract; ตรวจ implementation/audit
+> ล่าสุดที่ [`HANDOFF_MASTER.md`](./HANDOFF_MASTER.md)
 > ต่อยอดจาก [`PRODUCTION_ROADMAP.md`](./PRODUCTION_ROADMAP.md) และ [`TECH_DECISIONS.md`](./TECH_DECISIONS.md)
 
 ---

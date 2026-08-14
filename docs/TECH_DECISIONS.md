@@ -49,8 +49,8 @@ Azure subscription จากทีม
 
 ## TD-002 — ป้องกัน admin surface และใส่ rate limiting ก่อน deploy
 
-**Problem**
-ไม่มี authentication เลย `app.UseAuthorization()` เป็น no-op เมื่อ deploy ออกไป ใครก็ตามที่รู้ URL
+**Problem (baseline ตอนตัดสินใจ; auth แก้แล้วใน TD-014)**
+เดิมไม่มี authentication และ `app.UseAuthorization()` เป็น no-op เมื่อ deploy ออกไป ใครก็ตามที่รู้ URL
 สามารถอ่านบทเรียนทั้งหมด สร้าง/ลบข้อมูล เรียก `/api/admin/reset` (ถ้า `ALLOW_DATA_RESET=true`
 ซึ่ง `.env.example` ตั้งไว้เป็น `true`) และยิง `/api/tts` กับ `/api/voice-question` ที่มีค่าใช้จ่ายจริงได้ไม่จำกัด
 
@@ -77,7 +77,8 @@ Azure subscription จากทีม
 `ApiErrorCode.Unauthorized` ถูกเตรียมไว้เป็นจุดเสียบอยู่แล้ว
 เลือก **C** ก็ต่อเมื่อยืนยันได้ว่า School Bright มี IdP ที่ใช้ร่วมได้อยู่แล้ว — **ต้องถามทีมก่อน**
 
-**Status** `Proposed`
+**Status** `Accepted / Partially Implemented` (13 ส.ค. 2026) — JWT/RBAC/company authorization
+ทำแล้วใน TD-014; rate limiting และ production abuse controls ยังไม่ทำ
 
 ---
 
@@ -256,7 +257,7 @@ Pinecone เป็นระบบที่สองที่ต้อง sync �
    `bufferutil`, `utf-8-validate` (ไม่มีโค้ดเรียกใช้)
 2. ไฟล์ตกค้างที่ repo root: `node_modules/`, `.next/`, `next-env.d.ts`,
    `tsconfig.tsbuildinfo`, `public/` (เหลือจากตอนย้ายเป็น monorepo)
-3. EF Core version conflict — MSB3277 ×5 (Npgsql 10.0.3 ดึง EF Relational 10.0.4 vs ที่อ้าง 10.0.10)
+3. ~~EF Core version conflict~~ — แก้แล้วโดย pin EF Relational 10.0.10 ที่ Application project
 4. `PackageReference` แบบ floating: `AWSSDK.S3 3.*`, `PdfPig 0.*`,
    `DocumentFormat.OpenXml 3.*`, `PDFtoImage 5.*`
 5. `IsDelete`/`DeletedAt` มีในทุก entity แต่ไม่มีพฤติกรรม soft-delete จริง (ลบจริงทุกครั้ง
@@ -635,8 +636,8 @@ School Bright เป็นแถวหนึ่งใน `Company` ด้วย 
 
 **สิ่งที่ต้องทำไปพร้อมกัน เพราะทำทีหลังไม่ได้**
 
-ทุก entity มี `CreateBy` / `UpdateBy` จาก `IEntityMaster` อยู่แล้ว แต่ **ไม่มีที่ไหนในโค้ดเขียนค่าลงไปเลย
-(0 จุด)** ตอนนี้ยังไม่มี auth จึงไม่มีค่าจะเขียน — แต่พอ auth มาแล้ว การเติม user id ลงสองคอลัมน์นี้
+ก่อน TD-014 ทุก entity มี `CreateBy` / `UpdateBy` แต่ไม่มีที่ไหนเขียนค่า เพราะยังไม่มี auth;
+implementation ปัจจุบันเติม actor ใน write paths หลักแล้ว การเติม user id ลงสองคอลัมน์นี้
 แทบไม่มีต้นทุน ขณะที่ถ้าข้ามไป **จะไม่มีวันย้อนกลับไปรู้ได้ว่าใครสร้างลิงก์ไหน หรือใครรีวิวคำตอบไหน**
 ข้อมูลที่ไม่ได้บันทึกตอนนั้นสร้างขึ้นใหม่ไม่ได้ — ให้ทำไปกับ TD นี้ อย่าเลื่อน
 

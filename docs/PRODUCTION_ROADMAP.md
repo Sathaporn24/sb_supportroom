@@ -3,7 +3,7 @@
 > เป้าหมาย: deploy บน Huawei Cloud ให้ลูกค้าจริง (โรงเรียน + SCB) ใช้ได้
 > เหตุผลเบื้องหลังแต่ละข้ออยู่ใน [`TECH_DECISIONS.md`](./TECH_DECISIONS.md) — ไฟล์นี้คือ *ลำดับงาน* ไม่ใช่การวิเคราะห์
 >
-> อัปเดตล่าสุด 11 ส.ค. 2026
+> อัปเดตสถานะ audit ล่าสุด 13 ส.ค. 2026 — ดูภาพรวมส่งมอบที่ [`HANDOFF_MASTER.md`](./HANDOFF_MASTER.md)
 
 ---
 
@@ -49,19 +49,20 @@ Edge TTS ถูก Microsoft ปิดกั้นบน datacenter IP — deplo
 - [ ] เก็บ `edge` ไว้สำหรับ dev ในเครื่อง
 - [ ] ทดสอบจริงจาก IP ปลายทางที่จะ deploy (ไม่ใช่จากเครื่อง dev)
 
-### 1.2 Auth + rate limiting 🔴
+### 1.2 Auth ✅ baseline แล้ว + rate limiting 🔴
 
-- [ ] ต่อ IdP ของบริษัทกับ `/admin/*` และ `/api/admin/*`
+- [x] JWT login/RBAC + owner/admin/cs + company authorization
+- [ ] ตัดสิน password reset/invite/SSO ตาม release scope
 - [ ] ใส่ `Microsoft.AspNetCore.RateLimiting` เฉพาะ `/api/tts` + `/api/voice-question`
       (สองเส้นนี้มีค่าใช้จ่ายจริงต่อครั้ง)
-- [ ] backend บังคับ session expiry ด้วย ไม่ใช่แค่ frontend
+- [x] backend บังคับ session expiry ตอนเริ่มรอบใหม่ และ session เดิม reconnect ได้
 - [ ] `ALLOW_DATA_RESET=false` ใน production
 - [ ] `ALLOWED_ORIGINS` ระบุ domain จริง
 - [ ] หมุน API key ที่เคยอยู่ใน git history
 
 ### 1.3 Docker + CI
 
-- [ ] แยก test ที่ยิง provider จริงด้วย xUnit trait (`Category=Integration`)
+- [x] แยก test ที่ยิง provider จริงด้วย xUnit trait (`Category=Integration`)
 - [ ] GitHub Actions: build + lint + typecheck + unit tests ทั้งสองฝั่ง
 - [ ] Dockerfile ฝั่ง API ⚠️ ต้องมี native PDFium สำหรับ `PDFtoImage`
 - [ ] Dockerfile ฝั่ง frontend
@@ -99,7 +100,7 @@ Edge TTS ถูก Microsoft ปิดกั้นบน datacenter IP — deplo
 - [ ] ลบไฟล์ตกค้างที่ repo root: `node_modules/`, `.next/`, `next-env.d.ts`,
       `tsconfig.tsbuildinfo`, `public/`
 - [ ] ตรึง `PackageReference` ที่เป็น `3.*` / `0.*` / `5.*`
-- [ ] แก้ EF Core version conflict (MSB3277 ×5)
+- [x] แก้ EF Core version conflict โดย pin Relational 10.0.10
 - [ ] ตัดสินใจเรื่อง `IsDelete`/`DeletedAt` — บังคับใช้จริง หรือลบทิ้ง
 
 ---
