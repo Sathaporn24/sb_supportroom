@@ -62,7 +62,11 @@ export function useSessionChat(
     });
     connection.onclose(() => setConnectionState("disconnected"));
 
-    connection
+    // Kept so teardown can wait for start() to settle before stopping. Calling stop() while
+    // negotiate is still in flight makes SignalR log "The connection was stopped during
+    // negotiation" - which React StrictMode provokes on every mount in dev, and which Next's
+    // error overlay then shows full-screen on top of the room.
+    const started = connection
       .start()
       .then(() => {
         if (cancelled) {
@@ -80,7 +84,9 @@ export function useSessionChat(
     return () => {
       cancelled = true;
       connectionRef.current = null;
-      void connection.stop();
+      // `started` never rejects (it ends in .catch), so this always runs; stop() on an
+      // already-failed connection is a no-op.
+      void started.then(() => connection.stop());
     };
   }, [token]);
 
