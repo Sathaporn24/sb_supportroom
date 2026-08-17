@@ -28,6 +28,10 @@ namespace SupportRoom.Providers.Data.Migrations
                     b.Property<string>("Id")
                         .HasColumnType("text");
 
+                    b.Property<string>("CompanyId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
                     b.Property<string>("CreateBy")
                         .HasColumnType("text");
 
@@ -66,6 +70,8 @@ namespace SupportRoom.Providers.Data.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("CompanyId");
+
                     b.HasIndex("SessionId");
 
                     b.ToTable("ChatMessage");
@@ -74,6 +80,10 @@ namespace SupportRoom.Providers.Data.Migrations
             modelBuilder.Entity("SupportRoom.Domain.Entities.DocumentResource", b =>
                 {
                     b.Property<string>("Id")
+                        .HasColumnType("text");
+
+                    b.Property<string>("CompanyId")
+                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<string>("ContentType")
@@ -128,6 +138,8 @@ namespace SupportRoom.Providers.Data.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("CompanyId");
+
                     b.HasIndex("LessonId");
 
                     b.ToTable("DocumentResource");
@@ -140,6 +152,10 @@ namespace SupportRoom.Providers.Data.Migrations
 
                     b.Property<int>("BreathPauseMs")
                         .HasColumnType("integer");
+
+                    b.Property<string>("CompanyId")
+                        .IsRequired()
+                        .HasColumnType("text");
 
                     b.Property<string>("ContentSourceType")
                         .IsRequired()
@@ -201,7 +217,7 @@ namespace SupportRoom.Providers.Data.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("Slug")
+                    b.HasIndex("CompanyId", "Slug")
                         .IsUnique();
 
                     b.ToTable("LessonConfig");
@@ -216,6 +232,10 @@ namespace SupportRoom.Providers.Data.Migrations
                         .HasColumnType("text");
 
                     b.Property<string>("AnswerStatus")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("CompanyId")
                         .IsRequired()
                         .HasColumnType("text");
 
@@ -252,6 +272,8 @@ namespace SupportRoom.Providers.Data.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("CompanyId");
+
                     b.HasIndex("SessionId");
 
                     b.ToTable("SessionQuestion");
@@ -260,6 +282,10 @@ namespace SupportRoom.Providers.Data.Migrations
             modelBuilder.Entity("SupportRoom.Domain.Entities.SessionSummary", b =>
                 {
                     b.Property<string>("Id")
+                        .HasColumnType("text");
+
+                    b.Property<string>("CompanyId")
+                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<bool>("CompletedAllSlides")
@@ -299,6 +325,8 @@ namespace SupportRoom.Providers.Data.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("CompanyId");
+
                     b.HasIndex("SessionId")
                         .IsUnique();
 
@@ -308,6 +336,10 @@ namespace SupportRoom.Providers.Data.Migrations
             modelBuilder.Entity("SupportRoom.Domain.Entities.TrainingSession", b =>
                 {
                     b.Property<string>("Id")
+                        .HasColumnType("text");
+
+                    b.Property<string>("CompanyId")
+                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<bool>("CompletedAllSlides")
@@ -345,7 +377,10 @@ namespace SupportRoom.Providers.Data.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<string>("SchoolName")
+                    b.Property<string>("RecipientName")
+                        .HasColumnType("text");
+
+                    b.Property<string>("RecipientOrgName")
                         .HasColumnType("text");
 
                     b.Property<DateTime?>("StartedAt")
@@ -353,9 +388,6 @@ namespace SupportRoom.Providers.Data.Migrations
 
                     b.Property<string>("Status")
                         .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("TeacherName")
                         .HasColumnType("text");
 
                     b.Property<string>("Token")
@@ -369,6 +401,8 @@ namespace SupportRoom.Providers.Data.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("CompanyId");
 
                     b.HasIndex("Token")
                         .IsUnique();

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Button } from "@/components/ui/button";
 
 export function CopyLinkButton({ url }: { url: string }) {
   const [copied, setCopied] = useState(false);
@@ -16,11 +17,8 @@ export function CopyLinkButton({ url }: { url: string }) {
   }
 
   return (
-    <button
-      onClick={handleCopy}
-      className="rounded-md border border-room-border bg-room-panelAlt px-2.5 py-1.5 text-xs text-room-text hover:border-room-accent/60"
-    >
+    <Button variant="outline" size="sm" onClick={handleCopy}>
       {copied ? "คัดลอกแล้ว" : "คัดลอกลิงก์"}
-    </button>
+    </Button>
   );
 }

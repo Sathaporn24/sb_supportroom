@@ -7,10 +7,15 @@ import * as api from "@/lib/api-client";
 import { ApiClientError } from "@/lib/api-client";
 import type { ContentSourceType, LessonConfig, SlideConfig } from "@/types/domain";
 import { DocumentUploadList } from "@/components/admin/DocumentUploadList";
-import { Button } from "@/components/ui/Button";
-import { Card } from "@/components/ui/Card";
-import { LoadingBlock } from "@/components/ui/LoadingBlock";
-import { Spinner } from "@/components/ui/Spinner";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Spinner } from "@/components/ui/spinner";
+import { LoadingBlock } from "@/components/shared/LoadingBlock";
 import { formatDateTimeTh } from "@/utils/format";
 
 type FormState = Omit<LessonConfig, "id" | "presentationId" | "createdAt" | "updatedAt">;
@@ -57,7 +62,7 @@ export default function LessonEditorPage() {
   }, [params.slug]);
 
   if (notFound) {
-    return <main className="p-6 text-room-muted">ไม่พบบทเรียนนี้ค่ะ</main>;
+    return <main className="p-6 text-muted-foreground">ไม่พบบทเรียนนี้ค่ะ</main>;
   }
   if (!form) {
     return (
@@ -171,7 +176,7 @@ export default function LessonEditorPage() {
 
   const syncButtonContent = syncing ? (
     <>
-      <Spinner className="h-4 w-4" />
+      <Spinner data-icon="inline-start" />
       กำลังตรวจสอบ...
     </>
   ) : (
@@ -179,7 +184,7 @@ export default function LessonEditorPage() {
   );
   const saveButtonContent = saving ? (
     <>
-      <Spinner className="h-4 w-4" />
+      <Spinner data-icon="inline-start" />
       กำลังบันทึก...
     </>
   ) : (
@@ -187,13 +192,13 @@ export default function LessonEditorPage() {
   );
 
   return (
-    <main className="mx-auto max-w-3xl space-y-6 p-6">
+    <main className="mx-auto flex max-w-3xl flex-col gap-6 p-6">
       <div className="flex items-center justify-between">
         <div>
-          <Link href="/admin/lessons" className="text-xs text-room-muted hover:text-room-text">
+          <Link href="/admin/lessons" className="text-xs text-muted-foreground hover:text-foreground">
             ← กลับรายการบทเรียน
           </Link>
-          <h1 className="mt-1 text-xl font-semibold text-room-text">แก้ไขบทเรียน: {form.title}</h1>
+          <h1 className="mt-1 text-xl font-semibold">แก้ไขบทเรียน: {form.title}</h1>
         </div>
         <div className="flex items-center gap-2">
           {form.contentSourceType === "google_slides" && (
@@ -207,180 +212,193 @@ export default function LessonEditorPage() {
         </div>
       </div>
 
-      {savedAt && <p className="text-xs text-room-accent">บันทึกแล้วเมื่อ {savedAt}</p>}
-      {syncStatus && <p className="text-xs text-amber-700">{syncStatus}</p>}
-      {syncedAt && <p className="text-xs text-room-muted">Sync ล่าสุด: {formatDateTimeTh(syncedAt)}</p>}
+      {savedAt && <p className="text-xs text-primary">บันทึกแล้วเมื่อ {savedAt}</p>}
+      {/* ข้อความนี้เป็นได้ทั้งสำเร็จและล้มเหลว (เช่น env ที่ยังไม่ได้ตั้ง) - ต้องอ่านออกชัด
+          ไม่ใช่สีจางแบบ muted ไม่งั้น error จะกลืนไปกับบรรทัดสถานะอื่น */}
+      {syncStatus && <p className="text-xs font-medium text-foreground">{syncStatus}</p>}
+      {syncedAt && <p className="text-xs text-muted-foreground">Sync ล่าสุด: {formatDateTimeTh(syncedAt)}</p>}
       {lesson?.presentationId && !syncedAt && (
-        <p className="text-xs text-room-muted">presentationId ปัจจุบัน: {lesson.presentationId}</p>
+        <p className="text-xs text-muted-foreground">presentationId ปัจจุบัน: {lesson.presentationId}</p>
       )}
 
-      <Card className="space-y-4">
-        <label className="block text-sm">
-          <span className="mb-1 block text-room-muted">ชื่อบทเรียน</span>
-          <input
-            value={form.title}
-            onChange={(e) => setForm({ ...form, title: e.target.value })}
-            className="w-full rounded-lg border border-room-border bg-room-bg px-3 py-2 text-room-text outline-none focus:border-room-accent"
-          />
-        </label>
-        <div className="space-y-2">
-          <span className="block text-sm text-room-muted">แหล่งเนื้อหาสอน</span>
-          <div className="flex gap-4 text-sm text-room-text">
-            <label className="flex items-center gap-2">
-              <input
-                type="radio"
-                name="contentSourceType"
-                checked={form.contentSourceType === "google_slides"}
-                onChange={() => handleContentSourceChange("google_slides")}
-                className="h-4 w-4"
-              />
-              Google Slides
-            </label>
-            <label className="flex items-center gap-2">
-              <input
-                type="radio"
-                name="contentSourceType"
-                checked={form.contentSourceType === "pdf"}
-                onChange={() => handleContentSourceChange("pdf")}
-                className="h-4 w-4"
-              />
-              PDF
-            </label>
-          </div>
-        </div>
-
-        {form.contentSourceType === "google_slides" ? (
-          <>
-            <label className="block text-sm">
-              <span className="mb-1 block text-room-muted">Google Slides Source URL (ลิงก์แก้ไข /edit)</span>
-              <input
-                value={form.slidesSourceUrl}
-                onChange={(e) => setForm({ ...form, slidesSourceUrl: e.target.value })}
-                placeholder="https://docs.google.com/presentation/d/xxxxx/edit"
-                className="w-full rounded-lg border border-room-border bg-room-bg px-3 py-2 text-room-text outline-none focus:border-room-accent"
-              />
-            </label>
-            <label className="block text-sm">
-              <span className="mb-1 block text-room-muted">Published/Embed URL (ไม่บังคับ ถ้าไม่ระบุจะสร้างให้อัตโนมัติ)</span>
-              <input
-                value={form.slidesEmbedUrl ?? ""}
-                onChange={(e) => setForm({ ...form, slidesEmbedUrl: e.target.value || null })}
-                className="w-full rounded-lg border border-room-border bg-room-bg px-3 py-2 text-room-text outline-none focus:border-room-accent"
-              />
-            </label>
-          </>
-        ) : (
-          <div className="space-y-2">
-            <span className="block text-sm text-room-muted">ไฟล์ PDF ({form.slideConfigs.length} หน้าที่อ่านได้แล้ว)</span>
-            <input
-              type="file"
-              accept="application/pdf"
-              disabled={pdfUploading}
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (file) void handlePdfUpload(file);
-                e.target.value = "";
-              }}
-              className="block w-full text-sm text-room-text file:mr-3 file:rounded-lg file:border-0 file:bg-room-accentSoft file:px-3 file:py-2 file:text-sm file:font-medium"
+      <Card>
+        <CardContent className="flex flex-col gap-4">
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="lesson-title">ชื่อบทเรียน</Label>
+            <Input
+              id="lesson-title"
+              value={form.title}
+              onChange={(e) => setForm({ ...form, title: e.target.value })}
             />
-            <p className="text-xs text-room-muted">
-              อัปโหลดไฟล์ใหม่เพื่อแทนที่ไฟล์เดิม — แต่ละหน้าจะกลายเป็น 1 Slide โดยใช้ข้อความในหน้านั้นเป็นบทพูดของ AI โดยตรง
-            </p>
           </div>
-        )}
 
-        <label className="flex items-center gap-2 text-sm text-room-text">
-          <input
-            type="checkbox"
-            checked={form.isActive}
-            onChange={(e) => setForm({ ...form, isActive: e.target.checked })}
-            className="h-4 w-4 rounded border-room-border"
-          />
-          เปิดใช้งานบทเรียนนี้ (พร้อมให้สร้างลิงก์การสอน)
-        </label>
-        <p className="text-xs text-room-muted">
-          หมายเหตุ: 1 Slide = 1 ช่วงการสอน · Speaker Notes ของแต่ละ Slide คือบทพูดของ AI โดยตรง ไม่ต้องใส่คำสั่งพิเศษใดๆ ในช่อง
-          Notes · หากมีวิดีโอใน Slide ต้องปิดเสียงวิดีโอไว้เสมอ
-        </p>
+          <div className="flex flex-col gap-2">
+            <Label>แหล่งเนื้อหาสอน</Label>
+            <RadioGroup
+              value={form.contentSourceType}
+              onValueChange={(value) => handleContentSourceChange(value as ContentSourceType)}
+              className="flex flex-row gap-4"
+            >
+              <Label className="font-normal">
+                <RadioGroupItem value="google_slides" />
+                Google Slides
+              </Label>
+              <Label className="font-normal">
+                <RadioGroupItem value="pdf" />
+                PDF
+              </Label>
+            </RadioGroup>
+          </div>
+
+          {form.contentSourceType === "google_slides" ? (
+            <>
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="slides-source-url">Google Slides Source URL (ลิงก์แก้ไข /edit)</Label>
+                <Input
+                  id="slides-source-url"
+                  value={form.slidesSourceUrl}
+                  onChange={(e) => setForm({ ...form, slidesSourceUrl: e.target.value })}
+                  placeholder="https://docs.google.com/presentation/d/xxxxx/edit"
+                />
+              </div>
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="slides-embed-url">
+                  Published/Embed URL (ไม่บังคับ ถ้าไม่ระบุจะสร้างให้อัตโนมัติ)
+                </Label>
+                <Input
+                  id="slides-embed-url"
+                  value={form.slidesEmbedUrl ?? ""}
+                  onChange={(e) => setForm({ ...form, slidesEmbedUrl: e.target.value || null })}
+                />
+              </div>
+            </>
+          ) : (
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="pdf-file">ไฟล์ PDF ({form.slideConfigs.length} หน้าที่อ่านได้แล้ว)</Label>
+              <Input
+                id="pdf-file"
+                type="file"
+                accept="application/pdf"
+                disabled={pdfUploading}
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) void handlePdfUpload(file);
+                  e.target.value = "";
+                }}
+                className="h-auto py-1.5"
+              />
+              <p className="text-xs text-muted-foreground">
+                อัปโหลดไฟล์ใหม่เพื่อแทนที่ไฟล์เดิม — แต่ละหน้าจะกลายเป็น 1 Slide
+                โดยใช้ข้อความในหน้านั้นเป็นบทพูดของ AI โดยตรง
+              </p>
+            </div>
+          )}
+
+          <Label className="font-normal">
+            <Checkbox
+              checked={form.isActive}
+              onCheckedChange={(checked) => setForm({ ...form, isActive: checked === true })}
+            />
+            เปิดใช้งานบทเรียนนี้ (พร้อมให้สร้างลิงก์การสอน)
+          </Label>
+          <p className="text-xs text-muted-foreground">
+            หมายเหตุ: 1 Slide = 1 ช่วงการสอน · Speaker Notes ของแต่ละ Slide คือบทพูดของ AI โดยตรง
+            ไม่ต้องใส่คำสั่งพิเศษใดๆ ในช่อง Notes · หากมีวิดีโอใน Slide ต้องปิดเสียงวิดีโอไว้เสมอ
+          </p>
+        </CardContent>
       </Card>
 
-      <Card className="space-y-4">
-        <p className="text-xs uppercase tracking-wide text-room-muted">จังหวะเวลา (ทั้งบทเรียน)</p>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-          <label className="block text-sm">
-            <span className="mb-1 block text-room-muted">รอตอบรับก่อนเริ่ม (ms)</span>
-            <input
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-xs tracking-wide text-muted-foreground uppercase">
+            จังหวะเวลา (ทั้งบทเรียน)
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="intro-wait">รอตอบรับก่อนเริ่ม (ms)</Label>
+            <Input
+              id="intro-wait"
               type="number"
               min={0}
               value={form.introWaitMs}
               onChange={(e) => setForm({ ...form, introWaitMs: Math.max(0, Number(e.target.value) || 0) })}
-              className="w-full rounded-lg border border-room-border bg-room-bg px-3 py-2 text-room-text outline-none focus:border-room-accent"
             />
-          </label>
-          <label className="block text-sm">
-            <span className="mb-1 block text-room-muted">เว้นจังหวะหายใจระหว่าง Slide (ms)</span>
-            <input
+          </div>
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="breath-pause">เว้นจังหวะหายใจระหว่าง Slide (ms)</Label>
+            <Input
+              id="breath-pause"
               type="number"
               min={0}
               value={form.breathPauseMs}
               onChange={(e) => setForm({ ...form, breathPauseMs: Math.max(0, Number(e.target.value) || 0) })}
-              className="w-full rounded-lg border border-room-border bg-room-bg px-3 py-2 text-room-text outline-none focus:border-room-accent"
             />
-          </label>
-          <label className="block text-sm">
-            <span className="mb-1 block text-room-muted">รอคำถามท้ายบทเรียน (ms)</span>
-            <input
+          </div>
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="final-question-wait">รอคำถามท้ายบทเรียน (ms)</Label>
+            <Input
+              id="final-question-wait"
               type="number"
               min={0}
               value={form.finalQuestionWaitMs}
               onChange={(e) => setForm({ ...form, finalQuestionWaitMs: Math.max(0, Number(e.target.value) || 0) })}
-              className="w-full rounded-lg border border-room-border bg-room-bg px-3 py-2 text-room-text outline-none focus:border-room-accent"
             />
-          </label>
-        </div>
+          </div>
+        </CardContent>
       </Card>
 
-      <Card className="space-y-4">
-        <div>
-          <p className="text-xs uppercase tracking-wide text-room-muted">เอกสารประกอบ</p>
-          <p className="mt-1 text-xs text-room-muted">
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-xs tracking-wide text-muted-foreground uppercase">เอกสารประกอบ</CardTitle>
+          <p className="mt-1 text-xs text-muted-foreground">
             เอกสารในนี้จะถูกใช้ตอบคำถามเฉพาะบทเรียนนี้เท่านั้น — ถ้าต้องการให้ใช้ได้ทุกบทเรียน ให้อัปโหลดที่{" "}
-            <Link href="/admin/documents" className="text-room-accent hover:underline">
+            <Link href="/admin/documents" className="text-primary hover:underline">
               คลังเอกสารกลาง
             </Link>{" "}
             แทน
           </p>
-        </div>
-        <DocumentUploadList
-          lessonSlug={form.slug}
-          primaryDocumentId={form.contentSourceType === "pdf" ? form.pdfDocumentResourceId : undefined}
-        />
+        </CardHeader>
+        <CardContent>
+          <DocumentUploadList
+            lessonSlug={form.slug}
+            primaryDocumentId={form.contentSourceType === "pdf" ? form.pdfDocumentResourceId : undefined}
+          />
+        </CardContent>
       </Card>
 
-      <section className="space-y-3">
-        <p className="text-xs uppercase tracking-wide text-room-muted">รายการ Slide ({form.slideConfigs.length})</p>
+      <section className="flex flex-col gap-3">
+        <p className="text-xs tracking-wide text-muted-foreground uppercase">
+          รายการ Slide ({form.slideConfigs.length})
+        </p>
         {form.slideConfigs.length === 0 && (
-          <p className="rounded-xl border border-dashed border-room-border p-6 text-center text-sm text-room-muted">
-            ยังไม่มีข้อมูล Slide กด &quot;ตรวจสอบ/Sync Slides&quot; ด้านบนเพื่อดึงรายการ
-          </p>
+          <Empty className="border">
+            <EmptyHeader>
+              <EmptyTitle>ยังไม่มีข้อมูล Slide</EmptyTitle>
+              <EmptyDescription>กด &quot;ตรวจสอบ/Sync Slides&quot; ด้านบนเพื่อดึงรายการ</EmptyDescription>
+            </EmptyHeader>
+          </Empty>
         )}
         {form.slideConfigs.map((slide, index) => (
-          <Card key={slide.slideObjectId} className="space-y-2">
-            <p className="text-xs font-medium text-room-muted">
-              Slide {index + 1} · {slide.slideObjectId}
-            </p>
-            <label className="flex items-center gap-2 text-sm text-room-text">
-              ความยาววิดีโอในสไลด์นี้ (ms, ใส่ 0 ถ้าไม่มีวิดีโอ)
-              <input
-                type="number"
-                min={0}
-                value={slide.videoDurationMs ?? 0}
-                onChange={(e) =>
-                  updateSlideDuration(slide.slideObjectId, Math.max(0, Number(e.target.value) || 0) || null)
-                }
-                className="w-32 rounded-lg border border-room-border bg-room-bg px-2 py-1 text-room-text outline-none focus:border-room-accent"
-              />
-            </label>
+          <Card key={slide.slideObjectId} size="sm">
+            <CardContent className="flex flex-col gap-2">
+              <p className="text-xs font-medium text-muted-foreground">
+                Slide {index + 1} · {slide.slideObjectId}
+              </p>
+              <Label htmlFor={`slide-duration-${slide.slideObjectId}`} className="font-normal">
+                ความยาววิดีโอในสไลด์นี้ (ms, ใส่ 0 ถ้าไม่มีวิดีโอ)
+                <Input
+                  id={`slide-duration-${slide.slideObjectId}`}
+                  type="number"
+                  min={0}
+                  value={slide.videoDurationMs ?? 0}
+                  onChange={(e) =>
+                    updateSlideDuration(slide.slideObjectId, Math.max(0, Number(e.target.value) || 0) || null)
+                  }
+                  className="w-32"
+                />
+              </Label>
+            </CardContent>
           </Card>
         ))}
       </section>

@@ -44,11 +44,12 @@ public sealed class TrainingSessionService(IUnitOfWork unitOfWork, IServiceProvi
         var entity = new TrainingSession
         {
             Id = IdGenerator.GenerateId("session"),
+            CompanyId = CurrentCompanyId,
             Token = IdGenerator.GeneratePublicToken(),
             LessonId = lesson.Id,
             LessonSlug = input.LessonSlug,
-            TeacherName = input.TeacherName,
-            SchoolName = input.SchoolName,
+            RecipientName = input.RecipientName,
+            RecipientOrgName = input.RecipientOrgName,
             Status = SessionStatus.NotStarted,
             ExpiresAt = expiresAt,
             CompletedAllSlides = false,
@@ -71,13 +72,34 @@ public sealed class TrainingSessionService(IUnitOfWork unitOfWork, IServiceProvi
 
     public TrainingSessionViewModel GetByToken(string token)
     {
-        var entity = _repository.GetByToken(token) ?? throw GeneralException.NotFound("เซสชัน หรือลิงก์หมดอายุ");
+        var entity = LoadByTokenAndResolveCompany(token) ?? throw GeneralException.NotFound("เซสชัน หรือลิงก์หมดอายุ");
         return entity.Adapt<TrainingSessionViewModel>();
+    }
+
+    /// <summary>
+    /// The single doorway for every recipient-side request. The caller holds only a join token
+    /// and no company has been resolved yet, so the lookup itself must bypass the company query
+    /// filter (see ITrainingSessionRepository.GetByToken) - the token is unguessable and globally
+    /// unique, which is what makes it usable as the credential.
+    ///
+    /// Resolving ICompanyContext from the row found here is what scopes every FOLLOWING query in
+    /// the request (lesson, questions, chat, documents) to the right company. Skip this step and
+    /// those queries run against whatever company the middleware guessed instead - which is
+    /// exactly the cross-company read this design exists to prevent.
+    /// </summary>
+    private TrainingSession? LoadByTokenAndResolveCompany(string token)
+    {
+        var entity = _repository.GetByToken(token);
+        if (entity is not null)
+        {
+            CompanyContext.Resolve(entity.CompanyId);
+        }
+        return entity;
     }
 
     public TrainingSessionViewModel MarkStarted(string token)
     {
-        var entity = _repository.GetByToken(token) ?? throw GeneralException.NotFound("เซสชัน");
+        var entity = LoadByTokenAndResolveCompany(token) ?? throw GeneralException.NotFound("เซสชัน");
 
         entity.Status = SessionStatus.InProgress;
         entity.StartedAt = DateTime.UtcNow;
@@ -93,7 +115,7 @@ public sealed class TrainingSessionService(IUnitOfWork unitOfWork, IServiceProvi
 
     public TrainingSessionViewModel End(string token, EndSessionDto input)
     {
-        var entity = _repository.GetByToken(token) ?? throw GeneralException.NotFound("เซสชัน");
+        var entity = LoadByTokenAndResolveCompany(token) ?? throw GeneralException.NotFound("เซสชัน");
 
         entity.Status = SessionStatus.Ended;
         entity.CompletedAllSlides = input.CompletedAllSlides;

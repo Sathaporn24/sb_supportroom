@@ -2,11 +2,31 @@
 
 คำแนะนำสำหรับผู้ช่วยเขียนโค้ดและทีมพัฒนาที่ทำงานใน `sb_supportroom`
 
+## System Purpose
+
+ห้องเรียนสาธิตแบบโต้ตอบด้วยเสียง สำหรับทีม CS ของ School Bright ใช้สอนคุณครูให้ใช้งานระบบ
+โดยไม่ต้องมีคนนั่งประกบ: CS ตั้งค่าบทเรียน (Google Slides หรือ PDF) → สร้างลิงก์ session →
+คุณครูเข้าห้องที่หน้าตาเหมือน video call → AI บรรยายทีละสไลด์เป็นภาษาไทย → คุณครูกด
+Push-to-Talk ถามได้ตลอด → AI ตอบโดยอ้างอิงเฉพาะเนื้อหาบทเรียน แล้วกลับไปสอนต่อจากจุดเดิม
+
+หัวใจคือ **grounded tutor** ไม่ใช่ chatbot ทั่วไป — ต้องรายงาน `not_found` เมื่อไม่มีข้อมูล
+ไม่ใช่เดาคำตอบ
+
+## Read First
+
+| ต้องการอะไร | อ่านที่ |
+|---|---|
+| ภาพรวมระบบตามโค้ดจริง, flow, ER, API map, หนี้เทคนิค | [`docs/PROJECT_CONTEXT.md`](./docs/PROJECT_CONTEXT.md) |
+| ทางเลือกเทคโนโลยี, build vs buy, MVP/Production/Scale | [`docs/SOLUTION_ARCHITECTURE.md`](./docs/SOLUTION_ARCHITECTURE.md) |
+| การตัดสินใจเชิงเทคนิคและเหตุผล | [`docs/TECH_DECISIONS.md`](./docs/TECH_DECISIONS.md) |
+| ลำดับงานเพื่อขึ้น production | [`docs/PRODUCTION_ROADMAP.md`](./docs/PRODUCTION_ROADMAP.md) |
+| สเปกฟีเจอร์หลักที่เคาะแล้วแต่ยังไม่ได้ทำ | [`docs/CORE_FEATURE_SPEC.md`](./docs/CORE_FEATURE_SPEC.md) |
+
 ## Current Architecture
 
 ระบบเป็น monorepo แยกส่วนชัดเจน:
 
-- `frontend/` — Next.js 15 + React 19 + TypeScript + Tailwind
+- `frontend/` — Next.js 15 + React 19 + TypeScript + Tailwind v4 + shadcn/ui (Base UI, style `base-nova`)
 - `backend/` — ASP.NET Core .NET 10 + EF Core/PostgreSQL + SignalR
 - Frontend ติดต่อ backend ผ่าน `frontend/src/lib/api-client.ts` และ
   `frontend/src/hooks/use-session-chat.ts`
@@ -25,6 +45,40 @@
 6. Database schema เปลี่ยนผ่าน EF Core migration ใหม่ ห้ามแก้ migration ที่ deploy แล้ว
 7. Frontend/backend wire contract ใช้ camelCase และต้องอัปเดต TypeScript types กับ ViewModels คู่กัน
 8. ห้าม persist สำเนา Google Slides/PDF teaching content ลง LessonConfig; เก็บเฉพาะ metadata
+
+## UI Component System (frontend)
+
+`frontend/` คือ frontend จริงเพียงจุดเดียวของระบบ — อย่าสร้างหรือปฏิบัติกับโปรเจกต์ Next.js
+อื่นใดในระดับ repo root ว่าเป็นแอปจริง
+
+- Component base: **Base UI** (`@base-ui/react`), style preset: **Nova** (`base-nova` ใน
+  `frontend/components.json`) — ให้ Nova อยู่ในแนวเดียวกับ Figma design system ที่ทีมออกแบบเลือก
+  เมื่อมีการอัปเดต preset
+- `frontend/src/components/ui/` สงวนไว้สำหรับ shadcn primitives เท่านั้น (ไฟล์ที่ shadcn CLI
+  generate) ห้ามใส่ business logic หรือโค้ดเฉพาะ SupportRoom ที่นี่ และห้ามเขียน primitive เอง
+  ถ้า shadcn มีให้แล้ว
+  - ตั้งชื่อไฟล์ใน `ui/` เป็น **lowercase** ตาม convention ของ shadcn เสมอ — ไฟล์ที่ shadcn
+    generate ใหม่จะ import ข้ามกันด้วย path ตัวเล็ก และ Windows (case-insensitive) จะไม่เตือน
+    แต่ Linux production server จะพังทันที
+  - ก่อนเพิ่ม component ใหม่ ให้เช็ค `frontend/.agents/skills/shadcn/SKILL.md` และ
+    `frontend/src/components/ui/` ก่อนเสมอ — ใช้ของเดิมถ้ามีแล้ว เพิ่มเฉพาะที่ระบบต้องใช้จริง
+    (ห้ามติดตั้งไว้ล่วงหน้าโดยยังไม่มีจุดใช้งาน)
+- Component เฉพาะโดเมนอยู่ใน `frontend/src/components/meeting/` และ `.../admin/`;
+  composition ที่ใช้ซ้ำข้ามโดเมนอยู่ใน `.../shared/` — ทั้งสามแยกจาก `ui/` ชัดเจน
+- **ใช้ shadcn semantic tokens เท่านั้น** (`bg-background`, `text-muted-foreground`, `bg-primary`,
+  `border`, `bg-muted`, `text-destructive` ฯลฯ) ธีม "room-*" เดิมถูกลบออกทั้งหมดแล้ว พร้อมกับ
+  `tailwind.config.*` — Tailwind v4 กำหนดธีมผ่าน CSS ล้วนใน `src/app/globals.css`
+  - `@theme inline` ต้องอยู่ **top level** ของ `globals.css` เท่านั้น ห้ามย้ายไปไว้ใน `@layer base`
+    เพราะจะทำให้ค่า dark mode ไม่ถูกส่งต่อไปยัง utility ที่ generate ออกมา
+  - ค่าเดียวที่จงใจต่างจาก Nova default คือ `--primary` (สีส้มแบรนด์ School Bright)
+    แก้ที่ `:root`/`.dark` ใน `globals.css` จุดเดียว ถ้าจะกลับไปใช้ neutral ล้วน
+  - ยังไม่มี theme switcher ในระบบ (ไม่ได้ติดตั้ง `next-themes`) — token ฝั่ง `.dark`
+    ประกาศไว้ครบและถูกต้องแล้ว แต่ยังไม่มีอะไร toggle คลาส `dark` ในการใช้งานจริง
+- ลิงก์ที่หน้าตาเป็นปุ่มให้ใช้ `<Link className={buttonVariants({...})}>` ไม่ใช่
+  `<Button render={<Link/>}>` — Base UI Button คาดหวัง `<button>` จริง การ render เป็น `<a>`
+  จะทิ้ง native button semantics และขึ้น error ที่ console
+- ใช้ shadcn skill (`frontend/.agents/skills/shadcn/SKILL.md`) เป็นแนวทางหลักเวลาทำงานกับ UI —
+  รวม critical rules เรื่อง styling, forms, composition, icons
 
 ## Folder Map
 
@@ -98,6 +152,54 @@ dotnet ef database update --project src/SupportRoom.Providers.Data --startup-pro
 | Database schema | `backend/docs/ER_DIAGRAM_AND_WORKFLOW.md`, EF migrations |
 | Provider/environment | `frontend/docs/ENVIRONMENT_SETUP.md`, `.env.example`, provider factory |
 | RAG/document flow | `frontend/docs/SYSTEM_LOGIC.md`, Knowledge/VoiceQuestion services |
+| Backend layering convention | `backend/.claude/skills/dotnet-layered-backend/SKILL.md` |
+
+## Existing Integrations
+
+| Integration | ใช้ทำอะไร | ถ้าล้มเหลว |
+|---|---|---|
+| Google Slides API | ดึง speaker notes + slide URL (service account) | save: log warning ไม่ block; เปิดห้อง: 502 |
+| Gemini | ถอดเสียงทุก provider + embeddings + ตอบ (`gemini`, `gemini-rag`) | `transcription_failed` / fallback full-deck |
+| OpenAI-compatible | ตอบ (`openai-rag`) + embeddings (`pinecone-openai`) รองรับ gateway อื่นผ่าน `OPENAI_BASE_URL` | `transcription_failed` |
+| Pinecone | vector index, namespace = lessonSlug หรือ `kb-global` | log warning → fallback full-deck |
+| Edge TTS | สังเคราะห์เสียงไทย (WebSocket ไม่ต้องมี key) | ข้าม chunk ที่พัง; frontend เดินหน้าต่อแบบไม่มีเสียง |
+| local disk / Huawei OBS | เก็บไฟล์เอกสาร (ผ่าน AWS S3 SDK) | 500 ตอน upload / 404 ตอน download |
+
+⚠️ เสียงคำถามของคุณครูถูกส่งไป Gemini และ transcript อาจถูกส่งไป OpenAI/gateway เมื่อใช้ `openai-rag`
+
+## Feature Development Pattern
+
+```
+Entity (Domain) → Migration (Providers.Data) → Repository + ลงทะเบียนใน UnitOfWork.Register
+  → Service interface+impl ในไฟล์เดียว (Application) → DTO + ViewModel
+  → ลงทะเบียนใน ServiceConfiguration → Controller (บาง)
+  → types/domain.ts → api-client.ts → hook → component
+```
+
+ต่อ external service ใหม่: สร้าง interface + factory ใน `SupportRoom.Providers.*`,
+เพิ่มค่าที่รับได้ใน `ProviderSelection.cs`, เพิ่ม env ใน `.env.example`
+
+Convention ที่ไม่ปกติแต่จงใจ — ทำตาม อย่าเปลี่ยนเอง:
+- ไฟล์ service ชื่อ `IXxxService.cs` บรรจุทั้ง interface และ implementation
+- status ใช้ `static class` + `const string` ไม่ใช่ C# enum (ให้ตรงกับ TS union type)
+- ข้อความที่ผู้ใช้เห็นเป็นภาษาไทย รวมถึง exception message
+- service ห้ามพัง flow หลักเพราะ integration รอง — log warning + degrade แทน throw
+- คอมเมนต์อธิบาย "ทำไม" ไม่ใช่ "ทำอะไร" — codebase นี้บันทึกเหตุการณ์ที่เคยพังจริงไว้ รักษาระดับนี้
+
+## Solution Design Rule
+
+ก่อนลงมือฟีเจอร์ที่ไม่ trivial:
+
+1. เข้าใจความต้องการจริง (ปัญหาของผู้ใช้ ไม่ใช่วิธีแก้ที่เขาเสนอมา)
+2. ไล่ flow เดิมที่เกี่ยวข้องให้จบ
+3. หาโค้ด/service/endpoint ที่ใช้ซ้ำได้ — provider abstraction ที่นี่ดีอยู่แล้ว
+4. ถามว่ามี library/API/บริการที่แก้ปัญหานี้แล้วหรือยัง
+5. เทียบทางเลือก 2–4 แบบพร้อม trade-off
+6. เลือกสถาปัตยกรรมที่ง่ายที่สุดที่ตอบความต้องการ *ปัจจุบัน*
+7. อย่าสร้าง infrastructure ล่วงหน้า
+8. บันทึกการตัดสินใจสำคัญลง `docs/TECH_DECISIONS.md`
+9. ลงมือเมื่อทิศทางชัดแล้ว
+10. ตรวจด้วย lint/typecheck/test/build ทั้งสองฝั่ง แล้วอ่าน `git diff` ก่อนส่ง
 
 ## Definition of Done
 
@@ -110,9 +212,21 @@ dotnet ef database update --project src/SupportRoom.Providers.Data --startup-pro
 
 ## Known Baseline Issues
 
-- ไม่มี auth/rate limiting
+เรียงตามความเร่งด่วน — รายละเอียดและทางเลือกอยู่ใน `docs/PROJECT_CONTEXT.md` §19 และ
+`docs/TECH_DECISIONS.md`
+
+- **Edge TTS ไม่เหมาะกับ production** — Microsoft เริ่มบล็อกการเรียก Read-Aloud แบบไม่เป็นทางการ
+  (ธ.ค. 2025) และกรอง IP ของ datacenter; deploy บน cloud มีโอกาสสูงที่เสียงจะเงียบทั้งระบบ (TD-001)
+- ไม่มี auth/rate limiting — `/admin/*` เปิดสาธารณะเมื่อ deploy (TD-002)
+- ไม่มี CI (`.github/workflows/` ว่างเปล่า) และไม่มี Dockerfile/deployment artifact (TD-006)
+- Background indexing queue เป็น in-memory — restart แล้วงานค้างที่ `pending` ตลอดไป (TD-003)
+- Document deletion ยังทิ้ง vectors ไว้ใน Pinecone (TD-004 — chunk id เป็น `{documentId}-{chunkId}`
+  อยู่แล้ว ลบด้วย ID prefix ได้; serverless ไม่รองรับ delete by metadata filter)
 - Session expiry ยังบังคับเฉพาะ frontend
-- Background indexing queue เป็น in-memory/unbounded
-- Document deletion ยังทิ้ง vectors ไว้ใน Pinecone
-- EF Core dependency versions ยังมี conflict warning
-- API integration test project ยังไม่มี test ที่ยืนยัน endpoint จริง
+- API integration test project ยังไม่มี test ที่ยืนยัน endpoint จริง (`UnitTest1.cs` ยังเป็น template)
+- test บางชุดใน Application/Providers ยิงไปยัง provider จริง — ต้องแยกด้วย xUnit trait ก่อนตั้ง CI
+- EF Core version conflict (MSB3277 ×5): Npgsql 10.0.3 ดึง EF Relational 10.0.4 vs ที่อ้าง 10.0.10
+- `IsDelete`/`DeletedAt` มีในทุก entity แต่โค้ดลบจริงทุกครั้ง ไม่มี global query filter
+- Frontend มี dependency ตกค้างที่ไม่มีโค้ดเรียกใช้: `googleapis`, `msedge-tts`, `zod`,
+  `client-only`, `bufferutil`, `utf-8-validate`
+- `PackageReference` แบบ floating (`3.*`, `0.*`, `5.*`) ทำให้ build ไม่ deterministic

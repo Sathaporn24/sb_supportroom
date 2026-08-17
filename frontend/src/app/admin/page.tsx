@@ -5,9 +5,9 @@ import Link from "next/link";
 import * as api from "@/lib/api-client";
 import type { TrainingSession } from "@/types/domain";
 import { SessionsTable } from "@/components/admin/SessionsTable";
-import { Button } from "@/components/ui/Button";
-import { LoadingBlock } from "@/components/ui/LoadingBlock";
-import { Spinner } from "@/components/ui/Spinner";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
+import { LoadingBlock } from "@/components/shared/LoadingBlock";
 
 export default function AdminPage() {
   const [sessions, setSessions] = useState<TrainingSession[]>([]);
@@ -40,28 +40,28 @@ export default function AdminPage() {
   }
 
   return (
-    <main className="mx-auto max-w-4xl space-y-6 p-6">
+    <main className="mx-auto flex max-w-4xl flex-col gap-6 p-6">
       <div>
-        <h1 className="text-xl font-semibold text-room-text">SupportRoom AI — Admin</h1>
-        <p className="mt-1 text-sm text-room-muted">
-          จัดการบทเรียนจาก Google Slides และสร้างลิงก์ห้องสอนการใช้งานระบบสำหรับคุณครู
+        <h1 className="text-xl font-semibold">SupportRoom AI — Admin</h1>
+        <p className="mt-1 text-sm text-muted-foreground">
+          จัดการบทเรียนและสร้างลิงก์ห้องสอนการใช้งานระบบสำหรับผู้ใช้
         </p>
       </div>
 
       <div className="flex flex-wrap gap-3">
-        <Link href="/admin/lessons">
-          <Button variant="secondary">จัดการบทเรียน</Button>
+        <Link href="/admin/lessons" className={buttonVariants({ variant: "secondary" })}>
+          จัดการบทเรียน
         </Link>
-        <Link href="/admin/documents">
-          <Button variant="secondary">คลังเอกสาร</Button>
+        <Link href="/admin/documents" className={buttonVariants({ variant: "secondary" })}>
+          คลังเอกสาร
         </Link>
-        <Link href="/admin/sessions/new">
-          <Button>สร้างลิงก์การสอน</Button>
+        <Link href="/admin/sessions/new" className={buttonVariants()}>
+          สร้างลิงก์การสอน
         </Link>
         <Button variant="ghost" onClick={handleReset} disabled={resetting}>
           {resetting ? (
             <>
-              <Spinner className="h-4 w-4" />
+              <Spinner data-icon="inline-start" />
               กำลังรีเซ็ต...
             </>
           ) : (
@@ -70,9 +70,13 @@ export default function AdminPage() {
         </Button>
       </div>
 
-      <section className="space-y-3">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-room-muted">รายการ Sessions</h2>
-        {loading ? <LoadingBlock label="กำลังโหลดรายการ Session..." /> : <SessionsTable sessions={sessions} origin={origin} />}
+      <section className="flex flex-col gap-3">
+        <h2 className="text-sm font-semibold tracking-wide text-muted-foreground uppercase">รายการ Sessions</h2>
+        {loading ? (
+          <LoadingBlock label="กำลังโหลดรายการ Session..." />
+        ) : (
+          <SessionsTable sessions={sessions} origin={origin} />
+        )}
       </section>
     </main>
   );

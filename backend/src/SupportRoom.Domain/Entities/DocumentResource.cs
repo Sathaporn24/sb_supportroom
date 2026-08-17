@@ -10,9 +10,10 @@ namespace SupportRoom.Domain.Entities;
 /// The file bytes live in object storage (see SupportRoom.Providers.Storage) - only metadata
 /// and the storage location live here.
 /// </summary>
-public sealed class DocumentResource : IEntityMaster<string>
+public sealed class DocumentResource : IEntityMaster<string>, ICompanyScoped
 {
     public required string Id { get; init; }
+    public required string CompanyId { get; init; }
     public string? CreateBy { get; init; }
     public DateTime CreateDate { get; init; }
     public string? UpdateBy { get; set; }

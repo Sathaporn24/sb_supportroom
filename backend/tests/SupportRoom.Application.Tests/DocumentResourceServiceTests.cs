@@ -37,6 +37,7 @@ public class DocumentResourceServiceTests
         var doc = new DocumentResource
         {
             Id = id,
+            CompanyId = TestFixtures.CompanyId,
             LessonId = lessonId,
             FileName = "manual.pdf",
             ContentType = "application/pdf",
@@ -53,6 +54,7 @@ public class DocumentResourceServiceTests
         => _lessons.Items.Add(new LessonConfig
         {
             Id = $"lesson-{slug}",
+            CompanyId = TestFixtures.CompanyId,
             Slug = slug,
             Title = "บทเรียน PDF",
             SlidesSourceUrl = "",

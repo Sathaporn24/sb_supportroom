@@ -20,5 +20,5 @@ public sealed class SessionQuestionController : ControllerBase
     }
 
     [HttpGet]
-    public ActionResult GetBySessionId([FromQuery] string sessionId) => Ok(new { questions = _service.GetBySessionId(sessionId) });
+    public ActionResult GetByToken([FromQuery] string token) => Ok(new { questions = _service.GetByToken(token) });
 }

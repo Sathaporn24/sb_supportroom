@@ -1,3 +1,4 @@
+using SupportRoom.Domain.Common;
 using Mapster;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -52,12 +53,12 @@ public sealed class DocumentResourceService(
     public async Task<DocumentResourceViewModel> UploadAsync(UploadDocumentDto input)
     {
         string? lessonId = null;
-        var namespaceKey = KnowledgeNamespaces.Global;
+        var namespaceKey = KnowledgeNamespaces.ForGlobal(CurrentCompanyId);
         if (!string.IsNullOrEmpty(input.LessonSlug))
         {
             var lesson = _lessonConfigRepository.GetBySlug(input.LessonSlug) ?? throw GeneralException.NotFound("บทเรียน");
             lessonId = lesson.Id;
-            namespaceKey = lesson.Slug;
+            namespaceKey = KnowledgeNamespaces.For(CurrentCompanyId, lesson.Slug);
         }
 
         var id = IdGenerator.GenerateId("doc");
@@ -71,6 +72,7 @@ public sealed class DocumentResourceService(
         var entity = new DocumentResource
         {
             Id = id,
+            CompanyId = CurrentCompanyId,
             LessonId = lessonId,
             FileName = input.FileName,
             ContentType = input.ContentType,
@@ -101,7 +103,7 @@ public sealed class DocumentResourceService(
 
         Logger.LogInformation("Document uploaded: {DocumentId} namespace={Namespace}, indexing queued", id, namespaceKey);
 
-        taskQueue.Enqueue((sp, _) => IndexUploadedDocumentAsync(sp, id, input.Content, input.FileName, namespaceKey, extractor));
+        taskQueue.Enqueue((sp, _) => IndexUploadedDocumentAsync(sp, CurrentCompanyId, id, input.Content, input.FileName, namespaceKey, extractor));
 
         return entity.Adapt<DocumentResourceViewModel>();
     }
@@ -112,10 +114,18 @@ public sealed class DocumentResourceService(
     /// resolved fresh from the work item's own scope (sp), never reused from the request that
     /// enqueued this. extractor/content/fileName/namespaceKey are plain captured values, safe to
     /// use as-is (DocumentParserFactory's extractors carry no injected dependencies).
+    ///
+    /// companyId has to be carried across explicitly and re-resolved into this scope's
+    /// ICompanyContext: the new scope starts unresolved, and an unresolved context makes every
+    /// company query filter match nothing - the Get below would return null and this method would
+    /// quietly decide the document had been deleted, leaving it stuck at "pending" forever with
+    /// no error anywhere.
     /// </summary>
     private static async Task IndexUploadedDocumentAsync(
-        IServiceProvider sp, string documentId, byte[] content, string fileName, string namespaceKey, IDocumentTextExtractor extractor)
+        IServiceProvider sp, string companyId, string documentId, byte[] content, string fileName, string namespaceKey, IDocumentTextExtractor extractor)
     {
+        sp.GetRequiredService<ICompanyContext>().Resolve(companyId);
+
         var uow = sp.GetRequiredService<IUnitOfWork>();
         var repository = uow.GetRepository<IDocumentResourceRepository>();
         var knowledgeIndexingService = sp.GetRequiredService<IKnowledgeIndexingService>();

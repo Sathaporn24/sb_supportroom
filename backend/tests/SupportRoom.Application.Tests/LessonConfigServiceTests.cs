@@ -70,6 +70,7 @@ public class LessonConfigServiceTests
         var doc = new DocumentResource
         {
             Id = id,
+            CompanyId = TestFixtures.CompanyId,
             LessonId = lessonId,
             FileName = "manual.pdf",
             ContentType = "application/pdf",

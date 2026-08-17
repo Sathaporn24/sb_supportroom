@@ -1,0 +1,229 @@
+// SupportRoom AI — PostgreSQL schema
+// สร้างจาก EF Core migrations จริง (ถึง 20260807205425_AddLessonPdfSource) เมื่อ 11 ส.ค. 2026
+// วางลง https://dbdiagram.io ได้เลย
+//
+// ⚠️ ความสัมพันธ์ทุกเส้นด้านล่างเป็น "logical" เท่านั้น
+//    ไม่มี FOREIGN KEY จริงในฐานข้อมูล (ไม่มี navigation property ใน OnModelCreating)
+//    Ref ที่ประกาศไว้มีไว้ให้ dbdiagram วาดเส้นให้เห็นความสัมพันธ์เชิง domain
+
+Project supportroom {
+  database_type: 'PostgreSQL'
+  Note: '''
+  ห้องเรียนสาธิตด้วยเสียงสำหรับทีม CS ของ School Bright
+
+  ข้อมูลที่ไม่ได้อยู่ในฐานข้อมูลนี้:
+  - Vector สำหรับ RAG อยู่ใน Pinecone (นอก PostgreSQL)
+    namespace = LessonConfig.Slug หรือค่าคงที่ "kb-global"
+    ไม่มีคอลัมน์ใดในฐานข้อมูลนี้ชี้ไปยัง vector id
+  - ไฟล์เอกสารจริงอยู่ใน object storage (local disk หรือ Huawei OBS)
+    DocumentResource เก็บแค่ metadata + pointer (ObsBucket/ObsKey)
+  - เนื้อหาสอน (speaker notes / หน้า PDF) ไม่เคยถูก persist
+    resolve สดทุกครั้งจาก Google Slides API หรือไฟล์ PDF
+  '''
+}
+
+// ทุกตารางมีคอลัมน์ audit ชุดเดียวกันจาก IEntityMaster<string>:
+// CreateBy, CreateDate, UpdateBy, UpdateDate, DeleteBy, IsDelete, DeletedAt
+// หมายเหตุ: IsDelete/DeletedAt ยังไม่มีพฤติกรรมจริง โค้ดลบแบบ hard delete ทุกครั้ง
+//           และไม่มี global query filter
+
+Table LessonConfig {
+  Id text [pk, note: 'prefix "lesson_" สร้างโดย IdGenerator']
+  CreateBy text [null]
+  CreateDate timestamptz [not null]
+  UpdateBy text [null]
+  UpdateDate timestamptz [null]
+  DeleteBy text [null]
+  IsDelete boolean [not null]
+  DeletedAt timestamptz [null]
+
+  Slug text [not null, unique, note: '🔴 unique ทั้งระบบ — ชนกันทันทีเมื่อมีหลาย company']
+  Title text [not null]
+  Description text [null]
+  SlidesSourceUrl text [not null]
+  PresentationId text [null, note: 'derive จาก SlidesSourceUrl ทุกครั้งที่ save']
+  SlidesEmbedUrl text [null]
+  ContentSourceType text [not null, default: 'google_slides', note: '"google_slides" | "pdf"']
+  PdfDocumentResourceId text [null, note: 'ใช้เมื่อ ContentSourceType = "pdf"']
+  IntroWaitMs integer [not null]
+  BreathPauseMs integer [not null]
+  FinalQuestionWaitMs integer [not null]
+  SlideConfigs jsonb [null, note: 'EF owned collection ToJson() — [{slideObjectId, slideIndex, videoDurationMs}]']
+  IsActive boolean [not null]
+
+  Indexes {
+    Slug [unique, name: 'IX_LessonConfig_Slug']
+  }
+
+  Note: 'เก็บเฉพาะ metadata ที่ admin ตั้ง ห้ามเก็บสำเนาเนื้อหาสอน (architecture rule 8)'
+}
+
+Table TrainingSession {
+  Id text [pk, note: 'prefix "session_"']
+  CreateBy text [null]
+  CreateDate timestamptz [not null]
+  UpdateBy text [null]
+  UpdateDate timestamptz [null]
+  DeleteBy text [null]
+  IsDelete boolean [not null]
+  DeletedAt timestamptz [null]
+
+  Token text [not null, unique, note: 'ลิงก์สาธารณะ + ใช้เป็น SignalR group key — ความลับเดียวที่ระบบมีตอนนี้']
+  LessonId text [not null]
+  LessonSlug text [not null, note: 'denormalized — ใช้เป็น Pinecone namespace ตอนถามคำถาม']
+  TeacherName text [null]
+  SchoolName text [null]
+  Status text [not null, note: '"NOT_STARTED" | "IN_PROGRESS" | "ENDED" ("EXPIRED" คำนวณที่ frontend ไม่ได้เก็บ)']
+  ExpiresAt timestamptz [not null, note: 'บังคับที่ frontend เท่านั้น backend ยังรับ token ที่หมดอายุ']
+  StartedAt timestamptz [null]
+  EndedAt timestamptz [null]
+  CompletedAllSlides boolean [not null]
+  LastSlideObjectId text [null]
+
+  Indexes {
+    Token [unique, name: 'IX_TrainingSession_Token']
+  }
+}
+
+Table SessionQuestion {
+  Id text [pk]
+  CreateBy text [null]
+  CreateDate timestamptz [not null]
+  UpdateBy text [null]
+  UpdateDate timestamptz [null]
+  DeleteBy text [null]
+  IsDelete boolean [not null]
+  DeletedAt timestamptz [null]
+
+  SessionId text [not null]
+  SlideObjectId text [null]
+  Transcript text [null]
+  Answer text [null]
+  AnswerStatus text [not null, note: '"answered" | "not_found" | "out_of_scope" | "no_speech" | "transcription_failed"']
+
+  Indexes {
+    SessionId [name: 'IX_SessionQuestion_SessionId']
+  }
+
+  Note: 'บันทึกคำถาม Push-to-Talk — คำถาม readiness ("พร้อมหรือยัง") ไม่ถูกบันทึกที่นี่'
+}
+
+Table ChatMessage {
+  Id text [pk]
+  CreateBy text [null]
+  CreateDate timestamptz [not null]
+  UpdateBy text [null]
+  UpdateDate timestamptz [null]
+  DeleteBy text [null]
+  IsDelete boolean [not null]
+  DeletedAt timestamptz [null]
+
+  SessionId text [not null]
+  SenderRole text [not null, note: '"teacher" | "cs"']
+  SenderName text [null]
+  Text text [not null]
+
+  Indexes {
+    SessionId [name: 'IX_ChatMessage_SessionId']
+  }
+
+  Note: 'ช่องข้อความสำรอง แยกจาก SessionQuestion — เก็บไว้ให้คนเข้ากลางคันเห็นย้อนหลัง'
+}
+
+Table SessionSummary {
+  Id text [pk]
+  CreateBy text [null]
+  CreateDate timestamptz [not null]
+  UpdateBy text [null]
+  UpdateDate timestamptz [null]
+  DeleteBy text [null]
+  IsDelete boolean [not null]
+  DeletedAt timestamptz [null]
+
+  SessionId text [not null, unique]
+  CompletedAllSlides boolean [not null]
+  LastSlideObjectId text [null]
+  UnansweredPoints text[] [not null, note: 'Postgres text[] ผ่าน Npgsql ไม่ได้ใช้ JSON']
+
+  Indexes {
+    SessionId [unique, name: 'IX_SessionSummary_SessionId']
+  }
+
+  Note: 'snapshot เขียนครั้งเดียวตอนจบ session ไม่ recompute — รายการคำถามไม่ถูก duplicate มาที่นี่ อ่านจาก SessionQuestion แทน'
+}
+
+Table DocumentResource {
+  Id text [pk, note: 'prefix "doc_" — chunk id ใน Pinecone คือ "{Id}-{chunkId}"']
+  CreateBy text [null]
+  CreateDate timestamptz [not null]
+  UpdateBy text [null]
+  UpdateDate timestamptz [null]
+  DeleteBy text [null]
+  IsDelete boolean [not null]
+  DeletedAt timestamptz [null]
+
+  LessonId text [null, note: '🔴 null = เอกสาร standalone เข้า Pinecone namespace "kb-global" ที่ทุกบทเรียนใช้ร่วมกัน']
+  FileName text [not null]
+  ContentType text [not null]
+  SizeBytes bigint [not null]
+  ObsBucket text [not null]
+  ObsKey text [not null, note: 'รูปแบบ "documents/{Id}/{FileName}"']
+  IndexingStatus text [not null, note: '"pending" | "indexed" | "failed" — ค้างที่ pending ตลอดไปถ้า process restart']
+  IndexedChunkCount integer [not null]
+
+  Indexes {
+    LessonId [name: 'IX_DocumentResource_LessonId']
+  }
+}
+
+// ── ความสัมพันธ์ (logical เท่านั้น ไม่มี FK จริงในฐานข้อมูล) ──
+
+Ref: TrainingSession.LessonId > LessonConfig.Id
+Ref: DocumentResource.LessonId > LessonConfig.Id
+Ref: LessonConfig.PdfDocumentResourceId - DocumentResource.Id
+Ref: SessionQuestion.SessionId > TrainingSession.Id
+Ref: ChatMessage.SessionId > TrainingSession.Id
+Ref: SessionSummary.SessionId - TrainingSession.Id
+
+TableGroup lesson_content {
+  LessonConfig
+  DocumentResource
+}
+
+TableGroup session_runtime {
+  TrainingSession
+  SessionQuestion
+  ChatMessage
+  SessionSummary
+}
+
+// ──────────────────────────────────────────────────────────────
+// migration ถัดไป — multi-company (ตัดสินใจแล้ว: TD-010 / TD-011 / TD-012)
+// ยังไม่ได้ลงมือ ดูลำดับงานใน PRODUCTION_ROADMAP.md §0.1
+//
+// 1. เพิ่ม CompanyId text [not null] ทุกตาราง + index ทุกตาราง
+//      CompanyId [name: 'IX_<Table>_CompanyId']
+//    ไม่มีตาราง Company — CompanyId เป็น string ที่ derive จาก IdP claim (TD-012)
+//    ฝั่งผู้รับลิงก์ derive จาก TrainingSession.Token เท่านั้น ห้ามเชื่อค่าจาก client (TD-011)
+//
+// 2. LessonConfig — เปลี่ยน unique จาก Slug เดี่ยว เป็น composite:
+//      Indexes {
+//        (CompanyId, Slug) [unique]
+//      }
+//
+// 3. TrainingSession — rename ให้เป็นกลาง (ไปกับ migration เดียวกัน):
+//      TeacherName      → RecipientName      ชื่อคนที่ได้รับลิงก์
+//      SchoolName       → RecipientOrgName   องค์กรของผู้รับ (คนละชั้นกับ CompanyId)
+//
+//    สามชั้นที่ต้องแยกให้ออก:
+//      CompanyId        = เจ้าของ support room   → School Bright / SCB
+//      RecipientOrgName = องค์กรของผู้รับลิงก์     → โรงเรียนวัดโพธิ์ / สาขาสีลม
+//      RecipientName    = ตัวบุคคล               → สมชาย / มานี
+//
+// 4. ChatMessage.SenderRole — "teacher" → "recipient", "cs" → "agent" ("system" คงเดิม)
+//
+// 5. นอกฐานข้อมูล — Pinecone namespace ต้องเปลี่ยนเป็น
+//      "{CompanyId}:{LessonSlug}" และ "{CompanyId}:kb-global"
+//      ข้อนี้ dbdiagram ไม่แสดง แต่เป็นจุดที่รั่วง่ายที่สุด
+//      และการแยก database ต่อ company ก็ไม่ได้แก้ข้อนี้ให้อัตโนมัติ
+// ──────────────────────────────────────────────────────────────

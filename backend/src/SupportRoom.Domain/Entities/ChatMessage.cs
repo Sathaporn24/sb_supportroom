@@ -6,9 +6,10 @@ namespace SupportRoom.Domain.Entities;
 /// Backup text channel for a session - separate from SessionQuestion (the Push-to-Talk log).
 /// Persisted so a CS agent joining mid-session, or reconnecting, still sees history.
 /// </summary>
-public sealed class ChatMessage : IEntityMaster<string>
+public sealed class ChatMessage : IEntityMaster<string>, ICompanyScoped
 {
     public required string Id { get; init; }
+    public required string CompanyId { get; init; }
     public string? CreateBy { get; init; }
     public DateTime CreateDate { get; init; }
     public string? UpdateBy { get; init; }

@@ -9,7 +9,6 @@ export type TutorContext = {
   introWaitMs: number;
   breathPauseMs: number;
   finalQuestionWaitMs: number;
-  teacherName?: string;
 };
 
 export function createInitialRuntime(): TutorRuntime {
@@ -129,7 +128,7 @@ export function tutorReducer(
 
     case "LESSON_LOADED": {
       if (runtime.state !== "preparing") return noEffect(runtime);
-      return speak(runtime, "intro-speaking", "ENTER_READY", introScript(ctx.teacherName));
+      return speak(runtime, "intro-speaking", "ENTER_READY", introScript());
     }
 
     case "LESSON_LOAD_FAILED": {

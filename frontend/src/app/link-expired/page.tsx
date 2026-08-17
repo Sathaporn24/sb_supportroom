@@ -1,4 +1,4 @@
-import { Card } from "@/components/ui/Card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 // No link back to /admin here - same reasoning as session-ended/page.tsx: this is a public,
 // unauthenticated page, and /admin has no auth of its own.
@@ -6,10 +6,12 @@ export default function LinkExpiredPage() {
   return (
     <main className="flex min-h-screen items-center justify-center p-6">
       <Card className="max-w-md text-center">
-        <h1 className="text-xl font-semibold text-room-text">ลิงก์นี้หมดอายุหรือถูกใช้งานแล้ว</h1>
-        <p className="mt-3 text-sm text-room-muted">
+        <CardHeader>
+          <CardTitle className="text-xl">ลิงก์นี้หมดอายุหรือถูกใช้งานแล้ว</CardTitle>
+        </CardHeader>
+        <CardContent className="text-sm text-muted-foreground">
           กรุณาติดต่อทีม CS เพื่อขอลิงก์เข้าห้องสอนใหม่อีกครั้งค่ะ
-        </p>
+        </CardContent>
       </Card>
     </main>
   );

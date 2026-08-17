@@ -56,9 +56,9 @@ public class AdminServiceTests
     public void ResetDemoData_DeletesSessionsQuestionsSummaries_WhenEnabled()
         => WithResetFlag("true", () =>
         {
-            _sessions.Items.Add(new TrainingSession { Id = "s1", Token = "t1", LessonId = "l", LessonSlug = "a", Status = SessionStatus.Ended, ExpiresAt = DateTime.UtcNow });
-            _questions.Items.Add(new SessionQuestion { Id = "q1", SessionId = "s1", AnswerStatus = AnswerStatus.Answered });
-            _summaries.Items.Add(new SessionSummary { Id = "sum1", SessionId = "s1", CompletedAllSlides = true, UnansweredPoints = [] });
+            _sessions.Items.Add(new TrainingSession { Id = "s1", CompanyId = TestFixtures.CompanyId, Token = "t1", LessonId = "l", LessonSlug = "a", Status = SessionStatus.Ended, ExpiresAt = DateTime.UtcNow });
+            _questions.Items.Add(new SessionQuestion { Id = "q1", CompanyId = TestFixtures.CompanyId, SessionId = "s1", AnswerStatus = AnswerStatus.Answered });
+            _summaries.Items.Add(new SessionSummary { Id = "sum1", CompanyId = TestFixtures.CompanyId, SessionId = "s1", CompletedAllSlides = true, UnansweredPoints = [] });
 
             _service.ResetDemoData();
 

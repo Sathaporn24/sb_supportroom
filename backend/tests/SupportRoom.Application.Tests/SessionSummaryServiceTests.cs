@@ -28,6 +28,7 @@ public class SessionSummaryServiceTests
         => _questions.Items.Add(new SessionQuestion
         {
             Id = id,
+            CompanyId = TestFixtures.CompanyId,
             SessionId = "session-1",
             AnswerStatus = status,
             Transcript = transcript,

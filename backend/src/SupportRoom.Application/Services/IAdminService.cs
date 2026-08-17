@@ -95,10 +95,10 @@ public sealed class AdminService(
         //    fresh ones - both content that no longer exists (a removed slide) and, the reason this
         //    exists, the entire pre-task-type embedding space. A delete-all on a namespace that was
         //    never created 404s (see Pinecone provider) - harmless here, so it's logged and skipped.
-        var namespaces = new HashSet<string>(StringComparer.Ordinal) { KnowledgeNamespaces.Global };
+        var namespaces = new HashSet<string>(StringComparer.Ordinal) { KnowledgeNamespaces.ForGlobal(CurrentCompanyId) };
         foreach (var lesson in lessons)
         {
-            namespaces.Add(lesson.Slug);
+            namespaces.Add(KnowledgeNamespaces.For(CurrentCompanyId, lesson.Slug));
         }
         foreach (var namespaceKey in namespaces)
         {
@@ -118,7 +118,7 @@ public sealed class AdminService(
         foreach (var lesson in lessons.Where(l => !string.IsNullOrEmpty(l.PresentationId)))
         {
             var content = await slidesProvider.GetLessonContentAsync(new GetLessonContentInput { PresentationId = lesson.PresentationId! });
-            await knowledgeIndexingService.IndexLessonAsync(lesson.Slug, content.Slides);
+            await knowledgeIndexingService.IndexLessonAsync(KnowledgeNamespaces.For(CurrentCompanyId, lesson.Slug), content.Slides);
             lessonsIndexed++;
         }
 
@@ -132,8 +132,8 @@ public sealed class AdminService(
             try
             {
                 var namespaceKey = document.LessonId is not null && lessonSlugById.TryGetValue(document.LessonId, out var slug)
-                    ? slug
-                    : KnowledgeNamespaces.Global;
+                    ? KnowledgeNamespaces.For(CurrentCompanyId, slug)
+                    : KnowledgeNamespaces.ForGlobal(CurrentCompanyId);
 
                 byte[] bytes;
                 await using (var stream = await storageProvider.DownloadAsync(document.ObsKey))

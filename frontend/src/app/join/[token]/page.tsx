@@ -2,15 +2,15 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { MicIcon, MicOffIcon, VideoIcon, VideoOffIcon } from "lucide-react";
 import * as api from "@/lib/api-client";
 import { isSessionJoinable } from "@/utils/session-status";
 import { useLocalMedia } from "@/hooks/use-local-media";
-import { Button } from "@/components/ui/Button";
-import { Card } from "@/components/ui/Card";
-import { IconButton } from "@/components/ui/IconButton";
-import { LoadingBlock } from "@/components/ui/LoadingBlock";
-import { Spinner } from "@/components/ui/Spinner";
-import { CameraIcon, CameraOffIcon, MicIcon, MicOffIcon } from "@/components/ui/icons";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Progress } from "@/components/ui/progress";
+import { Spinner } from "@/components/ui/spinner";
+import { LoadingBlock } from "@/components/shared/LoadingBlock";
 import type { TrainingSession } from "@/types/domain";
 
 const errorMessages: Record<string, string> = {
@@ -62,78 +62,87 @@ export default function JoinPage() {
 
   return (
     <main className="flex min-h-screen items-center justify-center p-6">
-      <Card className="w-full max-w-lg space-y-5">
-        <div>
-          <p className="text-xs text-room-muted">ห้องสอนการใช้งานระบบ</p>
-          <h1 className="text-lg font-semibold text-room-text">{lessonTitle}</h1>
-          <p className="mt-1 text-sm text-room-muted">
-            ผู้สอน: School Bright Support
-            {session.teacherName ? ` · คุณครู${session.teacherName}` : ""}
-            {session.schoolName ? ` · ${session.schoolName}` : ""}
-          </p>
-        </div>
+      <Card className="w-full max-w-lg">
+        <CardContent className="flex flex-col gap-5">
+          <div>
+            <p className="text-xs text-muted-foreground">ห้องสอนการใช้งานระบบ</p>
+            <h1 className="text-lg font-semibold">{lessonTitle}</h1>
+            <p className="mt-1 text-sm text-muted-foreground">
+              ผู้สอน: School Bright Support
+              {session.recipientName ? ` · ${session.recipientName}` : ""}
+              {session.recipientOrgName ? ` · ${session.recipientOrgName}` : ""}
+            </p>
+          </div>
 
-        <div className="flex aspect-video items-center justify-center overflow-hidden rounded-xl border border-room-border bg-room-panelAlt">
-          {media.requesting ? (
-            <div className="flex flex-col items-center gap-2 text-room-muted">
-              <Spinner className="h-6 w-6" />
-              <p className="text-xs">กำลังขอสิทธิ์เข้าถึงกล้อง/ไมโครโฟน...</p>
-            </div>
-          ) : media.cameraOn && media.stream ? (
-            <video
-              autoPlay
-              muted
-              playsInline
-              className="h-full w-full object-cover"
-              ref={(el) => {
-                if (el) el.srcObject = media.stream;
-              }}
-            />
-          ) : (
-            <CameraOffIcon className="h-10 w-10 text-room-muted" />
-          )}
-        </div>
-
-        {media.error && <p className="text-sm text-red-600">{errorMessages[media.error]}</p>}
-
-        <div className="flex items-center gap-3">
-          <IconButton
-            label={media.micOn ? "ปิดไมค์" : "เปิดไมค์"}
-            active={media.micOn}
-            icon={media.micOn ? <MicIcon /> : <MicOffIcon />}
-            onClick={() => {
-              if (!media.stream) {
-                void media.requestMedia(media.cameraOn, true);
-              } else {
-                media.toggleMic();
-              }
-            }}
-          />
-          <IconButton
-            label={media.cameraOn ? "ปิดกล้อง" : "เปิดกล้อง"}
-            active={media.cameraOn}
-            icon={media.cameraOn ? <CameraIcon /> : <CameraOffIcon />}
-            onClick={() => void media.toggleCamera()}
-          />
-          {media.micOn && media.stream && (
-            <div className="h-2 flex-1 overflow-hidden rounded-full bg-room-panelAlt">
-              <div
-                className="h-full bg-room-accent transition-all"
-                style={{ width: `${Math.round(media.micLevel * 100)}%` }}
+          <div className="flex aspect-video items-center justify-center overflow-hidden rounded-xl border bg-muted">
+            {media.requesting ? (
+              <div className="flex flex-col items-center gap-2 text-muted-foreground">
+                <Spinner className="size-6" />
+                <p className="text-xs">กำลังขอสิทธิ์เข้าถึงกล้อง/ไมโครโฟน...</p>
+              </div>
+            ) : media.cameraOn && media.stream ? (
+              <video
+                autoPlay
+                muted
+                playsInline
+                className="h-full w-full object-cover"
+                ref={(el) => {
+                  if (el) el.srcObject = media.stream;
+                }}
               />
-            </div>
-          )}
-        </div>
+            ) : (
+              <VideoOffIcon className="size-10 text-muted-foreground" />
+            )}
+          </div>
 
-        <Button
-          className="w-full"
-          onClick={() => {
-            media.stopStream();
-            router.push(`/room/${params.token}`);
-          }}
-        >
-          เข้าร่วมห้องสอน
-        </Button>
+          {media.error && <p className="text-sm text-destructive">{errorMessages[media.error]}</p>}
+
+          <div className="flex items-center gap-3">
+            <Button
+              variant={media.micOn ? "outline" : "destructive"}
+              size="icon-lg"
+              className="rounded-full"
+              title={media.micOn ? "ปิดไมค์" : "เปิดไมค์"}
+              aria-label={media.micOn ? "ปิดไมค์" : "เปิดไมค์"}
+              onClick={() => {
+                if (!media.stream) {
+                  void media.requestMedia(media.cameraOn, true);
+                } else {
+                  media.toggleMic();
+                }
+              }}
+            >
+              {media.micOn ? <MicIcon /> : <MicOffIcon />}
+            </Button>
+            <Button
+              variant={media.cameraOn ? "outline" : "destructive"}
+              size="icon-lg"
+              className="rounded-full"
+              title={media.cameraOn ? "ปิดกล้อง" : "เปิดกล้อง"}
+              aria-label={media.cameraOn ? "ปิดกล้อง" : "เปิดกล้อง"}
+              onClick={() => void media.toggleCamera()}
+            >
+              {media.cameraOn ? <VideoIcon /> : <VideoOffIcon />}
+            </Button>
+            {media.micOn && media.stream && (
+              <Progress
+                value={Math.round(media.micLevel * 100)}
+                aria-label="ระดับเสียงไมโครโฟน"
+                className="flex-1"
+              />
+            )}
+          </div>
+
+          <Button
+            className="w-full"
+            onClick={() => {
+              media.stopStream();
+              router.push(`/room/${params.token}`);
+            }}
+          >
+            เข้าร่วมห้องสอน
+          </Button>
+        </CardContent>
       </Card>
     </main>
   );

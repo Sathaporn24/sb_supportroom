@@ -5,8 +5,20 @@ namespace SupportRoom.Providers.Knowledge;
 public static class KnowledgeNamespaces
 {
     /// <summary>Standalone documents (no lessonSlug) - queried alongside every lesson's own
-    /// namespace so a CS-uploaded document answers questions in any lesson, not just one.</summary>
-    public const string Global = "kb-global";
+    /// namespace so a CS-uploaded document answers questions in any lesson, not just one.
+    /// Always company-scoped via ForGlobal: an unprefixed "kb-global" would be shared by every
+    /// company on the index, and it is queried on EVERY question, so one company's standalone
+    /// document would answer another company's questions.</summary>
+    private const string GlobalSuffix = "kb-global";
+
+    /// <summary>
+    /// Vectors live outside PostgreSQL, so the database's company query filter cannot reach them -
+    /// isolation here has to be built into the namespace key itself. Every key is
+    /// "{companyId}:{scope}" and nothing may query a bare scope.
+    /// </summary>
+    public static string For(string companyId, string lessonSlug) => $"{companyId}:{lessonSlug}";
+
+    public static string ForGlobal(string companyId) => $"{companyId}:{GlobalSuffix}";
 }
 
 public sealed class KnowledgeChunk

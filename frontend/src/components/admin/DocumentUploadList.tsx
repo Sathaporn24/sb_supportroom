@@ -5,15 +5,17 @@ import * as api from "@/lib/api-client";
 import { ApiClientError } from "@/lib/api-client";
 import type { DocumentIndexingStatus, DocumentResource } from "@/types/domain";
 import { formatDateTimeTh } from "@/utils/format";
-import { Badge } from "@/components/ui/Badge";
-import { Button } from "@/components/ui/Button";
-import { LoadingBlock } from "@/components/ui/LoadingBlock";
-import { Spinner } from "@/components/ui/Spinner";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
+import { Spinner } from "@/components/ui/spinner";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { LoadingBlock } from "@/components/shared/LoadingBlock";
 
-const statusTone = {
-  pending: "warning",
-  indexed: "success",
-  failed: "danger",
+const statusVariant = {
+  pending: "outline",
+  indexed: "default",
+  failed: "destructive",
 } as const;
 
 const statusLabels: Record<DocumentIndexingStatus, string> = {
@@ -85,9 +87,9 @@ export function DocumentUploadList({ lessonSlug, primaryDocumentId }: { lessonSl
   }
 
   return (
-    <div className="space-y-3">
+    <div className="flex flex-col gap-3">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="text-xs text-room-muted">
+        <p className="text-xs text-muted-foreground">
           รองรับ .pptx, .pdf, .docx, .xlsx — ใช้เอกสารเดิมที่มีอยู่แล้วได้เลย ไม่ต้องทำใหม่
         </p>
         <div>
@@ -101,7 +103,7 @@ export function DocumentUploadList({ lessonSlug, primaryDocumentId }: { lessonSl
           <Button variant="secondary" onClick={() => inputRef.current?.click()} disabled={uploading}>
             {uploading ? (
               <>
-                <Spinner className="h-4 w-4" />
+                <Spinner data-icon="inline-start" />
                 กำลังอัปโหลด...
               </>
             ) : (
@@ -111,59 +113,62 @@ export function DocumentUploadList({ lessonSlug, primaryDocumentId }: { lessonSl
         </div>
       </div>
 
-      {error && <p className="text-xs text-red-600">{error}</p>}
+      {error && <p className="text-xs text-destructive">{error}</p>}
 
       {!documents ? (
         <LoadingBlock label="กำลังโหลดรายการเอกสาร..." />
       ) : documents.length === 0 ? (
-        <p className="rounded-xl border border-dashed border-room-border p-6 text-center text-sm text-room-muted">
-          ยังไม่มีเอกสาร ลองอัปโหลดไฟล์เดิมที่มีอยู่แล้วได้เลยค่ะ
-        </p>
+        <Empty className="border">
+          <EmptyHeader>
+            <EmptyTitle>ยังไม่มีเอกสาร</EmptyTitle>
+            <EmptyDescription>ลองอัปโหลดไฟล์เดิมที่มีอยู่แล้วได้เลยค่ะ</EmptyDescription>
+          </EmptyHeader>
+        </Empty>
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-room-border">
-          <table className="w-full min-w-[560px] text-left text-sm">
-            <thead className="bg-room-panelAlt text-xs uppercase tracking-wide text-room-muted">
-              <tr>
-                <th className="px-4 py-3">ไฟล์</th>
-                <th className="px-4 py-3">ขนาด</th>
-                <th className="px-4 py-3">สถานะ</th>
-                <th className="px-4 py-3">อัปโหลดเมื่อ</th>
-                <th className="px-4 py-3">จัดการ</th>
-              </tr>
-            </thead>
-            <tbody>
+        <div className="overflow-hidden rounded-xl border">
+          <Table className="min-w-[560px]">
+            <TableHeader>
+              <TableRow>
+                <TableHead className="px-4">ไฟล์</TableHead>
+                <TableHead className="px-4">ขนาด</TableHead>
+                <TableHead className="px-4">สถานะ</TableHead>
+                <TableHead className="px-4">อัปโหลดเมื่อ</TableHead>
+                <TableHead className="px-4">จัดการ</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {documents.map((doc) => (
-                <tr key={doc.id} className="border-t border-room-border">
-                  <td className="px-4 py-3 text-room-text">
+                <TableRow key={doc.id}>
+                  <TableCell className="px-4 py-3">
                     {doc.fileName}
                     {doc.id === primaryDocumentId && (
-                      <Badge tone="info" className="ml-2">
+                      <Badge variant="secondary" className="ml-2">
                         ใช้เป็นสไลด์หลัก
                       </Badge>
                     )}
-                  </td>
-                  <td className="px-4 py-3 text-room-muted">{formatSize(doc.sizeBytes)}</td>
-                  <td className="px-4 py-3">
-                    <Badge tone={statusTone[doc.indexingStatus]}>
+                  </TableCell>
+                  <TableCell className="px-4 py-3 text-muted-foreground">{formatSize(doc.sizeBytes)}</TableCell>
+                  <TableCell className="px-4 py-3">
+                    <Badge variant={statusVariant[doc.indexingStatus]}>
                       {statusLabels[doc.indexingStatus]}
                       {doc.indexingStatus === "indexed" ? ` (${doc.indexedChunkCount} chunk)` : ""}
                     </Badge>
                     {doc.indexingStatus === "failed" && (
-                      <p className="mt-1 text-xs text-room-muted">
+                      <p className="mt-1 text-xs whitespace-normal text-muted-foreground">
                         อาจเป็นไฟล์สแกน/รูปภาพที่ไม่มีข้อความให้อ่าน ลองส่งออกไฟล์ใหม่แบบมีข้อความจริง
                       </p>
                     )}
-                  </td>
-                  <td className="px-4 py-3 text-room-muted">{formatDateTimeTh(doc.createdAt)}</td>
-                  <td className="px-4 py-3">
-                    <Button variant="ghost" onClick={() => handleDelete(doc.id)} disabled={deletingId === doc.id}>
-                      {deletingId === doc.id ? <Spinner className="h-4 w-4" /> : "ลบ"}
+                  </TableCell>
+                  <TableCell className="px-4 py-3 text-muted-foreground">{formatDateTimeTh(doc.createdAt)}</TableCell>
+                  <TableCell className="px-4 py-3">
+                    <Button variant="ghost" size="sm" onClick={() => handleDelete(doc.id)} disabled={deletingId === doc.id}>
+                      {deletingId === doc.id ? <Spinner /> : "ลบ"}
                     </Button>
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         </div>
       )}
     </div>

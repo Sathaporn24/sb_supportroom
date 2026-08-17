@@ -10,8 +10,12 @@ namespace SupportRoom.Api.Controllers;
 public sealed class VoiceQuestionRequest
 {
     public IFormFile? Audio { get; init; }
-    public string? LessonSlug { get; init; }
-    public string? SessionId { get; init; }
+
+    /// <summary>The session's public join token. Replaced the old lessonSlug+sessionId pair:
+    /// those were two independent client-supplied values that nothing checked belonged
+    /// together.</summary>
+    public string? Token { get; init; }
+
     public string? CurrentSlideObjectId { get; init; }
     public string? DurationMs { get; init; }
     public string? Expecting { get; init; }
@@ -32,9 +36,9 @@ public sealed class VoiceQuestionController : ControllerBase
     [RequestSizeLimit(10 * 1024 * 1024)]
     public async Task<ActionResult> Ask([FromForm] VoiceQuestionRequest request)
     {
-        if (request.Audio is null || string.IsNullOrEmpty(request.LessonSlug) || string.IsNullOrEmpty(request.SessionId))
+        if (request.Audio is null || string.IsNullOrEmpty(request.Token))
         {
-            throw GeneralException.ValidationError("ต้องแนบไฟล์เสียง (audio), lessonSlug และ sessionId");
+            throw GeneralException.ValidationError("ต้องแนบไฟล์เสียง (audio) และ token");
         }
 
         var maxBytes = UploadLimits.MaxVoiceUploadMb * 1024 * 1024;
@@ -54,8 +58,7 @@ public sealed class VoiceQuestionController : ControllerBase
         {
             Audio = stream.ToArray(),
             MimeType = string.IsNullOrEmpty(request.Audio.ContentType) ? "audio/webm" : request.Audio.ContentType,
-            LessonSlug = request.LessonSlug,
-            SessionId = request.SessionId,
+            Token = request.Token,
             DurationMs = int.TryParse(request.DurationMs, out var ms) ? ms : 0,
             CurrentSlideObjectId = request.CurrentSlideObjectId,
             Expecting = request.Expecting == "readiness" ? "readiness" : "question",

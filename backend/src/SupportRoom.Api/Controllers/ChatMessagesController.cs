@@ -21,5 +21,5 @@ public sealed class ChatMessagesController : ControllerBase
     }
 
     [HttpGet]
-    public ActionResult GetBySessionId([FromQuery] string sessionId) => Ok(new { messages = _service.GetBySessionId(sessionId) });
+    public ActionResult GetByToken([FromQuery] string token) => Ok(new { messages = _service.GetByToken(token) });
 }

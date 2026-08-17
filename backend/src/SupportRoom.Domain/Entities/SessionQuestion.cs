@@ -2,9 +2,10 @@ using SupportRoom.Domain.Common;
 
 namespace SupportRoom.Domain.Entities;
 
-public sealed class SessionQuestion : IEntityMaster<string>
+public sealed class SessionQuestion : IEntityMaster<string>, ICompanyScoped
 {
     public required string Id { get; init; }
+    public required string CompanyId { get; init; }
     public string? CreateBy { get; init; }
     public DateTime CreateDate { get; init; }
     public string? UpdateBy { get; init; }

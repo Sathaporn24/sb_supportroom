@@ -48,6 +48,7 @@ public sealed class SessionSummaryService(IUnitOfWork unitOfWork, IServiceProvid
         _repository.Add(new SessionSummary
         {
             Id = IdGenerator.GenerateId("summary"),
+            CompanyId = CurrentCompanyId,
             SessionId = sessionId,
             CompletedAllSlides = completedAllSlides,
             LastSlideObjectId = lastSlideObjectId,
