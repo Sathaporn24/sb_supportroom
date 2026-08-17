@@ -1,7 +1,9 @@
 "use client";
 
 import type { KeyboardEvent, MouseEvent, TouchEvent } from "react";
-import { MicIcon } from "@/components/ui/icons";
+import { MicIcon } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 export type PushToTalkStatus = "idle" | "recording" | "processing" | "answering" | "disabled";
 
@@ -36,8 +38,9 @@ export function PushToTalkButton({ status, onStart, onEnd }: Props) {
   }
 
   return (
-    <button
+    <Button
       type="button"
+      size="lg"
       aria-pressed={isRecording}
       aria-label={labels[status]}
       disabled={isBusy}
@@ -52,16 +55,15 @@ export function PushToTalkButton({ status, onStart, onEnd }: Props) {
       onKeyUp={(e) => {
         if (e.key === " " || e.key === "Enter") release(e);
       }}
-      className={`flex select-none items-center gap-2 rounded-full px-5 py-3 text-sm font-semibold shadow-lg transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-room-accent ${
-        isRecording
-          ? "animate-pulse-soft bg-red-600 text-white"
-          : isBusy
-            ? "cursor-not-allowed bg-room-panelAlt text-room-muted"
-            : "bg-room-accent text-room-bg hover:bg-emerald-400"
-      }`}
+      // Recording needs a filled "live" red that the subtle destructive variant doesn't give,
+      // so this one state overrides the variant colors on purpose.
+      className={cn(
+        "h-11 rounded-full px-5 text-sm font-semibold shadow-lg",
+        isRecording && "animate-pulse bg-destructive text-white hover:bg-destructive",
+      )}
     >
-      <MicIcon className="h-5 w-5" />
+      <MicIcon data-icon="inline-start" />
       {labels[status]}
-    </button>
+    </Button>
   );
 }

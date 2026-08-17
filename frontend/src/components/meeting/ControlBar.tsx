@@ -1,5 +1,5 @@
-import { IconButton } from "@/components/ui/IconButton";
-import { CameraIcon, CameraOffIcon, ChatIcon, LeaveIcon, MicIcon, MicOffIcon } from "@/components/ui/icons";
+import { MessageSquareIcon, MicIcon, MicOffIcon, PhoneOffIcon, VideoIcon, VideoOffIcon } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { PushToTalkButton, type PushToTalkStatus } from "@/components/meeting/PushToTalkButton";
 import { VolumeControl } from "@/components/meeting/VolumeControl";
 
@@ -31,23 +31,49 @@ export function ControlBar({
   onPushToTalkEnd,
 }: Props) {
   return (
-    <div className="flex shrink-0 flex-wrap items-center justify-center gap-3 border-t border-room-border bg-room-panel px-4 py-3">
-      <IconButton
-        label={micOn ? "ปิดไมค์" : "เปิดไมค์"}
-        active={micOn}
-        icon={micOn ? <MicIcon /> : <MicOffIcon />}
+    <div className="flex shrink-0 flex-wrap items-center justify-center gap-3 border-t bg-card px-4 py-3">
+      <Button
+        variant={micOn ? "outline" : "destructive"}
+        size="icon-lg"
+        className="rounded-full"
+        title={micOn ? "ปิดไมค์" : "เปิดไมค์"}
+        aria-label={micOn ? "ปิดไมค์" : "เปิดไมค์"}
         onClick={onToggleMic}
-      />
-      <IconButton
-        label={cameraOn ? "ปิดกล้อง" : "เปิดกล้อง"}
-        active={cameraOn}
-        icon={cameraOn ? <CameraIcon /> : <CameraOffIcon />}
+      >
+        {micOn ? <MicIcon /> : <MicOffIcon />}
+      </Button>
+      <Button
+        variant={cameraOn ? "outline" : "destructive"}
+        size="icon-lg"
+        className="rounded-full"
+        title={cameraOn ? "ปิดกล้อง" : "เปิดกล้อง"}
+        aria-label={cameraOn ? "ปิดกล้อง" : "เปิดกล้อง"}
         onClick={onToggleCamera}
-      />
+      >
+        {cameraOn ? <VideoIcon /> : <VideoOffIcon />}
+      </Button>
       <PushToTalkButton status={pushToTalkStatus} onStart={onPushToTalkStart} onEnd={onPushToTalkEnd} />
       <VolumeControl volume={aiVolume} onChange={onChangeAiVolume} />
-      <IconButton label="แชต" icon={<ChatIcon />} onClick={onToggleChat} />
-      <IconButton label="ออกจากห้อง" danger icon={<LeaveIcon />} onClick={onLeave} />
+      <Button
+        variant="outline"
+        size="icon-lg"
+        className="rounded-full"
+        title="แชต"
+        aria-label="แชต"
+        onClick={onToggleChat}
+      >
+        <MessageSquareIcon />
+      </Button>
+      <Button
+        variant="destructive"
+        size="icon-lg"
+        className="rounded-full"
+        title="ออกจากห้อง"
+        aria-label="ออกจากห้อง"
+        onClick={onLeave}
+      >
+        <PhoneOffIcon />
+      </Button>
     </div>
   );
 }

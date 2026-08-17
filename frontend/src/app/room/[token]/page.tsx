@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { XIcon } from "lucide-react";
 import * as api from "@/lib/api-client";
 import { isSessionJoinable } from "@/utils/session-status";
 import { useTutorSession } from "@/hooks/use-tutor-session";
@@ -12,8 +13,8 @@ import { ParticipantTile } from "@/components/meeting/ParticipantTile";
 import { SlidesEmbed } from "@/components/meeting/SlidesEmbed";
 import { ControlBar } from "@/components/meeting/ControlBar";
 import { ChatDrawer } from "@/components/meeting/ChatDrawer";
-import { Button } from "@/components/ui/Button";
-import { LoadingBlock } from "@/components/ui/LoadingBlock";
+import { Button } from "@/components/ui/button";
+import { LoadingBlock } from "@/components/shared/LoadingBlock";
 import type { PushToTalkStatus } from "@/components/meeting/PushToTalkButton";
 import type { TrainingSession } from "@/types/domain";
 
@@ -117,17 +118,17 @@ function RoomContent({ session }: { session: TrainingSession }) {
   if (runtime.state === "error") {
     return (
       <main className="flex min-h-screen flex-col items-center justify-center gap-3 p-6 text-center">
-        <p className="text-room-text">เกิดข้อผิดพลาดระหว่างเตรียมห้องสอน</p>
-        <p className="text-sm text-room-muted">{runtime.errorMessage || loadError}</p>
+        <p>เกิดข้อผิดพลาดระหว่างเตรียมห้องสอน</p>
+        <p className="text-sm text-muted-foreground">{runtime.errorMessage || loadError}</p>
       </main>
     );
   }
 
   return (
-    <div className="flex h-screen flex-col overflow-hidden bg-room-bg">
-      <header className="flex shrink-0 items-center justify-between border-b border-room-border bg-room-panel px-4 py-3">
-        <p className="text-sm font-semibold text-room-text">School Bright Support</p>
-        <p className="text-xs text-room-muted">
+    <div className="flex h-screen flex-col overflow-hidden bg-background">
+      <header className="flex shrink-0 items-center justify-between border-b bg-card px-4 py-3">
+        <p className="text-sm font-semibold">School Bright Support</p>
+        <p className="text-xs text-muted-foreground">
           เชื่อมต่ออยู่
           {runtime.state === "paused" && " · พักการสอนชั่วคราว"}
         </p>
@@ -167,16 +168,16 @@ function RoomContent({ session }: { session: TrainingSession }) {
       </div>
 
       {runtime.micNotice && (
-        <div className="flex shrink-0 items-center justify-center gap-3 border-t border-amber-500/30 bg-amber-500/10 px-4 py-2 text-center text-sm text-amber-700">
+        <div className="flex shrink-0 items-center justify-center gap-3 border-t border-primary/30 bg-primary/10 px-4 py-2 text-center text-sm">
           <p>{runtime.micNotice}</p>
-          <button
-            type="button"
+          <Button
+            variant="ghost"
+            size="icon-xs"
             onClick={() => sendEvent({ type: "CLEAR_MIC_NOTICE" })}
-            className="text-amber-700/70 hover:text-amber-700"
             aria-label="ปิดข้อความแจ้งเตือน"
           >
-            ✕
-          </button>
+            <XIcon />
+          </Button>
         </div>
       )}
 

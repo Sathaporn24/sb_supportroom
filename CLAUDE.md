@@ -26,7 +26,7 @@ Push-to-Talk ถามได้ตลอด → AI ตอบโดยอ้า�
 
 ระบบเป็น monorepo แยกส่วนชัดเจน:
 
-- `frontend/` — Next.js 15 + React 19 + TypeScript + Tailwind
+- `frontend/` — Next.js 15 + React 19 + TypeScript + Tailwind v4 + shadcn/ui (Base UI, style `base-nova`)
 - `backend/` — ASP.NET Core .NET 10 + EF Core/PostgreSQL + SignalR
 - Frontend ติดต่อ backend ผ่าน `frontend/src/lib/api-client.ts` และ
   `frontend/src/hooks/use-session-chat.ts`
@@ -45,6 +45,40 @@ Push-to-Talk ถามได้ตลอด → AI ตอบโดยอ้า�
 6. Database schema เปลี่ยนผ่าน EF Core migration ใหม่ ห้ามแก้ migration ที่ deploy แล้ว
 7. Frontend/backend wire contract ใช้ camelCase และต้องอัปเดต TypeScript types กับ ViewModels คู่กัน
 8. ห้าม persist สำเนา Google Slides/PDF teaching content ลง LessonConfig; เก็บเฉพาะ metadata
+
+## UI Component System (frontend)
+
+`frontend/` คือ frontend จริงเพียงจุดเดียวของระบบ — อย่าสร้างหรือปฏิบัติกับโปรเจกต์ Next.js
+อื่นใดในระดับ repo root ว่าเป็นแอปจริง
+
+- Component base: **Base UI** (`@base-ui/react`), style preset: **Nova** (`base-nova` ใน
+  `frontend/components.json`) — ให้ Nova อยู่ในแนวเดียวกับ Figma design system ที่ทีมออกแบบเลือก
+  เมื่อมีการอัปเดต preset
+- `frontend/src/components/ui/` สงวนไว้สำหรับ shadcn primitives เท่านั้น (ไฟล์ที่ shadcn CLI
+  generate) ห้ามใส่ business logic หรือโค้ดเฉพาะ SupportRoom ที่นี่ และห้ามเขียน primitive เอง
+  ถ้า shadcn มีให้แล้ว
+  - ตั้งชื่อไฟล์ใน `ui/` เป็น **lowercase** ตาม convention ของ shadcn เสมอ — ไฟล์ที่ shadcn
+    generate ใหม่จะ import ข้ามกันด้วย path ตัวเล็ก และ Windows (case-insensitive) จะไม่เตือน
+    แต่ Linux production server จะพังทันที
+  - ก่อนเพิ่ม component ใหม่ ให้เช็ค `frontend/.agents/skills/shadcn/SKILL.md` และ
+    `frontend/src/components/ui/` ก่อนเสมอ — ใช้ของเดิมถ้ามีแล้ว เพิ่มเฉพาะที่ระบบต้องใช้จริง
+    (ห้ามติดตั้งไว้ล่วงหน้าโดยยังไม่มีจุดใช้งาน)
+- Component เฉพาะโดเมนอยู่ใน `frontend/src/components/meeting/` และ `.../admin/`;
+  composition ที่ใช้ซ้ำข้ามโดเมนอยู่ใน `.../shared/` — ทั้งสามแยกจาก `ui/` ชัดเจน
+- **ใช้ shadcn semantic tokens เท่านั้น** (`bg-background`, `text-muted-foreground`, `bg-primary`,
+  `border`, `bg-muted`, `text-destructive` ฯลฯ) ธีม "room-*" เดิมถูกลบออกทั้งหมดแล้ว พร้อมกับ
+  `tailwind.config.*` — Tailwind v4 กำหนดธีมผ่าน CSS ล้วนใน `src/app/globals.css`
+  - `@theme inline` ต้องอยู่ **top level** ของ `globals.css` เท่านั้น ห้ามย้ายไปไว้ใน `@layer base`
+    เพราะจะทำให้ค่า dark mode ไม่ถูกส่งต่อไปยัง utility ที่ generate ออกมา
+  - ค่าเดียวที่จงใจต่างจาก Nova default คือ `--primary` (สีส้มแบรนด์ School Bright)
+    แก้ที่ `:root`/`.dark` ใน `globals.css` จุดเดียว ถ้าจะกลับไปใช้ neutral ล้วน
+  - ยังไม่มี theme switcher ในระบบ (ไม่ได้ติดตั้ง `next-themes`) — token ฝั่ง `.dark`
+    ประกาศไว้ครบและถูกต้องแล้ว แต่ยังไม่มีอะไร toggle คลาส `dark` ในการใช้งานจริง
+- ลิงก์ที่หน้าตาเป็นปุ่มให้ใช้ `<Link className={buttonVariants({...})}>` ไม่ใช่
+  `<Button render={<Link/>}>` — Base UI Button คาดหวัง `<button>` จริง การ render เป็น `<a>`
+  จะทิ้ง native button semantics และขึ้น error ที่ console
+- ใช้ shadcn skill (`frontend/.agents/skills/shadcn/SKILL.md`) เป็นแนวทางหลักเวลาทำงานกับ UI —
+  รวม critical rules เรื่อง styling, forms, composition, icons
 
 ## Folder Map
 
@@ -195,6 +229,4 @@ Convention ที่ไม่ปกติแต่จงใจ — ทำตา�
 - `IsDelete`/`DeletedAt` มีในทุก entity แต่โค้ดลบจริงทุกครั้ง ไม่มี global query filter
 - Frontend มี dependency ตกค้างที่ไม่มีโค้ดเรียกใช้: `googleapis`, `msedge-tts`, `zod`,
   `client-only`, `bufferutil`, `utf-8-validate`
-- repo root มีไฟล์ตกค้างจากตอนย้าย monorepo: `node_modules/`, `.next/`, `next-env.d.ts`,
-  `tsconfig.tsbuildinfo`, `public/`
 - `PackageReference` แบบ floating (`3.*`, `0.*`, `5.*`) ทำให้ build ไม่ deterministic

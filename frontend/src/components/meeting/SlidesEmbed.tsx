@@ -1,6 +1,6 @@
 import type { TeachingSlide } from "@/types/domain";
 import { getApiBaseUrl } from "@/lib/api-client";
-import { LoadingBlock } from "@/components/ui/LoadingBlock";
+import { LoadingBlock } from "@/components/shared/LoadingBlock";
 
 type Props = {
   embedUrl: string;
@@ -28,7 +28,7 @@ export function SlidesEmbed({
 }: Props) {
   if (loading && !currentSlide) {
     return (
-      <div className="flex h-full min-h-[280px] w-full items-center justify-center rounded-xl border border-room-border bg-room-panel">
+      <div className="flex h-full min-h-[280px] w-full items-center justify-center rounded-xl border bg-card">
         <LoadingBlock label="กำลังโหลดบทเรียน..." />
       </div>
     );
@@ -40,7 +40,7 @@ export function SlidesEmbed({
   if (currentSlide?.slideUrl) {
     const imageSrc = `${getApiBaseUrl()}${currentSlide.slideUrl}`;
     return (
-      <div className="relative flex h-full min-h-[280px] w-full items-center justify-center overflow-hidden rounded-xl border border-room-border bg-white">
+      <div className="relative flex h-full min-h-[280px] w-full items-center justify-center overflow-hidden rounded-xl border bg-white">
         {/* eslint-disable-next-line @next/next/no-img-element -- backend-rendered PNG, not a next/image-optimizable static asset */}
         <img key={imageSrc} src={imageSrc} alt={`สไลด์ ${currentSlide.index + 1}`} className="max-h-full max-w-full object-contain" />
         {isReference && (
@@ -55,7 +55,7 @@ export function SlidesEmbed({
 
   if (!embedUrl || !currentSlide) {
     return (
-      <div className="flex h-full min-h-[280px] w-full flex-col items-center justify-center gap-2 rounded-xl border border-room-border bg-room-panel text-room-muted">
+      <div className="flex h-full min-h-[280px] w-full flex-col items-center justify-center gap-2 rounded-xl border bg-card text-muted-foreground">
         <p className="text-sm">Mock Mode: ยังไม่มี Google Slides Embed จริง</p>
         {currentSlide && (
           <p className="text-xs">
@@ -75,7 +75,7 @@ export function SlidesEmbed({
   // than its visible box (overflow-hidden crops the extra height off the bottom) and a
   // transparent overlay on top eats every click before it reaches the iframe.
   return (
-    <div className="relative h-full min-h-[280px] w-full overflow-hidden rounded-xl border border-room-border bg-white">
+    <div className="relative h-full min-h-[280px] w-full overflow-hidden rounded-xl border bg-white">
       <iframe
         key={src}
         src={src}

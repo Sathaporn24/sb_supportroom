@@ -4,8 +4,10 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import * as api from "@/lib/api-client";
 import type { LessonConfig } from "@/types/domain";
-import { Badge } from "@/components/ui/Badge";
-import { LoadingBlock } from "@/components/ui/LoadingBlock";
+import { Badge } from "@/components/ui/badge";
+import { buttonVariants } from "@/components/ui/button";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { LoadingBlock } from "@/components/shared/LoadingBlock";
 
 export default function LessonsListPage() {
   const [lessons, setLessons] = useState<LessonConfig[] | null>(null);
@@ -15,13 +17,13 @@ export default function LessonsListPage() {
   }, []);
 
   return (
-    <main className="mx-auto max-w-3xl space-y-6 p-6">
+    <main className="mx-auto flex max-w-3xl flex-col gap-6 p-6">
       <div>
-        <Link href="/admin" className="text-xs text-room-muted hover:text-room-text">
+        <Link href="/admin" className="text-xs text-muted-foreground hover:text-foreground">
           ← กลับหน้า Admin
         </Link>
-        <h1 className="mt-1 text-xl font-semibold text-room-text">บทเรียน (Google Slides)</h1>
-        <p className="mt-1 text-sm text-room-muted">
+        <h1 className="mt-1 text-xl font-semibold">บทเรียน (Google Slides)</h1>
+        <p className="mt-1 text-sm text-muted-foreground">
           แต่ละบทเรียนดึงเนื้อหาจาก Google Slides โดยตรง — 1 Slide = 1 ช่วงการสอน และ Speaker Notes คือบทพูด
         </p>
       </div>
@@ -29,38 +31,38 @@ export default function LessonsListPage() {
       {!lessons ? (
         <LoadingBlock label="กำลังโหลดรายการบทเรียน..." />
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-room-border">
-          <table className="w-full min-w-[520px] text-left text-sm">
-            <thead className="bg-room-panelAlt text-xs uppercase tracking-wide text-room-muted">
-              <tr>
-                <th className="px-4 py-3">ชื่อบทเรียน</th>
-                <th className="px-4 py-3">Slug</th>
-                <th className="px-4 py-3">สถานะ</th>
-                <th className="px-4 py-3">จัดการ</th>
-              </tr>
-            </thead>
-            <tbody>
+        <div className="overflow-hidden rounded-xl border">
+          <Table className="min-w-[520px]">
+            <TableHeader>
+              <TableRow>
+                <TableHead className="px-4">ชื่อบทเรียน</TableHead>
+                <TableHead className="px-4">Slug</TableHead>
+                <TableHead className="px-4">สถานะ</TableHead>
+                <TableHead className="px-4">จัดการ</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {lessons.map((lesson) => (
-                <tr key={lesson.id} className="border-t border-room-border">
-                  <td className="px-4 py-3 font-medium text-room-text">{lesson.title}</td>
-                  <td className="px-4 py-3 text-room-muted">{lesson.slug}</td>
-                  <td className="px-4 py-3">
-                    <Badge tone={lesson.isActive ? "success" : "neutral"}>
-                      <span className="whitespace-nowrap">{lesson.isActive ? "พร้อมใช้งาน" : "ปิดใช้งาน"}</span>
+                <TableRow key={lesson.id}>
+                  <TableCell className="px-4 py-3 font-medium">{lesson.title}</TableCell>
+                  <TableCell className="px-4 py-3 text-muted-foreground">{lesson.slug}</TableCell>
+                  <TableCell className="px-4 py-3">
+                    <Badge variant={lesson.isActive ? "default" : "secondary"}>
+                      {lesson.isActive ? "พร้อมใช้งาน" : "ปิดใช้งาน"}
                     </Badge>
-                  </td>
-                  <td className="px-4 py-3">
+                  </TableCell>
+                  <TableCell className="px-4 py-3">
                     <Link
                       href={`/admin/lessons/${encodeURIComponent(lesson.slug)}`}
-                      className="rounded-md border border-room-border bg-room-panelAlt px-2.5 py-1.5 text-xs text-room-text hover:border-room-accent/60"
+                      className={buttonVariants({ variant: "outline", size: "sm" })}
                     >
                       แก้ไข
                     </Link>
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         </div>
       )}
     </main>

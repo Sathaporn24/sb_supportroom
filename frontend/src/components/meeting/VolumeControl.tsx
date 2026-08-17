@@ -1,8 +1,10 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { IconButton } from "@/components/ui/IconButton";
-import { SpeakerIcon, SpeakerLowIcon, SpeakerMuteIcon } from "@/components/ui/icons";
+import { useEffect, useRef } from "react";
+import { Volume1Icon, Volume2Icon, VolumeXIcon } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Slider } from "@/components/ui/slider";
 
 type Props = {
   /** Current AI playback volume, 0-1. */
@@ -18,8 +20,6 @@ type Props = {
  * un-muting restores it.
  */
 export function VolumeControl({ volume, onChange }: Props) {
-  const [open, setOpen] = useState(false);
-  const wrapRef = useRef<HTMLDivElement | null>(null);
   // Remembers the level to jump back to when un-muting a volume that was dragged to (or muted to) 0.
   const lastNonZeroRef = useRef(volume > 0 ? volume : 1);
 
@@ -27,25 +27,8 @@ export function VolumeControl({ volume, onChange }: Props) {
     if (volume > 0) lastNonZeroRef.current = volume;
   }, [volume]);
 
-  // Close the popover on an outside click or Escape.
-  useEffect(() => {
-    if (!open) return;
-    function onPointerDown(e: PointerEvent) {
-      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false);
-    }
-    function onKeyDown(e: KeyboardEvent) {
-      if (e.key === "Escape") setOpen(false);
-    }
-    document.addEventListener("pointerdown", onPointerDown);
-    document.addEventListener("keydown", onKeyDown);
-    return () => {
-      document.removeEventListener("pointerdown", onPointerDown);
-      document.removeEventListener("keydown", onKeyDown);
-    };
-  }, [open]);
-
   const muted = volume <= 0;
-  const Icon = muted ? SpeakerMuteIcon : volume < 0.5 ? SpeakerLowIcon : SpeakerIcon;
+  const Icon = muted ? VolumeXIcon : volume < 0.5 ? Volume1Icon : Volume2Icon;
   const percent = Math.round(volume * 100);
 
   function toggleMute() {
@@ -53,41 +36,40 @@ export function VolumeControl({ volume, onChange }: Props) {
   }
 
   return (
-    <div ref={wrapRef} className="relative">
-      <IconButton
-        label={`เสียง AI (${percent}%)`}
-        icon={<Icon />}
-        aria-haspopup="true"
-        aria-expanded={open}
-        onClick={() => setOpen((prev) => !prev)}
-      />
-      {open && (
-        <div
-          className="absolute bottom-full left-1/2 mb-3 flex w-52 -translate-x-1/2 items-center gap-3 rounded-xl border border-room-border bg-room-panel px-4 py-3 shadow-lg"
-          role="group"
-          aria-label="ปรับระดับเสียง AI"
-        >
-          <button
-            type="button"
-            onClick={toggleMute}
-            aria-label={muted ? "เปิดเสียง AI" : "ปิดเสียง AI"}
-            title={muted ? "เปิดเสียง AI" : "ปิดเสียง AI"}
-            className="shrink-0 text-room-muted transition-colors hover:text-room-text focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-room-accent"
-          >
-            <Icon />
-          </button>
-          <input
-            type="range"
-            min={0}
-            max={100}
-            value={percent}
-            onChange={(e) => onChange(Number(e.target.value) / 100)}
-            aria-label="ระดับเสียง AI"
-            className="h-1.5 flex-1 cursor-pointer accent-room-accent"
+    <Popover>
+      <PopoverTrigger
+        render={
+          <Button
+            variant="outline"
+            size="icon-lg"
+            className="rounded-full"
+            title={`เสียง AI (${percent}%)`}
+            aria-label={`เสียง AI (${percent}%)`}
           />
-          <span className="w-9 shrink-0 text-right text-xs tabular-nums text-room-muted">{percent}%</span>
-        </div>
-      )}
-    </div>
+        }
+      >
+        <Icon />
+      </PopoverTrigger>
+      <PopoverContent side="top" className="w-52 flex-row items-center gap-3" aria-label="ปรับระดับเสียง AI">
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          onClick={toggleMute}
+          aria-label={muted ? "เปิดเสียง AI" : "ปิดเสียง AI"}
+          title={muted ? "เปิดเสียง AI" : "ปิดเสียง AI"}
+        >
+          <Icon />
+        </Button>
+        <Slider
+          value={percent}
+          min={0}
+          max={100}
+          onValueChange={(value) => onChange((Array.isArray(value) ? value[0] : value) / 100)}
+          aria-label="ระดับเสียง AI"
+          className="flex-1"
+        />
+        <span className="w-9 shrink-0 text-right text-xs tabular-nums text-muted-foreground">{percent}%</span>
+      </PopoverContent>
+    </Popover>
   );
 }
