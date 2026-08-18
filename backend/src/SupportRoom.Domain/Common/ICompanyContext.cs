@@ -15,7 +15,7 @@ public interface ICompanyContext
 
     /// <summary>
     /// Set once per request. Callers: the middleware (admin side) and any service that has just
-    /// loaded a TrainingSession by its token (recipient side - see ITrainingSessionRepository.
+    /// loaded a TrainingLink by its token (recipient side - see ITrainingLinkRepository.
     /// GetByToken, which bypasses the filter precisely so this can be resolved).
     /// </summary>
     void Resolve(string companyId);
@@ -35,26 +35,14 @@ public sealed class CompanyContext : ICompanyContext
     }
 }
 
-/// <summary>
-/// Where a request's company comes from while there is still no authentication (see TD-002).
-///
-/// Order: X-Company-Id header (only when ALLOW_COMPANY_HEADER=true) -> DEFAULT_COMPANY_ID.
-///
-/// ⚠️ The header path is a development scaffold, NOT access control - anyone can set a header.
-/// It exists so multiple companies can be exercised locally before auth lands. Leave
-/// ALLOW_COMPANY_HEADER unset in production: every request then resolves to DEFAULT_COMPANY_ID,
-/// which is exactly the single-company behaviour the system had before, and the recipient-side
-/// flows still resolve their real company from the session token regardless.
-/// </summary>
-public static class CompanyResolutionEnv
-{
-    public const string HeaderName = "X-Company-Id";
-
-    /// <summary>Company assigned to existing rows by the CompanyId migration, and to any request
-    /// that resolves no other way.</summary>
-    public static string GetDefaultCompanyId() =>
-        Environment.GetEnvironmentVariable("DEFAULT_COMPANY_ID") is { Length: > 0 } id ? id : "default";
-
-    public static bool IsHeaderAllowed() =>
-        string.Equals(Environment.GetEnvironmentVariable("ALLOW_COMPANY_HEADER"), "true", StringComparison.OrdinalIgnoreCase);
-}
+// CompanyResolutionEnv used to live here: an X-Company-Id header (gated by ALLOW_COMPANY_HEADER)
+// falling back to DEFAULT_COMPANY_ID. It was a development scaffold for exercising multiple
+// companies before authentication existed, and was tolerable only while every user was School
+// Bright staff.
+//
+// It is deleted rather than switched off. Once a customer's own people sign in (TD-014), a header
+// any caller can set is a complete bypass of company isolation - and a disabled-by-default switch
+// is one careless environment variable away from being on in production. A request's company now
+// comes from a verified JWT plus an authorization check on every request (CurrentUserMiddleware),
+// or - on the learner side - from TrainingLink.Token, which was always the only trustworthy source
+// there.

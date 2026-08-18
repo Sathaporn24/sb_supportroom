@@ -2,8 +2,8 @@ namespace SupportRoom.Domain.Common;
 
 /// <summary>
 /// Every row belongs to exactly one company - the organization that operates its own support
-/// room (School Bright, SCB, ...). NOT the organization of the person receiving a session link:
-/// that one is a plain display label on TrainingSession (RecipientOrgName), with no isolation
+/// room (School Bright, SCB, ...). NOT the organization of the person receiving a training link:
+/// that one is a plain display label on TrainingLink (RecipientOrgName), with no isolation
 /// meaning at all. Mixing those two up is the easiest way to build a cross-company leak, so
 /// they deliberately do not share a name.
 ///

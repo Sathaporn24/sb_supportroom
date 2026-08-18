@@ -31,17 +31,23 @@ public sealed class VoiceQuestionService(
     IRealtimeNotifier realtimeNotifier)
     : ServiceBase<IVoiceQuestionService>(unitOfWork, serviceProvider, logger), IVoiceQuestionService
 {
-    private readonly ITrainingSessionRepository _sessionRepository = unitOfWork.GetRepository<ITrainingSessionRepository>();
-
     public async Task<VoiceAnswerViewModel> AskAsync(AskVoiceQuestionDto input)
     {
-        // Resolving the session from its token FIRST is what makes this request company-scoped:
+        // Resolving the link from its token FIRST is what makes this request company-scoped:
         // it sets ICompanyContext, so the lesson lookup below can only ever see this company's
         // lessons. The lesson slug used to come straight from the caller alongside a separate
         // sessionId, with nothing checking the two belonged together - harmless while every slug
         // was globally unique, but a cross-company read the moment slugs are per-company.
-        var sessionService = ServiceProvider.GetRequiredService<ITrainingSessionService>();
-        var session = sessionService.GetByToken(input.Token);
+        //
+        // The learner key then picks WHICH person on that link is asking - the token stopped
+        // identifying a person once one link started serving a whole department.
+        var learningSessionService = ServiceProvider.GetRequiredService<ILearningSessionService>();
+        var session = learningSessionService.GetEntityByLearnerKey(input.Token, input.LearnerKey);
+        if (session.Status == SessionStatus.Ended)
+        {
+            throw GeneralException.ValidationError("การเรียนนี้จบแล้ว กรุณากดเรียนอีกครั้งก่อนถามคำถามใหม่");
+        }
+        var link = ServiceProvider.GetRequiredService<ITrainingLinkService>().GetEntityByToken(input.Token);
 
         // Resolve slides through the single content-source-agnostic path so voice questions work
         // for BOTH Google-Slides and PDF lessons - this used to require lesson.PresentationId and
@@ -50,7 +56,7 @@ public sealed class VoiceQuestionService(
         LessonTeachingContentViewModel content;
         try
         {
-            content = await lessonService.GetTeachingContentBySlugAsync(session.LessonSlug);
+            content = await lessonService.GetTeachingContentBySlugAsync(link.LessonSlug);
         }
         catch (HttpStatusCodeException)
         {
@@ -70,7 +76,7 @@ public sealed class VoiceQuestionService(
                 // Built here, from the company the session token resolved to - never inside the
                 // provider. Vectors live outside PostgreSQL, so the query filter cannot protect
                 // them; the namespace key is the only isolation the knowledge store has.
-                LessonNamespace = KnowledgeNamespaces.For(CurrentCompanyId, session.LessonSlug),
+                LessonNamespace = KnowledgeNamespaces.For(CurrentCompanyId, link.LessonSlug),
                 GlobalNamespace = KnowledgeNamespaces.ForGlobal(CurrentCompanyId),
             });
 
@@ -95,7 +101,7 @@ public sealed class VoiceQuestionService(
                     AnswerStatus = result.AnswerStatus,
                 });
 
-                await realtimeNotifier.NotifyNewQuestionAsync(session.Token, question);
+                await realtimeNotifier.NotifyNewQuestionAsync(session.Id, question);
             }
 
             return result.Adapt<VoiceAnswerViewModel>();

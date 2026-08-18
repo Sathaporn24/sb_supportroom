@@ -28,7 +28,6 @@ public class DocumentResourceServiceTests
             new FakeServiceProvider(),
             NullLogger<IDocumentResourceService>.Instance,
             new LocalDocumentStorageProvider(NullLogger<LocalDocumentStorageProvider>.Instance),
-            new FakeKnowledgeIndexingService(),
             new BackgroundTaskQueue()); // real, dependency-free class - safe to use directly in tests
     }
 

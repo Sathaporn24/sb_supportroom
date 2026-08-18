@@ -5,6 +5,12 @@ namespace SupportRoom.Application.Dto;
 public sealed class SynthesizeSpeechDto
 {
     [Required]
+    public string? Token { get; init; }
+
+    [Required]
+    public string? LearnerKey { get; init; }
+
+    [Required]
     [StringLength(DtoLimits.MaxTextLength, MinimumLength = 1)]
     public required string Text { get; init; }
     public string? Voice { get; init; }

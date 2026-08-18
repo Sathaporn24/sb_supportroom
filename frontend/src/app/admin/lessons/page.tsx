@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
+import { AdminLink } from "@/components/admin/AdminLink";
 import * as api from "@/lib/api-client";
 import type { LessonConfig } from "@/types/domain";
 import { Badge } from "@/components/ui/badge";
@@ -19,9 +19,9 @@ export default function LessonsListPage() {
   return (
     <main className="mx-auto flex max-w-3xl flex-col gap-6 p-6">
       <div>
-        <Link href="/admin" className="text-xs text-muted-foreground hover:text-foreground">
+        <AdminLink href="/admin" className="text-xs text-muted-foreground hover:text-foreground">
           ← กลับหน้า Admin
-        </Link>
+        </AdminLink>
         <h1 className="mt-1 text-xl font-semibold">บทเรียน (Google Slides)</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           แต่ละบทเรียนดึงเนื้อหาจาก Google Slides โดยตรง — 1 Slide = 1 ช่วงการสอน และ Speaker Notes คือบทพูด
@@ -52,12 +52,12 @@ export default function LessonsListPage() {
                     </Badge>
                   </TableCell>
                   <TableCell className="px-4 py-3">
-                    <Link
+                    <AdminLink
                       href={`/admin/lessons/${encodeURIComponent(lesson.slug)}`}
                       className={buttonVariants({ variant: "outline", size: "sm" })}
                     >
                       แก้ไข
-                    </Link>
+                    </AdminLink>
                   </TableCell>
                 </TableRow>
               ))}

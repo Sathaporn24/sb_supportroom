@@ -5,6 +5,7 @@ using SupportRoom.Application.Services;
 using SupportRoom.Application.ViewModel;
 using SupportRoom.Domain;
 using SupportRoom.Domain.Entities;
+using SupportRoom.Domain.Enums;
 using SupportRoom.Providers.Data.Data.UnitOfWork;
 using SupportRoom.Providers.Data.Repository;
 using SupportRoom.Providers.Knowledge;
@@ -69,19 +70,88 @@ internal sealed class FakeDocumentResourceRepository : IDocumentResourceReposito
     public IQueryable<DocumentResource> GetStandalone() => Items.AsQueryable().Where(x => x.LessonId == null);
 }
 
-internal sealed class FakeTrainingSessionRepository : ITrainingSessionRepository
+/// <summary>
+/// ⚠️ Mirrors the real repository's most important property: NOTHING here is scoped by company,
+/// because the real table has no query filter either (Company is the tenant registry). A fake that
+/// helpfully filtered would hide exactly the bugs these tests exist to catch.
+/// </summary>
+internal sealed class FakeCompanyRepository : ICompanyRepository
 {
-    public readonly List<TrainingSession> Items = [];
+    public readonly List<Company> Items = [];
 
-    public IQueryable<TrainingSession> GetAll() => Items.AsQueryable();
-    public IQueryable<TrainingSession> FindBy(Expression<Func<TrainingSession, bool>> predicate) => Items.AsQueryable().Where(predicate);
-    public TrainingSession? Get(string id) => Items.FirstOrDefault(x => x.Id == id);
-    public Task<TrainingSession?> GetAsync(string id) => Task.FromResult(Get(id));
-    public void Add(TrainingSession entity) => Items.Add(entity);
-    public void Update(TrainingSession entity) { }
-    public void Delete(TrainingSession entity) => Items.Remove(entity);
+    public IQueryable<Company> GetAll() => Items.AsQueryable();
+    public IQueryable<Company> FindBy(Expression<Func<Company, bool>> predicate) => Items.AsQueryable().Where(predicate);
+    public Company? Get(string id) => Items.FirstOrDefault(x => x.Id == id);
+    public Task<Company?> GetAsync(string id) => Task.FromResult(Get(id));
+    public void Add(Company entity) => Items.Add(entity);
+    public void Update(Company entity) { }
+    public void Delete(Company entity) => Items.Remove(entity);
 
-    public TrainingSession? GetByToken(string token) => Items.FirstOrDefault(x => x.Token == token);
+    public IQueryable<Company> GetAllActive() => Items.AsQueryable().Where(x => x.IsActive).OrderBy(x => x.Name);
+    public bool ExistsActive(string id) => Items.Any(x => x.Id == id && x.IsActive);
+}
+
+/// <summary>⚠️ Unscoped for the same reason as FakeCompanyRepository - see its note.</summary>
+internal sealed class FakeAdminUserRepository : IAdminUserRepository
+{
+    public readonly List<AdminUser> Items = [];
+
+    public IQueryable<AdminUser> GetAll() => Items.AsQueryable();
+    public IQueryable<AdminUser> FindBy(Expression<Func<AdminUser, bool>> predicate) => Items.AsQueryable().Where(predicate);
+    public AdminUser? Get(string id) => Items.FirstOrDefault(x => x.Id == id);
+    public Task<AdminUser?> GetAsync(string id) => Task.FromResult(Get(id));
+    public void Add(AdminUser entity) => Items.Add(entity);
+    public void Update(AdminUser entity) { }
+    public void Delete(AdminUser entity) => Items.Remove(entity);
+
+    public AdminUser? GetByEmail(string email)
+        => Items.FirstOrDefault(x => string.Equals(x.Email, email, StringComparison.OrdinalIgnoreCase));
+
+    public IQueryable<AdminUser> GetByCompanyId(string companyId)
+        => Items.AsQueryable().Where(x => x.CompanyId == companyId).OrderBy(x => x.DisplayName);
+
+    public int CountActiveAdmins(string companyId)
+        => Items.Count(x => x.CompanyId == companyId && x.Role == AdminRole.Admin && x.IsActive);
+
+    public int CountActiveOwners() => Items.Count(x => x.Role == AdminRole.Owner && x.IsActive);
+
+    public bool IsEmpty() => Items.Count == 0;
+}
+
+internal sealed class FakeTrainingLinkRepository : ITrainingLinkRepository
+{
+    public readonly List<TrainingLink> Items = [];
+
+    public IQueryable<TrainingLink> GetAll() => Items.AsQueryable();
+    public IQueryable<TrainingLink> FindBy(Expression<Func<TrainingLink, bool>> predicate) => Items.AsQueryable().Where(predicate);
+    public TrainingLink? Get(string id) => Items.FirstOrDefault(x => x.Id == id);
+    public Task<TrainingLink?> GetAsync(string id) => Task.FromResult(Get(id));
+    public void Add(TrainingLink entity) => Items.Add(entity);
+    public void Update(TrainingLink entity) { }
+    public void Delete(TrainingLink entity) => Items.Remove(entity);
+
+    public TrainingLink? GetByToken(string token) => Items.FirstOrDefault(x => x.Token == token);
+}
+
+internal sealed class FakeLearningSessionRepository : ILearningSessionRepository
+{
+    public readonly List<LearningSession> Items = [];
+
+    public IQueryable<LearningSession> GetAll() => Items.AsQueryable();
+    public IQueryable<LearningSession> FindBy(Expression<Func<LearningSession, bool>> predicate) => Items.AsQueryable().Where(predicate);
+    public LearningSession? Get(string id) => Items.FirstOrDefault(x => x.Id == id);
+    public Task<LearningSession?> GetAsync(string id) => Task.FromResult(Get(id));
+    public void Add(LearningSession entity) => Items.Add(entity);
+    public void Update(LearningSession entity) { }
+    public void Delete(LearningSession entity) => Items.Remove(entity);
+
+    public LearningSession? GetActiveByLearnerKey(string trainingLinkId, string learnerKey)
+        => Items.Where(x => x.TrainingLinkId == trainingLinkId && x.LearnerKey == learnerKey)
+            .OrderByDescending(x => x.StartedAt)
+            .FirstOrDefault();
+
+    public IQueryable<LearningSession> GetByTrainingLinkId(string trainingLinkId)
+        => Items.AsQueryable().Where(x => x.TrainingLinkId == trainingLinkId);
 }
 
 internal sealed class FakeSessionQuestionRepository : ISessionQuestionRepository
@@ -97,21 +167,6 @@ internal sealed class FakeSessionQuestionRepository : ISessionQuestionRepository
     public void Delete(SessionQuestion entity) => Items.Remove(entity);
 
     public IQueryable<SessionQuestion> GetBySessionId(string sessionId) => Items.AsQueryable().Where(x => x.SessionId == sessionId);
-}
-
-internal sealed class FakeSessionSummaryRepository : ISessionSummaryRepository
-{
-    public readonly List<SessionSummary> Items = [];
-
-    public IQueryable<SessionSummary> GetAll() => Items.AsQueryable();
-    public IQueryable<SessionSummary> FindBy(Expression<Func<SessionSummary, bool>> predicate) => Items.AsQueryable().Where(predicate);
-    public SessionSummary? Get(string id) => Items.FirstOrDefault(x => x.Id == id);
-    public Task<SessionSummary?> GetAsync(string id) => Task.FromResult(Get(id));
-    public void Add(SessionSummary entity) => Items.Add(entity);
-    public void Update(SessionSummary entity) { }
-    public void Delete(SessionSummary entity) => Items.Remove(entity);
-
-    public SessionSummary? GetBySessionId(string sessionId) => Items.FirstOrDefault(x => x.SessionId == sessionId);
 }
 
 internal sealed class FakeChatMessageRepository : IChatMessageRepository
@@ -175,20 +230,23 @@ internal sealed class FakeRealtimeNotifier : IRealtimeNotifier
 {
     public int NewQuestionCount { get; private set; }
     public int ChatMessageCount { get; private set; }
-    public string? LastQuestionToken { get; private set; }
-    public string? LastChatToken { get; private set; }
+    /// <summary>The group key broadcasts go to. Now a LEARNING SESSION id, not a link token -
+    /// tests assert on this because a token-keyed group would fan one learner's questions out to
+    /// everyone else holding the same link.</summary>
+    public string? LastQuestionTarget { get; private set; }
+    public string? LastChatTarget { get; private set; }
 
-    public Task NotifyNewQuestionAsync(string sessionToken, SessionQuestionViewModel question)
+    public Task NotifyNewQuestionAsync(string learningSessionId, SessionQuestionViewModel question)
     {
         NewQuestionCount++;
-        LastQuestionToken = sessionToken;
+        LastQuestionTarget = learningSessionId;
         return Task.CompletedTask;
     }
 
-    public Task NotifyChatMessageAsync(string sessionToken, ChatMessageViewModel message)
+    public Task NotifyChatMessageAsync(string learningSessionId, ChatMessageViewModel message)
     {
         ChatMessageCount++;
-        LastChatToken = sessionToken;
+        LastChatTarget = learningSessionId;
         return Task.CompletedTask;
     }
 }

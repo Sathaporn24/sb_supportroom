@@ -13,13 +13,24 @@ namespace SupportRoom.Providers.Data.Data;
 /// The filter compares against a nullable CompanyId on purpose: an unresolved context matches
 /// zero rows. Forgetting to resolve therefore surfaces as empty results, never as another
 /// company's data.
+///
+/// ⚠️ TWO entities sit outside that safety net - Company and AdminUser (see below). They are the
+/// substrate authentication is built from, and both are consulted BEFORE a company is known, so a
+/// filter on them would match zero rows and nothing would work. For those two, IAuthorizationGuard
+/// is the only protection, which is why its rules are covered by tests directly (TD-014).
 /// </summary>
 public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options, ICompanyContext companyContext) : DbContext(options)
 {
-    public DbSet<TrainingSession> TrainingSession => Set<TrainingSession>();
+    /// <summary>No query filter - see the ⚠️ note on this class and on the entity itself.</summary>
+    public DbSet<Company> Company => Set<Company>();
+
+    /// <summary>No query filter - see the ⚠️ note on this class and on the entity itself.</summary>
+    public DbSet<AdminUser> AdminUser => Set<AdminUser>();
+
+    public DbSet<TrainingLink> TrainingLink => Set<TrainingLink>();
+    public DbSet<LearningSession> LearningSession => Set<LearningSession>();
     public DbSet<SessionQuestion> SessionQuestion => Set<SessionQuestion>();
     public DbSet<LessonConfig> LessonConfig => Set<LessonConfig>();
-    public DbSet<SessionSummary> SessionSummary => Set<SessionSummary>();
     public DbSet<ChatMessage> ChatMessage => Set<ChatMessage>();
     public DbSet<DocumentResource> DocumentResource => Set<DocumentResource>();
 
@@ -27,13 +38,45 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     {
         base.OnModelCreating(builder);
 
-        builder.Entity<TrainingSession>(entity =>
+        // Company and AdminUser get NO HasQueryFilter, deliberately:
+        //   Company  - it IS the tenant registry; filtering it would leave the company switcher
+        //              with nothing to list.
+        //   AdminUser- sign-in finds a user by email before any company is known, and an owner's
+        //              CompanyId is null, which `CompanyId == context` can never match.
+        // Their scoping lives in IAuthorizationGuard instead. Do not "fix" this by adding a
+        // filter - it would break login, not tighten security.
+        builder.Entity<Company>(entity =>
+        {
+            entity.HasKey(x => x.Id);
+            entity.HasIndex(x => x.IsActive);
+        });
+
+        builder.Entity<AdminUser>(entity =>
+        {
+            entity.HasKey(x => x.Id);
+            // Unique across the system, not per company: sign-in supplies only an email, so the
+            // same address under two companies would make the account ambiguous.
+            entity.HasIndex(x => x.Email).IsUnique();
+            entity.HasIndex(x => x.CompanyId);
+        });
+
+        builder.Entity<TrainingLink>(entity =>
         {
             entity.HasKey(x => x.Id);
             // Token stays globally unique - it is the public join secret and is looked up before
             // any company is known (GetByToken bypasses the filter), so it must not collide
             // across companies.
             entity.HasIndex(x => x.Token).IsUnique();
+            entity.HasIndex(x => x.CompanyId);
+            entity.HasQueryFilter(x => x.CompanyId == companyContext.CompanyId);
+        });
+
+        builder.Entity<LearningSession>(entity =>
+        {
+            entity.HasKey(x => x.Id);
+            // Not unique: pressing "เรียนอีกครั้ง" creates another round under the same key, so
+            // the same (link, learner) pair legitimately has several rows.
+            entity.HasIndex(x => new { x.TrainingLinkId, x.LearnerKey });
             entity.HasIndex(x => x.CompanyId);
             entity.HasQueryFilter(x => x.CompanyId == companyContext.CompanyId);
         });
@@ -54,15 +97,6 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             // company onboarded unable to use the obvious names.
             entity.HasIndex(x => new { x.CompanyId, x.Slug }).IsUnique();
             entity.OwnsMany(x => x.SlideConfigs, owned => owned.ToJson());
-            entity.HasQueryFilter(x => x.CompanyId == companyContext.CompanyId);
-        });
-
-        builder.Entity<SessionSummary>(entity =>
-        {
-            entity.HasKey(x => x.Id);
-            entity.HasIndex(x => x.SessionId).IsUnique();
-            entity.HasIndex(x => x.CompanyId);
-            // List<string> maps natively to a Postgres text[] column via Npgsql - no JSON needed.
             entity.HasQueryFilter(x => x.CompanyId == companyContext.CompanyId);
         });
 

@@ -9,6 +9,8 @@ using static SupportRoom.Application.Tests.TestFixtures;
 
 namespace SupportRoom.Application.Tests;
 
+/// <summary>Constructs the real GoogleSlidesProvider and resolves a real deck.</summary>
+[Trait(TestCategories.Category, TestCategories.Integration)]
 public class SlidesServiceTests
 {
     private readonly SlidesService _service = new(
@@ -30,6 +32,10 @@ public class SlidesServiceTests
     }
 }
 
+/// <summary>Hits Microsoft's Read-Aloud endpoint over the network. No API key needed, but it is
+/// still a live external call - and one Microsoft is actively blocking from datacenter IPs
+/// (TD-001), so it cannot be a gating check in CI.</summary>
+[Trait(TestCategories.Category, TestCategories.Integration)]
 public class TtsServiceTests
 {
     private readonly TtsService _service = new(
@@ -46,6 +52,9 @@ public class TtsServiceTests
     }
 }
 
+/// <summary>Reads the provider selection out of the environment, so it needs .env present even
+/// though it makes no network call of its own.</summary>
+[Trait(TestCategories.Category, TestCategories.Integration)]
 public class HealthServiceTests
 {
     private readonly HealthService _service = new(

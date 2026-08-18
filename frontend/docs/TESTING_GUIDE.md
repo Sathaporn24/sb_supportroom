@@ -19,7 +19,9 @@ Tests ปัจจุบันครอบคลุม tutor reducer และ G
 cd backend
 dotnet restore SupportRoom.slnx
 dotnet build SupportRoom.slnx
-dotnet test SupportRoom.slnx
+dotnet test SupportRoom.slnx --filter "Category!=Integration"
+# opt-in เมื่อมี credentials/network:
+dotnet test SupportRoom.slnx --filter "Category=Integration"
 ```
 
 Test projects:
@@ -28,8 +30,8 @@ Test projects:
 - `SupportRoom.Providers.Tests` — parser/pure provider logic และบาง live provider tests
 - `SupportRoom.Api.IntegrationTests` — ปัจจุบันมีเพียง placeholder test ยังไม่ยืนยัน endpoints
 
-ชุดทดสอบยังไม่ hermetic: live Google/Pinecone/Gemini/Edge TTS cases ต้องมี
-`backend/src/SupportRoom.Api/.env` และ network จึงไม่ควรถูกนับเป็น unit-test gate เดียวกันใน CI
+live Google/Pinecone/Gemini/Edge TTS cases ต้องมี `.env`/network แต่ติด
+`Category=Integration` แล้ว จึงตัดออกจาก default CI gate ได้
 
 ## Manual Smoke Test
 

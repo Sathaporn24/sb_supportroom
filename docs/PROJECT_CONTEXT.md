@@ -1,6 +1,7 @@
 # PROJECT_CONTEXT — SupportRoom AI
 
-> เอกสารนี้อธิบายระบบ **ตามที่โค้ดเป็นจริง** ณ วันที่ 11 สิงหาคม 2026 (branch `Dev-gun/Gun`)
+> เอกสารนี้อธิบายระบบ **ตามที่โค้ดเป็นจริง** อัปเดต audit ล่าสุด 13 สิงหาคม 2026
+> (branch `Dev-gun/Gun`) เริ่มอ่านสถานะส่งมอบที่ [`HANDOFF_MASTER.md`](./HANDOFF_MASTER.md)
 > เมื่อเอกสารกับโค้ดขัดกัน ให้ถือโค้ดเป็น source of truth และแก้เอกสารตาม
 >
 > เอกสารพี่น้อง: [`SOLUTION_ARCHITECTURE.md`](./SOLUTION_ARCHITECTURE.md) (solution space / ecosystem)
@@ -31,20 +32,25 @@ SupportRoom AI คือ **ห้องเรียนสาธิตแบบ�
 | CS / Admin | `/admin/*` | ตั้งค่าบทเรียน, อัปโหลดเอกสาร knowledge base, สร้าง/ติดตาม session, แชตช่วยคุณครูสด |
 | คุณครู (Teacher) | `/join/[token]`, `/room/[token]` | เข้าห้องผ่านลิงก์, ฟังบทเรียน, ถามด้วยเสียง, แชต |
 
-ปัจจุบัน **ไม่มีระบบล็อกอิน** — ทั้งสองบทบาทแยกกันด้วย URL เท่านั้น (`token` ในลิงก์คือ
-ความลับเดียวที่มี) ดูข้อ 13 และ 19
+Back office มี JWT login และ 3 role (`owner`/`admin`/`cs`) ส่วนผู้เรียนไม่มีบัญชี ใช้ link token
+ร่วมกับ browser `learnerKey` ดูข้อ 13
 
 ### Entity หลักและกฎธุรกิจ
 
-- **LessonConfig** — เนื้อหาหนึ่งชุด ระบุด้วย `slug` ที่ไม่ซ้ำ เลือกแหล่งเนื้อหาได้ 2 แบบ
+- **LessonConfig** — เนื้อหาหนึ่งชุด ระบุด้วย `slug` ที่ไม่ซ้ำภายในบริษัท เลือกแหล่งเนื้อหาได้ 2 แบบ
   (`google_slides` หรือ `pdf`) เก็บเฉพาะ *metadata + timing* ห้ามเก็บสำเนาเนื้อหาสอน
   (สถาปัตยกรรมกฎข้อ 8) — เนื้อหาจริงถูก resolve สดทุกครั้ง
-- **TrainingSession** — ลิงก์เชิญหนึ่งครั้ง มี `token` สาธารณะ, `expiresAt`, และ lifecycle
-  `NOT_STARTED → IN_PROGRESS → ENDED` (ส่วน `EXPIRED` เป็น status ที่ frontend คำนวณเอง ไม่ได้เก็บใน DB)
+- **TrainingLink** — ลิงก์เชิญที่ CS สร้าง มี `token` สาธารณะกับ `expiresAt`
+  1 ลิงก์เปิดได้หลายคน สถานะ ACTIVE/EXPIRED คำนวณจาก `expiresAt` ไม่ได้เก็บ
+- **LearningSession** — การเรียนของคน *หนึ่ง* คน ผูกกับลิงก์ผ่าน `trainingLinkId`
+  แยกคนด้วย `learnerKey` (key ที่ browser เก็บ) — `SessionQuestion.SessionId` และ
+  `ChatMessage.SessionId` ชี้มาที่ตารางนี้ ไม่ใช่ที่ลิงก์
+- ~~**TrainingSession**~~ — เดิมคือ "1 ลิงก์ = 1 การเรียน" แยกออกเป็นสองตารางข้างบนแล้ว (TD-013)
+  ปัจจุบัน `LearningSession` มี `IN_PROGRESS → ENDED`; ส่วน `TrainingLink` มี ACTIVE/EXPIRED แบบคำนวณสด
 - **SessionQuestion** — บันทึกคำถาม Push-to-Talk หนึ่งครั้ง พร้อม `answerStatus`
   (`answered` / `not_found` / `out_of_scope` / `no_speech` / `transcription_failed`)
   จงใจไม่ใช้ boolean เพื่อให้ CS รู้ว่า *ทำไม* ถึงตอบไม่ได้
-- **SessionSummary** — snapshot เขียนครั้งเดียวตอนจบ session ไม่ recompute
+- ~~**SessionSummary**~~ — ลบทิ้งแล้ว (TD-013) สรุปคำนวณสดจาก `LearningSession` + `SessionQuestion`
 - **ChatMessage** — ช่องข้อความสำรอง แยกจาก voice Q&A เก็บลง DB เพื่อให้คนเข้ากลางคันเห็นย้อนหลัง
 - **DocumentResource** — ไฟล์ที่ CS อัปโหลด (`LessonId` เป็น null ได้ = เอกสาร global)
 
@@ -66,7 +72,7 @@ SupportRoom AI คือ **ห้องเรียนสาธิตแบบ�
 | API client | `fetch` wrapper จุดเดียวที่ `src/lib/api-client.ts` |
 | Realtime | `@microsoft/signalr` 10.x |
 | Media | MediaRecorder + getUserMedia ผ่าน hooks |
-| Test | Vitest 4.1 (28 tests ผ่านทั้งหมด) |
+| Test | Vitest 4.1 (31 tests ผ่านทั้งหมด) |
 | Lint / Types | ESLint 9 (`eslint-config-next`), `tsc --noEmit` |
 
 > ⚠️ `package.json` ยังมี dependency ตกค้างจากยุค Next.js fullstack ที่ **ไม่มีโค้ดเรียกใช้แล้ว**:
@@ -86,7 +92,7 @@ SupportRoom AI คือ **ห้องเรียนสาธิตแบบ�
 | Background jobs | `IBackgroundTaskQueue` (Channel ใน memory) + `QueuedHostedService` |
 | Cache | `IMemoryCache` (PDF bytes / parsed content / rendered pages) |
 | API docs | OpenAPI + Swagger UI (Development เท่านั้น) |
-| Auth | **ไม่มี** (`app.UseAuthorization()` ถูกเรียกแต่ไม่มี policy/scheme) |
+| Auth | JWT bearer + fallback authorization policy; 3-role back-office RBAC |
 | Test | xUnit 2.9 (3 projects) |
 
 ### Infrastructure
@@ -179,7 +185,7 @@ backend/tests/                Application.Tests, Providers.Tests, Api.Integratio
 | Voice Q&A | transcribe → retrieve → answer → persist → broadcast | `IVoiceQuestionService.cs`, `RagVoiceQuestionProvider.cs` |
 | Knowledge indexing | chunk → embed (bounded parallel) → upsert Pinecone | `IKnowledgeIndexingService.cs` |
 | Document pipeline | upload → storage → [respond] → background parse/index | `IDocumentResourceService.cs` |
-| Realtime | SignalR group ต่อ session token | `SessionHub.cs`, `SignalRRealtimeNotifier.cs` |
+| Realtime | SignalR group ต่อ LearningSession id | `SessionHub.cs`, `SignalRRealtimeNotifier.cs` |
 | Admin ops | reset demo data, re-index ทั้งระบบ | `IAdminService.cs` |
 
 ## 7. Main User Flows
@@ -199,9 +205,10 @@ backend/tests/                Application.Tests, Providers.Tests, Api.Integratio
 
 ```
 /room/[token]
-  → GET /api/sessions/{token}  (ENDED → /session-ended, หมดอายุ → /link-expired)
+  → GET /api/training-links/{token}  (หมดอายุ → /link-expired)
+  → POST /api/learning-sessions/{token}/join  (ENDED → /session-ended/{token})
   → useTutorSession: dispatch JOIN
-     → effect LOAD_LESSON  → GET /api/lessons/{slug}   (lesson + embedUrl + slides)
+     → effect LOAD_LESSON  → GET /api/lessons/by-link/{token} (learner-safe lesson + embedUrl + slides)
      → LESSON_LOADED       → effect SPEAK(intro)  → POST /api/tts → play <audio>
      → TTS_ENDED           → state "ready" + timer introWaitMs
      → START / INTRO_TIMEOUT → LOAD_SLIDE(0) → POST /api/tts (speakerNotes)
@@ -254,9 +261,9 @@ backend/tests/                Application.Tests, Providers.Tests, Api.Integratio
 
 ```
 END_SESSION หรือ FINAL_QUESTION_TIMEOUT → PERSIST_END
-  → PATCH /api/sessions/{token} {action:"end"}
-     → TrainingSessionService.End() → status=ENDED, endedAt
-       → SessionSummaryService.Save() → snapshot (unanswered points)
+  → PATCH /api/learning-sessions/{token}/end {learnerKey, completedAllSlides, ...}
+     → LearningSessionService.End() → status=ENDED, endedAt
+       (ไม่มี snapshot — สรุปคำนวณสดตอนอ่านที่ GetSummary)
      → Commit ทีเดียว (session + summary อยู่ transaction เดียวกัน)
 ```
 
@@ -308,21 +315,24 @@ HTTP → [CorrelationId middleware] → [SerilogRequestLogging] → [UseExceptio
 - ความสัมพันธ์เป็น string id ล้วน **ไม่มี FK constraint / navigation property** ใน `OnModelCreating`
   — referential integrity ถูกบังคับด้วย service layer เท่านั้น
 - `LessonConfig.SlideConfigs` เป็น EF owned collection แบบ `ToJson()`
-- `SessionSummary.UnansweredPoints` map เป็น Postgres `text[]` โดยตรง
-- Index ที่มี: `TrainingSession.Token` (unique), `LessonConfig.Slug` (unique),
+- Index ที่มี: `TrainingLink.Token` (unique), `LearningSession.(TrainingLinkId, LearnerKey)`
+  (ไม่ unique — กด "เรียนอีกครั้ง" สร้างแถวใหม่ใต้ key เดิม), `LessonConfig.Slug` (unique),
   `SessionQuestion.SessionId`, `ChatMessage.SessionId`, `DocumentResource.LessonId`
-- Migration 5 ตัว: InitialCreate → AddSessionSummary → AddChatMessage → AddDocumentResource → AddLessonPdfSource
+- Migration: InitialCreate → AddSessionSummary → AddChatMessage → AddDocumentResource →
+  AddLessonPdfSource → AddCompanyId → RenameChatSenderRoles → `SplitLinkAndAddAuth`
+  ⚠️ migration ล่าสุดสร้างแล้วแต่ยังไม่ apply/verify กับ PostgreSQL จริง
 
 ## 11. ER Diagram
 
 ```mermaid
 erDiagram
-    LESSON_CONFIG ||--o{ TRAINING_SESSION : "LessonId / LessonSlug"
+    COMPANY ||--o{ ADMIN_USER : employs
+    LESSON_CONFIG ||--o{ TRAINING_LINK : creates
     LESSON_CONFIG ||--o{ DOCUMENT_RESOURCE : "LessonId (nullable)"
     LESSON_CONFIG |o--o| DOCUMENT_RESOURCE : "PdfDocumentResourceId"
-    TRAINING_SESSION ||--o{ SESSION_QUESTION : records
-    TRAINING_SESSION ||--o{ CHAT_MESSAGE : contains
-    TRAINING_SESSION ||--o| SESSION_SUMMARY : summarizes
+    TRAINING_LINK ||--o{ LEARNING_SESSION : opens
+    LEARNING_SESSION ||--o{ SESSION_QUESTION : records
+    LEARNING_SESSION ||--o{ CHAT_MESSAGE : contains
 
     LESSON_CONFIG {
         string Id PK
@@ -340,19 +350,43 @@ erDiagram
         json SlideConfigs "owned, ToJson()"
         bool IsActive
     }
-    TRAINING_SESSION {
+    COMPANY {
         string Id PK
+        string Name
+        bool IsActive
+    }
+    ADMIN_USER {
+        string Id PK
+        string CompanyId "nullable for owner"
+        string Email UK
+        string DisplayName
+        string Role "owner|admin|cs"
+        bool IsActive
+        bool MustChangePassword
+    }
+    TRAINING_LINK {
+        string Id PK
+        string CompanyId
         string Token UK
         string LessonId
         string LessonSlug
-        string TeacherName "nullable"
-        string SchoolName "nullable"
-        string Status "NOT_STARTED|IN_PROGRESS|ENDED"
+        string RecipientOrgName "nullable"
         datetime ExpiresAt
-        datetime StartedAt "nullable"
+        int MaxAttendees "nullable, not enforced"
+    }
+    LEARNING_SESSION {
+        string Id PK
+        string CompanyId
+        string TrainingLinkId
+        string LearnerKey
+        string RecipientName
+        string Status "IN_PROGRESS|ENDED"
+        datetime StartedAt
         datetime EndedAt "nullable"
+        datetime LastActivityAt
         bool CompletedAllSlides
         string LastSlideObjectId "nullable"
+        int LastSlideIndex
     }
     SESSION_QUESTION {
         string Id PK
@@ -369,13 +403,6 @@ erDiagram
         string SenderName "nullable"
         string Text
     }
-    SESSION_SUMMARY {
-        string Id PK
-        string SessionId UK
-        bool CompletedAllSlides
-        string LastSlideObjectId "nullable"
-        text_array UnansweredPoints
-    }
     DOCUMENT_RESOURCE {
         string Id PK
         string LessonId "nullable = kb-global"
@@ -391,31 +418,42 @@ erDiagram
 
 > ความสัมพันธ์ทั้งหมดเป็น *domain-level* — ไม่มี FK จริงในฐานข้อมูล
 
-**ข้อมูลนอก PostgreSQL:** vector อยู่ใน Pinecone แบ่งด้วย namespace = `lessonSlug` หรือ `kb-global`
+**ข้อมูลนอก PostgreSQL:** vector อยู่ใน Pinecone แบ่งด้วย namespace =
+`{companyId}:{lessonSlug}` หรือ `{companyId}:kb-global`
 (ไม่มีอะไรใน DB ที่ชี้ไปยัง vector id — เป็นเหตุผลที่ลบเอกสารแล้ว vector ค้าง ดูข้อ 19)
 
 ## 12. API Map
 
-ทุก endpoint **ไม่ต้อง auth** และตอบด้วย camelCase JSON
+ทุก endpoint ตอบ camelCase JSON; back-office ใช้ JWT ส่วน learner/health opt out เฉพาะรายการที่ระบุ
 
 | Method | Route | Service | ปลายทาง | เรียกจาก |
 |---|---|---|---|---|
 | GET | `/api/health` | HealthService | — | ops |
 | GET | `/api/lessons` | LessonConfigService | DB | `/admin/lessons` |
-| GET | `/api/lessons/{slug}` | LessonConfigService | DB + Slides/PDF | room, voice-question |
+| GET | `/api/lessons/{slug}` | LessonConfigService | DB + Slides/PDF | admin |
+| GET | `/api/lessons/by-link/{token}` | LessonConfigService | Link scope + Slides/PDF | room |
 | POST | `/api/lessons` | LessonConfigService | DB + Slides + Pinecone | `/admin/lessons/[slug]` |
 | GET | `/api/lessons/pdf-preview` | LessonConfigService | Storage + PdfPig | admin lesson editor |
-| GET | `/api/lessons/pdf-pages/{documentId}/{page}` | LessonConfigService | Storage + PDFtoImage | SlidesEmbed |
+| GET | `/api/lessons/pdf-pages/{token}/{documentId}/{page}` | LessonConfigService | Link scope + Storage + PDFtoImage | SlidesEmbed |
 | POST | `/api/slides/resolve` | SlidesService | Google Slides | admin "Validate/Sync" |
 | GET | `/api/slides/content` | SlidesService | Google Slides | admin preview |
-| GET | `/api/sessions` | TrainingSessionService | DB | `/admin/sessions` |
-| POST | `/api/sessions` | TrainingSessionService | DB | CreateSessionModal |
-| GET | `/api/sessions/{token}` | TrainingSessionService | DB | join, room |
-| GET | `/api/sessions/{id}/by-id` | TrainingSessionService | DB | admin |
-| PATCH | `/api/sessions/{token}` | TrainingSessionService | DB | room (start/end) |
-| GET | `/api/sessions/{token}/summary` | SessionSummaryService | DB | `/admin/sessions/[token]` |
-| GET | `/api/session-questions?sessionId=` | SessionQuestionService | DB | admin |
-| GET | `/api/chat-messages?sessionId=` | ChatMessageService | DB | room, admin |
+| GET | `/api/training-links` | TrainingLinkService | DB | `/admin` |
+| POST | `/api/training-links` | TrainingLinkService | DB | CreateTrainingLinkModal |
+| GET | `/api/training-links/{token}` | TrainingLinkService | DB | join, room |
+| GET | `/api/training-links/by-token/{token}` | TrainingLinkService | DB | `/admin/links/[token]` |
+| GET | `/api/training-links/{id}/by-id` | TrainingLinkService | DB | admin |
+| GET | `/api/training-links/{id}/learning-sessions` | LearningSessionService | DB | `/admin/links/[token]` |
+| POST | `/api/learning-sessions/{token}/join` | LearningSessionService | DB | join, room |
+| POST | `/api/learning-sessions/{token}/restart` | LearningSessionService | DB | `/session-ended/[token]` |
+| PATCH | `/api/learning-sessions/{token}/progress` | LearningSessionService | DB | room (ทุกครั้งที่เปลี่ยนสไลด์) |
+| PATCH | `/api/learning-sessions/{token}/end` | LearningSessionService | DB | room |
+| GET | `/api/learning-sessions/{token}/summary` | LearningSessionService | DB | `/session-ended/[token]` |
+| GET | `/api/learning-sessions/{id}/summary/by-id` | LearningSessionService | DB | `/admin/learning-sessions/[id]` |
+| PATCH | `/api/session-questions/{id}/review` | SessionQuestionService | DB | `/admin/learning-sessions/[id]` |
+| GET | `/api/session-questions?token=&learnerKey=` | SessionQuestionService | DB | learner |
+| GET | `/api/session-questions/by-learning-session/{id}` | SessionQuestionService | DB | admin |
+| GET | `/api/chat-messages?token=&learnerKey=` | ChatMessageService | DB | learner |
+| GET | `/api/chat-messages/by-learning-session/{id}` | ChatMessageService | DB | admin |
 | POST | `/api/tts` | TtsService | Edge TTS | room (ทุกประโยคที่พูด) |
 | **POST** | **`/api/voice-question`** | VoiceQuestionService | Gemini + Pinecone + OpenAI + DB + SignalR | room |
 | POST | `/api/documents` | DocumentResourceService | Storage + DB + queue | `/admin/documents` |
@@ -424,8 +462,9 @@ erDiagram
 | POST | `/api/admin/reset` | AdminService | DB | admin (ต้อง `ALLOW_DATA_RESET=true`) |
 | POST | `/api/admin/reindex` | AdminService | Slides + Storage + Pinecone | admin |
 
-**SignalR** `/hubs/session` — group = session token
-- Client → Server: `JoinSession(token)`, `SendChatMessage(token, senderRole, senderName, text)`
+**SignalR** `/hubs/session` — group = LearningSession id
+- Learner → Server: `JoinSession(token, learnerKey)`, `SendChatMessage(token, learnerKey, text)`; ชื่อ derive จาก session
+- Agent → Server: `JoinSessionAsAgent(learningSessionId)`, `SendChatMessageAsAgent(learningSessionId, text)`; ชื่อ derive จาก JWT
 - Server → Client: `ReceiveChatMessage`, `ReceiveNewQuestion`
 
 Endpoint ที่วิกฤตที่สุดต่อสินค้า: `POST /api/voice-question` (แตะ external service 3 ตัวใน request เดียว)
@@ -433,15 +472,14 @@ Endpoint ที่วิกฤตที่สุดต่อสินค้า: 
 
 ## 13. Authentication & Authorization
 
-**ปัจจุบันไม่มีทั้งคู่**
-
-- ไม่มี authentication scheme, ไม่มี `[Authorize]`, `app.UseAuthorization()` เป็น no-op
-- `/admin/*` เข้าถึงได้จากอินเทอร์เน็ตโดยตรงถ้า deploy ออกไป
-- ความปลอดภัยเดียวที่มีคือ `TrainingSession.Token` ที่เดายาก (ใช้เป็น SignalR group key ด้วย)
-- ไม่มี rate limiting — `/api/voice-question` และ `/api/tts` เรียกได้ไม่จำกัด (แต่ละครั้งมีค่าใช้จ่ายจริง)
-- `ApiErrorCode.Unauthorized` มีนิยามไว้แล้วแต่ยังไม่มีใครใช้ — เป็นจุดเสียบ auth ที่ตั้งใจไว้
-- Session expiry บังคับที่ frontend เท่านั้น (`isSessionJoinable`) backend ยังรับ request จาก
-  token ที่หมดอายุแล้ว
+- Back office ใช้ JWT bearer และ fallback policy: endpoint ใหม่เป็น protected จนกว่าจะ opt-out
+- role: owner ทุกบริษัท/ระบบ, admin บริษัทตัวเอง+users, cs บริษัทตัวเอง
+- `?company=` เป็น view context ที่ server ตรวจผ่าน `IAuthorizationGuard`; ไม่ใช่ permission
+- Learner ไม่มี account: anonymous endpoints resolve company/session จาก token + learnerKey
+- SignalR group เป็น `LearningSession.Id`; agent ส่ง JWT, learner ใช้ token/key
+- ยังไม่มี rate limiting/abuse controls สำหรับ login/join/voice/TTS/SignalR
+- Link expiry บังคับที่ backend แล้วตอน join (`ResolveLinkForJoin`) — เดิมบังคับที่ frontend เท่านั้น
+  แต่ผู้ที่เริ่มเรียนก่อนหมดอายุยัง reconnect/เรียนต่อ/ดู recap ได้ตามเจตนา
 
 ดูตัวเลือกและข้อเสนอใน [`SOLUTION_ARCHITECTURE.md`](./SOLUTION_ARCHITECTURE.md) §Authentication
 
@@ -527,11 +565,11 @@ Entity (Domain) → Migration (Providers.Data) → Repository + ลงทะเ�
 
 | ชุด | ครอบคลุม | สถานะที่ verify แล้ว (11 ส.ค. 2026) |
 |---|---|---|
-| `frontend` vitest | tutor reducer ทุก path, google-slides-url | ✅ 28 tests ผ่าน |
+| `frontend` vitest | tutor reducer ทุก path, google-slides-url | ✅ 31 tests ผ่าน (13 ส.ค. 2026) |
 | `frontend` typecheck / lint | ทั้ง project | ✅ ผ่าน ไม่มี warning |
-| `backend` build | ทั้ง solution | ✅ 0 errors, 5 warnings (MSB3277 EF Core) |
-| `SupportRoom.Application.Tests` | service logic ด้วย fake providers | มี test ครบทุก service |
-| `SupportRoom.Providers.Tests` | PDF/XLSX extraction, RAG merge | มี |
+| `backend` build | ทั้ง solution | ✅ 0 warning / 0 error; pin EF Relational 10.0.10 แล้ว |
+| `SupportRoom.Application.Tests` | service logic ด้วย fake providers | ✅ 96 tests ผ่าน (ไม่รวม integration) |
+| `SupportRoom.Providers.Tests` | PDF/XLSX extraction, RAG merge | ✅ 21 tests ผ่าน (ไม่รวม integration) |
 | `SupportRoom.Api.IntegrationTests` | — | ⚠️ **ว่างเปล่า** (`UnitTest1.cs` ยังเป็น template) |
 
 ⚠️ test บาง class ใน Providers/Application ใช้ `RealHttpClientFactory` + `TestEnv` ซึ่ง
@@ -561,8 +599,8 @@ unit tests ออกจาก integration tests ด้วย xUnit trait/categor
    (ธ.ค. 2025) โดยต้องมี anti-abuse token และกรอง IP ของ datacenter ร่องรอยในโค้ด
    (retry, chunking, timeout 12s, comment ถึง 502 จริงที่ 24–46 วินาที) ตรงกับอาการนี้
    → deploy บน cloud มีโอกาสสูงที่เสียงจะเงียบทั้งระบบ **นี่คือความเสี่ยงอันดับ 1**
-2. **ไม่มี authentication และ rate limiting** — `/admin/*` เปิดสาธารณะ, `/api/voice-question`
-   และ `/api/tts` ยิงได้ไม่จำกัดทั้งที่มีค่าใช้จ่ายต่อครั้ง
+2. **Auth ทำแล้ว แต่ยังไม่มี rate limiting/abuse controls** — endpoint ค่าใช้จ่ายสูงและ login/join
+   ยังต้องมี policy ก่อน production
 3. **ไม่มี CI** — `.github/workflows/` ว่างเปล่า ทุกการตรวจต้องรันมือ
 4. **ไม่มี deployment artifact** — ไม่มี Dockerfile / compose / IaC
 
@@ -573,17 +611,16 @@ unit tests ออกจาก integration tests ด้วย xUnit trait/categor
 6. **ลบเอกสารแล้ว vector ค้างใน Pinecone** — ทำให้ตอบคำถามจากเอกสารที่ถูกลบไปแล้วได้
    (chunk id ใช้รูปแบบ `{documentId}-{chunkId}` อยู่แล้ว จึงลบด้วย ID prefix ได้ทันที
    — Pinecone serverless ไม่รองรับ delete by metadata filter)
-7. **Session expiry บังคับเฉพาะ frontend** — backend ยังรับ token ที่หมดอายุ
+7. ~~**Session expiry บังคับเฉพาะ frontend**~~ — แก้แล้ว: บังคับที่ `LearningSessionService` ตอน join
+   (จงใจไม่บล็อกการอ่าน/จบของคนที่เรียนค้างอยู่ — ล็อกออกกลางคันดูเหมือนข้อมูลหาย ไม่เหมือนนโยบายหมดอายุ)
 8. **API integration tests ว่างเปล่า** — ไม่มีอะไรยืนยันสัญญา endpoint จริง
 9. **Soft-delete มีฟิลด์แต่ไม่มีพฤติกรรม** — `IsDelete`/`DeletedAt` ไม่เคยถูกใช้ ลบจริงทุกครั้ง
    คนอ่านโค้ดใหม่จะเข้าใจผิดได้ง่าย
-10. **EF Core version conflict (MSB3277 ×5)** — Npgsql 10.0.3 ดึง EF Core Relational 10.0.4
-    ขณะที่โปรเจกต์อ้าง 10.0.10 build ผ่านแต่ runtime binding ไม่ตรง
-11. **Frontend dependency ตกค้าง** — `googleapis`, `msedge-tts`, `zod`, `client-only`,
+10. **Frontend dependency ตกค้าง** — `googleapis`, `msedge-tts`, `zod`, `client-only`,
     `bufferutil`, `utf-8-validate` ไม่มีโค้ดเรียกใช้ (`googleapis` ก้อนใหญ่มาก)
-12. **ไฟล์ตกค้างที่ repo root** — `node_modules/`, `.next/`, `next-env.d.ts`,
+11. **ไฟล์ตกค้างที่ repo root** — `node_modules/`, `.next/`, `next-env.d.ts`,
     `tsconfig.tsbuildinfo`, `public/` เหลือจากตอนย้ายเป็น monorepo
-13. **`PackageReference` แบบ floating** — `3.*`, `0.*`, `5.*` (`AWSSDK.S3`, `PdfPig`,
+12. **`PackageReference` แบบ floating** — `3.*`, `0.*`, `5.*` (`AWSSDK.S3`, `PdfPig`,
     `DocumentFormat.OpenXml`, `PDFtoImage`) build วันนี้กับพรุ่งนี้อาจได้คนละเวอร์ชัน
 
 ### Future (เมื่อโตขึ้น)

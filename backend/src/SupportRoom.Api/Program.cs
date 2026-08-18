@@ -74,6 +74,7 @@ builder.Services.AddControllers().AddJsonOptions(options =>
 builder.Services.AddFrontendCors(builder.Environment.IsDevelopment());
 builder.Services.AddEntityFrameworkConfiguration(builder.Configuration);
 builder.Services.AddServiceConfiguration();
+builder.Services.AddBackOfficeAuthentication();
 builder.Services.AddSignalR();
 MapsterConfig.Apply();
 
@@ -124,12 +125,14 @@ if (!app.Environment.IsDevelopment())
 
 app.UseCors(CorsSetup.PolicyName);
 
+app.UseAuthentication();
 app.UseAuthorization();
 
-// After UseAuthorization so it can read a verified claim once auth exists (TD-002), and before
-// MapControllers so every action already has a company resolved. Recipient-side services
-// overwrite it from the session token - see CompanyContextMiddleware.
-app.UseMiddleware<CompanyContextMiddleware>();
+// Must run AFTER UseAuthentication so context.User already carries verified claims, and BEFORE
+// MapControllers so every action starts with a company resolved and checked. Learner-side
+// requests carry no token and pass straight through, resolving their own company from
+// TrainingLink.Token instead - see CurrentUserMiddleware.
+app.UseMiddleware<CurrentUserMiddleware>();
 
 app.MapControllers();
 app.MapHub<SessionHub>("/hubs/session");

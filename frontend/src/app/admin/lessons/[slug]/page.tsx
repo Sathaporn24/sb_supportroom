@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
+import { AdminLink } from "@/components/admin/AdminLink";
 import { useParams } from "next/navigation";
 import * as api from "@/lib/api-client";
 import { ApiClientError } from "@/lib/api-client";
@@ -195,9 +195,9 @@ export default function LessonEditorPage() {
     <main className="mx-auto flex max-w-3xl flex-col gap-6 p-6">
       <div className="flex items-center justify-between">
         <div>
-          <Link href="/admin/lessons" className="text-xs text-muted-foreground hover:text-foreground">
+          <AdminLink href="/admin/lessons" className="text-xs text-muted-foreground hover:text-foreground">
             ← กลับรายการบทเรียน
-          </Link>
+          </AdminLink>
           <h1 className="mt-1 text-xl font-semibold">แก้ไขบทเรียน: {form.title}</h1>
         </div>
         <div className="flex items-center gap-2">
@@ -353,9 +353,9 @@ export default function LessonEditorPage() {
           <CardTitle className="text-xs tracking-wide text-muted-foreground uppercase">เอกสารประกอบ</CardTitle>
           <p className="mt-1 text-xs text-muted-foreground">
             เอกสารในนี้จะถูกใช้ตอบคำถามเฉพาะบทเรียนนี้เท่านั้น — ถ้าต้องการให้ใช้ได้ทุกบทเรียน ให้อัปโหลดที่{" "}
-            <Link href="/admin/documents" className="text-primary hover:underline">
+            <AdminLink href="/admin/documents" className="text-primary hover:underline">
               คลังเอกสารกลาง
-            </Link>{" "}
+            </AdminLink>{" "}
             แทน
           </p>
         </CardHeader>

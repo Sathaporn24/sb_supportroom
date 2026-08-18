@@ -8,6 +8,7 @@ using SupportRoom.Application.Realtime;
 using SupportRoom.Application.ViewModel;
 using SupportRoom.Domain;
 using SupportRoom.Domain.Entities;
+using SupportRoom.Domain.Enums;
 using SupportRoom.Providers.Data.Data.UnitOfWork;
 using SupportRoom.Providers.Data.Repository;
 
@@ -16,7 +17,13 @@ namespace SupportRoom.Application.Services;
 public interface IChatMessageService
 {
     Task<ChatMessageViewModel> SendAsync(SendChatMessageDto input);
-    IReadOnlyList<ChatMessageViewModel> GetByToken(string token);
+
+    /// <summary>The learner's own chat history. Keyed on (token, learnerKey) rather than the token
+    /// alone so two people on the same link cannot read each other's conversation.</summary>
+    IReadOnlyList<ChatMessageViewModel> GetForLearner(string token, string learnerKey);
+
+    /// <summary>CS-facing: one learning session's chat history.</summary>
+    IReadOnlyList<ChatMessageViewModel> GetByLearningSessionId(string learningSessionId);
 }
 
 public sealed class ChatMessageService(
@@ -27,11 +34,24 @@ public sealed class ChatMessageService(
     : ServiceBase<IChatMessageService>(unitOfWork, serviceProvider, logger), IChatMessageService
 {
     private readonly IChatMessageRepository _repository = unitOfWork.GetRepository<IChatMessageRepository>();
-    private readonly ITrainingSessionRepository _sessionRepository = unitOfWork.GetRepository<ITrainingSessionRepository>();
+    private readonly ILearningSessionRepository _learningSessionRepository = unitOfWork.GetRepository<ILearningSessionRepository>();
 
     public async Task<ChatMessageViewModel> SendAsync(SendChatMessageDto input)
     {
-        var session = _sessionRepository.Get(input.SessionId) ?? throw GeneralException.NotFound("เซสชัน");
+        if (string.IsNullOrWhiteSpace(input.Text) || input.Text.Length > DtoLimits.MaxTextLength)
+        {
+            throw GeneralException.ValidationError($"ข้อความต้องมี 1-{DtoLimits.MaxTextLength} ตัวอักษร");
+        }
+        if (input.SenderRole is not (ChatSenderRole.Recipient or ChatSenderRole.Agent or ChatSenderRole.System))
+        {
+            throw GeneralException.ValidationError("ประเภทผู้ส่งข้อความไม่ถูกต้อง");
+        }
+
+        var session = _learningSessionRepository.Get(input.SessionId) ?? throw GeneralException.NotFound("การเรียน");
+        if (session.Status == SessionStatus.Ended)
+        {
+            throw GeneralException.ValidationError("การเรียนนี้จบแล้ว ไม่สามารถส่งข้อความเพิ่มได้");
+        }
 
         var entity = new ChatMessage
         {
@@ -41,6 +61,10 @@ public sealed class ChatMessageService(
             SenderRole = input.SenderRole,
             SenderName = input.SenderName,
             Text = input.Text,
+            // Deliberately unconditional: null when the learner typed it (they have no
+            // account), the agent's user id when CS did. No branching needed - the absence of
+            // a signed-in user IS the answer.
+            CreateBy = CurrentUserId,
             CreateDate = DateTime.UtcNow,
         };
 
@@ -51,16 +75,20 @@ public sealed class ChatMessageService(
         Logger.LogInformation("Chat message sent: session={SessionId} sender={SenderRole}", input.SessionId, input.SenderRole);
 
         var viewModel = entity.Adapt<ChatMessageViewModel>();
-        await realtimeNotifier.NotifyChatMessageAsync(session.Token, viewModel);
+        // Broadcast to the learning session's own group, not the link's - see IRealtimeNotifier.
+        await realtimeNotifier.NotifyChatMessageAsync(session.Id, viewModel);
         return viewModel;
     }
 
-    /// <summary>Keyed on the session token, not its id: the token is the credential both the
-    /// recipient and the CS console already hold, and looking the session up by it resolves the
-    /// company before any message is read.</summary>
-    public IReadOnlyList<ChatMessageViewModel> GetByToken(string token)
+    public IReadOnlyList<ChatMessageViewModel> GetForLearner(string token, string learnerKey)
     {
-        var session = ServiceProvider.GetRequiredService<ITrainingSessionService>().GetByToken(token);
-        return _repository.GetBySessionId(session.Id).OrderBy(x => x.CreateDate).ToList().Adapt<List<ChatMessageViewModel>>();
+        var session = ServiceProvider.GetRequiredService<ILearningSessionService>().GetEntityByLearnerKey(token, learnerKey);
+        return GetByLearningSessionId(session.Id);
     }
+
+    public IReadOnlyList<ChatMessageViewModel> GetByLearningSessionId(string learningSessionId)
+        => _repository.GetBySessionId(learningSessionId)
+            .OrderBy(x => x.CreateDate)
+            .ToList()
+            .Adapt<List<ChatMessageViewModel>>();
 }

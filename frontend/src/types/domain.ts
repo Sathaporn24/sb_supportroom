@@ -34,6 +34,18 @@ export type LessonConfig = {
   updatedAt: string;
 };
 
+/** Anonymous lesson payload: excludes source URLs, provider ids and document ids. */
+export type LearnerLessonConfig = Pick<
+  LessonConfig,
+  | "slug"
+  | "title"
+  | "description"
+  | "contentSourceType"
+  | "introWaitMs"
+  | "breathPauseMs"
+  | "finalQuestionWaitMs"
+>;
+
 // presentationId is always derived server-side from slidesSourceUrl - CS never sets it directly.
 export type LessonConfigInput = Omit<LessonConfig, "id" | "createdAt" | "updatedAt" | "presentationId">;
 
@@ -67,34 +79,84 @@ export type TeachingSlide = ResolvedSlide & {
   videoDurationMs: number;
 };
 
-export type SessionStatus = "NOT_STARTED" | "IN_PROGRESS" | "ENDED" | "EXPIRED";
+// A link and one person's run through it are two different things (CORE_FEATURE_SPEC §1).
+// CS creates a TrainingLink and sends it to a whole department; each person who opens it gets
+// their own LearningSession. "Session" means the latter everywhere - SessionQuestion.sessionId
+// and ChatMessage.sessionId both point at a LearningSession.
 
-export type TrainingSession = {
+/** Computed from expiresAt server-side, never stored. */
+export type LinkStatus = "ACTIVE" | "EXPIRED";
+
+export type TrainingLink = {
   id: string;
   token: string;
   lessonId: string;
   lessonSlug: string;
-  recipientName?: string;
+  /** The receiving organization (a school, a branch, a department) - a display label CS types. */
   recipientOrgName?: string;
-  status: SessionStatus;
+  status: LinkStatus;
   createdAt: string;
   expiresAt: string;
-  startedAt?: string;
-  endedAt?: string;
-  completedAllSlides: boolean;
-  lastSlideObjectId?: string;
+  /** null = unlimited. Stored but not enforced yet. */
+  maxAttendees?: number;
+  /** How many people have opened this link. */
+  learningSessionCount: number;
 };
 
-export type CreateSessionInput = {
+/** Anonymous pre-join payload: no database ids, lesson slug or attendance count. */
+export type PublicTrainingLink = Pick<
+  TrainingLink,
+  "token" | "recipientOrgName" | "status" | "expiresAt"
+>;
+
+export type CreateTrainingLinkInput = {
   lessonSlug: string;
-  recipientName?: string;
   recipientOrgName?: string;
   expiresAt: string;
+  maxAttendees?: number;
 };
 
-export type EndSessionInput = {
+/** No NOT_STARTED: a row only exists once someone has joined. Expiry belongs to the link. */
+export type LearningSessionStatus = "IN_PROGRESS" | "ENDED";
+
+export type LearningSession = {
+  id: string;
+  trainingLinkId: string;
+  /** What the learner typed on the join screen. Not an identity - duplicates are fine. */
+  recipientName: string;
+  status: LearningSessionStatus;
+  startedAt: string;
+  endedAt?: string;
+  lastActivityAt: string;
+  lastSlideObjectId?: string;
+  lastSlideIndex: number;
+  completedAllSlides: boolean;
+  /**
+   * Derived server-side from lastActivityAt, never stored: still IN_PROGRESS but nothing has
+   * moved for longer than INACTIVE_THRESHOLD_MINUTES. A browser "I'm leaving" signal would miss
+   * exactly the cases that matter (closed laptop, dead battery, lost connection).
+   */
+  isStalled: boolean;
+  questionCount: number;
+};
+
+/** What the join screen posts. Name only - see CORE_FEATURE_SPEC §5.1 for why nothing else. */
+export type JoinLearningSessionInput = {
+  recipientName: string;
+  learnerKey: string;
+};
+
+export type UpdateLearningProgressInput = {
+  learnerKey: string;
+  lastSlideObjectId?: string;
+  lastSlideIndex: number;
+};
+
+export type EndLearningSessionInput = {
+  learnerKey: string;
   completedAllSlides: boolean;
   lastSlideObjectId?: string;
+  lastSlideIndex: number;
 };
 
 /**
@@ -103,17 +165,41 @@ export type EndSessionInput = {
  */
 export type AnswerStatus = "answered" | "not_found" | "out_of_scope" | "no_speech" | "transcription_failed";
 
+/** CS's verdict on one AI answer. The free-text note lives alongside it - "incorrect" alone can't
+ * tell a missing document from a retrieval miss from the model inventing an answer, and those are
+ * fixed in three different places (CORE_FEATURE_SPEC §2.7). */
+export type ReviewResult = "correct" | "incorrect";
+
 export type SessionQuestion = {
   id: string;
+  /** A LearningSession id - the question belongs to the person who asked it. */
   sessionId: string;
   slideObjectId?: string;
   transcript?: string;
   answer?: string;
   answerStatus: AnswerStatus;
   createdAt: string;
+  /** CS-facing only. The learner's own recap never renders these. */
+  reviewResult?: ReviewResult;
+  reviewNote?: string;
+  reviewedAt?: string;
 };
 
-export type CreateSessionQuestionInput = Omit<SessionQuestion, "id" | "createdAt">;
+/** Public learner shape: answer-review metadata belongs to the back office only. */
+export type LearnerSessionQuestion = Omit<
+  SessionQuestion,
+  "reviewResult" | "reviewNote" | "reviewedAt"
+>;
+
+export type CreateSessionQuestionInput = Omit<
+  SessionQuestion,
+  "id" | "createdAt" | "reviewResult" | "reviewNote" | "reviewedAt"
+>;
+
+export type ReviewSessionQuestionInput = {
+  reviewResult: ReviewResult;
+  reviewNote?: string;
+};
 
 /** Response shape for POST /api/voice-question. */
 export type VoiceQuestionResult = {
@@ -125,13 +211,25 @@ export type VoiceQuestionResult = {
   readiness?: "ready" | "not_ready";
 };
 
+/**
+ * Computed server-side on every read - there is no summary table (TD-013). Shape unchanged from
+ * when it was table-backed.
+ */
 export type SessionSummary = {
+  /** A LearningSession id. */
   sessionId: string;
   completedAllSlides: boolean;
   lastSlideObjectId?: string;
   questions: SessionQuestion[];
+  /** ⚠️ Internal - what CS follows up on. Never render this on the learner's own recap
+   * (CORE_FEATURE_SPEC §2.5). */
   unansweredPoints: string[];
   createdAt: string;
+};
+
+/** Public learner recap: no internal follow-up list and no CS review metadata. */
+export type LearnerSessionSummary = Omit<SessionSummary, "questions" | "unansweredPoints"> & {
+  questions: LearnerSessionQuestion[];
 };
 
 /** A typed chat message - separate from SessionQuestion (Push-to-Talk log), sent live over SignalR. */
@@ -142,6 +240,7 @@ export type ChatSenderRole = "recipient" | "agent" | "system";
 
 export type ChatMessage = {
   id: string;
+  /** A LearningSession id. */
   sessionId: string;
   senderRole: ChatSenderRole;
   senderName?: string;
@@ -165,4 +264,77 @@ export type DocumentResource = {
   indexingStatus: DocumentIndexingStatus;
   indexedChunkCount: number;
   createdAt: string;
+};
+
+// ─── Back office identity (TD-014) ────────────────────────────────────────────────────────────
+// Only the admin surface has accounts. The person who receives a training link has none and
+// never will: their token is both key and scope. Do not add a learner role here.
+
+/** Mirrors AdminRole.cs. */
+export type AdminRole = "owner" | "admin" | "cs";
+
+/** Mirrors CompanyViewModel - one entry in the company switcher. */
+export type Company = {
+  id: string;
+  name: string;
+  isActive: boolean;
+};
+
+/** Mirrors SignedInUserViewModel - the signed-in user's own profile. */
+export type SignedInUser = {
+  id: string;
+  email: string;
+  displayName: string;
+  role: AdminRole;
+  /** null for an owner, who spans every company. */
+  companyId?: string;
+  /** When true the app must keep the back office out of reach until the password is changed. */
+  mustChangePassword: boolean;
+};
+
+/** Mirrors LoginResultViewModel. */
+export type LoginResult = {
+  token: string;
+  expiresAt: string;
+  user: SignedInUser;
+};
+
+/**
+ * Mirrors AdminUserViewModel - one row on the user-management screen. Deliberately a separate
+ * type from SignedInUser: they answer different questions and will drift apart.
+ */
+export type AdminUser = {
+  id: string;
+  email: string;
+  displayName: string;
+  role: AdminRole;
+  companyId?: string;
+  isActive: boolean;
+  lastLoginAt?: string;
+  createdAt: string;
+};
+
+export type CreateAdminUserInput = {
+  email: string;
+  displayName: string;
+  role: AdminRole;
+  /** Ignored for an owner; for anyone else a company admin's own company always wins server-side. */
+  companyId?: string;
+  initialPassword: string;
+};
+
+export type UpdateAdminUserInput = {
+  displayName: string;
+  role: AdminRole;
+  isActive: boolean;
+};
+
+export type LoginInput = {
+  email: string;
+  password: string;
+};
+
+export type ChangePasswordInput = {
+  currentPassword: string;
+  newPassword: string;
 };

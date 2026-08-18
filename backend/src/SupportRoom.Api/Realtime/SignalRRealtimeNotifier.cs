@@ -9,9 +9,9 @@ namespace SupportRoom.Api.Realtime;
 /// available where the Hub itself lives (Api), which is why the port exists in Application.</summary>
 public sealed class SignalRRealtimeNotifier(IHubContext<SessionHub> hubContext) : IRealtimeNotifier
 {
-    public Task NotifyNewQuestionAsync(string sessionToken, SessionQuestionViewModel question)
-        => hubContext.Clients.Group(sessionToken).SendAsync("ReceiveNewQuestion", question);
+    public Task NotifyNewQuestionAsync(string learningSessionId, SessionQuestionViewModel question)
+        => hubContext.Clients.Group(learningSessionId).SendAsync("ReceiveNewQuestion", question);
 
-    public Task NotifyChatMessageAsync(string sessionToken, ChatMessageViewModel message)
-        => hubContext.Clients.Group(sessionToken).SendAsync("ReceiveChatMessage", message);
+    public Task NotifyChatMessageAsync(string learningSessionId, ChatMessageViewModel message)
+        => hubContext.Clients.Group(learningSessionId).SendAsync("ReceiveChatMessage", message);
 }

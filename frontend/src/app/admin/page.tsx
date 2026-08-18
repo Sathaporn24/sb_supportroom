@@ -1,24 +1,26 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
+import { AdminLink } from "@/components/admin/AdminLink";
 import * as api from "@/lib/api-client";
-import type { TrainingSession } from "@/types/domain";
-import { SessionsTable } from "@/components/admin/SessionsTable";
+import type { TrainingLink } from "@/types/domain";
+import { TrainingLinksTable } from "@/components/admin/TrainingLinksTable";
+import { useAdminSession } from "@/components/admin/AdminSessionProvider";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { LoadingBlock } from "@/components/shared/LoadingBlock";
 
 export default function AdminPage() {
-  const [sessions, setSessions] = useState<TrainingSession[]>([]);
+  const { user } = useAdminSession();
+  const [links, setLinks] = useState<TrainingLink[]>([]);
   const [origin, setOrigin] = useState("");
   const [loading, setLoading] = useState(true);
   const [resetting, setResetting] = useState(false);
 
   async function reload() {
     setLoading(true);
-    const { sessions: list } = await api.listSessions();
-    setSessions(list);
+    const { links: list } = await api.listTrainingLinks();
+    setLinks(list);
     setLoading(false);
   }
 
@@ -49,33 +51,35 @@ export default function AdminPage() {
       </div>
 
       <div className="flex flex-wrap gap-3">
-        <Link href="/admin/lessons" className={buttonVariants({ variant: "secondary" })}>
+        <AdminLink href="/admin/lessons" className={buttonVariants({ variant: "secondary" })}>
           จัดการบทเรียน
-        </Link>
-        <Link href="/admin/documents" className={buttonVariants({ variant: "secondary" })}>
+        </AdminLink>
+        <AdminLink href="/admin/documents" className={buttonVariants({ variant: "secondary" })}>
           คลังเอกสาร
-        </Link>
-        <Link href="/admin/sessions/new" className={buttonVariants()}>
-          สร้างลิงก์การสอน
-        </Link>
-        <Button variant="ghost" onClick={handleReset} disabled={resetting}>
-          {resetting ? (
-            <>
-              <Spinner data-icon="inline-start" />
-              กำลังรีเซ็ต...
-            </>
-          ) : (
-            "Reset Demo Data"
-          )}
-        </Button>
+        </AdminLink>
+        <AdminLink href="/admin/links/new" className={buttonVariants()}>
+          สร้างลิงก์การเรียน
+        </AdminLink>
+        {user?.role === "owner" && (
+          <Button variant="ghost" onClick={handleReset} disabled={resetting}>
+            {resetting ? (
+              <>
+                <Spinner data-icon="inline-start" />
+                กำลังรีเซ็ต...
+              </>
+            ) : (
+              "Reset Demo Data"
+            )}
+          </Button>
+        )}
       </div>
 
       <section className="flex flex-col gap-3">
-        <h2 className="text-sm font-semibold tracking-wide text-muted-foreground uppercase">รายการ Sessions</h2>
+        <h2 className="text-sm font-semibold tracking-wide text-muted-foreground uppercase">รายการลิงก์</h2>
         {loading ? (
-          <LoadingBlock label="กำลังโหลดรายการ Session..." />
+          <LoadingBlock label="กำลังโหลดรายการลิงก์..." />
         ) : (
-          <SessionsTable sessions={sessions} origin={origin} />
+          <TrainingLinksTable links={links} origin={origin} />
         )}
       </section>
     </main>

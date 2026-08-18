@@ -43,7 +43,6 @@ public sealed class DocumentResourceService(
     IServiceProvider serviceProvider,
     ILogger<IDocumentResourceService> logger,
     IDocumentStorageProvider storageProvider,
-    IKnowledgeIndexingService knowledgeIndexingService,
     IBackgroundTaskQueue taskQueue)
     : ServiceBase<IDocumentResourceService>(unitOfWork, serviceProvider, logger), IDocumentResourceService
 {
@@ -81,6 +80,7 @@ public sealed class DocumentResourceService(
             ObsKey = obsKey,
             IndexingStatus = DocumentIndexingStatus.Pending,
             IndexedChunkCount = 0,
+            CreateBy = CurrentUserId,
             CreateDate = DateTime.UtcNow,
         };
         _repository.Add(entity);

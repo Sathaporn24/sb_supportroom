@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useReducer, useRef, useState } from "react";
-import type { LessonConfig, TeachingSlide, TrainingSession } from "@/types/domain";
+import type { LearningSession, TeachingSlide, PublicTrainingLink } from "@/types/domain";
 import type { TutorEvent, TutorUserEvent } from "@/tutor/intents";
 import type { TutorEffect, TutorRuntime } from "@/tutor/types";
 import { createInitialRuntime, tutorReducer, type TutorContext } from "@/tutor/tutor-reducer";
@@ -28,19 +28,24 @@ function pickRandom<T>(items: readonly T[]): T {
   return items[Math.floor(Math.random() * items.length)];
 }
 
-export function useTutorSession(session: TrainingSession) {
+/**
+ * `link` says which lesson and which company; `learnerKey` says which of the many people on that
+ * link this browser is. Every call that writes something down needs both - the token alone stopped
+ * identifying a person once one link started serving a whole department.
+ */
+export function useTutorSession(link: PublicTrainingLink, learningSession: LearningSession, learnerKey: string) {
   const runtimeRef = useRef<TutorRuntime>(createInitialRuntime());
   const [, forceRender] = useReducer((n: number) => n + 1, 0);
   const [embedUrl, setEmbedUrl] = useState("");
   const [loadError, setLoadError] = useState<string | null>(null);
 
   const slidesRef = useRef<TeachingSlide[]>([]);
-  const lessonRef = useRef<LessonConfig | null>(null);
   const ctxRef = useRef<TutorContext>({
     slides: [],
     introWaitMs: 5_000,
     breathPauseMs: 1_000,
     finalQuestionWaitMs: 5_000,
+    resumeSlideIndex: learningSession.lastSlideIndex,
   });
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -117,7 +122,7 @@ export function useTutorSession(session: TrainingSession) {
       // The lead rides along in the same synthesis request as the answer, so it flows into
       // it rather than landing as a separate clip with an audible seam.
       const lead = withFoundLead ? `${pickRandom(ANSWER_FOUND_LEADS)} ` : "";
-      const blob = await api.synthesizeSpeech(`${lead}${text}`);
+      const blob = await api.synthesizeSpeech(`${lead}${text}`, link.token, learnerKey);
       if (!mountedRef.current) return;
       const url = URL.createObjectURL(blob);
       audioUrlRef.current = url;
@@ -161,7 +166,7 @@ export function useTutorSession(session: TrainingSession) {
         dispatch({ type: "TTS_ENDED", elapsedMs: 0 });
         return;
       }
-      const blob = await api.synthesizeSpeech(combinedText);
+      const blob = await api.synthesizeSpeech(combinedText, link.token, learnerKey);
       if (!mountedRef.current) return;
       // Dispatch the state transition FIRST - dispatch() always clears any pending
       // audio/timer via clearPending(), so building the <audio> element before this
@@ -215,7 +220,7 @@ export function useTutorSession(session: TrainingSession) {
     // In need-order, so a question asked early still finds the opening line and stage 1
     // ready even if the later rungs haven't landed yet.
     for (const { text, rate, push } of jobs) {
-      const blob = await api.synthesizeSpeech(text, rate).catch(() => null);
+      const blob = await api.synthesizeSpeech(text, link.token, learnerKey, rate).catch(() => null);
       if (!mountedRef.current) return;
       if (blob) push(blob);
     }
@@ -346,7 +351,8 @@ export function useTutorSession(session: TrainingSession) {
       const currentSlide = slidesRef.current[runtimeRef.current.currentSlideIndex];
       const result = await api.askVoiceQuestion({
         audioBlob,
-        token: session.token,
+        token: link.token,
+        learnerKey,
         currentSlideObjectId: currentSlide?.slideObjectId,
         durationMs,
         expecting,
@@ -379,13 +385,38 @@ export function useTutorSession(session: TrainingSession) {
   }
 
   async function persistEnd(completedAllSlides: boolean) {
-    const lastSlide = slidesRef.current[runtimeRef.current.currentSlideIndex];
+    const slideIndex = runtimeRef.current.currentSlideIndex;
+    const lastSlide = slidesRef.current[slideIndex];
     try {
-      await api.endSession(session.token, { completedAllSlides, lastSlideObjectId: lastSlide?.slideObjectId });
+      await api.endLearningSession(link.token, {
+        learnerKey,
+        completedAllSlides,
+        lastSlideObjectId: lastSlide?.slideObjectId,
+        lastSlideIndex: slideIndex,
+      });
     } catch {
       // Best-effort - the room still shows ENDED locally even if persistence fails
       // (e.g. a transient network issue during a demo).
     }
+  }
+
+  /**
+   * Updates the existing row on every slide change - never inserts (CORE_FEATURE_SPEC §2.3).
+   * This write is also what feeds the "หยุดกลางคัน" calculation: the server stamps
+   * LastActivityAt from it, and a learner who walks away simply stops sending these.
+   *
+   * Fire-and-forget on purpose. Losing one progress ping costs a slightly stale resume point;
+   * blocking narration on it would make a slow network audible.
+   */
+  function persistProgress(slideIndex: number) {
+    const slide = slidesRef.current[slideIndex];
+    void api
+      .updateLearningProgress(link.token, {
+        learnerKey,
+        lastSlideObjectId: slide?.slideObjectId,
+        lastSlideIndex: slideIndex,
+      })
+      .catch(() => undefined);
   }
 
   function runEffect(effect: TutorEffect) {
@@ -393,14 +424,14 @@ export function useTutorSession(session: TrainingSession) {
       case "LOAD_LESSON":
         void (async () => {
           try {
-            const { lesson, embedUrl: url, slides } = await api.getLessonBySlug(session.lessonSlug);
-            lessonRef.current = lesson;
+            const { lesson, embedUrl: url, slides } = await api.getLessonByLinkToken(link.token);
             slidesRef.current = slides;
             ctxRef.current = {
               slides,
               introWaitMs: lesson.introWaitMs,
               breathPauseMs: lesson.breathPauseMs,
               finalQuestionWaitMs: lesson.finalQuestionWaitMs,
+              resumeSlideIndex: learningSession.lastSlideIndex,
             };
             if (mountedRef.current) {
               setEmbedUrl(url);
@@ -425,6 +456,7 @@ export function useTutorSession(session: TrainingSession) {
         timerRef.current = setTimeout(() => dispatch({ type: "INTRO_TIMEOUT" }), effect.ms);
         break;
       case "LOAD_SLIDE":
+        persistProgress(effect.slideIndex);
         void loadSlideAudio(effect.slideIndex, effect.withResumeBridge);
         break;
       case "WAIT_REMAINING":
@@ -464,7 +496,9 @@ export function useTutorSession(session: TrainingSession) {
       // localStorage unavailable - fall back to the default volume of 1.
     }
     dispatch({ type: "JOIN" });
-    void api.markSessionStarted(session.token).catch(() => undefined);
+    // No "mark started" call any more: the row was created by the join screen, and StartedAt was
+    // stamped there. Reaching the room is not a separate event worth a second round-trip.
+    //
     // Get the permission prompt and device hand-off out of the way while the intro plays,
     // so the first press records instantly. Failures are ignored here - the first real
     // press retries and surfaces a proper error message if the mic is genuinely blocked.
@@ -479,7 +513,7 @@ export function useTutorSession(session: TrainingSession) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // dispatch/runEffect close over refs + the stable `session` prop only, so freezing
+  // dispatch/runEffect close over refs + the stable `link`/`learnerKey` props only, so freezing
   // to the mount-time closure here is safe and avoids recreating sendEvent every render.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const sendEvent = useCallback((event: TutorUserEvent) => dispatch(event), []);

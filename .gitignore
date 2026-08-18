@@ -22,3 +22,8 @@ node_modules/
 
 # personal working notes - not part of the product repo (e.g. docs/THESIS_PLAN.local.md)
 *.local.md
+
+# scratch space for generating handoff artifacts (rendered page images, build scripts).
+# The generated PDF under output/ is a deliverable and stays tracked; the 1.6 MB of
+# intermediate JPEGs that produced it are not.
+tmp/

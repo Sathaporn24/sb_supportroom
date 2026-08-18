@@ -211,17 +211,17 @@ retry 2 ครั้ง, timeout 12 วินาที, คอมเมนต์
 
 ## Security & Privacy Checklist
 
-- [ ] `/admin/*` และ `/api/admin/*` ต้องไม่เปิดสาธารณะเมื่อ deploy
+- [x] `/admin/*` และ back-office API ใช้ JWT/RBAC แล้ว
 - [ ] `ALLOW_DATA_RESET=false` ใน production (ปัจจุบัน `.env.example` ตั้งเป็น `true`)
 - [ ] `ALLOWED_ORIGINS` ระบุ domain จริง (localhost ถูกเพิ่มเฉพาะ Development แล้ว — ดีอยู่)
 - [ ] Rate limit `/api/tts` และ `/api/voice-question`
-- [ ] Backend บังคับ session expiry ด้วย ไม่ใช่แค่ frontend
+- [x] Backend บังคับ session expiry ตอนเริ่มรอบใหม่ และให้ session เดิม reconnect ได้
 - [x] ไม่ log transcript/answer เต็ม (ทำแล้ว)
 - [x] ป้องกัน path traversal ใน local storage (ทำแล้ว)
 - [ ] แจ้งผู้ใช้ว่าเสียงถูกส่งไป Gemini และ transcript อาจถูกส่งไป OpenAI/gateway
 - [ ] หมุน API key ที่เคยอยู่ใน git history (ประวัติ commit มีร่องรอยการเปลี่ยน key หลายครั้ง)
-- [ ] Multi-company isolation — `CompanyId` + global query filter + แยก Pinecone namespace
-      (ตัดสินใจแล้ว TD-010/011/012 ยังไม่ได้ลงมือ) ⚠️ company = เจ้าของ support room
+- [x] Multi-company isolation — `CompanyId` + global query filter + แยก Pinecone namespace
+      ⚠️ company = เจ้าของ support room
       (School Bright / SCB) ไม่ใช่โรงเรียนที่รับลิงก์
 
 ## Cost Awareness

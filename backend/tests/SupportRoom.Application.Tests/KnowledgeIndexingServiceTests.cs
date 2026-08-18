@@ -34,7 +34,11 @@ public class KnowledgeIndexingServiceTests : IAsyncLifetime
         }
     }
 
+    // Only this one is tagged, not the whole class: the blank-chunk test below returns before
+    // ever reaching an embedding call, so it runs fine without credentials and is worth keeping
+    // in the default run.
     [Fact]
+    [Trait(TestCategories.Category, TestCategories.Integration)]
     public async Task IndexChunksAsync_IndexesEveryChunk_DespiteRunningEmbedsInParallel()
     {
         var namespaceKey = $"test-{Guid.NewGuid()}";

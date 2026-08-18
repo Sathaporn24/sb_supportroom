@@ -39,15 +39,16 @@ public static class MapsterConfig
         // silently overwrites the same config slot instead of adding two. One null-safe config
         // per real (source, destination) Type pair - never force-unwrap with `!.Value`.
         TypeAdapterConfig<DateTime, string>.NewConfig().MapWith(d => d.ToString("O", CultureInfo.InvariantCulture));
-        TypeAdapterConfig<DateTime?, string>.NewConfig().MapWith(d => d == null ? null : d.Value.ToString("O", CultureInfo.InvariantCulture));
+        TypeAdapterConfig<DateTime?, string>.NewConfig().MapWith(d => d == null ? null! : d.Value.ToString("O", CultureInfo.InvariantCulture));
         TypeAdapterConfig<string, DateTime>.NewConfig().MapWith(s => DateTime.Parse(s, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind));
         TypeAdapterConfig<string, DateTime?>.NewConfig().MapWith(s => s == null ? null : DateTime.Parse(s, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind));
 
         // Mapster matches by property NAME - IEntityMaster's CreateDate/UpdateDate don't match
         // the wire contract's CreatedAt/UpdatedAt, so every Entity -> ViewModel pair that exposes
         // them needs an explicit override or the field silently comes back null.
-        TypeAdapterConfig<TrainingSession, TrainingSessionViewModel>.NewConfig()
-            .Map(dest => dest.CreatedAt, src => src.CreateDate);
+        // TrainingLink and LearningSession are built by hand in their services instead of mapped -
+        // both carry a field computed at read time (Status/IsStalled) that has no entity column to
+        // map from, so a half-mapped, half-patched object would be the more confusing option.
         TypeAdapterConfig<SessionQuestion, SessionQuestionViewModel>.NewConfig()
             .Map(dest => dest.CreatedAt, src => src.CreateDate);
         TypeAdapterConfig<LessonConfig, LessonConfigViewModel>.NewConfig()

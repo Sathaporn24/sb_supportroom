@@ -140,6 +140,7 @@ public class LessonConfigServiceTests
     }
 
     [Fact]
+    [Trait(TestCategories.Category, TestCategories.Integration)]
     public async Task SaveAsync_ForGoogleSlidesWithAUrl_ResolvesPresentationIdViaTheProvider()
     {
         // Real GoogleSlidesProvider hits the live API to confirm access, so this needs an
@@ -187,6 +188,7 @@ public class LessonConfigServiceTests
     }
 
     [Fact]
+    [Trait(TestCategories.Category, TestCategories.Integration)]
     public async Task GetTeachingContent_ForGoogleSlides_ReturnsResolvedSlides()
     {
         await _service.SaveAsync(NewDto(

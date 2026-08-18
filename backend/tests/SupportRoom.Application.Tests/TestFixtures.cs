@@ -1,3 +1,7 @@
+using SupportRoom.Application.Common;
+using SupportRoom.Domain.Common;
+using SupportRoom.Domain.Enums;
+
 namespace SupportRoom.Application.Tests;
 
 /// <summary>
@@ -7,6 +11,25 @@ namespace SupportRoom.Application.Tests;
 /// </summary>
 internal static class TestFixtures
 {
+    /// <summary>
+    /// Builds the REAL AuthorizationGuard over a resolved CurrentUser rather than a fake that
+    /// always says yes. The rules this guard encodes are the only thing protecting Company and
+    /// AdminUser (neither has a company query filter), so a test that stubs them out would prove
+    /// nothing about the code that actually ships.
+    /// </summary>
+    public static IAuthorizationGuard GuardFor(string role, string? companyId, string userId = "user-test")
+    {
+        var user = new CurrentUser();
+        user.Resolve(userId, role, companyId);
+        return new AuthorizationGuard(user);
+    }
+
+    public static IAuthorizationGuard OwnerGuard(string userId = "user-owner")
+        => GuardFor(AdminRole.Owner, companyId: null, userId);
+
+    /// <summary>A guard for a request nobody is signed in to - every check must refuse.</summary>
+    public static IAuthorizationGuard AnonymousGuard() => new AuthorizationGuard(new CurrentUser());
+
     /// <summary>Company every seeded entity belongs to. FakeServiceProvider pre-resolves
     /// ICompanyContext to this value, so services under test stamp the same id on rows they
     /// create and the two match up.</summary>

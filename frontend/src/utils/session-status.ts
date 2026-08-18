@@ -1,35 +1,38 @@
-import type { AnswerStatus, SessionStatus, TrainingSession } from "@/types/domain";
+import type {
+  AnswerStatus,
+  LearningSessionStatus,
+  LinkStatus,
+  ReviewResult,
+} from "@/types/domain";
 
-export function getSessionStatus(session: TrainingSession, now: Date = new Date()): SessionStatus {
-  if (session.endedAt) {
-    return "ENDED";
-  }
-  const expired = new Date(session.expiresAt).getTime() <= now.getTime();
-  if (expired && !session.startedAt) {
-    return "EXPIRED";
-  }
-  if (session.startedAt) {
-    return "IN_PROGRESS";
-  }
-  return "NOT_STARTED";
+/**
+ * The backend computes link status and isStalled and sends them down, so nothing here recomputes
+ * them - these helpers exist for the places that only hold an expiry date (an optimistic check
+ * before a request, a table cell) and for the Thai labels.
+ */
+export function isLinkUsable(link: { expiresAt: string }, now: Date = new Date()): boolean {
+  return new Date(link.expiresAt).getTime() > now.getTime();
 }
 
-export function isSessionJoinable(session: TrainingSession, now: Date = new Date()): boolean {
-  if (session.endedAt) {
-    return false;
-  }
-  if (session.startedAt) {
-    return true;
-  }
-  return new Date(session.expiresAt).getTime() > now.getTime();
-}
-
-export const sessionStatusLabels: Record<SessionStatus, string> = {
-  NOT_STARTED: "ยังไม่เปิด",
-  IN_PROGRESS: "กำลังสอน",
-  ENDED: "จบแล้ว",
+export const linkStatusLabels: Record<LinkStatus, string> = {
+  ACTIVE: "ใช้งานได้",
   EXPIRED: "หมดอายุ",
 };
+
+export const learningSessionStatusLabels: Record<LearningSessionStatus, string> = {
+  IN_PROGRESS: "กำลังเรียน",
+  ENDED: "เรียนจบแล้ว",
+};
+
+/** Shown instead of the plain status when isStalled - see CORE_FEATURE_SPEC §2.6. */
+export const STALLED_LABEL = "หยุดกลางคัน";
+
+export function learningSessionStatusLabel(session: {
+  status: LearningSessionStatus;
+  isStalled: boolean;
+}): string {
+  return session.isStalled ? STALLED_LABEL : learningSessionStatusLabels[session.status];
+}
 
 export const answerStatusLabels: Record<AnswerStatus, string> = {
   answered: "ตอบแล้ว",
@@ -37,4 +40,9 @@ export const answerStatusLabels: Record<AnswerStatus, string> = {
   out_of_scope: "นอกเรื่อง",
   no_speech: "ไม่มีคำพูด",
   transcription_failed: "ถอดเสียงไม่ได้",
+};
+
+export const reviewResultLabels: Record<ReviewResult, string> = {
+  correct: "ตอบถูก",
+  incorrect: "ตอบผิด",
 };

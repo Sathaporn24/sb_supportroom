@@ -7,6 +7,7 @@ using SupportRoom.Application.Exceptions;
 using SupportRoom.Application.ViewModel;
 using SupportRoom.Domain;
 using SupportRoom.Domain.Entities;
+using SupportRoom.Domain.Enums;
 using SupportRoom.Providers.Data.Data.UnitOfWork;
 using SupportRoom.Providers.Data.Repository;
 
@@ -14,29 +15,43 @@ namespace SupportRoom.Application.Services;
 
 public interface ISessionQuestionService
 {
-    SessionQuestionViewModel Create(string sessionId, CreateSessionQuestionDto input);
-    IReadOnlyList<SessionQuestionViewModel> GetByToken(string token);
+    /// <summary>learningSessionId, not a link id - a question belongs to the person who asked it.</summary>
+    SessionQuestionViewModel Create(string learningSessionId, CreateSessionQuestionDto input);
+
+    /// <summary>The learner's own questions. Keyed on (token, learnerKey) so one learner can only
+    /// ever read back their own - two people on the same link must not see each other's
+    /// (CORE_FEATURE_SPEC §2.4).</summary>
+    IReadOnlyList<LearnerSessionQuestionViewModel> GetForLearner(string token, string learnerKey);
+
+    /// <summary>CS-facing: every question in one learning session, review fields included.</summary>
+    IReadOnlyList<SessionQuestionViewModel> GetByLearningSessionId(string learningSessionId);
+
+    SessionQuestionViewModel Review(string questionId, ReviewSessionQuestionDto input);
 }
 
 public sealed class SessionQuestionService(IUnitOfWork unitOfWork, IServiceProvider serviceProvider, ILogger<ISessionQuestionService> logger)
     : ServiceBase<ISessionQuestionService>(unitOfWork, serviceProvider, logger), ISessionQuestionService
 {
     private readonly ISessionQuestionRepository _repository = unitOfWork.GetRepository<ISessionQuestionRepository>();
-    private readonly ITrainingSessionRepository _sessionRepository = unitOfWork.GetRepository<ITrainingSessionRepository>();
+    private readonly ILearningSessionRepository _learningSessionRepository = unitOfWork.GetRepository<ILearningSessionRepository>();
 
-    public SessionQuestionViewModel Create(string sessionId, CreateSessionQuestionDto input)
+    public SessionQuestionViewModel Create(string learningSessionId, CreateSessionQuestionDto input)
     {
-        _ = _sessionRepository.Get(sessionId) ?? throw GeneralException.NotFound("เซสชัน");
+        _ = _learningSessionRepository.Get(learningSessionId) ?? throw GeneralException.NotFound("การเรียน");
 
         var entity = new SessionQuestion
         {
             Id = IdGenerator.GenerateId("question"),
             CompanyId = CurrentCompanyId,
-            SessionId = sessionId,
+            SessionId = learningSessionId,
             SlideObjectId = input.SlideObjectId,
             Transcript = input.Transcript,
             Answer = input.Answer,
             AnswerStatus = input.AnswerStatus,
+            // Stays null in practice: a question is only ever written from POST /api/voice-question,
+            // which the learner calls anonymously. Kept for the same reason as ChatMessage -
+            // if that ever changes, the row records who without anyone remembering to add it.
+            CreateBy = CurrentUserId,
             CreateDate = DateTime.UtcNow,
         };
 
@@ -44,19 +59,64 @@ public sealed class SessionQuestionService(IUnitOfWork unitOfWork, IServiceProvi
         UnitOfWork.Commit();
 
         // Never log Transcript/Answer - only the outcome, so CS can grep "not_found" volume
-        // without exposing what teachers actually asked.
+        // without exposing what learners actually asked.
         Logger.LogInformation(
             "Question recorded: {SessionId} slide={SlideObjectId} status={AnswerStatus}",
-            sessionId, input.SlideObjectId, input.AnswerStatus);
+            learningSessionId, input.SlideObjectId, input.AnswerStatus);
 
         return entity.Adapt<SessionQuestionViewModel>();
     }
 
-    /// <summary>Keyed on the session token for the same reason as IChatMessageService.GetByToken:
-    /// it is the credential callers already hold, and it resolves the company first.</summary>
-    public IReadOnlyList<SessionQuestionViewModel> GetByToken(string token)
+    public IReadOnlyList<LearnerSessionQuestionViewModel> GetForLearner(string token, string learnerKey)
     {
-        var session = ServiceProvider.GetRequiredService<ITrainingSessionService>().GetByToken(token);
-        return _repository.GetBySessionId(session.Id).OrderBy(x => x.CreateDate).ToList().Adapt<List<SessionQuestionViewModel>>();
+        var session = ServiceProvider.GetRequiredService<ILearningSessionService>().GetEntityByLearnerKey(token, learnerKey);
+        return _repository.GetBySessionId(session.Id)
+            .OrderBy(x => x.CreateDate)
+            .Select(question => new LearnerSessionQuestionViewModel
+            {
+                Id = question.Id,
+                SessionId = question.SessionId,
+                SlideObjectId = question.SlideObjectId,
+                Transcript = question.Transcript,
+                Answer = question.Answer,
+                AnswerStatus = question.AnswerStatus,
+                CreatedAt = question.CreateDate.ToString("O", System.Globalization.CultureInfo.InvariantCulture),
+            })
+            .ToList();
+    }
+
+    public IReadOnlyList<SessionQuestionViewModel> GetByLearningSessionId(string learningSessionId)
+        => _repository.GetBySessionId(learningSessionId)
+            .OrderBy(x => x.CreateDate)
+            .ToList()
+            .Adapt<List<SessionQuestionViewModel>>();
+
+    public SessionQuestionViewModel Review(string questionId, ReviewSessionQuestionDto input)
+    {
+        if (!ReviewResult.IsValid(input.ReviewResult))
+        {
+            throw GeneralException.ValidationError("ผลการตรวจต้องเป็น correct หรือ incorrect เท่านั้น");
+        }
+
+        var entity = _repository.Get(questionId) ?? throw GeneralException.NotFound("คำถาม");
+
+        entity.ReviewResult = input.ReviewResult;
+        entity.ReviewNote = string.IsNullOrWhiteSpace(input.ReviewNote) ? null : input.ReviewNote.Trim();
+        entity.ReviewedAt = DateTime.UtcNow;
+        // The one place a back-office user edits a row the learner created. Without this there is
+        // no way to answer "who reviewed this?" afterwards, and the answer cannot be reconstructed
+        // later from anything else - ReviewedAt only says when.
+        entity.UpdateBy = CurrentUserId;
+        entity.UpdateDate = DateTime.UtcNow;
+
+        _repository.Update(entity);
+        UnitOfWork.Commit();
+
+        // The note itself stays out of the log - it quotes the answer it is about.
+        Logger.LogInformation(
+            "Question reviewed: {QuestionId} result={ReviewResult} hasNote={HasNote} by={ActorId}",
+            questionId, entity.ReviewResult, entity.ReviewNote is not null, CurrentUserId);
+
+        return entity.Adapt<SessionQuestionViewModel>();
     }
 }

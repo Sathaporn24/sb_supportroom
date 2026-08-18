@@ -7,7 +7,7 @@ export default function LinkExpiredPage() {
     <main className="flex min-h-screen items-center justify-center p-6">
       <Card className="max-w-md text-center">
         <CardHeader>
-          <CardTitle className="text-xl">ลิงก์นี้หมดอายุหรือถูกใช้งานแล้ว</CardTitle>
+          <CardTitle className="text-xl">ลิงก์นี้หมดอายุหรือไม่สามารถใช้งานได้</CardTitle>
         </CardHeader>
         <CardContent className="text-sm text-muted-foreground">
           กรุณาติดต่อทีม CS เพื่อขอลิงก์เข้าห้องสอนใหม่อีกครั้งค่ะ
