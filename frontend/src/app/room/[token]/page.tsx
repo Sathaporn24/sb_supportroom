@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { XIcon } from "lucide-react";
 import * as api from "@/lib/api-client";
@@ -28,6 +28,14 @@ export default function RoomPage() {
   const [data, setData] = useState<RoomData | null>(null);
   const [loadState, setLoadState] = useState<LoadState>("loading");
 
+  // Caches the one-shot grant's result across React Strict Mode's dev-only double effect
+  // invocation (mount -> cleanup -> mount again, to catch non-idempotent effects). Without this,
+  // the second invocation finds the sessionStorage flag already consumed by the first and bounces
+  // straight back to /join - not a race in production, but the effect itself was not idempotent,
+  // which Strict Mode exists to catch. null = not checked yet, so a real second mount (navigating
+  // away and back) still re-consumes correctly.
+  const entryGrantedRef = useRef<boolean | null>(null);
+
   useEffect(() => {
     let active = true;
     void (async () => {
@@ -44,7 +52,10 @@ export default function RoomPage() {
       // run this browser's key points at. That is the silent resume the join screen exists to
       // prevent, and the room has no way to ask the question itself. The grant is one-shot, so
       // every fresh arrival goes back through the confirmation.
-      if (!consumeRoomEntry(params.token)) {
+      if (entryGrantedRef.current === null) {
+        entryGrantedRef.current = consumeRoomEntry(params.token);
+      }
+      if (!entryGrantedRef.current) {
         router.replace(`/join/${params.token}`);
         return;
       }
