@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import * as api from "@/lib/api-client";
 import { answerStatusLabels } from "@/utils/session-status";
-import { getLearnerName, peekLearnerKey } from "@/utils/learner-key";
+import { getLearnerName, grantRoomEntry, peekLearnerKey } from "@/utils/learner-key";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { LoadingBlock } from "@/components/shared/LoadingBlock";
@@ -54,6 +54,9 @@ export default function SessionEndedPage() {
       // A new round, not a reopen of the finished one - the old session and its questions stay
       // exactly as they were (CORE_FEATURE_SPEC §2.5).
       await api.restartLearningSession(params.token, { recipientName: name, learnerKey });
+      // A round this person just started themselves, one click ago - the confirmation question
+      // has no one to ask about, so the room opens directly.
+      grantRoomEntry(params.token);
       router.push(`/room/${params.token}`);
     } catch {
       setRestarting(false);

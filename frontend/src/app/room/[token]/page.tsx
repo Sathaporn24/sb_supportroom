@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { XIcon } from "lucide-react";
 import * as api from "@/lib/api-client";
-import { getLearnerName, peekLearnerKey } from "@/utils/learner-key";
+import { consumeRoomEntry, getLearnerName, peekLearnerKey } from "@/utils/learner-key";
 import { useTutorSession } from "@/hooks/use-tutor-session";
 import { useLocalMedia } from "@/hooks/use-local-media";
 import { useSessionChat } from "@/hooks/use-session-chat";
@@ -36,6 +36,15 @@ export default function RoomPage() {
       const learnerKey = peekLearnerKey(params.token);
       const storedName = getLearnerName(params.token);
       if (!learnerKey || !storedName) {
+        router.replace(`/join/${params.token}`);
+        return;
+      }
+
+      // Opening /room directly - a bookmark, a reload, a pasted URL - must not walk into whatever
+      // run this browser's key points at. That is the silent resume the join screen exists to
+      // prevent, and the room has no way to ask the question itself. The grant is one-shot, so
+      // every fresh arrival goes back through the confirmation.
+      if (!consumeRoomEntry(params.token)) {
         router.replace(`/join/${params.token}`);
         return;
       }

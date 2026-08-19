@@ -55,8 +55,18 @@ public sealed class LearningSession : IEntityMaster<string>, ICompanyScoped
     public string? LastSlideObjectId { get; set; }
 
     /// <summary>Kept alongside LastSlideObjectId purely so "7/20" can be rendered without
-    /// re-resolving the whole deck from Google Slides just to find the index.</summary>
-    public int LastSlideIndex { get; set; }
+    /// re-resolving the whole deck from Google Slides just to find the index.
+    ///
+    /// Nullable because 0 is a real slide: a non-nullable int made "never sent a progress ping"
+    /// indistinguishable from "sitting on the first slide", and any request that arrived before
+    /// the deck had loaded silently overwrote real progress with 0.</summary>
+    public int? LastSlideIndex { get; set; }
+
+    /// <summary>How many slides the deck had while THIS person was learning. Stored here rather
+    /// than on the link because the deck can be edited mid-flight and the count has to match what
+    /// this learner actually saw. Without it "slide 7" cannot be rendered as "7/20", and there is
+    /// no way to tell that someone who closed the tab had in fact reached the end.</summary>
+    public int? TotalSlideCount { get; set; }
 
     public bool CompletedAllSlides { get; set; }
 }

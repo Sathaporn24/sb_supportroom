@@ -22,6 +22,48 @@ public sealed class LearningSessionController : ControllerBase
         _service = serviceProvider.GetRequiredService<ILearningSessionService>();
     }
 
+    /// <summary>
+    /// Read-only lookup the join screen makes before showing anything: it decides which of the six
+    /// join screens to render, and it is what stops a shared computer from dropping the next
+    /// person straight into the previous person's lesson. Always 200 - "nothing to resume" is a
+    /// normal answer, not a 404.
+    /// </summary>
+    [AllowAnonymous]
+    [HttpGet("{token}/resume")]
+    public ActionResult GetResumeState(
+        [FromRoute] string token,
+        [FromQuery] string? learnerKey,
+        [FromServices] ILessonConfigService lessonConfigService,
+        [FromServices] ITrainingLinkService trainingLinkService)
+    {
+        var state = _service.GetResumeState(token, learnerKey);
+        var lessonSlug = trainingLinkService.GetEntityByToken(token).LessonSlug;
+        return Ok(new
+        {
+            link = state.Link,
+            // Bundled so the join screen makes one request instead of two - it cannot render
+            // anything without the lesson title anyway.
+            lessonTitle = GetLessonTitle(lessonConfigService, lessonSlug),
+            resumable = state.Resumable,
+            lastEnded = state.LastEnded,
+            linkExpired = state.LinkExpired,
+        });
+    }
+
+    /// <summary>A lesson that has been deleted must not take the join screen down with it - the
+    /// slug is a usable last resort. Mirrors TrainingLinkController.GetLessonTitle.</summary>
+    private static string GetLessonTitle(ILessonConfigService lessonConfigService, string lessonSlug)
+    {
+        try
+        {
+            return lessonConfigService.GetBySlug(lessonSlug).Title;
+        }
+        catch
+        {
+            return lessonSlug;
+        }
+    }
+
     /// <summary>Idempotent by design - a browser that already has a session on this link gets it
     /// back instead of a second one, which is what makes reconnecting free.</summary>
     [AllowAnonymous]

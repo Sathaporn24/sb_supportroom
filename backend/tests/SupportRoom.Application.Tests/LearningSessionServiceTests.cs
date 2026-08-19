@@ -63,6 +63,27 @@ public class LearningSessionServiceTests
         return created.Token;
     }
 
+    /// <summary>Ages a link past its expiry after runs already exist under it. ExpiresAt is init-only
+    /// on the entity, so the row is swapped rather than mutated - the same thing the clock does in
+    /// production, just without waiting for it.</summary>
+    private void ExpireLink(string token)
+    {
+        var link = _links.Items.Single(x => x.Token == token);
+        _links.Items.Remove(link);
+        _links.Items.Add(new TrainingLink
+        {
+            Id = link.Id,
+            CompanyId = link.CompanyId,
+            Token = link.Token,
+            LessonId = link.LessonId,
+            LessonSlug = link.LessonSlug,
+            RecipientOrgName = link.RecipientOrgName,
+            ExpiresAt = DateTime.UtcNow.AddHours(-1),
+            MaxAttendees = link.MaxAttendees,
+            CreateDate = link.CreateDate,
+        });
+    }
+
     [Fact]
     public void Join_IsIdempotent_SoAReconnectLandsBackOnTheSameRow()
     {
@@ -195,18 +216,177 @@ public class LearningSessionServiceTests
     }
 
     [Fact]
-    public void UpdateProgress_RefusesToRewriteAFinishedSession()
+    public void GetResumeState_WithNoLearnerKey_AnswersEmptyInsteadOfFailing()
+    {
+        var token = SeedLink();
+
+        // A browser that has never been here (cleared storage, another device) is the normal first
+        // case, not a validation error - the join screen just shows the name form.
+        var state = _service.GetResumeState(token, null);
+
+        Assert.Null(state.Resumable);
+        Assert.Null(state.LastEnded);
+        Assert.False(state.LinkExpired);
+    }
+
+    [Fact]
+    public void GetResumeState_WithAnUnfinishedRun_ReportsItSoTheScreenCanAsk()
+    {
+        var token = SeedLink();
+        var joined = _service.Join(token, new JoinLearningSessionDto { RecipientName = "ครูเอ", LearnerKey = "key-1" });
+
+        var state = _service.GetResumeState(token, "key-1");
+
+        Assert.Equal(joined.Id, state.Resumable?.Id);
+        // The name is what the confirmation question is built from ("คุณคือครูเอ ใช่ไหม").
+        Assert.Equal("ครูเอ", state.Resumable?.RecipientName);
+        Assert.Null(state.LastEnded);
+    }
+
+    [Fact]
+    public void GetResumeState_AfterFinishing_ReportsLastEndedAndNothingToResume()
+    {
+        var token = SeedLink();
+        _service.Join(token, new JoinLearningSessionDto { RecipientName = "ครูเอ", LearnerKey = "key-1" });
+        var ended = _service.End(token, new EndLearningSessionDto { LearnerKey = "key-1", CompletedAllSlides = true });
+
+        var state = _service.GetResumeState(token, "key-1");
+
+        // Nothing to confirm: the round is over, so the screen offers the recap and a fresh round
+        // instead of asking whether they are the same person.
+        Assert.Null(state.Resumable);
+        Assert.Equal(ended.Id, state.LastEnded?.Id);
+    }
+
+    [Fact]
+    public void GetResumeState_WithBoth_PrefersTheUnfinishedRun()
     {
         var token = SeedLink();
         _service.Join(token, new JoinLearningSessionDto { RecipientName = "ครูเอ", LearnerKey = "key-1" });
         _service.End(token, new EndLearningSessionDto { LearnerKey = "key-1", CompletedAllSlides = true });
+        var second = _service.Restart(token, new JoinLearningSessionDto { RecipientName = "ครูเอ", LearnerKey = "key-1" });
 
-        Assert.Throws<HttpStatusCodeException>(() => _service.UpdateProgress(token, new UpdateLearningProgressDto
+        var state = _service.GetResumeState(token, "key-1");
+
+        Assert.Equal(second.Id, state.Resumable?.Id);
+        Assert.Null(state.LastEnded);
+    }
+
+    [Fact]
+    public void GetResumeState_OnAnExpiredLink_StillReportsTheRunWaitingToBeFinished()
+    {
+        var token = SeedLink(DateTime.UtcNow.AddHours(2));
+        _service.Join(token, new JoinLearningSessionDto { RecipientName = "ครูเอ", LearnerKey = "key-1" });
+        ExpireLink(token);
+
+        // Expiry blocks STARTING something new, never finishing what was started in time. Throwing
+        // here would lock a learner out mid-lesson and look like their progress was lost.
+        var state = _service.GetResumeState(token, "key-1");
+
+        Assert.True(state.LinkExpired);
+        Assert.NotNull(state.Resumable);
+    }
+
+    [Fact]
+    public void GetResumeState_ForSomeoneElsesKeyOnTheSameLink_SeesNothing()
+    {
+        var token = SeedLink();
+        _service.Join(token, new JoinLearningSessionDto { RecipientName = "ครูเอ", LearnerKey = "key-1" });
+
+        // The second person on a shared computer generates their own key. Nothing of the first
+        // person's may show up for them.
+        var state = _service.GetResumeState(token, "key-2");
+
+        Assert.Null(state.Resumable);
+        Assert.Null(state.LastEnded);
+    }
+
+    [Fact]
+    public void UpdateProgress_AfterTheSessionEnded_ChangesNothingAndDoesNotThrow()
+    {
+        var token = SeedLink();
+        _service.Join(token, new JoinLearningSessionDto { RecipientName = "ครูเอ", LearnerKey = "key-1" });
+        _service.UpdateProgress(token, new UpdateLearningProgressDto
+        {
+            LearnerKey = "key-1",
+            LastSlideObjectId = "slide-3",
+            LastSlideIndex = 2,
+        });
+        _service.End(token, new EndLearningSessionDto { LearnerKey = "key-1", CompletedAllSlides = true });
+
+        // The tutor engine fires progress asynchronously, so a ping sent just before the learner
+        // pressed "จบ" routinely arrives just after it. Rejecting it showed a failure for
+        // something that worked; the finished row simply stands.
+        var afterEnd = _service.UpdateProgress(token, new UpdateLearningProgressDto
         {
             LearnerKey = "key-1",
             LastSlideObjectId = "slide-after-end",
             LastSlideIndex = 99,
-        }));
+        });
+
+        Assert.Equal(SessionStatus.Ended, afterEnd.Status);
+        Assert.Equal("slide-3", afterEnd.LastSlideObjectId);
+        Assert.Equal(2, afterEnd.LastSlideIndex);
+    }
+
+    [Fact]
+    public void UpdateProgress_OmittedFields_LeaveTheStoredProgressAlone()
+    {
+        var token = SeedLink();
+        _service.Join(token, new JoinLearningSessionDto { RecipientName = "ครูเอ", LearnerKey = "key-1" });
+        _service.UpdateProgress(token, new UpdateLearningProgressDto
+        {
+            LearnerKey = "key-1",
+            LastSlideObjectId = "slide-7",
+            LastSlideIndex = 6,
+            TotalSlideCount = 20,
+        });
+
+        // A ping fired before the deck resolved carries neither an index nor a count. Writing
+        // those through would drag a learner on slide 7 back to slide 1.
+        var stale = _service.UpdateProgress(token, new UpdateLearningProgressDto { LearnerKey = "key-1" });
+
+        Assert.Equal(6, stale.LastSlideIndex);
+        Assert.Equal(20, stale.TotalSlideCount);
+        Assert.Equal("slide-7", stale.LastSlideObjectId);
+        Assert.False(stale.CompletedAllSlides);
+    }
+
+    [Fact]
+    public void UpdateProgress_ReachingTheLastSlide_MarksTheRunComplete()
+    {
+        var token = SeedLink();
+        _service.Join(token, new JoinLearningSessionDto { RecipientName = "ครูเอ", LearnerKey = "key-1" });
+
+        // Someone who watches to the end and closes the tab never calls End - without this the
+        // CS list showed them as incomplete even though they saw every slide.
+        var atLastSlide = _service.UpdateProgress(token, new UpdateLearningProgressDto
+        {
+            LearnerKey = "key-1",
+            LastSlideIndex = 19,
+            TotalSlideCount = 20,
+        });
+
+        Assert.True(atLastSlide.CompletedAllSlides);
+    }
+
+    [Fact]
+    public void End_NeverUnsetsCompletedAllSlides()
+    {
+        var token = SeedLink();
+        _service.Join(token, new JoinLearningSessionDto { RecipientName = "ครูเอ", LearnerKey = "key-1" });
+        _service.UpdateProgress(token, new UpdateLearningProgressDto
+        {
+            LearnerKey = "key-1",
+            LastSlideIndex = 19,
+            TotalSlideCount = 20,
+        });
+
+        // An end fired from a stale runtime can still report false. Reaching the last slide
+        // already happened, so it stays true.
+        var ended = _service.End(token, new EndLearningSessionDto { LearnerKey = "key-1", CompletedAllSlides = false });
+
+        Assert.True(ended.CompletedAllSlides);
     }
 
     [Fact]

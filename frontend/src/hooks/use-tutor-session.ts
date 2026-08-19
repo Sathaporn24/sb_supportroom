@@ -45,7 +45,7 @@ export function useTutorSession(link: PublicTrainingLink, learningSession: Learn
     introWaitMs: 5_000,
     breathPauseMs: 1_000,
     finalQuestionWaitMs: 5_000,
-    resumeSlideIndex: learningSession.lastSlideIndex,
+    resumeSlideIndex: learningSession.lastSlideIndex ?? 0,
   });
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -415,6 +415,10 @@ export function useTutorSession(link: PublicTrainingLink, learningSession: Learn
         learnerKey,
         lastSlideObjectId: slide?.slideObjectId,
         lastSlideIndex: slideIndex,
+        // Sent on every ping rather than once at load: the deck resolves asynchronously, so the
+        // first pings can carry an empty list. The server keeps the last value greater than zero,
+        // which is also what lets it tell that someone reached the final slide.
+        totalSlideCount: slidesRef.current.length || undefined,
       })
       .catch(() => undefined);
   }
@@ -431,7 +435,7 @@ export function useTutorSession(link: PublicTrainingLink, learningSession: Learn
               introWaitMs: lesson.introWaitMs,
               breathPauseMs: lesson.breathPauseMs,
               finalQuestionWaitMs: lesson.finalQuestionWaitMs,
-              resumeSlideIndex: learningSession.lastSlideIndex,
+              resumeSlideIndex: learningSession.lastSlideIndex ?? 0,
             };
             if (mountedRef.current) {
               setEmbedUrl(url);

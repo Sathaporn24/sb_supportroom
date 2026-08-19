@@ -69,3 +69,36 @@ export function getLearnerName(token: string): string | null {
 export function setLearnerName(token: string, name: string): void {
   writeStorage(`${NAME_PREFIX}${token}`, name);
 }
+
+/**
+ * One-shot permission to open the room, handed over when the learner answered the confirmation
+ * question on the join screen.
+ *
+ * Deliberately NOT a "this browser is confirmed" flag: it is consumed the moment the room reads
+ * it, so the next time anyone opens the link the question is asked again. Storing a lasting flag
+ * - localStorage, a cookie, a query string - would be the silent resume the spec forbids, just
+ * moved to a different shelf. sessionStorage also dies with the tab, so a shared computer cannot
+ * inherit it from whoever sat down before.
+ */
+const ENTRY_PREFIX = "sb_room_entry:";
+
+export function grantRoomEntry(token: string): void {
+  try {
+    window.sessionStorage.setItem(`${ENTRY_PREFIX}${token}`, "1");
+  } catch {
+    // Storage disabled: the room falls back to sending the learner through the join screen,
+    // which is the safe direction to fail in.
+  }
+}
+
+/** Reads and immediately clears the grant. Returns false when the room was opened directly. */
+export function consumeRoomEntry(token: string): boolean {
+  try {
+    const key = `${ENTRY_PREFIX}${token}`;
+    const granted = window.sessionStorage.getItem(key) === "1";
+    window.sessionStorage.removeItem(key);
+    return granted;
+  } catch {
+    return false;
+  }
+}

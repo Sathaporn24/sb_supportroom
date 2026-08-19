@@ -28,6 +28,7 @@ import type {
   SlidesLessonContent,
   TeachingSlide,
   TrainingLink,
+  LearningResumeState,
   PublicTrainingLink,
   UpdateAdminUserInput,
   UpdateLearningProgressInput,
@@ -228,6 +229,18 @@ export function restartLearningSession(
     headers: jsonHeaders,
     body: JSON.stringify(input),
   });
+}
+
+/**
+ * ถามก่อนเข้าห้องเสมอ: เบราว์เซอร์นี้มีการเรียนค้างอยู่ไหม และเคยเรียนจบไปแล้วหรือยัง
+ * เป็น read-only ไม่สร้างแถวใหม่ - การตัดสินใจ "เรียนต่อ" เป็นของผู้ใช้บนหน้าจอ ไม่ใช่ของระบบ
+ */
+export function getLearningResumeState(
+  token: string,
+  learnerKey: string | null,
+): Promise<LearningResumeState> {
+  const query = learnerKey ? `?learnerKey=${encodeURIComponent(learnerKey)}` : "";
+  return publicRequest(`/api/learning-sessions/${encodeURIComponent(token)}/resume${query}`);
 }
 
 export function updateLearningProgress(

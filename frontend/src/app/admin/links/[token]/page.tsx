@@ -14,6 +14,17 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { LoadingBlock } from "@/components/shared/LoadingBlock";
 
 /**
+ * "7/20" when the browser has told us how big the deck is, a bare slide number when it has not,
+ * and a dash for someone who opened the link but never got a slide in - three genuinely different
+ * states that a single "สไลด์ที่ N" hid behind a number.
+ */
+function formatProgress(session: LearningSession): string {
+  if (session.lastSlideIndex === null) return "-";
+  const current = session.lastSlideIndex + 1;
+  return session.totalSlideCount ? `${current}/${session.totalSlideCount}` : `สไลด์ที่ ${current}`;
+}
+
+/**
  * Everyone who has opened one link. This page used to be a single session's summary - after the
  * link/session split there is no longer "the" session behind a token, so the summary moved to
  * /admin/learning-sessions/[id] and this became the list that leads there.
@@ -111,7 +122,7 @@ export default function TrainingLinkDetailPage() {
                   <TableRow key={session.id}>
                     <TableCell className="px-4 py-3 font-medium">{session.recipientName}</TableCell>
                     <TableCell className="px-4 py-3">{formatDateTimeTh(session.startedAt)}</TableCell>
-                    <TableCell className="px-4 py-3">สไลด์ที่ {session.lastSlideIndex + 1}</TableCell>
+                    <TableCell className="px-4 py-3">{formatProgress(session)}</TableCell>
                     <TableCell className="px-4 py-3">{session.questionCount}</TableCell>
                     <TableCell className="px-4 py-3">
                       <Badge

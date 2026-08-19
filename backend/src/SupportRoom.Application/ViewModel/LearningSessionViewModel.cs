@@ -11,7 +11,11 @@ public sealed class LearningSessionViewModel
     public string? EndedAt { get; init; }
     public required string LastActivityAt { get; init; }
     public string? LastSlideObjectId { get; init; }
-    public required int LastSlideIndex { get; init; }
+    public int? LastSlideIndex { get; init; }
+
+    /// <summary>Pairs with LastSlideIndex so CS reads "7/20" instead of a bare "slide 7". Null
+    /// until the learner's browser has reported a resolved deck.</summary>
+    public int? TotalSlideCount { get; init; }
     public required bool CompletedAllSlides { get; init; }
 
     /// <summary>

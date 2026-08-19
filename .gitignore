@@ -26,4 +26,4 @@ node_modules/
 # scratch space for generating handoff artifacts (rendered page images, build scripts).
 # The generated PDF under output/ is a deliverable and stays tracked; the 1.6 MB of
 # intermediate JPEGs that produced it are not.
-tmp/
+tmp/.claude/settings.local.json

@@ -129,7 +129,10 @@ export type LearningSession = {
   endedAt?: string;
   lastActivityAt: string;
   lastSlideObjectId?: string;
-  lastSlideIndex: number;
+  /** null = ยังไม่เคยส่งความคืบหน้ามาเลย - ต่างจาก 0 ที่แปลว่าอยู่สไลด์แรกจริง */
+  lastSlideIndex: number | null;
+  /** จำนวนสไลด์ทั้ง deck ตอนที่คนนี้เรียน - คู่กับ lastSlideIndex เพื่อแสดง "7/20" */
+  totalSlideCount: number | null;
   completedAllSlides: boolean;
   /**
    * Derived server-side from lastActivityAt, never stored: still IN_PROGRESS but nothing has
@@ -146,10 +149,26 @@ export type JoinLearningSessionInput = {
   learnerKey: string;
 };
 
+/**
+ * สิ่งที่หน้า join ต้องรู้ก่อนแสดงอะไรทั้งสิ้น - server เป็นคนตัดสิน ไม่ใช่เบราว์เซอร์
+ * `resumable` ไม่ null = **ต้องถามยืนยันเสมอ** ห้ามพาเข้าห้องเงียบๆ (กุญแจอยู่ที่เบราว์เซอร์ ไม่ใช่ที่คน)
+ */
+export type LearningResumeState = {
+  link: PublicTrainingLink;
+  lessonTitle: string;
+  /** การเรียนที่ยังไม่จบของเบราว์เซอร์นี้ - มีเมื่อไหร่ต้องถามก่อนเสมอ */
+  resumable: LearningSession | null;
+  /** รอบล่าสุดที่จบแล้ว - ดูเฉพาะตอนไม่มี resumable */
+  lastEnded: LearningSession | null;
+  linkExpired: boolean;
+};
+
 export type UpdateLearningProgressInput = {
   learnerKey: string;
   lastSlideObjectId?: string;
   lastSlideIndex: number;
+  /** ส่งเฉพาะเมื่อ deck โหลดเสร็จแล้ว - server เขียนเฉพาะค่าที่ > 0 */
+  totalSlideCount?: number;
 };
 
 export type EndLearningSessionInput = {

@@ -150,6 +150,20 @@ internal sealed class FakeLearningSessionRepository : ILearningSessionRepository
             .OrderByDescending(x => x.StartedAt)
             .FirstOrDefault();
 
+    public LearningSession? GetLatestInProgressByLearnerKey(string trainingLinkId, string learnerKey)
+        => Items.Where(x => x.TrainingLinkId == trainingLinkId
+                && x.LearnerKey == learnerKey
+                && x.Status == SessionStatus.InProgress)
+            .OrderByDescending(x => x.CreateDate)
+            .FirstOrDefault();
+
+    public LearningSession? GetLatestEndedByLearnerKey(string trainingLinkId, string learnerKey)
+        => Items.Where(x => x.TrainingLinkId == trainingLinkId
+                && x.LearnerKey == learnerKey
+                && x.Status == SessionStatus.Ended)
+            .OrderByDescending(x => x.EndedAt)
+            .FirstOrDefault();
+
     public IQueryable<LearningSession> GetByTrainingLinkId(string trainingLinkId)
         => Items.AsQueryable().Where(x => x.TrainingLinkId == trainingLinkId);
 }

@@ -27,6 +27,14 @@ public interface ILearningSessionService
     /// key, new row - one learner legitimately has several rounds (CORE_FEATURE_SPEC §2.5).</summary>
     LearningSessionViewModel Restart(string token, JoinLearningSessionDto input);
 
+    /// <summary>
+    /// What the join screen asks BEFORE anyone is let into a room: does this browser have a run it
+    /// could continue, and did it finish one earlier? Read-only and never creates a row - the
+    /// browser's key is not proof of who is holding the laptop, so continuing has to be a choice
+    /// the person makes on screen, not something the server does for them.
+    /// </summary>
+    LearningResumeStateViewModel GetResumeState(string token, string? learnerKey);
+
     LearningSessionViewModel UpdateProgress(string token, UpdateLearningProgressDto input);
     LearningSessionViewModel End(string token, EndLearningSessionDto input);
 
@@ -84,17 +92,77 @@ public sealed class LearningSessionService(IUnitOfWork unitOfWork, IServiceProvi
         return ToViewModel(entity);
     }
 
+    public LearningResumeStateViewModel GetResumeState(string token, string? learnerKey)
+    {
+        var linkService = ServiceProvider.GetRequiredService<ITrainingLinkService>();
+        // Resolves the company as a side effect, exactly like every other recipient-side entry
+        // point. Expiry is deliberately NOT enforced here: someone who started in time still has
+        // to be able to see that they have a run waiting and finish it.
+        var link = linkService.GetEntityByToken(token);
+        var linkExpired = link.ExpiresAt <= DateTime.UtcNow;
+
+        // No key means a browser that has never been here (cleared storage, another device). There
+        // is nothing of theirs to look up, and querying on an empty key would match nothing anyway
+        // - an empty answer, not an error.
+        if (string.IsNullOrWhiteSpace(learnerKey))
+        {
+            return new LearningResumeStateViewModel
+            {
+                Link = linkService.GetPublicByToken(token),
+                Resumable = null,
+                LastEnded = null,
+                LinkExpired = linkExpired,
+            };
+        }
+
+        var resumable = _repository.GetLatestInProgressByLearnerKey(link.Id, learnerKey);
+        return new LearningResumeStateViewModel
+        {
+            Link = linkService.GetPublicByToken(token),
+            Resumable = resumable is null ? null : ToViewModel(resumable),
+            // Only meaningful when there is nothing to resume - a finished round is what the
+            // "เรียนอีกครั้ง"/"ดูสรุป" screen is built from.
+            LastEnded = resumable is not null
+                ? null
+                : _repository.GetLatestEndedByLearnerKey(link.Id, learnerKey) is { } ended
+                    ? ToViewModel(ended)
+                    : null,
+            LinkExpired = linkExpired,
+        };
+    }
+
     public LearningSessionViewModel UpdateProgress(string token, UpdateLearningProgressDto input)
     {
         var entity = GetEntityByLearnerKey(token, input.LearnerKey);
 
         if (entity.Status == SessionStatus.Ended)
         {
-            throw GeneralException.ValidationError("การเรียนนี้จบแล้ว ไม่สามารถอัปเดตความคืบหน้าได้");
+            // Not an error. The tutor engine fires progress asynchronously, so a ping sent just
+            // before the learner hit "จบ" routinely lands just after it - rejecting it showed the
+            // learner a failure for something that worked correctly.
+            return ToViewModel(entity);
         }
 
-        entity.LastSlideObjectId = input.LastSlideObjectId;
-        entity.LastSlideIndex = input.LastSlideIndex;
+        entity.LastSlideObjectId = input.LastSlideObjectId ?? entity.LastSlideObjectId;
+        entity.LastSlideIndex = input.LastSlideIndex ?? entity.LastSlideIndex;
+
+        // Only ever grows into a real number: a deck that has not resolved yet reports 0/null, and
+        // writing that would erase the count taken while the learner was actually on the deck.
+        if (input.TotalSlideCount is > 0)
+        {
+            entity.TotalSlideCount = input.TotalSlideCount;
+        }
+
+        // Reaching the last slide is what "went through the whole lesson" means - waiting for the
+        // explicit End call marked everyone who simply closed the tab at the end as incomplete.
+        // One-way on purpose: once true it stays true, because they did reach the end.
+        if (entity.LastSlideIndex is { } index
+            && entity.TotalSlideCount is { } total
+            && index >= total - 1)
+        {
+            entity.CompletedAllSlides = true;
+        }
+
         // The whole point of the write: this timestamp is what the stalled calculation reads.
         entity.LastActivityAt = DateTime.UtcNow;
         entity.UpdateDate = DateTime.UtcNow;
@@ -116,9 +184,11 @@ public sealed class LearningSessionService(IUnitOfWork unitOfWork, IServiceProvi
         }
 
         entity.Status = SessionStatus.Ended;
-        entity.CompletedAllSlides = input.CompletedAllSlides;
+        // OR, never overwrite: a row that already reached the last slide stays complete even if
+        // this call reports otherwise (an end fired from a stale runtime, for example).
+        entity.CompletedAllSlides = entity.CompletedAllSlides || input.CompletedAllSlides;
         entity.LastSlideObjectId = input.LastSlideObjectId ?? entity.LastSlideObjectId;
-        entity.LastSlideIndex = input.LastSlideIndex;
+        entity.LastSlideIndex = input.LastSlideIndex ?? entity.LastSlideIndex;
         entity.EndedAt = DateTime.UtcNow;
         entity.LastActivityAt = DateTime.UtcNow;
         entity.UpdateDate = DateTime.UtcNow;
@@ -251,7 +321,9 @@ public sealed class LearningSessionService(IUnitOfWork unitOfWork, IServiceProvi
             Status = SessionStatus.InProgress,
             StartedAt = now,
             LastActivityAt = now,
-            LastSlideIndex = 0,
+            // Left null rather than 0: nobody has reported a slide yet, and 0 is a real position
+            // that would make a fresh row look like someone already on the first slide.
+            LastSlideIndex = null,
             CompletedAllSlides = false,
             CreateDate = now,
         };
@@ -279,6 +351,7 @@ public sealed class LearningSessionService(IUnitOfWork unitOfWork, IServiceProvi
             LastActivityAt = entity.LastActivityAt.Adapt<string>(),
             LastSlideObjectId = entity.LastSlideObjectId,
             LastSlideIndex = entity.LastSlideIndex,
+            TotalSlideCount = entity.TotalSlideCount,
             CompletedAllSlides = entity.CompletedAllSlides,
             // A finished session is never "stalled" no matter how long ago it ended - stalling
             // describes someone who walked away mid-lesson, not someone who got to the end.

@@ -25,7 +25,14 @@ public sealed class UpdateLearningProgressDto
     [Required]
     public required string LearnerKey { get; init; }
     public string? LastSlideObjectId { get; init; }
-    public int LastSlideIndex { get; init; }
+
+    /// <summary>Nullable so a ping fired before the deck resolved cannot overwrite real progress
+    /// with 0 - an omitted field leaves the stored value alone.</summary>
+    public int? LastSlideIndex { get; init; }
+
+    /// <summary>Size of the deck this learner is seeing. Only ever written when it is greater than
+    /// zero, for the same reason as LastSlideIndex.</summary>
+    public int? TotalSlideCount { get; init; }
 }
 
 public sealed class EndLearningSessionDto
@@ -35,7 +42,7 @@ public sealed class EndLearningSessionDto
     [Required]
     public required bool CompletedAllSlides { get; init; }
     public string? LastSlideObjectId { get; init; }
-    public int LastSlideIndex { get; init; }
+    public int? LastSlideIndex { get; init; }
 }
 
 /// <summary>
