@@ -92,8 +92,16 @@ export default function TrainingLinkDetailPage() {
             <p>{formatDateTimeTh(link.createdAt)}</p>
           </div>
           <div>
-            <p className="text-muted-foreground">ผู้เข้าเรียน</p>
-            <p>{link.learningSessionCount} คน</p>
+            <p className="text-muted-foreground">ผู้เรียนทั้งหมด</p>
+            <p>{link.learnerCount} คน</p>
+          </div>
+          <div>
+            <p className="text-muted-foreground">กำลังเรียน</p>
+            <p>{link.inProgressCount} รอบ</p>
+          </div>
+          <div>
+            <p className="text-muted-foreground">จบแล้ว</p>
+            <p>{link.endedCount} รอบ</p>
           </div>
         </CardContent>
       </Card>

@@ -150,6 +150,57 @@ public class SessionQuestionServiceTests
     }
 
     [Fact]
+    public void Review_WithNullResult_ClearsTheWholeReview()
+    {
+        Seed("learning-1");
+        _questions.Items.Add(new SessionQuestion
+        {
+            Id = "q-1",
+            CompanyId = TestFixtures.CompanyId,
+            SessionId = "learning-1",
+            AnswerStatus = AnswerStatus.Answered,
+            ReviewResult = ReviewResult.Incorrect,
+            ReviewNote = "ผลเดิม",
+            ReviewedAt = DateTime.UtcNow.AddDays(-1),
+            CreateDate = DateTime.UtcNow,
+        });
+
+        var vm = _service.Review("q-1", new ReviewSessionQuestionDto
+        {
+            ReviewResult = null,
+            // A note has no meaning without a result and must not remain behind.
+            ReviewNote = "ข้อความนี้ต้องถูกล้าง",
+        });
+
+        Assert.Null(vm.ReviewResult);
+        Assert.Null(vm.ReviewNote);
+        Assert.Null(vm.ReviewedAt);
+        Assert.NotNull(_questions.Items.Single().UpdateDate);
+    }
+
+    [Fact]
+    public void Review_RejectsANoteLongerThanTwoThousandCharacters()
+    {
+        Seed("learning-1");
+        _questions.Items.Add(new SessionQuestion
+        {
+            Id = "q-1",
+            CompanyId = TestFixtures.CompanyId,
+            SessionId = "learning-1",
+            AnswerStatus = AnswerStatus.Answered,
+            CreateDate = DateTime.UtcNow,
+        });
+
+        var ex = Assert.Throws<HttpStatusCodeException>(() => _service.Review("q-1", new ReviewSessionQuestionDto
+        {
+            ReviewResult = ReviewResult.Correct,
+            ReviewNote = new string('ก', 2001),
+        }));
+
+        Assert.Equal(400, (int)ex.StatusCode);
+    }
+
+    [Fact]
     public void Review_RejectsAVerdictOutsideTheTwoAllowedValues()
     {
         Seed("learning-1");

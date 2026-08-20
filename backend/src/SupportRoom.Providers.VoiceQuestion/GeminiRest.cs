@@ -45,6 +45,16 @@ internal static class GeminiRest
         }
     }
 
+    /// <summary>KS-9's structured-output shape - only populated by the retrieval-grounded answer
+    /// prompt (RagVoiceQuestionProvider), which is the only place Q&A content is shown to the
+    /// model at all.</summary>
+    public sealed class GeminiConflictJson
+    {
+        public string? QnaId { get; init; }
+        public string? SourceLabel { get; init; }
+        public string? Note { get; init; }
+    }
+
     public sealed class GeminiAnswerJson
     {
         public string? Transcript { get; init; }
@@ -52,6 +62,7 @@ internal static class GeminiRest
         public string? AnswerStatus { get; init; }
         public string? RelatedSlideObjectId { get; init; }
         public string? Readiness { get; init; }
+        public GeminiConflictJson? Conflict { get; init; }
     }
 
     // Gemini returns 503 UNAVAILABLE ("high demand") and 429 RESOURCE_EXHAUSTED sporadically even

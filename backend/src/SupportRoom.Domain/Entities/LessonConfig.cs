@@ -33,6 +33,7 @@ public sealed class LessonConfig : IEntityMaster<string>, ICompanyScoped
     public DateTime? DeletedAt { get; init; }
 
     public required string Slug { get; init; }
+    public required string CategoryId { get; set; }
     public required string Title { get; set; }
     public string? Description { get; set; }
     public required string SlidesSourceUrl { get; set; }

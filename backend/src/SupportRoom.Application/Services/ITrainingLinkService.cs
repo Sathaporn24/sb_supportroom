@@ -43,20 +43,34 @@ public sealed class TrainingLinkService(IUnitOfWork unitOfWork, IServiceProvider
     {
         var links = _repository.GetAll().OrderByDescending(x => x.CreateDate).ToList();
 
-        // One grouped count instead of a count per link - the admin list is the only caller and it
-        // renders every link at once.
-        var countsByLinkId = _learningSessionRepository.GetAll()
+        // One grouped aggregate query instead of separate counts per link - the admin list renders
+        // every link at once. LearnerCount is distinct browsers; status counts are learning rounds.
+        var aggregateRows = _learningSessionRepository.GetAll()
             .GroupBy(x => x.TrainingLinkId)
-            .Select(g => new { TrainingLinkId = g.Key, Count = g.Count() })
-            .ToDictionary(x => x.TrainingLinkId, x => x.Count);
+            .Select(g => new
+            {
+                TrainingLinkId = g.Key,
+                LearnerCount = g.Select(x => x.LearnerKey).Distinct().Count(),
+                InProgressCount = g.Count(x => x.Status == SessionStatus.InProgress),
+                EndedCount = g.Count(x => x.Status == SessionStatus.Ended),
+            })
+            .ToList();
+        var aggregatesByLinkId = aggregateRows.ToDictionary(
+            x => x.TrainingLinkId,
+            x => new SessionAggregates(x.LearnerCount, x.InProgressCount, x.EndedCount));
 
         return links
-            .Select(link => ToViewModel(link, countsByLinkId.GetValueOrDefault(link.Id)))
+            .Select(link => ToViewModel(link, aggregatesByLinkId.GetValueOrDefault(link.Id)))
             .ToList();
     }
 
     public TrainingLinkViewModel Create(CreateTrainingLinkDto input)
     {
+        if (input.MaxAttendees is < 1)
+        {
+            throw GeneralException.ValidationError("จำนวนคนสูงสุดต้องมากกว่าหรือเท่ากับ 1");
+        }
+
         var lesson = _lessonConfigRepository.GetBySlug(input.LessonSlug) ?? throw GeneralException.NotFound("บทเรียน");
         if (!lesson.IsActive)
         {
@@ -88,19 +102,19 @@ public sealed class TrainingLinkService(IUnitOfWork unitOfWork, IServiceProvider
 
         Logger.LogInformation("Training link created: {LinkId} lesson={LessonSlug}", entity.Id, entity.LessonSlug);
 
-        return ToViewModel(entity, 0);
+        return ToViewModel(entity, null);
     }
 
     public TrainingLinkViewModel GetById(string id)
     {
         var entity = _repository.Get(id) ?? throw GeneralException.NotFound("ลิงก์");
-        return ToViewModel(entity, _learningSessionRepository.GetByTrainingLinkId(id).Count());
+        return ToViewModel(entity, GetAggregates(id));
     }
 
     public TrainingLinkViewModel GetByToken(string token)
     {
         var entity = GetEntityByToken(token);
-        return ToViewModel(entity, _learningSessionRepository.GetByTrainingLinkId(entity.Id).Count());
+        return ToViewModel(entity, GetAggregates(entity.Id));
     }
 
     public PublicTrainingLinkViewModel GetPublicByToken(string token)
@@ -119,7 +133,8 @@ public sealed class TrainingLinkService(IUnitOfWork unitOfWork, IServiceProvider
     /// The single doorway for every recipient-side request. The caller holds only a join token
     /// and no company has been resolved yet, so the lookup itself must bypass the company query
     /// filter (see ITrainingLinkRepository.GetByToken) - the token is unguessable and globally
-    /// unique, which is what makes it usable as the credential.
+    /// unique, which makes it safe for locating the public link. Learner-owned data requires the
+    /// second credential half (LearnerKey) as well.
     ///
     /// Resolving ICompanyContext from the row found here is what scopes every FOLLOWING query in
     /// the request (lesson, learning sessions, questions, chat, documents) to the right company.
@@ -129,8 +144,8 @@ public sealed class TrainingLinkService(IUnitOfWork unitOfWork, IServiceProvider
     public TrainingLink GetEntityByToken(string token)
     {
         var entity = _repository.GetByToken(token) ?? throw GeneralException.NotFound("ลิงก์ หรือลิงก์หมดอายุ");
-        // A token is the learner-side credential, but it must not be able to replace a tenant
-        // already selected for a signed-in request. Public learner requests start unresolved;
+        // A token is the link-level half of the learner credential, but it must not be able to
+        // replace a tenant already selected for a signed-in request. Public learner requests start unresolved;
         // admin requests arrive resolved by middleware and a mismatch fails before any scoped
         // query can run under the token's company.
         if (CompanyContext.CompanyId is { Length: > 0 } selectedCompanyId
@@ -142,7 +157,18 @@ public sealed class TrainingLinkService(IUnitOfWork unitOfWork, IServiceProvider
         return entity;
     }
 
-    private static TrainingLinkViewModel ToViewModel(TrainingLink entity, int learningSessionCount) => new()
+    private SessionAggregates? GetAggregates(string trainingLinkId)
+    {
+        var sessions = _learningSessionRepository.GetByTrainingLinkId(trainingLinkId).ToList();
+        return sessions.Count == 0
+            ? null
+            : new SessionAggregates(
+                sessions.Select(x => x.LearnerKey).Distinct().Count(),
+                sessions.Count(x => x.Status == SessionStatus.InProgress),
+                sessions.Count(x => x.Status == SessionStatus.Ended));
+    }
+
+    private static TrainingLinkViewModel ToViewModel(TrainingLink entity, SessionAggregates? aggregates) => new()
     {
         Id = entity.Id,
         Token = entity.Token,
@@ -153,6 +179,11 @@ public sealed class TrainingLinkService(IUnitOfWork unitOfWork, IServiceProvider
         ExpiresAt = entity.ExpiresAt.Adapt<string>(),
         MaxAttendees = entity.MaxAttendees,
         Status = entity.ExpiresAt <= DateTime.UtcNow ? LinkStatus.Expired : LinkStatus.Active,
-        LearningSessionCount = learningSessionCount,
+        LearningSessionCount = (aggregates?.InProgressCount ?? 0) + (aggregates?.EndedCount ?? 0),
+        LearnerCount = aggregates?.LearnerCount ?? 0,
+        InProgressCount = aggregates?.InProgressCount ?? 0,
+        EndedCount = aggregates?.EndedCount ?? 0,
     };
+
+    private sealed record SessionAggregates(int LearnerCount, int InProgressCount, int EndedCount);
 }

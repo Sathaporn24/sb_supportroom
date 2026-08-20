@@ -3,8 +3,7 @@
 import { useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useAdminSession } from "@/components/admin/AdminSessionProvider";
-import { CompanySwitcher } from "@/components/admin/CompanySwitcher";
-import { AdminLink } from "@/components/admin/AdminLink";
+import { AdminShell } from "@/components/admin/AdminShell";
 
 /**
  * Keeps signed-out visitors out of the back office and forces a first-sign-in password change
@@ -49,54 +48,16 @@ export function AdminGuard({ children }: { children: React.ReactNode }) {
   // be explicitly exempted here when they are implemented.
   if (user.role === "owner" && !activeCompanyId && !isChangePasswordPage) {
     return (
-      <>
-        <AdminBar />
-        <main style={{ padding: 24 }}>
-          <h1>เลือกบริษัทก่อนเริ่มทำงาน</h1>
-          <p>กรุณาเลือกบริษัทจากแถบด้านบน เพื่อให้ทุกหน้ารู้ว่ากำลังดูข้อมูลของใคร</p>
+      <AdminShell>
+        <main className="mx-auto flex max-w-4xl flex-col gap-2 p-6">
+          <h1 className="text-lg font-semibold">เลือกบริษัทก่อนเริ่มทำงาน</h1>
+          <p className="text-sm text-muted-foreground">
+            กรุณาเลือกบริษัทจากแถบด้านบน เพื่อให้ทุกหน้ารู้ว่ากำลังดูข้อมูลของใคร
+          </p>
         </main>
-      </>
+      </AdminShell>
     );
   }
 
-  return (
-    <>
-      <AdminBar />
-      {children}
-    </>
-  );
-}
-
-/**
- * Deliberately unstyled - plain HTML with the minimum inline layout needed to be usable. The
- * whole back office is being redesigned in Figma and rebuilt with shadcn/ui, so any styling
- * invested here is thrown away twice: once when the design lands, once when the components change.
- */
-function AdminBar() {
-  const { user, signOut } = useAdminSession();
-  if (!user) return null;
-
-  return (
-    <div
-      style={{
-        display: "flex",
-        alignItems: "center",
-        gap: 16,
-        flexWrap: "wrap",
-        padding: "8px 16px",
-        borderBottom: "1px solid #ccc",
-        fontSize: 14,
-      }}
-    >
-      <CompanySwitcher />
-      <span style={{ marginLeft: "auto" }}>
-        {user.displayName} ({user.role})
-      </span>
-      {user.role !== "cs" && <AdminLink href="/admin/users">จัดการผู้ใช้</AdminLink>}
-      <AdminLink href="/admin/change-password">เปลี่ยนรหัสผ่าน</AdminLink>
-      <button type="button" onClick={signOut}>
-        ออกจากระบบ
-      </button>
-    </div>
-  );
+  return <AdminShell>{children}</AdminShell>;
 }

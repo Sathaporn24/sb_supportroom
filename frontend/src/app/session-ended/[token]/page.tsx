@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import * as api from "@/lib/api-client";
 import { answerStatusLabels } from "@/utils/session-status";
-import { getLearnerName, grantRoomEntry, peekLearnerKey } from "@/utils/learner-key";
+import { peekLearnerKey } from "@/utils/learner-key";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { LoadingBlock } from "@/components/shared/LoadingBlock";
@@ -18,10 +18,9 @@ export default function SessionEndedPage() {
   const params = useParams<{ token: string }>();
   const router = useRouter();
   const [questions, setQuestions] = useState<LearnerSessionQuestion[] | null>(null);
-  const [restarting, setRestarting] = useState(false);
 
   useEffect(() => {
-    const learnerKey = peekLearnerKey(params.token);
+    const learnerKey = peekLearnerKey();
     if (!learnerKey) {
       // Nothing to show without a key - there is no "my questions" to look up.
       setQuestions([]);
@@ -41,28 +40,6 @@ export default function SessionEndedPage() {
       active = false;
     };
   }, [params.token]);
-
-  async function handleRestart() {
-    const learnerKey = peekLearnerKey(params.token);
-    const name = getLearnerName(params.token);
-    if (!learnerKey || !name) {
-      router.push(`/join/${params.token}`);
-      return;
-    }
-    setRestarting(true);
-    try {
-      // A new round, not a reopen of the finished one - the old session and its questions stay
-      // exactly as they were (CORE_FEATURE_SPEC §2.5).
-      await api.restartLearningSession(params.token, { recipientName: name, learnerKey });
-      // A round this person just started themselves, one click ago - the confirmation question
-      // has no one to ask about, so the room opens directly.
-      grantRoomEntry(params.token);
-      router.push(`/room/${params.token}`);
-    } catch {
-      setRestarting(false);
-      router.push(`/join/${params.token}`);
-    }
-  }
 
   if (questions === null) {
     return (
@@ -102,8 +79,8 @@ export default function SessionEndedPage() {
             </div>
           )}
 
-          <Button className="w-full" disabled={restarting} onClick={() => void handleRestart()}>
-            {restarting ? "กำลังเริ่มรอบใหม่..." : "เรียนอีกครั้ง"}
+          <Button className="w-full" onClick={() => router.push(`/join/${params.token}`)}>
+            เรียนอีกครั้ง
           </Button>
         </CardContent>
       </Card>

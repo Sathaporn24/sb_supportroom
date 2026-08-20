@@ -10,12 +10,12 @@ namespace SupportRoom.Application.Dto;
 public sealed class JoinLearningSessionDto
 {
     [Required]
-    [MaxLength(DtoLimits.RecipientNameMaxLength)]
+    [StringLength(DtoLimits.RecipientNameMaxLength, MinimumLength = 1)]
     public required string RecipientName { get; init; }
 
     /// <summary>Opaque key the browser generates and persists. Picks which row on this link the
     /// caller owns - see LearningSession.LearnerKey.</summary>
-    [Required]
+    [Required, StringLength(DtoLimits.LearnerKeyMaxLength, MinimumLength = DtoLimits.LearnerKeyMinLength)]
     public required string LearnerKey { get; init; }
 }
 
@@ -52,8 +52,8 @@ public sealed class EndLearningSessionDto
 /// </summary>
 public sealed class ReviewSessionQuestionDto
 {
-    [Required]
-    public required string ReviewResult { get; init; }
+    /// <summary>correct | incorrect | null. null clears the whole review.</summary>
+    public string? ReviewResult { get; init; }
 
     [MaxLength(DtoLimits.ReviewNoteMaxLength)]
     public string? ReviewNote { get; init; }

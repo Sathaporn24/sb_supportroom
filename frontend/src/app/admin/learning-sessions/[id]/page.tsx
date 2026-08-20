@@ -26,9 +26,7 @@ function mergeQuestions(base: SessionQuestion[], live: SessionQuestion[]): Sessi
 }
 
 function pickReview(q: SessionQuestion): Partial<SessionQuestion> {
-  return q.reviewResult
-    ? { reviewResult: q.reviewResult, reviewNote: q.reviewNote, reviewedAt: q.reviewedAt }
-    : {};
+  return { reviewResult: q.reviewResult, reviewNote: q.reviewNote, reviewedAt: q.reviewedAt };
 }
 
 /** One learner's run: the full CS view, including the review controls. */
@@ -166,17 +164,18 @@ function QuestionReviewItem({
   onReviewed: (updated: SessionQuestion) => void;
 }) {
   const [note, setNote] = useState(question.reviewNote ?? "");
-  const [saving, setSaving] = useState<ReviewResult | null>(null);
+  const [saving, setSaving] = useState<ReviewResult | "clear" | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  async function submit(reviewResult: ReviewResult) {
-    setSaving(reviewResult);
+  async function submit(reviewResult: ReviewResult | null) {
+    setSaving(reviewResult ?? "clear");
     setError(null);
     try {
       const { question: updated } = await api.reviewSessionQuestion(question.id, {
         reviewResult,
-        reviewNote: note.trim() || undefined,
+        reviewNote: reviewResult === null ? undefined : note.trim() || undefined,
       });
+      setNote(updated.reviewNote ?? "");
       onReviewed(updated);
     } catch (err) {
       setError(err instanceof Error ? err.message : "บันทึกผลการตรวจไม่สำเร็จ");
@@ -219,6 +218,11 @@ function QuestionReviewItem({
         <Button variant="ghost" disabled={saving !== null} onClick={() => void submit("incorrect")}>
           {saving === "incorrect" ? "กำลังบันทึก..." : "ตอบผิด"}
         </Button>
+        {question.reviewResult && (
+          <Button variant="outline" disabled={saving !== null} onClick={() => void submit(null)}>
+            {saving === "clear" ? "กำลังล้าง..." : "ล้างผลรีวิว"}
+          </Button>
+        )}
         {question.reviewedAt && (
           <span className="text-xs text-muted-foreground">ตรวจเมื่อ {formatDateTimeTh(question.reviewedAt)}</span>
         )}

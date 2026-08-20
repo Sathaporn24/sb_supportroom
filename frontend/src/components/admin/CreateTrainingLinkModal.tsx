@@ -29,6 +29,7 @@ function toLocalInputValue(iso: string): string {
 export function CreateTrainingLinkModal({ open, onClose, lesson }: Props) {
   const [recipientOrgName, setRecipientOrgName] = useState("");
   const [expiresAt, setExpiresAt] = useState("");
+  const [maxAttendees, setMaxAttendees] = useState("");
   const [created, setCreated] = useState<TrainingLink | null>(null);
   const [origin, setOrigin] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -38,6 +39,7 @@ export function CreateTrainingLinkModal({ open, onClose, lesson }: Props) {
     if (open) {
       setRecipientOrgName("");
       setExpiresAt(toLocalInputValue(addHours(new Date().toISOString(), tutorConfig.defaultSessionExpiryHours)));
+      setMaxAttendees("");
       setCreated(null);
       setError(null);
       setIsCreating(false);
@@ -48,12 +50,18 @@ export function CreateTrainingLinkModal({ open, onClose, lesson }: Props) {
   async function handleCreate() {
     if (!lesson) return;
     setError(null);
+    const parsedMaxAttendees = maxAttendees === "" ? undefined : Number(maxAttendees);
+    if (parsedMaxAttendees !== undefined && (!Number.isInteger(parsedMaxAttendees) || parsedMaxAttendees < 1)) {
+      setError("จำนวนคนสูงสุดต้องเป็นจำนวนเต็มตั้งแต่ 1 ขึ้นไป");
+      return;
+    }
     setIsCreating(true);
     try {
       const { link } = await api.createTrainingLink({
         lessonSlug: lesson.slug,
         recipientOrgName: recipientOrgName || undefined,
         expiresAt: new Date(expiresAt).toISOString(),
+        maxAttendees: parsedMaxAttendees,
       });
       setCreated(link);
     } catch (err) {
@@ -115,6 +123,23 @@ export function CreateTrainingLinkModal({ open, onClose, lesson }: Props) {
                 value={expiresAt}
                 onChange={(e) => setExpiresAt(e.target.value)}
               />
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="max-attendees">จำนวนคนสูงสุด (ไม่บังคับ)</Label>
+              <Input
+                id="max-attendees"
+                type="number"
+                min={1}
+                step={1}
+                inputMode="numeric"
+                value={maxAttendees}
+                aria-describedby="max-attendees-help"
+                onChange={(e) => setMaxAttendees(e.target.value)}
+                placeholder="เช่น 30"
+              />
+              <p id="max-attendees-help" className="text-xs text-muted-foreground">
+                ค่านี้ยังไม่มีผลในระบบ ระบบจะยังไม่จำกัดจำนวนผู้เข้าเรียนในเฟสนี้
+              </p>
             </div>
 
             <Button className="w-full" onClick={handleCreate} disabled={!lesson || isCreating}>

@@ -1,9 +1,9 @@
 # การเรียน 1 ลิงก์ = หลายการเรียน + บันทึกความคืบหน้า/รีวิวคำตอบ AI (learning-session) — Feasibility & Design
 
-> **สถานะเอกสาร (2026-08-18):** **ยืนยันครบแล้ว — พร้อมส่งต่อ `project-manager`**
-> ทั้ง 6 จุดที่เคยค้าง (Q2, Q3, Q4 + D1–D3) เจ้าของโปรเจกต์เคาะเมื่อ 2026-08-18
-> **ตรงตามข้อเสนอของ `system-analyst` ทุกข้อ** เนื้อหาในเอกสารนี้จึงเป็น contract ที่ implement
-> ได้ทันที ไม่มีส่วนใดรอคำตอบอีก · หัวข้อทางเลือก/trade-off ที่ยังอยู่ในเอกสาร (Q2+Q3, Q4, D1, D3)
+> **สถานะเอกสาร (2026-08-19):** **ยืนยัน Contract Amendment แล้ว — พร้อมส่งต่อ `project-manager`**
+> ทั้ง 6 จุดที่เคยค้าง (Q2, Q3, Q4 + D1–D3) เคาะครั้งแรกเมื่อ 2026-08-18 และ Q2/D1 รวมถึง
+> data/wire details ถูก amend เมื่อ 2026-08-19 ตาม implementation ที่ยืนยันแล้ว เนื้อหาในเอกสารนี้
+> จึงเป็น contract ที่ implement ได้โดยอ่าน CA-1..CA-6 เป็น authority · หัวข้อทางเลือก/trade-off เดิม
 > **เก็บไว้เป็นบันทึกเหตุผล ไม่ใช่คำถามที่ยังเปิดอยู่** — ห้ามรื้อทางเลือกที่ถูกตัดไปแล้วกลับมาพิจารณาใหม่
 > โดยไม่ผ่านการ amend · ดูสรุปมติที่ `## Unresolved Open Questions`
 >
@@ -11,6 +11,104 @@
 > `backend/src/SupportRoom.Domain/Entities/` + EF Core migration ใน
 > `backend/src/SupportRoom.Providers.Data/Migrations/` (กฎ `schema.prisma` ใน
 > `.claude/shared/conventions.md` §7 ต้องอ่านเทียบเป็นสองอย่างนี้)
+>
+> **Amendment 2026-08-19 มี authority เหนือข้อความเดิมเมื่อขัดกัน** โดยคง business behavior
+> จาก `requirement.md` ทุกข้อ แต่ยอมรับ naming, public learner API และ migration shape ที่ implement
+> อยู่จริงตามหัวข้อ `## Contract Amendment — 2026-08-19` ด้านล่าง ไม่มี schema เพิ่มเติม
+
+---
+
+## Contract Amendment — 2026-08-19
+
+> เจ้าของโปรเจกต์ยืนยัน amendment นี้เมื่อ 2026-08-19 เพื่อ resolve `LS-QA-02` จาก FULL QA รอบแรก
+> ข้อความในหัวข้อนี้ **แทนที่เฉพาะชื่อ data/wire contract, public learner route/credential flow,
+> audit mutability และ migration shape** ที่ขัดกันใน proposal วันที่ 2026-08-18 ส่วน business rules
+> F1–F8, LR-2, LR-3/LR-3a, progress/end behavior, review behavior และ isolation outcome คงเดิม
+
+### CA-1 · Naming contract ที่ใช้จริง
+
+| ความหมาย | Contract ที่ยืนยัน | หมายเหตุ |
+|---|---|---|
+| ลิงก์ที่ CS แจก | `TrainingLink` / `ITrainingLinkRepository` / `/api/training-links` / TS `TrainingLink` | แทน proposal `LessonLink`; ไม่กลับไปใช้ `TrainingSession` |
+| FK จากการเรียนไปลิงก์ | `LearningSession.TrainingLinkId` | logical FK ตาม pattern เดิม |
+| ชื่อที่ผู้เรียนกรอก | `LearningSession.RecipientName` / wire `recipientName` | เป็น display label ที่ผู้เรียนกรอกเอง ไม่ใช่ชื่อที่ CS กรอกล่วงหน้า |
+| FK ของคำถามและแชต | `SessionQuestion.SessionId`, `ChatMessage.SessionId` / wire `sessionId` | ทุกจุดชี้ `LearningSession.Id`; คำว่า session หลัง split หมายถึงการเรียนเท่านั้น |
+| สถานะการเรียน | `SessionStatus.InProgress` / `SessionStatus.Ended`; TS `LearningSessionStatus` | ค่า wire ยังเป็น `IN_PROGRESS` / `ENDED` |
+| สถานะลิงก์ | `LinkStatus.Active` / `LinkStatus.Expired`; TS `LinkStatus` | คำนวณจาก `ExpiresAt`, ไม่เก็บคอลัมน์ status |
+
+ชื่อเหล่านี้เปลี่ยนเฉพาะ identifier ไม่เปลี่ยน business semantics และไม่ต้องออก EF migration เพิ่ม
+
+### CA-2 · Public learner identity และ API contract
+
+Public learner flow ใช้คู่ **`(training-link token, learnerKey)`** ทุกครั้ง แล้ว server resolve
+`CompanyId`, `TrainingLink` และ `LearningSession.Id` เอง ผู้เรียน **ห้ามส่ง `learningSessionId`
+เพื่อเลือกแถวโดยตรง** และไม่ใช้ `X-Learner-Key` ใน contract นี้ การ resolve server-side ลด IDOR surface
+เพราะ client เลือก session id อื่นบนลิงก์เดียวกันไม่ได้
+
+| Operation | Contract ที่ยืนยัน |
+|---|---|
+| resume state | `GET /api/learning-sessions/{token}/resume?learnerKey=` (`learnerKey` ว่างได้ตาม LR-3 กรณี ก) |
+| join | `POST /api/learning-sessions/{token}/join`, body `{ recipientName, learnerKey }` |
+| restart | `POST /api/learning-sessions/{token}/restart`, body `{ recipientName, learnerKey }` |
+| progress | `PATCH /api/learning-sessions/{token}/progress`, body `{ learnerKey, lastSlideObjectId?, lastSlideIndex, totalSlideCount? }` |
+| end | `PATCH /api/learning-sessions/{token}/end`, body `{ learnerKey, completedAllSlides, lastSlideObjectId?, lastSlideIndex }` |
+| learner summary | `GET /api/learning-sessions/{token}/summary?learnerKey=` |
+| learner questions/chat | `GET /api/session-questions?token=&learnerKey=` และ `GET /api/chat-messages?token=&learnerKey=` |
+| voice question | `POST /api/voice-question`, multipart fields `token`, `learnerKey`, `audio`, fields อื่นตามเดิม |
+| learner SignalR | `JoinSession(token, learnerKey)` และ `SendChatMessage(token, learnerKey, text)` |
+| CS REST/SignalR | ใช้ `learningSessionId` บน authenticated endpoints/methods; server ต้องบังคับ company authorization |
+
+SignalR group key และ persistence key ภายใน server ยังคงเป็น `LearningSession.Id`; client ส่ง token/key
+แล้ว hub resolve id ก่อน join/broadcast จึงรักษา isolation outcome เดิมของ IC-5
+
+### CA-3 · Credential handling และ isolation
+
+แม้ `RecipientName` ไม่ใช่ identity แต่คู่ `(token, learnerKey)` ทำหน้าที่เป็น **composite bearer
+credential** สำหรับข้อมูลผู้เรียนในระบบที่ยังไม่มี learner login จึงต้องปฏิบัติดังนี้:
+
+1. ใช้ผ่าน HTTPS เท่านั้น และต้องไม่ log ค่า token/`learnerKey` หรือ full query string
+2. ห้ามส่งค่าเหล่านี้เข้า analytics, telemetry attributes, cache key ที่เปิดเผยภายนอก หรือ referrer
+3. lookup token แบบข้าม query filter ได้เฉพาะ entry point ที่มีเหตุผลกำกับ แล้วต้อง
+   `CompanyContext.Resolve(link.CompanyId)` ก่อน query ข้อมูล company-scoped อื่น
+4. resolve session ด้วย `(TrainingLinkId, LearnerKey)` และคืน `404` เมื่อคู่ไม่ตรงกัน เพื่อไม่เปิดเผย
+   ว่า learner/session อื่นมีอยู่จริง
+5. `LearnerKey` ต้องไม่ออกใน ViewModel/response; browser สร้างด้วย `crypto.randomUUID()` และเก็บตาม IC-4
+6. Security gate ต้อง audit transport/logging, anonymous REST, SignalR group isolation และ CS authorization
+
+ข้อกำหนด no-log/no-cache ครอบ query-string transport ที่ยอมรับใน amendment นี้โดยเฉพาะ หาก runtime,
+reverse proxy หรือ monitoring platform ใดรับประกันไม่ได้ ต้องย้าย `learnerKey` ไป secure header/body
+ผ่าน design amendment ใหม่ก่อน production
+
+### CA-4 · Repository และ audit mutability
+
+- Public flow ใช้ `ITrainingLinkRepository.GetByToken()` และ
+  `ILearningSessionRepository.GetActiveByLearnerKey/GetLatestInProgressByLearnerKey/
+  GetLatestEndedByLearnerKey`; ไม่ต้องมี `GetByIdAcrossCompanies()` สำหรับ learner flow
+- CS by-id ใช้ authenticated company-scoped repository query และ authorization guard
+- `SessionQuestion.UpdateBy`/`UpdateDate` เป็น `set` เพื่อรองรับ review; delete audit fields ของ
+  `SessionQuestion` และ audit update/delete fields ของ `ChatMessage` คง `init` ได้ เพราะโมดูลนี้ไม่มี
+  update/delete flow สำหรับ chat และไม่มี soft-delete flow สำหรับสอง entity นี้
+- หากเพิ่มการลบ/ซ่อนคำถามหรือแชตภายหลัง ต้อง amend contract และทำ audit setters/authorization
+  พร้อม feature นั้น ห้ามเปลี่ยน mutability เผื่อไว้โดยไม่มี use case
+
+### CA-5 · Migration contract ที่เกิดขึ้นจริง
+
+ยอมรับ migrations ที่ generate และตรวจแล้วเป็น contract ของ implementation ปัจจุบัน:
+
+1. `20260813140603_SplitLinkAndAddAuth` — rename `TrainingSession` → `TrainingLink`, สร้าง
+   `LearningSession`, backfill demo data, repoint ค่า `SessionQuestion.SessionId` และ
+   `ChatMessage.SessionId` ให้เป็น `LearningSession.Id`, เพิ่ม review fields และลบ `SessionSummary`
+2. `20260818155126_AddTotalSlideCount` — เพิ่ม `LearningSession.TotalSlideCount`
+
+ไม่มี migration ชื่อ `SplitLessonLinkAndLearningSession` และไม่มีการ rename `SessionId` เป็น
+`LearningSessionId` migrations ทั้งสองใบยัง **รอ apply กับ deployment database** ตาม `LS-QA-01`;
+amendment นี้ไม่อนุญาตให้แก้ migration ที่ generate แล้วและไม่สร้าง migration เพิ่ม
+
+### CA-6 · Future expansion boundary
+
+contract นี้ตั้งใจรองรับ anonymous learner บน browser เดียวตาม requirement ปัจจุบัน หากอนาคตต้อง
+รองรับ login, verified identity หรือ cross-device resume จะต้องออกแบบ identity/authentication contract
+ใหม่ ไม่เพิ่ม `learningSessionId` เป็น public bearer credential แบบเฉพาะกิจใน flow ปัจจุบัน
 
 ---
 
@@ -44,11 +142,11 @@
 | **F1** แยก "ลิงก์" ออกจาก "การเรียน" | **ทำได้ (straightforward ทางเทคนิค แต่กระทบกว้าง)** | ไม่มี dependency ใหม่ · งานคือ migration + rename + ไล่แก้ทุกจุดที่อ้าง `TrainingSession` · กติกาหมดอายุ = บังคับตอน *สร้างการเรียนใหม่* เท่านั้น (LR-1) ไม่แตะรายการที่ค้างอยู่ (LR-3) · ⚠️ วันนี้ backend **ไม่ได้บังคับ expiry เลย** (บังคับที่ frontend อย่างเดียว — `utils/session-status.ts`) เฟสนี้ทำให้ backend บังคับจริงเป็นครั้งแรก |
 | **F1b** ตารางใหม่ "การเรียนของแต่ละคน" | **ทำได้** | ตารางใหม่ 1 ตาราง เข้ากฎ `ICompanyScoped` + query filter ครบ · test `EveryEntityIsCompanyScoped` ใน `CompanyIsolationTests.cs` จะ fail ทันทีถ้าลืม filter (tripwire ที่มีอยู่แล้ว ใช้ได้เลย) |
 | **F2** ผู้เรียนกรอกชื่อเองก่อนเข้าห้อง | **ทำได้** | หน้า `join/[token]` เพิ่มฟอร์มชื่อ + endpoint สร้างการเรียน · ไม่เก็บ PII อื่นตามมติ 2026-08-18 |
-| **F3** `LearnerKey` ทำสองหน้าที่ | **ทำได้ แต่มีเงื่อนไขความปลอดภัยที่ต้องเขียนเป็นกติกา** | `localStorage` + `crypto.randomUUID()` · **`LearnerKey` และ `LearningSession.Id` กลายเป็น bearer credential เพิ่มอีกสองตัวในระบบที่ยังไม่มี auth (TD-002)** — กติกาบังคับอยู่ที่ `## Isolation & Credential Rules` · **เครื่องที่ใช้ร่วมกัน** (คอมกลางในโรงเรียน) มี `LearnerKey` เดียวกัน → เดิมคนที่สองจะ "เรียนต่อ" ของคนแรก · **ปิดช่องนี้ด้วยมติ D2 (2026-08-18): ต้องถามยืนยันก่อน resume เสมอ** — `requirement.md` F3 แยกเป็นกรณี ก/ข แล้ว กติกาบังคับอยู่ที่ **LR-3 + LR-3a + IC-7** |
+| **F3** `LearnerKey` ทำสองหน้าที่ | **ทำได้ แต่มีเงื่อนไขความปลอดภัยที่ต้องเขียนเป็นกติกา** | `localStorage` + `crypto.randomUUID()` · หลัง amendment 2026-08-19 คู่ **`(token, LearnerKey)` เป็น composite bearer credential** และ server resolve `LearningSession.Id` เอง — กติกาบังคับอยู่ที่ CA-2/CA-3 และ `## Isolation & Credential Rules` · **เครื่องที่ใช้ร่วมกัน** (คอมกลางในโรงเรียน) มี `LearnerKey` เดียวกัน → เดิมคนที่สองจะ "เรียนต่อ" ของคนแรก · **ปิดช่องนี้ด้วยมติ D2 (2026-08-18): ต้องถามยืนยันก่อน resume เสมอ** — `requirement.md` F3 แยกเป็นกรณี ก/ข แล้ว กติกาบังคับอยู่ที่ **LR-3 + LR-3a + IC-7** |
 | **F4** บันทึกความคืบหน้า | **ทำได้** | ⚠️ **`LastSlideIndex` อย่างเดียวแสดง "7/20" ไม่ได้** — ต้องมีตัวหารด้วย จึงเพิ่ม `TotalSlideCount` ในตารางใหม่ (สเปกเดิม §3.2 ไม่ได้ระบุไว้ แต่เป็นเงื่อนไขบังคับของข้อความ "โดยไม่ต้อง resolve deck ใหม่" ใน F4) |
 | **F5** แยก "ครบสไลด์" จาก "จบแล้ว" + หน้าสรุป + เรียนอีกครั้ง | **ทำได้** | สองคอลัมน์แยกกันตามมติ · "เรียนอีกครั้ง" = สร้างแถวใหม่ (LR-6) · หน้าสรุปฝั่งผู้เรียนกับฝั่ง CS ใช้ **ViewModel คนละตัว** เพื่อไม่ให้ข้อมูลภายในรั่ว (RR-5) |
 | **F6** "หยุดกลางคัน" คำนวณตอนแสดงผล | **ทำได้** | `INACTIVE_THRESHOLD_MINUTES` เข้า `ServerDefaults.cs` ตาม pattern เดิมเป๊ะ · คำนวณที่ ViewModel ฝั่ง backend (ที่เดียว) ไม่ให้ frontend คำนวณเอง — เหตุผลใน SR-2 |
-| **F7** CS รีวิวคำตอบ AI | **ทำได้** | ⚠️ ต้องแก้ `SessionQuestion` ให้ audit field เป็น `set` ได้ (วันนี้เป็น `init` ทั้งชุด → อัปเดตแถวเดิมไม่ได้) ดู DM-3 |
+| **F7** CS รีวิวคำตอบ AI | **ทำได้** | `SessionQuestion.UpdateBy`/`UpdateDate` ต้องเป็น `set` เพื่ออัปเดตรีวิว ส่วน delete audit fields คง `init` ได้เพราะโมดูลนี้ไม่มี delete flow (CA-4) |
 | **F8** ช่อง `MaxAttendees` กรอกได้แต่ไม่บังคับใช้ | **ทำได้** | คอลัมน์ `int?` + ช่องกรอก + ข้อความกำกับใน UI · **ห้ามเขียนโค้ดตรวจ** (LR-2) — เป็นข้อห้ามที่เขียนไว้เป็นกติกาเพราะ engineer มักเผลอ validate ให้ "ครบถ้วน" |
 
 **ไม่มีฟีเจอร์ใดใน F1–F8 ที่ต้องใช้ dependency ใหม่ / บริการภายนอกใหม่ / อยู่นอก stack**
@@ -71,17 +169,17 @@ downstream agent ทุกตัวอ่านตารางนี้เพื
 | "จุดที่ AI ตอบไม่ได้" | **คำนวณจาก `AnswerStatus = not_found`** ไม่เก็บซ้ำ | คอลัมน์/ตารางเก็บ unanswered points |
 | จำกัดจำนวนคนต่อลิงก์ | **เก็บค่าได้ แต่ยังไม่บังคับใช้** + ต้องมีข้อความกำกับใน UI | โค้ดตรวจจำนวนคน (Declined 2026-08-11) |
 
-### ✅ มติเชิงโครงสร้าง 6 ข้อ — ยืนยันแล้วเมื่อ 2026-08-18 โดยเจ้าของโปรเจกต์
+### ✅ มติเชิงโครงสร้าง 6 ข้อ — ยืนยัน 2026-08-18 และ amend 2026-08-19
 
 เดิมเป็นข้อเสนอที่รอเคาะ (Q2/Q3/Q4 + D1–D3) — **เจ้าของโปรเจกต์ตอบครบทั้ง 6 ข้อเมื่อ 2026-08-18
 และตรงตามข้อเสนอของ `system-analyst` ทุกข้อ** จึงเป็นมติที่มีผลบังคับแล้ว ไม่ใช่คำถามที่ยังเปิดอยู่
 
 | # | เรื่อง | มติที่ยืนยัน (2026-08-18) | สิ่งที่ถูกตัดออกด้วยมตินี้ |
 |---|---|---|---|
-| **Q2** | rename `TrainingSession` ไหม | **rename → `LessonLink`** | ตัวเลือก B/C (คงชื่อเดิม) และ D (`TrainingLink`) — ห้ามคงชื่อ `TrainingSession` ไว้ในโค้ดใหม่ |
+| **Q2** | rename `TrainingSession` ไหม | **amend → `TrainingLink`** (2026-08-19) | คงหลักการว่าลิงก์ต้องไม่ชื่อ `TrainingSession`; ยอมรับชื่อที่ implement ครบทุก layer แล้วตาม CA-1 |
 | **Q3** | ชื่อตารางใหม่ | **`LearningSession`** | `LearnerAttempt` · `TrainingAttendance` |
 | **Q4** | `SessionSummary` | **ลบทิ้งทั้งใบ (13 จุด)** | การย้าย summary ไปผูก `LearningSession` · การคงตารางไว้เฉยๆ · snapshot แช่แข็งตอนจบ |
-| **D1** | route/TS type ตามชื่อใหม่ด้วยไหม | **ตามด้วย** — `/api/links`, `/api/learning-sessions`, type `LessonLink` | การคง path `/api/sessions` และ TS type ชื่อ `TrainingSession` |
+| **D1** | route/TS type ตามชื่อใหม่ด้วยไหม | **ตามด้วยชื่อที่ amend** — `/api/training-links`, `/api/learning-sessions`, type `TrainingLink` | การคง path `/api/sessions` และ TS type ชื่อ `TrainingSession` |
 | **D2** | เครื่องใช้ร่วมกัน → resume แบบไหน | **ถามยืนยันก่อน resume เสมอ** พร้อมทางเลือก "เริ่มเรียนใหม่ในชื่ออื่น" | การ resume เงียบๆ · การจำสถานะ "ยืนยันแล้ว" เพื่อข้ามคำถามครั้งถัดไป · login/OTP ทุกรูปแบบ |
 | **D3** | migrate ข้อมูล demo เดิมไหม | **migrate ด้วย backfill SQL** ใน migration เดียวกัน | migration แบบทำลาย (drop ทิ้งแล้วสร้าง demo ใหม่ด้วยมือ) |
 
@@ -91,7 +189,7 @@ D2 ถูกส่งกลับไปที่ `business-analyst` แล้ว
 
 ---
 
-## Q2 + Q3 — ชื่อของ "ลิงก์" และ "การเรียน" (ตัดสินคู่กัน)
+## Q2 + Q3 — ชื่อของ "ลิงก์" และ "การเรียน" (บันทึกเหตุผลเดิม; Q2 ถูก amend โดย CA-1)
 
 **ทำไมต้องตัดสินคู่กัน:** ปัญหาไม่ใช่ "ชื่อเดิมผิดไหม" แต่คือ "อ่านสองชื่อติดกันแล้วแยกออกไหม"
 ชื่อที่แย่ที่สุดคือคู่ที่เป็นคำพ้องความหมาย เพราะคนอ่านโค้ดจะแยกไม่ออกว่าตัวไหนคือของกลางที่แจกได้
@@ -106,7 +204,11 @@ D2 ถูกส่งกลับไปที่ `business-analyst` แล้ว
 | **C** | คงชื่อ `TrainingSession` | `LearnerAttempt` | ต่ำสุด | ชื่อแยกออกดี แต่ `TrainingSession` ยังสื่อผิดอยู่ดี และคำว่า "attempt" ชวนคิดว่าเป็นการสอบ/ให้คะแนน ซึ่งไม่ใช่โดเมนนี้ |
 | **D** | `TrainingLink` | `TrainingAttendance` | เท่ากับ A | "attendance" สื่อไปทาง "การเช็คชื่อ" มากกว่า "การเรียนหนึ่งรอบ" |
 
-### ✅ มติ (ยืนยัน 2026-08-18): ตัวเลือก A — `LessonLink` + `LearningSession`
+### ✅ มติเดิม (2026-08-18) และ amendment (2026-08-19)
+
+มติเดิมเลือก `LessonLink` + `LearningSession`; วันที่ 2026-08-19 เจ้าของโปรเจกต์ยืนยัน amend Q2
+เป็น **`TrainingLink` + `LearningSession`** ตาม CA-1 เพราะ implementation ปัจจุบันแยกความหมาย
+ครบทุก layer แล้วและไม่เหลือ entity `TrainingSession` ข้อความเหตุผลเดิมด้านล่างเก็บเป็น decision history
 
 เหตุผล:
 
@@ -121,12 +223,13 @@ D2 ถูกส่งกลับไปที่ `business-analyst` แล้ว
    จะอ่านแล้วถูกต้องทั้งชุด ไม่ต้อง rename `SessionQuestion`/`ChatMessage` เพิ่ม
 4. ตัวเลือก B ประหยัดวันนี้ แต่ซื้อความสับสนถาวรที่ไม่มีวันหมดอายุ
 
-**สถานะ: ✅ ยืนยันตัวเลือก A เมื่อ 2026-08-18** — ชื่อ `LessonLink` + `LearningSession` เป็นชื่อจริง
-ที่ implement ตามได้เลย ตัวเลือก B/C/D ถูกตัดออกแล้ว เก็บตารางไว้เป็นบันทึกเหตุผลเท่านั้น
+**สถานะปัจจุบัน: ✅ amend เมื่อ 2026-08-19** — ชื่อจริงคือ `TrainingLink` + `LearningSession`;
+ตารางทางเลือกข้างบนเป็นบันทึกเหตุผลเดิม ไม่ใช่ implementation contract
 
-### D1 ✅ (ยืนยัน 2026-08-18) — route และ TypeScript type ตามชื่อใหม่ด้วย
+### D1 ✅ (ยืนยัน 2026-08-18; amend 2026-08-19) — route และ TypeScript type ตามชื่อใหม่ด้วย
 
-- **มติ: ตามด้วย** — `/api/sessions` → `/api/links`, type `TrainingSession` → `LessonLink`
+- **มติปัจจุบัน: ตามด้วยชื่อที่ amend** — `/api/sessions` → `/api/training-links`,
+  type `TrainingSession` → `TrainingLink`
   เหตุผล: ถ้า entity ชื่อ `LessonLink` แต่ route ยังเป็น `/api/sessions` เราจะได้ความสับสนแบบเดียว
   กับที่ Q2 พยายามแก้ แค่ย้ายไปอยู่ที่ชั้น API แทน · ต้นทุนเพิ่มจากตัวเลือก A แทบเป็นศูนย์
   เพราะยังไงก็ต้องแก้ `api-client.ts` ทุกฟังก์ชันอยู่แล้ว
@@ -195,9 +298,9 @@ Contract Delta` (`GET /api/learning-sessions/{id}/summary` ฝั่งผู้
 
 ## Data Model
 
-> **นี่คือ contract ที่ `backend-engineer` implement ตรงตัว** — ชื่อฟิลด์ ชนิด nullability
-> index และ query filter ตามนี้เป๊ะ ห้ามเพิ่ม/ลด/เปลี่ยนชื่อเอง ถ้าขาดอะไรให้ตีกลับมาที่
-> `system-analyst` · ชื่อ entity เป็นชื่อที่ **ยืนยันแล้วตาม Q2/Q3 เมื่อ 2026-08-18** ใช้ตามนี้ตรงตัว
+> **Baseline section นี้ต้องอ่านร่วมกับ CA-1, CA-4 และ CA-5** — เมื่อชื่อ field/type/repository
+> ขัดกัน ให้ใช้ Contract Amendment 2026-08-19 เป็น authority; shape, nullability, index และ query
+> filter ส่วนที่ amendment ไม่ได้เปลี่ยนยังมีผลตาม section นี้
 
 ### DM-1 · `LessonLink` (เดิมชื่อ `TrainingSession`) — "ลิงก์"
 
@@ -445,6 +548,8 @@ builder.Entity<ChatMessage>(entity =>
 ## Learning Lifecycle Rules (F1 · F2 · F4 · F5 · F8) — contract
 
 > engineer ไม่มีสิทธิ์ตัดสินกติกาเอง หัวข้อนี้ต้องตอบให้ครบ อ่านทั้งหัวข้อก่อนเขียน service
+> **Route/body/name ที่ปรากฏใน LR-1, LR-3, LR-4, LR-5, LR-6 และ LR-7 ถูก amend โดย CA-1/CA-2**;
+> ลำดับ validation, state transition และ UX behavior เดิมไม่เปลี่ยน
 
 **LR-1 · สร้างการเรียนใหม่** (`POST /api/learning-sessions`, body `{ token, learnerKey, learnerName }`)
 
@@ -629,6 +734,10 @@ config ออกไปด้วย แล้วจะมีสูตรสอง
 
 > นี่คือหัวใจของ "คนที่สองบนลิงก์เดียวกันต้องไม่เห็นของคนแรก" ถ้าพลาดข้อใดข้อหนึ่ง
 > ผลคือข้อมูลรั่วข้ามผู้เรียนแบบเงียบ ไม่มี error ให้เห็น
+>
+> **IC-1..IC-6 ด้านล่างเป็น baseline proposal วันที่ 2026-08-18 และถูก amend โดย CA-2/CA-3:**
+> public learner ส่ง `(token, learnerKey)` แล้ว server resolve session id; ไม่รับ public
+> `learningSessionId` และไม่ใช้ `X-Learner-Key` ส่วน isolation outcome และ IC-7 ยังมีผลเต็มที่
 
 **IC-1 · company resolve จาก row เท่านั้น ไม่เคยจาก client** — ทุก request ฝั่งผู้เรียนต้อง
 lookup `LessonLink` ด้วย token (หรือ `LearningSession` ด้วย id) แบบข้าม query filter **แล้วเรียก
@@ -690,8 +799,9 @@ lookup `LessonLink` ด้วย token (หรือ `LearningSession` ด้ว
 
 > ทุกแถวคือจุดที่ **backend และ frontend ต้องแก้คู่กัน** (wire contract เป็น camelCase,
 > TS type ต้องอัปเดตพร้อม ViewModel เสมอ ตาม Architecture Rule 7)
-> path ในตารางเป็นชื่อที่ **ยืนยันแล้วตาม D1 เมื่อ 2026-08-18** — ใช้ `/api/links` และ
-> `/api/learning-sessions` ตรงตัว
+> **ตาราง proposal วันที่ 2026-08-18 ด้านล่างถูกแทนที่ในส่วน public learner และ naming โดย
+> CA-1/CA-2** — ใช้ `/api/training-links`, `/api/learning-sessions/{token}/...`, wire
+> `recipientName`/`sessionId` และ learner SignalR methods ตาม amendment; CS by-id ใช้ authenticated flow
 
 ### REST
 
@@ -787,6 +897,9 @@ export type ChatMessage = { /* ...เดิม... */ learningSessionId: string; 
 
 ## Migration Plan
 
+> **ลำดับ proposal เดิมด้านล่างเก็บเป็น design history เท่านั้น** Migration contract ปัจจุบันคือ
+> migrations 2 ใบใน CA-5 ห้ามสร้าง `SplitLessonLinkAndLearningSession` เพิ่มและห้ามแก้ migrations เดิม
+>
 **สรุปน้ำหนักของการ migrate ข้อมูลเดิม: ต่ำมาก** — ยืนยันแล้วว่าไม่มี production database
 (ไม่มี Dockerfile/CI, roadmap 1.4 ยังไม่ทำ) มีแต่ DB ของ dev/demo ในเครื่อง
 
@@ -960,18 +1073,18 @@ D ต้องเสร็จก่อน E และ F เพราะทั้
 ## Unresolved Open Questions
 
 > **ไม่มีคำถามค้างแล้ว — พร้อมส่งต่อ `project-manager`**
-> 6 ข้อที่เคยอยู่ในหัวข้อนี้ (Q2/Q3/Q4 + D1–D3) **เจ้าของโปรเจกต์เคาะครบเมื่อ 2026-08-18
-> ตรงตามข้อเสนอทุกข้อ** · เก็บตารางไว้เป็นบันทึกมติ ไม่ใช่รายการรอคำตอบ ·
+> 6 ข้อที่เคยอยู่ในหัวข้อนี้ (Q2/Q3/Q4 + D1–D3) เคาะครบเมื่อ 2026-08-18 และ Q2/D1
+> ถูก amend เมื่อ 2026-08-19 ตาม CA-1/CA-2 · เก็บตารางไว้เป็นบันทึกมติ ไม่ใช่รายการรอคำตอบ ·
 > ส่วน "ที่ตัดออกจากเฟสนี้โดยตั้งใจ" ข้างล่าง **ยังมีผลบังคับเต็มที่**
 
-### มติที่ปิดแล้ว (ยืนยัน 2026-08-18 โดยเจ้าของโปรเจกต์)
+### มติที่ปิดแล้ว (ยืนยัน 2026-08-18; amend 2026-08-19 โดยเจ้าของโปรเจกต์)
 
 | # | คำถามเดิม | ✅ มติ | อยู่ในเอกสารที่ไหน |
 |---|---|---|---|
-| **Q2** | rename `TrainingSession` ไหม | **rename → `LessonLink`** | DM-1 · DM-7 · DM-8 · Migration Plan ข้อ 1 |
+| **Q2** | rename `TrainingSession` ไหม | **amend → `TrainingLink`** | CA-1 · CA-5; DM-1/DM-7/DM-8 เดิมเป็น design history |
 | **Q3** | ชื่อตารางใหม่ | **`LearningSession`** | DM-2 · DM-6 · DM-7 |
 | **Q4** | `SessionSummary` | **ลบทิ้งทั้งใบ 13 จุด** | DM-5 · Migration Plan ข้อ 9 · API delta (แทนด้วย 2 endpoint ใหม่) |
-| **D1** | route/TS type ตามชื่อใหม่ด้วยไหม | **ตามด้วย** (`/api/links`, `/api/learning-sessions`) | API & SignalR Contract Delta ทั้งหัวข้อ |
+| **D1** | route/TS type ตามชื่อใหม่ด้วยไหม | **ตามด้วยชื่อที่ amend** (`/api/training-links`, `/api/learning-sessions`) | CA-1 · CA-2 |
 | **D2** | เครื่องใช้ร่วมกัน → resume แบบไหน | **ถามยืนยันก่อน resume เสมอ** + ทางเลือก "เริ่มเรียนใหม่ในชื่ออื่น" | **LR-3 + LR-3a** (กติกาหลัก) · **IC-7** (ห้าม auto-resume จาก client) · Module E |
 | **D3** | migrate ข้อมูล demo เดิมไหม | **migrate ด้วย backfill SQL** | Migration Plan ข้อ 4 และ 6 |
 
@@ -1001,6 +1114,15 @@ D ต้องเสร็จก่อน E และ F เพราะทั้
 
 ## Change Log
 
+- 2026-08-19 — **เจ้าของโปรเจกต์ยืนยัน Contract Amendment เพื่อ resolve `LS-QA-02`** · ยอมรับ
+  implementation naming `TrainingLink`, `TrainingLinkId`, `RecipientName`, `SessionId`,
+  `SessionStatus`/`LinkStatus` และ wire camelCase คู่กัน · public learner contract ใช้
+  `(token, learnerKey)` แล้ว server resolve `LearningSession.Id` แทนการรับ id +
+  `X-Learner-Key` · ระบุคู่ token/key เป็น composite bearer credential พร้อมข้อห้าม log/cache/analytics,
+  HTTPS-only, mismatch คืน 404 และ Security gate · จำกัด audit setter เฉพาะ flow ที่มีจริง ·
+  ยอมรับ migrations จริง `20260813140603_SplitLinkAndAddAuth` และ
+  `20260818155126_AddTotalSlideCount` โดยไม่สร้าง migration เพิ่ม · ไม่มี table/column/relation ใหม่,
+  ไม่เปลี่ยน business requirement และไม่ปิด `LS-QA-01` ซึ่งยังรอ apply deployment DB
 - 2026-08-18 — สร้างเอกสารครั้งแรกจาก `requirement.md` (ฉบับหลังเพิกถอนการพลิกเป็น 1:1) ·
   ประเมิน F1–F8 ครบ ทุกข้อทำได้ด้วย stack เดิมโดยไม่เพิ่ม dependency · เสนอ Data Model เต็ม
   (`LessonLink` + `LearningSession` ใหม่ + `SessionQuestion`/`ChatMessage` ย้าย FK + ลบ

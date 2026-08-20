@@ -30,8 +30,8 @@ public sealed class LearningSession : IEntityMaster<string>, ICompanyScoped
     /// tab, and it tells two people apart on the same link - the second person to open a link
     /// must never land in the first person's session.
     ///
-    /// Not a credential and not an identity: the TrainingLink token is what authorizes the
-    /// request, this only picks which row within that link.
+    /// Not an identity: together with the TrainingLink token this is the composite bearer
+    /// credential for one learner's data. Neither half is sufficient on its own.
     /// </summary>
     public required string LearnerKey { get; init; }
 

@@ -51,6 +51,12 @@ export function AdminSessionProvider({ children }: { children: React.ReactNode }
   const [ready, setReady] = useState(false);
 
   const companyFromUrl = searchParams.get("company");
+  // Auth transition pages never carry a company in their URL and must not be given one: signIn()
+  // below already decides where to land (/admin or /admin/change-password) via router.replace, and
+  // that navigation is not synchronous - usePathname() can still report the old "/admin/login" for
+  // a render or two while it is in flight. An effect below that also called replace() during that
+  // window would win the race and strand the browser on "/admin/login?company=...".
+  const isAuthTransitionPage = pathname === "/admin/login" || pathname === "/admin/change-password";
 
   const signOut = useCallback(() => {
     clearSession();
@@ -83,12 +89,12 @@ export function AdminSessionProvider({ children }: { children: React.ReactNode }
     const resolved = companyFromUrl ?? user?.companyId ?? getActiveCompanyId();
     setActiveCompanyId(resolved);
 
-    if (user?.role === "owner" && !companyFromUrl && resolved) {
+    if (user?.role === "owner" && !companyFromUrl && resolved && !isAuthTransitionPage) {
       const params = new URLSearchParams(searchParams.toString());
       params.set("company", resolved);
       router.replace(`${pathname}?${params.toString()}`);
     }
-  }, [companyFromUrl, pathname, router, searchParams, user]);
+  }, [companyFromUrl, isAuthTransitionPage, pathname, router, searchParams, user]);
 
   useEffect(() => {
     if (!user) return;
@@ -99,6 +105,20 @@ export function AdminSessionProvider({ children }: { children: React.ReactNode }
       // user actually came for.
       .catch(() => setCompanies([]));
   }, [user]);
+
+  // An owner with nothing resolved yet and exactly one company to pick from has no real choice to
+  // make - the "pick a company" screen above would otherwise strand them forever, since there is
+  // no control that lets them make that pick. Waits on the companies fetch above, so this only
+  // fires once the list is known.
+  useEffect(() => {
+    if (user?.role !== "owner" || isAuthTransitionPage) return;
+    const resolved = companyFromUrl ?? user?.companyId ?? getActiveCompanyId();
+    if (resolved || companies.length !== 1) return;
+
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("company", companies[0].id);
+    router.replace(`${pathname}?${params.toString()}`);
+  }, [companies, companyFromUrl, isAuthTransitionPage, pathname, router, searchParams, user]);
 
   const signIn = useCallback(
     (result: LoginResult) => {

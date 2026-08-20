@@ -25,6 +25,8 @@ public sealed class LessonConfigDto
     [Required]
     public required string Slug { get; init; }
     [Required]
+    public required string CategoryId { get; init; }
+    [Required]
     public required string Title { get; init; }
     public string? Description { get; init; }
 

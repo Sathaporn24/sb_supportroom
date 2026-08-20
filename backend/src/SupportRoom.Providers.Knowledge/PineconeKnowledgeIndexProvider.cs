@@ -72,7 +72,11 @@ public sealed class PineconeKnowledgeIndexProvider(IHttpClientFactory httpClient
         }
     }
 
-    private sealed class DeleteRequest
+    /// <summary>Pinecone rejects a body that sends `ids` and `deleteAll` together, so these are
+    /// two distinct request shapes rather than one type with both fields on it - that would make
+    /// "delete namespace" and "delete these ids" impossible to tell apart at the call site and
+    /// let a caller accidentally send both.</summary>
+    private sealed class DeleteAllRequest
     {
         [JsonPropertyName("deleteAll")]
         public bool DeleteAll { get; init; } = true;
@@ -80,6 +84,32 @@ public sealed class PineconeKnowledgeIndexProvider(IHttpClientFactory httpClient
         [JsonPropertyName("namespace")]
         public required string Namespace { get; init; }
     }
+
+    private sealed class DeleteByIdsRequest
+    {
+        [JsonPropertyName("ids")]
+        public required List<string> Ids { get; init; }
+
+        [JsonPropertyName("namespace")]
+        public required string Namespace { get; init; }
+    }
+
+    /// <summary>No `values` field on purpose - Pinecone's /vectors/update leaves the embedding
+    /// untouched when it is omitted, only overwriting the metadata sent in setMetadata (QQ-6).</summary>
+    private sealed class UpdateMetadataRequest
+    {
+        [JsonPropertyName("id")]
+        public required string Id { get; init; }
+
+        [JsonPropertyName("setMetadata")]
+        public required Dictionary<string, string> SetMetadata { get; init; }
+
+        [JsonPropertyName("namespace")]
+        public required string Namespace { get; init; }
+    }
+
+    /// <summary>Pinecone's documented ceiling for /vectors/delete by id, per request.</summary>
+    private const int MaxIdsPerDeleteRequest = 1000;
 
     public async Task UpsertAsync(string namespaceKey, IReadOnlyList<KnowledgeChunk> chunks)
     {
@@ -134,8 +164,43 @@ public sealed class PineconeKnowledgeIndexProvider(IHttpClientFactory httpClient
         await TimedCallAsync("delete", async () =>
         {
             var client = CreateClient();
-            var response = await client.PostAsJsonAsync("/vectors/delete", new DeleteRequest { Namespace = namespaceKey });
+            var response = await client.PostAsJsonAsync("/vectors/delete", new DeleteAllRequest { Namespace = namespaceKey });
             await EnsureSuccessAsync(response, "delete");
+            return true;
+        });
+    }
+
+    public async Task DeleteVectorsAsync(string namespaceKey, IReadOnlyList<string> ids)
+    {
+        if (ids.Count == 0)
+        {
+            return;
+        }
+
+        var client = CreateClient();
+        foreach (var batch in ids.Chunk(MaxIdsPerDeleteRequest))
+        {
+            await TimedCallAsync("delete-by-ids", async () =>
+            {
+                var response = await client.PostAsJsonAsync(
+                    "/vectors/delete", new DeleteByIdsRequest { Ids = batch.ToList(), Namespace = namespaceKey });
+                await EnsureSuccessAsync(response, "delete-by-ids");
+                return true;
+            });
+        }
+    }
+
+    public async Task UpdateMetadataAsync(string namespaceKey, string id, string text, IReadOnlyDictionary<string, string>? metadata)
+    {
+        await TimedCallAsync("update-metadata", async () =>
+        {
+            var client = CreateClient();
+            var setMetadata = metadata is null ? new Dictionary<string, string>() : new Dictionary<string, string>(metadata);
+            setMetadata[TextMetadataKey] = text;
+
+            var response = await client.PostAsJsonAsync(
+                "/vectors/update", new UpdateMetadataRequest { Id = id, SetMetadata = setMetadata, Namespace = namespaceKey });
+            await EnsureSuccessAsync(response, "update-metadata");
             return true;
         });
     }

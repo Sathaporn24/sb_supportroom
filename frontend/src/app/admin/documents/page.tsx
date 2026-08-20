@@ -1,5 +1,7 @@
 import { AdminLink } from "@/components/admin/AdminLink";
+import { DeletedDocumentsList } from "@/components/admin/DeletedDocumentsList";
 import { DocumentUploadList } from "@/components/admin/DocumentUploadList";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export default function DocumentsLibraryPage() {
   return (
@@ -8,14 +10,25 @@ export default function DocumentsLibraryPage() {
         <AdminLink href="/admin" className="text-xs text-muted-foreground hover:text-foreground">
           ← กลับหน้า Admin
         </AdminLink>
-        <h1 className="mt-1 text-xl font-semibold">คลังเอกสาร (ใช้ได้ทุกบทเรียน)</h1>
+        <h1 className="mt-1 text-xl font-semibold">คลังเอกสาร</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          เอกสารในหน้านี้จะถูกใช้อ้างอิงตอบคำถามได้ในทุกบทเรียน — เหมาะกับเอกสารกลางที่ลูกค้ามีอยู่แล้ว เช่น
-          ราคาสินค้า ตารางเรียน หรือคำถามที่พบบ่อย ไม่ต้องผูกกับบทเรียนใดบทเรียนหนึ่ง
+          อัปโหลดเอกสารให้ตอบได้ทั้งบริษัท หรือจำกัดไว้เฉพาะหมวดใดหมวดหนึ่งก็ได้ — เอกสารที่ผูกกับบทเรียนใดบทเรียน
+          หนึ่งโดยเฉพาะให้อัปโหลดที่หน้าแก้ไขบทเรียนนั้นแทน
         </p>
       </div>
 
-      <DocumentUploadList />
+      <Tabs defaultValue="active">
+        <TabsList>
+          <TabsTrigger value="active">เอกสารทั้งหมด</TabsTrigger>
+          <TabsTrigger value="deleted">กู้คืนเอกสารที่ถูกลบ</TabsTrigger>
+        </TabsList>
+        <TabsContent value="active">
+          <DocumentUploadList />
+        </TabsContent>
+        <TabsContent value="deleted">
+          <DeletedDocumentsList />
+        </TabsContent>
+      </Tabs>
     </main>
   );
 }

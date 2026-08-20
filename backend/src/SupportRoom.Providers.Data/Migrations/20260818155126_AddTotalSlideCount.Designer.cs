@@ -15,7 +15,6 @@ namespace SupportRoom.Providers.Data.Migrations
     [Migration("20260818155126_AddTotalSlideCount")]
     partial class AddTotalSlideCount
     {
-        /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
@@ -85,7 +84,7 @@ namespace SupportRoom.Providers.Data.Migrations
                     b.HasIndex("Email")
                         .IsUnique();
 
-                    b.ToTable("AdminUser");
+                    b.ToTable("AdminUser", (string)null);
                 });
 
             modelBuilder.Entity("SupportRoom.Domain.Entities.ChatMessage", b =>
@@ -139,7 +138,7 @@ namespace SupportRoom.Providers.Data.Migrations
 
                     b.HasIndex("SessionId");
 
-                    b.ToTable("ChatMessage");
+                    b.ToTable("ChatMessage", (string)null);
                 });
 
             modelBuilder.Entity("SupportRoom.Domain.Entities.Company", b =>
@@ -179,7 +178,7 @@ namespace SupportRoom.Providers.Data.Migrations
 
                     b.HasIndex("IsActive");
 
-                    b.ToTable("Company");
+                    b.ToTable("Company", (string)null);
                 });
 
             modelBuilder.Entity("SupportRoom.Domain.Entities.DocumentResource", b =>
@@ -247,7 +246,7 @@ namespace SupportRoom.Providers.Data.Migrations
 
                     b.HasIndex("LessonId");
 
-                    b.ToTable("DocumentResource");
+                    b.ToTable("DocumentResource", (string)null);
                 });
 
             modelBuilder.Entity("SupportRoom.Domain.Entities.LearningSession", b =>
@@ -323,7 +322,7 @@ namespace SupportRoom.Providers.Data.Migrations
 
                     b.HasIndex("TrainingLinkId", "LearnerKey");
 
-                    b.ToTable("LearningSession");
+                    b.ToTable("LearningSession", (string)null);
                 });
 
             modelBuilder.Entity("SupportRoom.Domain.Entities.LessonConfig", b =>
@@ -401,7 +400,7 @@ namespace SupportRoom.Providers.Data.Migrations
                     b.HasIndex("CompanyId", "Slug")
                         .IsUnique();
 
-                    b.ToTable("LessonConfig");
+                    b.ToTable("LessonConfig", (string)null);
                 });
 
             modelBuilder.Entity("SupportRoom.Domain.Entities.SessionQuestion", b =>
@@ -466,7 +465,7 @@ namespace SupportRoom.Providers.Data.Migrations
 
                     b.HasIndex("SessionId");
 
-                    b.ToTable("SessionQuestion");
+                    b.ToTable("SessionQuestion", (string)null);
                 });
 
             modelBuilder.Entity("SupportRoom.Domain.Entities.TrainingLink", b =>
@@ -527,7 +526,7 @@ namespace SupportRoom.Providers.Data.Migrations
                     b.HasIndex("Token")
                         .IsUnique();
 
-                    b.ToTable("TrainingLink");
+                    b.ToTable("TrainingLink", (string)null);
                 });
 
             modelBuilder.Entity("SupportRoom.Domain.Entities.LessonConfig", b =>
@@ -548,7 +547,7 @@ namespace SupportRoom.Providers.Data.Migrations
 
                             b1.HasKey("LessonConfigId", "__synthesizedOrdinal");
 
-                            b1.ToTable("LessonConfig");
+                            b1.ToTable("LessonConfig", (string)null);
 
                             b1
                                 .ToJson("SlideConfigs")

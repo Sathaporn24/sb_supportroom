@@ -58,7 +58,12 @@ public sealed class RagVoiceQuestionProvider(
         """{"transcript": string, "readiness": "ready" | "not_ready"}""",
     ]);
 
-    private static string BuildAnswerPrompt(string transcript, string groundingContext) => string.Join('\n',
+    /// <summary>KS-7/KS-8/KS-9 - two separate blocks, never one merged-and-ranked list: the model
+    /// has to be able to tell "this came from a document/slide" apart from "this came from a Q&A"
+    /// to know which one wins when they disagree (KS-7 - documentBlock always wins), and to avoid
+    /// copying a Q&A's answer verbatim (KS-8). This is a prompt-level rule only, not something code
+    /// can enforce - the model decides for itself what counts as "conflicting" (design.md R-3).</summary>
+    private static string BuildAnswerPrompt(string transcript, string documentBlock, string qnaBlock) => string.Join('\n',
     [
         "คุณคือผู้ช่วยตอบคำถามคุณครูระหว่างบทเรียนสาธิตการใช้งานระบบ",
         $"คำถามที่คุณครูถาม (ถอดเสียงมาแล้ว): {transcript}",
@@ -66,15 +71,23 @@ public sealed class RagVoiceQuestionProvider(
         "ห้ามตอบจากความรู้ทั่วไป ห้ามเดาคำตอบ ตอบสั้นและกระชับ",
         "ตอบในน้ำเสียงธรรมชาติเหมือนติวเตอร์ที่จำเนื้อหาได้ ไม่ใช่อ่านสคริปต์ตรง ๆ",
         "",
-        "ข้อมูลอ้างอิงที่เกี่ยวข้องกับคำถามนี้:",
-        groundingContext,
+        "=== บล็อกที่ 1: เอกสาร/สไลด์ (แหล่งข้อมูลหลัก) ===",
+        documentBlock,
+        "",
+        "=== บล็อกที่ 2: คำถาม-คำตอบที่ทีมงานเคยเขียนไว้ (ใช้เป็นแนวทางเท่านั้น) ===",
+        qnaBlock,
+        "",
+        "กติกาการใช้ข้อมูลสองบล็อกด้านบน:",
+        "1. ถ้าบล็อกที่ 1 และบล็อกที่ 2 ขัดแย้งกัน ให้ยึดบล็อกที่ 1 (เอกสาร/สไลด์) เป็นคำตอบเสมอ แล้วรายงานความขัดแย้งผ่านฟิลด์ conflict",
+        "2. ห้ามคัดลอกข้อความจากบล็อกที่ 2 มาตอบตรง ๆ - ให้เรียบเรียงคำตอบใหม่ด้วยคำพูดของคุณเอง",
+        "3. คำถามที่ใกล้เคียงกันในเชิงภาษาอาจเป็นคนละเรื่องในสาระ เช่น \"ลบข้อมูลนักเรียนยังไง\" กับ \"ลบข้อมูลนักเรียนที่จบไปแล้วยังไง\" - ถ้าคำถาม-คำตอบในบล็อกที่ 2 ไม่ตรงกับคำถามจริงของคุณครู ให้ตอบ not_found แม้จะมีคำถาม-คำตอบที่หน้าตาคล้ายกันอยู่ก็ตาม",
         "",
         "ตอบกลับเป็น JSON เท่านั้น ตาม schema:",
-        """{"answer": string, "answerStatus": "answered" | "not_found" | "out_of_scope", "relatedSlideObjectId": string | null}""",
+        """{"answer": string, "answerStatus": "answered" | "not_found" | "out_of_scope", "relatedSlideObjectId": string | null, "conflict": {"qnaId": string, "sourceLabel": string, "note": string} | null}""",
         "",
-        "relatedSlideObjectId: เมื่อ answerStatus = answered ให้ใส่ objectId ของข้อมูลอ้างอิงที่ใช้ตอบเสมอ",
-        "ต้องเป็น objectId ที่ปรากฏในรายการด้านบนเท่านั้น ห้ามสร้างขึ้นเอง",
-        "ถ้าตอบไม่ได้ ให้เป็น null",
+        "relatedSlideObjectId: เมื่อ answerStatus = answered และใช้บล็อกที่ 1 ตอบ ให้ใส่ objectId ที่ปรากฏในบล็อกที่ 1 เท่านั้น ห้ามสร้างขึ้นเอง ถ้าตอบไม่ได้หรือใช้บล็อกที่ 2 ตอบ ให้เป็น null",
+        "",
+        "conflict: ใส่เฉพาะเมื่อบล็อกที่ 2 มีคำถาม-คำตอบที่ขัดแย้งกับบล็อกที่ 1 จริง (ไม่ใช่แค่พูดถึงเรื่องเดียวกัน) - qnaId คือรหัสในวงเล็บนำหน้าคำถาม-คำตอบนั้นในบล็อกที่ 2, sourceLabel คือชื่อแหล่งข้อมูลในบล็อกที่ 1 ที่ขัดแย้งด้วย, note คือคำอธิบายสั้น ๆ ว่าขัดกันตรงไหน ถ้าไม่มีความขัดแย้งให้เป็น null",
     ]);
 
     public async Task<VoiceQuestionResult> TranscribeAndAnswerAsync(VoiceQuestionInput input)
@@ -112,18 +125,30 @@ public sealed class RagVoiceQuestionProvider(
 
         // Step 2: embed + retrieve the top-K relevant slides (falls back to the full deck below
         // if this fails or the lesson isn't indexed yet).
-        var groundingContext = await BuildGroundingContextAsync(input, transcript);
+        var grounding = await BuildGroundingContextAsync(input, transcript);
 
         // Step 3: answer using only the retrieved (or fallback full-deck) context. Optionally
         // offloaded to OpenAI (keeps the heavy answer generation off Gemini's quota) - transcription
         // above always stays on Gemini regardless.
         var answered = useOpenAiAnswer
-            ? await AnswerWithOpenAiAsync(transcript, groundingContext)
-            : await CallAndParseAsync(creds, BuildAnswerPrompt(transcript, groundingContext));
+            ? await AnswerWithOpenAiAsync(transcript, grounding.DocumentBlock, grounding.QnaBlock)
+            : await CallAndParseAsync(creds, BuildAnswerPrompt(transcript, grounding.DocumentBlock, grounding.QnaBlock));
         if (answered is null || !GeminiRest.IsAnswerStatus(answered.AnswerStatus))
         {
             return new VoiceQuestionResult { AnswerStatus = AnswerStatus.TranscriptionFailed };
         }
+
+        // KS-10 - the id is not validated here (this provider has no repository access to check
+        // it against); the caller (VoiceQuestionService) does that before ever writing a
+        // KnowledgeQnAConflict row.
+        var conflict = !string.IsNullOrEmpty(answered.Conflict?.QnaId)
+            ? new VoiceQuestionConflictResult
+            {
+                QnAId = answered.Conflict!.QnaId!,
+                SourceLabel = answered.Conflict.SourceLabel ?? "",
+                Note = answered.Conflict.Note,
+            }
+            : null;
 
         return new VoiceQuestionResult
         {
@@ -131,48 +156,67 @@ public sealed class RagVoiceQuestionProvider(
             Answer = answered.Answer ?? "",
             AnswerStatus = answered.AnswerStatus!,
             RelatedSlideObjectId = answered.RelatedSlideObjectId,
+            Conflict = conflict,
         };
     }
 
-    private async Task<string> BuildGroundingContextAsync(VoiceQuestionInput input, string transcript)
+    /// <summary>KS-7 - the two blocks BuildAnswerPrompt needs, kept apart by sourceType all the way
+    /// from retrieval through to the prompt so the model always knows which is which.</summary>
+    private sealed record GroundingBlocks(string DocumentBlock, string QnaBlock);
+
+    private async Task<GroundingBlocks> BuildGroundingContextAsync(VoiceQuestionInput input, string transcript)
     {
         try
         {
             var queryVector = await embeddingProvider.EmbedAsync(transcript, EmbeddingTaskType.RetrievalQuery);
 
-            // Every question is grounded against this lesson's own namespace *and* this company's
-            // shared standalone-document namespace - a CS-uploaded standalone document (no
-            // lessonSlug at upload time) must answer questions in any lesson, not just one it
-            // happens to be tagged to. Both keys arrive already company-scoped from the caller
-            // (KnowledgeNamespaces.For / ForGlobal); this provider must not build them itself,
-            // because the global one is queried on every single question and an unscoped key
-            // there would pull another company's documents into this answer.
+            // Every question is grounded against this lesson's own namespace, the namespace of the
+            // knowledge category it belongs to (KS-3), and this company's shared standalone-document
+            // namespace - a CS-uploaded standalone document (no lessonSlug at upload time) must
+            // answer questions in any lesson, not just one it happens to be tagged to. All three keys
+            // arrive already company-scoped from the caller (KnowledgeNamespaces.For / ForCategory /
+            // ForGlobal); this provider must not build them itself (KS-1) - the global one in
+            // particular is queried on every single question, and an unscoped key there would pull
+            // another company's documents into this answer.
             var lessonChunksTask = knowledgeIndexProvider.QueryAsync(input.LessonNamespace, queryVector, TopK);
+            var categoryChunksTask = knowledgeIndexProvider.QueryAsync(input.CategoryNamespace, queryVector, TopK);
             var globalChunksTask = knowledgeIndexProvider.QueryAsync(input.GlobalNamespace, queryVector, TopK);
-            await Task.WhenAll(lessonChunksTask, globalChunksTask);
+            await Task.WhenAll(lessonChunksTask, categoryChunksTask, globalChunksTask);
 
-            var allMatches = MergeTopK(lessonChunksTask.Result, globalChunksTask.Result, TopK);
+            var allMatches = MergeTopK([lessonChunksTask.Result, categoryChunksTask.Result, globalChunksTask.Result], TopK);
 
-            // Nothing in either namespace means this lesson was never indexed (a fresh deck, or a
-            // retrieval outage) - that's the case the full-deck fallback below exists for. An
-            // off-topic question against an indexed deck is different: it DOES return matches, just
-            // low-scoring ones, and must NOT fall back to the whole deck (see the threshold branch).
-            var indexedAtAll = lessonChunksTask.Result.Count > 0 || globalChunksTask.Result.Count > 0;
+            // Nothing in any of the three namespaces means this lesson/category was never indexed (a
+            // fresh deck, or a retrieval outage) - that's the case the full-deck fallback below exists
+            // for (KS-11: an empty/never-created namespace must never throw, just behave as if this
+            // provider found nothing there). An off-topic question against an indexed deck is
+            // different: it DOES return matches, just low-scoring ones, and must NOT fall back to the
+            // whole deck (see the threshold branch).
+            var indexedAtAll = lessonChunksTask.Result.Count > 0 || categoryChunksTask.Result.Count > 0 || globalChunksTask.Result.Count > 0;
             var relevant = allMatches.Where(c => c.Score >= MinScore).ToList();
 
             logger.LogInformation(
-                "Retrieval for {LessonNamespace}: {LessonMatchCount} lesson + {GlobalMatchCount} global matches, top score {TopScore:F3}, {RelevantCount} cleared threshold {MinScore:F2}, using [{ChunkIds}]",
-                input.LessonNamespace, lessonChunksTask.Result.Count, globalChunksTask.Result.Count,
+                "Retrieval for {LessonNamespace}: {LessonMatchCount} lesson + {CategoryMatchCount} category + {GlobalMatchCount} global matches, top score {TopScore:F3}, {RelevantCount} cleared threshold {MinScore:F2}, using [{ChunkIds}]",
+                input.LessonNamespace, lessonChunksTask.Result.Count, categoryChunksTask.Result.Count, globalChunksTask.Result.Count,
                 allMatches.Count > 0 ? allMatches.Max(c => c.Score) : 0f, relevant.Count, MinScore,
-                string.Join(", ", relevant.Select(c => c.Id)));
+                string.Join(", ", relevant.Select(c => $"{c.Id}:{ResolveSourceType(c.Metadata)}")));
 
             if (relevant.Count > 0)
             {
-                return string.Join('\n', relevant.Select(c =>
-                {
-                    var slideId = c.Metadata is not null && c.Metadata.TryGetValue("slideObjectId", out var id) ? id : c.Id;
-                    return $"({slideId}): {c.Text}";
-                }));
+                // KS-7 - split by sourceType into the two blocks the prompt keeps apart, never one
+                // merged-and-ranked list.
+                var documentChunks = relevant.Where(c => ResolveSourceType(c.Metadata) != KnowledgeSourceType.Qna).ToList();
+                var qnaChunks = relevant.Where(c => ResolveSourceType(c.Metadata) == KnowledgeSourceType.Qna).ToList();
+
+                var documentBlock = documentChunks.Count > 0
+                    ? string.Join('\n', documentChunks.Select(c => $"({ResolveDisplayLabel(c)}): {c.Text}"))
+                    : "(ไม่มีข้อมูลอ้างอิงจากเอกสาร/สไลด์ที่เกี่ยวข้องกับคำถามนี้)";
+                var qnaBlock = qnaChunks.Count > 0
+                    // c.Id here IS the qnaId - a Q&A's Pinecone vector id is its own row id (DM-6),
+                    // so this is also what the model is told to echo back in conflict.qnaId.
+                    ? string.Join('\n', qnaChunks.Select(c => $"(qnaId={c.Id}): {c.Text}"))
+                    : "(ไม่มีคำถาม-คำตอบที่เกี่ยวข้องกับคำถามนี้)";
+
+                return new GroundingBlocks(documentBlock, qnaBlock);
             }
 
             if (indexedAtAll)
@@ -181,7 +225,7 @@ public sealed class RagVoiceQuestionProvider(
                 // isn't covered. Hand the answer step an explicit "no relevant reference" instead
                 // of the full deck, so it reports not_found rather than answering from unrelated
                 // slides. (The prompt already treats an empty/irrelevant context as not_found.)
-                return "(ไม่พบข้อมูลอ้างอิงที่เกี่ยวข้องกับคำถามนี้)";
+                return new GroundingBlocks("(ไม่พบข้อมูลอ้างอิงที่เกี่ยวข้องกับคำถามนี้)", "(ไม่พบข้อมูลอ้างอิงที่เกี่ยวข้องกับคำถามนี้)");
             }
         }
         catch (Exception ex)
@@ -191,14 +235,49 @@ public sealed class RagVoiceQuestionProvider(
             logger.LogWarning(ex, "Retrieval fell back to full-deck context for {LessonNamespace}: {Error}", input.LessonNamespace, ex.Message);
         }
 
-        return string.Join('\n', input.LessonSlides.Select((slide, index) => $"Slide {index + 1} ({slide.SlideObjectId}): {slide.SpeakerNotes}"));
+        // Full-deck fallback never carries Q&A content - Q&A only ever reaches this method through
+        // retrieval, and a fallback happens precisely when retrieval could not be used.
+        var fullDeck = string.Join('\n', input.LessonSlides.Select((slide, index) => $"Slide {index + 1} ({slide.SlideObjectId}): {slide.SpeakerNotes}"));
+        return new GroundingBlocks(fullDeck, "(ไม่มีคำถาม-คำตอบที่เกี่ยวข้องกับคำถามนี้)");
+    }
+
+    /// <summary>DM-8's ConflictingSourceLabel needs something a person recognizes - a document's
+    /// FileName, or "สไลด์หน้า N" - so the model is shown that label instead of a bare chunk id,
+    /// which it is asked to echo back verbatim when reporting a conflict.</summary>
+    private static string ResolveDisplayLabel(ScoredChunk chunk)
+    {
+        if (chunk.Metadata is null)
+        {
+            return chunk.Id;
+        }
+        if (chunk.Metadata.TryGetValue("fileName", out var fileName))
+        {
+            return fileName;
+        }
+        if (chunk.Metadata.TryGetValue("index", out var index))
+        {
+            return $"สไลด์หน้า {index}";
+        }
+        if (chunk.Metadata.TryGetValue("slideObjectId", out var slideId))
+        {
+            return slideId;
+        }
+        return chunk.Id;
     }
 
     /// <summary>Pulled out as its own pure function (no embedding/HTTP calls) so the
-    /// lesson-namespace + kb-global merge-and-rank behavior is directly unit-testable without a
-    /// live Gemini call.</summary>
-    public static IReadOnlyList<ScoredChunk> MergeTopK(IReadOnlyList<ScoredChunk> lessonChunks, IReadOnlyList<ScoredChunk> globalChunks, int topK)
-        => lessonChunks.Concat(globalChunks).OrderByDescending(c => c.Score).Take(topK).ToList();
+    /// lesson + category + kb-global merge-and-rank behavior is directly unit-testable without a
+    /// live Gemini call. Takes any number of result sets so a future fourth namespace (see design.md
+    /// KS-3's ParentCategoryNamespace note) is just one more list, not a signature change.</summary>
+    public static IReadOnlyList<ScoredChunk> MergeTopK(IEnumerable<IReadOnlyList<ScoredChunk>> chunkSets, int topK)
+        => chunkSets.SelectMany(c => c).OrderByDescending(c => c.Score).Take(topK).ToList();
+
+    /// <summary>KS-6 - chunks indexed before metadata.sourceType existed have no such key at all;
+    /// treated as Document (the only kind that existed before this field was introduced) rather
+    /// than thrown away or erroring, so retrieval keeps working across the migration instead of
+    /// silently losing pre-Phase-2 content.</summary>
+    private static string ResolveSourceType(IReadOnlyDictionary<string, string>? metadata)
+        => metadata is not null && metadata.TryGetValue("sourceType", out var sourceType) ? sourceType : KnowledgeSourceType.Document;
 
     private async Task<GeminiRest.GeminiAnswerJson?> CallAndParseAsync(
         GeminiCredentials creds, string prompt, byte[]? audio = null, string? mimeType = null)
@@ -209,13 +288,13 @@ public sealed class RagVoiceQuestionProvider(
 
     /// <summary>Runs the answer step (3 only) on OpenAI chat-completions. Transcription (1) stays on
     /// Gemini in the caller - this is text-only, reusing the exact same prompt + JSON schema.</summary>
-    private async Task<GeminiRest.GeminiAnswerJson?> AnswerWithOpenAiAsync(string transcript, string groundingContext)
+    private async Task<GeminiRest.GeminiAnswerJson?> AnswerWithOpenAiAsync(string transcript, string documentBlock, string qnaBlock)
     {
         var openAi = ExternalServiceEnv.GetOpenAi();
         var text = await OpenAiRest.CallAnswerAsync(
             httpClientFactory, openAi, logger,
             "คุณตอบโดยอ้างอิงจากข้อมูลอ้างอิงที่ให้มาเท่านั้น และตอบกลับเป็น JSON ตาม schema ที่ระบุเท่านั้น",
-            BuildAnswerPrompt(transcript, groundingContext));
+            BuildAnswerPrompt(transcript, documentBlock, qnaBlock));
         return ParseAnswerJson(text);
     }
 

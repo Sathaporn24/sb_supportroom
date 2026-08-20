@@ -149,7 +149,9 @@ public sealed class AdminService(
         {
             try
             {
-                var namespaceKey = document.LessonId is not null && lessonSlugById.TryGetValue(document.LessonId, out var slug)
+                var namespaceKey = document.ScopeType == KnowledgeScopeType.Lesson
+                    && document.ScopeId is not null
+                    && lessonSlugById.TryGetValue(document.ScopeId, out var slug)
                     ? KnowledgeNamespaces.For(CurrentCompanyId, slug)
                     : KnowledgeNamespaces.ForGlobal(CurrentCompanyId);
 
@@ -167,7 +169,13 @@ public sealed class AdminService(
                 {
                     Id = $"{document.Id}-{c.ChunkId}",
                     Text = c.Text,
-                    Metadata = new Dictionary<string, string> { ["documentId"] = document.Id, ["chunkId"] = c.ChunkId, ["fileName"] = document.FileName },
+                    Metadata = new Dictionary<string, string>
+                    {
+                        ["documentId"] = document.Id,
+                        ["chunkId"] = c.ChunkId,
+                        ["fileName"] = document.FileName,
+                        ["sourceType"] = KnowledgeSourceType.Document,
+                    },
                 }).ToList();
 
                 var indexedCount = await knowledgeIndexingService.IndexChunksAsync(namespaceKey, chunks);

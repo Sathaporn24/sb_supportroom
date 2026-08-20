@@ -21,6 +21,8 @@ public sealed class CreateTrainingLinkDto
     /// </summary>
     public string? ExpiresAt { get; init; }
 
-    /// <summary>null = unlimited. Stored but not enforced yet (CORE_FEATURE_SPEC §6).</summary>
+    /// <summary>null = unlimited. Values must be positive, but the stored limit is not enforced
+    /// against attendance yet (CORE_FEATURE_SPEC §6).</summary>
+    [Range(1, int.MaxValue)]
     public int? MaxAttendees { get; init; }
 }

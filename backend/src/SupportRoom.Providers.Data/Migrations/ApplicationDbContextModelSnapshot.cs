@@ -85,6 +85,78 @@ namespace SupportRoom.Providers.Data.Migrations
                     b.ToTable("AdminUser");
                 });
 
+            modelBuilder.Entity("SupportRoom.Domain.Entities.BackgroundJob", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("text");
+
+                    b.Property<int>("AttemptCount")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("CompanyId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("CreateBy")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("CreateDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DeleteBy")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("FinishedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsDelete")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("JobType")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("LastErrorCode")
+                        .HasColumnType("text");
+
+                    b.Property<string>("LastErrorDetail")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("NextAttemptAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("PayloadJson")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("StartedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("TargetId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("UpdateBy")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("UpdateDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Status", "NextAttemptAt");
+
+                    b.HasIndex("CompanyId", "JobType", "TargetId");
+
+                    b.ToTable("BackgroundJob");
+                });
+
             modelBuilder.Entity("SupportRoom.Domain.Entities.ChatMessage", b =>
                 {
                     b.Property<string>("Id")
@@ -179,6 +251,74 @@ namespace SupportRoom.Providers.Data.Migrations
                     b.ToTable("Company");
                 });
 
+            modelBuilder.Entity("SupportRoom.Domain.Entities.DocumentChunk", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("text");
+
+                    b.Property<int>("CharCount")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("ChunkKey")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("CompanyId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("CreateBy")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("CreateDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DeleteBy")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DocumentId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<bool>("HasSuspectCharacters")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsDelete")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("NamespaceKey")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("SeqNo")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Text")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("UpdateBy")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("UpdateDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("VectorId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CompanyId");
+
+                    b.HasIndex("DocumentId", "SeqNo");
+
+                    b.ToTable("DocumentChunk");
+                });
+
             modelBuilder.Entity("SupportRoom.Domain.Entities.DocumentResource", b =>
                 {
                     b.Property<string>("Id")
@@ -204,6 +344,9 @@ namespace SupportRoom.Providers.Data.Migrations
                     b.Property<DateTime?>("DeletedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<string>("FailureReason")
+                        .HasColumnType("text");
+
                     b.Property<string>("FileName")
                         .IsRequired()
                         .HasColumnType("text");
@@ -218,14 +361,18 @@ namespace SupportRoom.Providers.Data.Migrations
                     b.Property<bool>("IsDelete")
                         .HasColumnType("boolean");
 
-                    b.Property<string>("LessonId")
-                        .HasColumnType("text");
-
                     b.Property<string>("ObsBucket")
                         .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<string>("ObsKey")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("ScopeId")
+                        .HasColumnType("text");
+
+                    b.Property<string>("ScopeType")
                         .IsRequired()
                         .HasColumnType("text");
 
@@ -240,11 +387,239 @@ namespace SupportRoom.Providers.Data.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("CompanyId");
-
-                    b.HasIndex("LessonId");
+                    b.HasIndex("CompanyId", "ScopeType", "ScopeId");
 
                     b.ToTable("DocumentResource");
+                });
+
+            modelBuilder.Entity("SupportRoom.Domain.Entities.KnowledgeCategory", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("text");
+
+                    b.Property<string>("CompanyId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("CreateBy")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("CreateDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DeleteBy")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Description")
+                        .HasColumnType("text");
+
+                    b.Property<bool>("IsDelete")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsSystemDefault")
+                        .HasColumnType("boolean");
+
+                    b.Property<int>("Level")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("ParentId")
+                        .HasColumnType("text");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("UpdateBy")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("UpdateDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CompanyId");
+
+                    b.HasIndex("CompanyId", "ParentId", "SortOrder");
+
+                    b.ToTable("KnowledgeCategory");
+                });
+
+            modelBuilder.Entity("SupportRoom.Domain.Entities.KnowledgeQnA", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Answer")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("CompanyId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("CreateBy")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("CreateDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DeleteBy")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("FailureReason")
+                        .HasColumnType("text");
+
+                    b.Property<string>("IndexedNamespaceKey")
+                        .HasColumnType("text");
+
+                    b.Property<string>("IndexingStatus")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<bool>("IsDelete")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Question")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("ScopeId")
+                        .HasColumnType("text");
+
+                    b.Property<string>("ScopeType")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("UpdateBy")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("UpdateDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("VectorId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CompanyId", "ScopeType", "ScopeId");
+
+                    b.ToTable("KnowledgeQnA");
+                });
+
+            modelBuilder.Entity("SupportRoom.Domain.Entities.KnowledgeQnAConflict", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("text");
+
+                    b.Property<string>("CompanyId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("ConflictingSourceLabel")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("CreateBy")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("CreateDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DeleteBy")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsDelete")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("ModelNote")
+                        .HasColumnType("text");
+
+                    b.Property<string>("QnAId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("ResolvedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ResolvedBy")
+                        .HasColumnType("text");
+
+                    b.Property<string>("SessionQuestionId")
+                        .HasColumnType("text");
+
+                    b.Property<string>("UpdateBy")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("UpdateDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("QnAId");
+
+                    b.HasIndex("CompanyId", "ResolvedAt");
+
+                    b.ToTable("KnowledgeQnAConflict");
+                });
+
+            modelBuilder.Entity("SupportRoom.Domain.Entities.KnowledgeQnASource", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("text");
+
+                    b.Property<string>("CompanyId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("CreateBy")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("CreateDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DeleteBy")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsDelete")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("QnAId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("SessionQuestionId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("UpdateBy")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("UpdateDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("QnAId");
+
+                    b.HasIndex("CompanyId", "SessionQuestionId");
+
+                    b.ToTable("KnowledgeQnASource");
                 });
 
             modelBuilder.Entity("SupportRoom.Domain.Entities.LearningSession", b =>
@@ -331,6 +706,10 @@ namespace SupportRoom.Providers.Data.Migrations
                     b.Property<int>("BreathPauseMs")
                         .HasColumnType("integer");
 
+                    b.Property<string>("CategoryId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
                     b.Property<string>("CompanyId")
                         .IsRequired()
                         .HasColumnType("text");
@@ -395,10 +774,63 @@ namespace SupportRoom.Providers.Data.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("CategoryId");
+
                     b.HasIndex("CompanyId", "Slug")
                         .IsUnique();
 
                     b.ToTable("LessonConfig");
+                });
+
+            modelBuilder.Entity("SupportRoom.Domain.Entities.LessonSlideNarration", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("text");
+
+                    b.Property<string>("CompanyId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("CreateBy")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("CreateDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DeleteBy")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsDelete")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("LessonId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("NarrationText")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("SlideObjectId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("UpdateBy")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("UpdateDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CompanyId");
+
+                    b.HasIndex("LessonId", "SlideObjectId");
+
+                    b.ToTable("LessonSlideNarration");
                 });
 
             modelBuilder.Entity("SupportRoom.Domain.Entities.SessionQuestion", b =>
@@ -462,6 +894,10 @@ namespace SupportRoom.Providers.Data.Migrations
                     b.HasIndex("CompanyId");
 
                     b.HasIndex("SessionId");
+
+                    b.HasIndex("CompanyId", "AnswerStatus");
+
+                    b.HasIndex("CompanyId", "ReviewResult");
 
                     b.ToTable("SessionQuestion");
                 });

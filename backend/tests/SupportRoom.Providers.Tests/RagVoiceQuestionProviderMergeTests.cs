@@ -56,7 +56,7 @@ public class RagVoiceQuestionProviderMergeTests : IAsyncLifetime
         var lessonChunks = await _index.QueryAsync(lessonNamespace, queryVector, topK: 3);
         var globalChunks = await _index.QueryAsync(globalNamespace, queryVector, topK: 3);
 
-        var merged = RagVoiceQuestionProvider.MergeTopK(lessonChunks, globalChunks, topK: 3);
+        var merged = RagVoiceQuestionProvider.MergeTopK([lessonChunks, globalChunks], topK: 3);
 
         Assert.Contains(merged, c => c.Id == "doc-1-row");
         // The warranty chunk should rank above the unrelated login-flow chunk for this question.
@@ -77,7 +77,7 @@ public class RagVoiceQuestionProviderMergeTests : IAsyncLifetime
             new() { Id = "d", Text = "d", Score = 0.1f },
         };
 
-        var merged = RagVoiceQuestionProvider.MergeTopK(lessonChunks, globalChunks, topK: 3);
+        var merged = RagVoiceQuestionProvider.MergeTopK([lessonChunks, globalChunks], topK: 3);
 
         Assert.Equal(["a", "c", "b"], merged.Select(c => c.Id));
     }

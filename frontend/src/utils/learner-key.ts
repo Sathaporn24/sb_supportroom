@@ -1,21 +1,19 @@
 "use client";
 
 /**
- * The browser's identity on one training link.
+ * The browser's anonymous key across training links.
  *
  * One link is handed to a whole department, so the link token alone cannot say who is calling.
  * This key does both jobs the spec asks of it (CORE_FEATURE_SPEC §2.4): it lets someone resume
  * after a closed tab or a dropped connection, and it keeps two people on the same link from
  * landing in each other's session.
  *
- * Scoped per token rather than one key per browser: the same machine opening two different
- * links keeps two independent identities, and clearing one link's state never disturbs another.
- *
- * ⚠️ Not a credential. The link token is what authorizes a request - this only selects which row
- * within that link belongs to the caller.
+ * Together with a link token this is a composite bearer credential. One global browser key is
+ * intentional: the server still scopes it by TrainingLinkId, so using it across links never
+ * combines sessions or decides company access.
  */
 
-const KEY_PREFIX = "sb_learner_key:";
+const LEARNER_KEY_STORAGE_KEY = "supportroom.learnerKey";
 const NAME_PREFIX = "sb_learner_name:";
 
 function readStorage(key: string): string | null {
@@ -37,28 +35,26 @@ function writeStorage(key: string, value: string): void {
 }
 
 function generateKey(): string {
-  // randomUUID needs a secure context; the fallback keeps http://<lan-ip> dev hosts working.
-  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
-    return crypto.randomUUID();
+  if (typeof crypto === "undefined" || typeof crypto.randomUUID !== "function") {
+    throw new Error("เบราว์เซอร์นี้ไม่รองรับการสร้างกุญแจที่ปลอดภัย กรุณาเปิดผ่าน HTTPS และลองใหม่อีกครั้ง");
   }
-  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}${Math.random().toString(36).slice(2)}`;
+  return crypto.randomUUID();
 }
 
-/** Returns the existing key for this link, creating and persisting one on first visit. */
-export function getOrCreateLearnerKey(token: string): string {
-  const storageKey = `${KEY_PREFIX}${token}`;
-  const existing = readStorage(storageKey);
+/** Returns the browser-wide key, creating and persisting one on first visit. */
+export function getOrCreateLearnerKey(): string {
+  const existing = readStorage(LEARNER_KEY_STORAGE_KEY);
   if (existing) {
     return existing;
   }
   const created = generateKey();
-  writeStorage(storageKey, created);
+  writeStorage(LEARNER_KEY_STORAGE_KEY, created);
   return created;
 }
 
 /** Null on a first visit - that is exactly the signal to show the join screen. */
-export function peekLearnerKey(token: string): string | null {
-  return readStorage(`${KEY_PREFIX}${token}`);
+export function peekLearnerKey(): string | null {
+  return readStorage(LEARNER_KEY_STORAGE_KEY);
 }
 
 /** Remembered so a returning learner never retypes their name, including on "เรียนอีกครั้ง". */

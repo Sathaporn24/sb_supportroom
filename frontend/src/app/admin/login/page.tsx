@@ -4,12 +4,13 @@ import { useState } from "react";
 import * as api from "@/lib/api-client";
 import { ApiClientError } from "@/lib/api-client";
 import { useAdminSession } from "@/components/admin/AdminSessionProvider";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Spinner } from "@/components/ui/spinner";
 
-/**
- * Unstyled on purpose. This screen is going through Figma and will be rebuilt with shadcn/ui;
- * styling it now means designing it twice. It is here so the permission rules can be exercised
- * end to end today.
- */
 export default function LoginPage() {
   const { signIn } = useAdminSession();
   const [email, setEmail] = useState("");
@@ -34,34 +35,55 @@ export default function LoginPage() {
   }
 
   return (
-    <main style={{ maxWidth: 360, margin: "10vh auto", padding: 24 }}>
-      <h1>เข้าสู่ระบบ</h1>
-      <form onSubmit={handleSubmit} style={{ display: "grid", gap: 12, marginTop: 16 }}>
-        <label style={{ display: "grid", gap: 4 }}>
-          อีเมล
-          <input
-            type="email"
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
-            required
-            autoComplete="username"
-          />
-        </label>
-        <label style={{ display: "grid", gap: 4 }}>
-          รหัสผ่าน
-          <input
-            type="password"
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-            required
-            autoComplete="current-password"
-          />
-        </label>
-        {error && <p role="alert">{error}</p>}
-        <button type="submit" disabled={submitting}>
-          {submitting ? "กำลังเข้าสู่ระบบ…" : "เข้าสู่ระบบ"}
-        </button>
-      </form>
+    <main className="flex min-h-screen items-center justify-center bg-muted/40 p-4">
+      <Card className="w-full max-w-sm">
+        <CardHeader className="text-center">
+          <CardTitle className="text-xl">SupportRoom AI</CardTitle>
+          <CardDescription>เข้าสู่ระบบเพื่อจัดการบทเรียนและลิงก์การเรียน</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="email">อีเมล</Label>
+              <Input
+                id="email"
+                type="email"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                required
+                autoComplete="username"
+                autoFocus
+              />
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="password">รหัสผ่าน</Label>
+              <Input
+                id="password"
+                type="password"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                required
+                autoComplete="current-password"
+              />
+            </div>
+            {error && (
+              <Alert variant="destructive" role="alert">
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
+            <Button type="submit" disabled={submitting} className="mt-2">
+              {submitting ? (
+                <>
+                  <Spinner data-icon="inline-start" />
+                  กำลังเข้าสู่ระบบ...
+                </>
+              ) : (
+                "เข้าสู่ระบบ"
+              )}
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
     </main>
   );
 }

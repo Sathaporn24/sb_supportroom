@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import { AdminSessionProvider } from "@/components/admin/AdminSessionProvider";
 import { AdminGuard } from "@/components/admin/AdminGuard";
+import { TooltipProvider } from "@/components/ui/tooltip";
 
 /**
  * Wraps every /admin route, so a screen added later is signed-in-only and company-aware without
@@ -14,7 +15,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   return (
     <Suspense fallback={<p style={{ padding: 24 }}>กำลังโหลด…</p>}>
       <AdminSessionProvider>
-        <AdminGuard>{children}</AdminGuard>
+        <TooltipProvider>
+          <AdminGuard>{children}</AdminGuard>
+        </TooltipProvider>
       </AdminSessionProvider>
     </Suspense>
   );

@@ -45,6 +45,41 @@ Next.js ไม่มี Route Handler ฝั่ง backend แล้ว ทุ�
 สิ่งที่ต้องมี: Node.js/npm, .NET SDK 10, PostgreSQL และ credentials ของ provider ที่เลือก
 ระบบปัจจุบันไม่มี Mock provider และ backend ต้องได้รับ provider selection ทุกหมวดอย่างชัดเจน
 
+### เร็วที่สุด — Docker Compose (แนะนำถ้ามี Docker อยู่แล้ว)
+
+รันทั้ง Postgres + migration + backend + frontend พร้อมกันในคำสั่งเดียว ไม่ต้องติดตั้ง .NET/Node เอง:
+
+```bash
+cp backend/src/SupportRoom.Api/.env.example backend/src/SupportRoom.Api/.env
+```
+
+แก้ `.env` ที่เพิ่งสร้างอย่างน้อย 3 จุดก่อนรัน:
+
+1. **`FIRST_OWNER_EMAIL` / `FIRST_OWNER_PASSWORD` / `FIRST_OWNER_NAME`** — บัญชี owner คนแรกที่ระบบ
+   สร้างให้อัตโนมัติตอน backend เริ่มทำงานครั้งแรก (เฉพาะตอนที่ยังไม่มีผู้ใช้เลยในฐานข้อมูล) —
+   ตั้งอีเมล/รหัสผ่านที่นี่แล้วใช้ล็อกอินได้เลย ไม่ต้องรอใคร seed ให้
+2. **`GEMINI_API_KEY`** และ **`PINECONE_API_KEY`** / **`PINECONE_INDEX_HOST`** — จำเป็นสำหรับ
+   ฟีเจอร์ AI (ถอดเสียง/ตอบคำถาม/ค้นความรู้) ถ้าแค่จะดู UI/UX เฉยๆ ยังไม่ทดสอบ AI จริง ปล่อยว่างไว้ได้
+   แต่หน้าที่เรียก AI (เข้าห้องเรียน, ถามคำถาม) จะ error เพราะระบบนี้ไม่มี Mock fallback
+3. **`JWT_SECRET`** — จำเป็นเสมอ ไม่มีค่า default โดยตั้งใจ สร้างด้วย `openssl rand -base64 48`
+
+จากนั้นรัน:
+
+```bash
+docker compose up
+```
+
+รอจน service `frontend` ขึ้น `healthy` แล้วเปิด <http://localhost:3000> — ล็อกอินด้วยอีเมล/รหัสผ่าน
+ที่ตั้งไว้ใน `FIRST_OWNER_EMAIL`/`FIRST_OWNER_PASSWORD` ได้ทันที (ระบบบังคับเปลี่ยนรหัสผ่านตั้งแต่ครั้งแรก
+เพราะรหัสนี้ถูกเขียนไว้เป็น plain text ใน `.env` ที่คนตั้งค่า deployment อ่านได้)
+
+พอร์ตที่ compose เปิดให้ (แก้ได้ผ่าน `LOCAL_*_PORT` ใน `.env` ที่ repo root ถ้าชนกับของเดิมในเครื่อง):
+frontend `3000`, backend `5138`, Postgres `55432`
+
+หยุดและล้างข้อมูลทั้งหมด (รวม volume): `docker compose down -v`
+
+### รันตรงแบบ native (เร็วกว่าตอน dev แต่ต้องติดตั้งเครื่องมือเอง)
+
 ### Backend
 
 ```powershell

@@ -43,8 +43,9 @@ Error กลาง:
 | GET | `/api/chat-messages/by-learning-session/{id}` | chat ในการเรียนหนึ่ง (CS) |
 | POST | `/api/tts` | JSON `{ text, token, learnerKey, rate? }` → audio bytes |
 | POST | `/api/voice-question` | multipart audio question/readiness |
-| GET | `/api/documents?lessonSlug=` | lesson documents หรือ standalone documents |
-| POST | `/api/documents` | upload document, สูงสุดตาม `MAX_DOCUMENT_UPLOAD_MB` |
+| GET | `/api/documents?scopeType=&scopeId=` | documents ตาม scope (`lesson`/`category`/`company`); ไม่ส่ง query เลย = `company` |
+| POST | `/api/documents` | upload document (multipart `file` + `scopeType` + `scopeId?`), สูงสุดตาม `MAX_DOCUMENT_UPLOAD_MB` |
+| PATCH | `/api/documents/{id}/scope` | JSON `{ scopeType, scopeId? }` — ย้ายเอกสารไป scope ใหม่ (DS-5/DS-6) |
 | DELETE | `/api/documents/{id}` | ลบ metadata/storage object |
 | POST | `/api/admin/reset` | ลบ link/learning session/question/chat เมื่ออนุญาต |
 | POST | `/api/admin/reindex` | rebuild RAG namespaces เมื่ออนุญาต |

@@ -305,9 +305,16 @@ public sealed class LearningSessionService(IUnitOfWork unitOfWork, IServiceProvi
     private LearningSession CreateSession(string trainingLinkId, JoinLearningSessionDto input)
     {
         var name = input.RecipientName.Trim();
-        if (name.Length == 0)
+        if (name.Length is 0 or > DtoLimits.RecipientNameMaxLength)
         {
-            throw GeneralException.ValidationError("กรุณากรอกชื่อของคุณก่อนเข้าห้องเรียน");
+            throw GeneralException.ValidationError($"กรุณากรอกชื่อ (ไม่เกิน {DtoLimits.RecipientNameMaxLength} ตัวอักษร)");
+        }
+
+        if (string.IsNullOrWhiteSpace(input.LearnerKey)
+            || input.LearnerKey.Length is < DtoLimits.LearnerKeyMinLength or > DtoLimits.LearnerKeyMaxLength)
+        {
+            throw GeneralException.ValidationError(
+                $"รหัสผู้เรียนต้องมี {DtoLimits.LearnerKeyMinLength}-{DtoLimits.LearnerKeyMaxLength} ตัวอักษร");
         }
 
         var now = DateTime.UtcNow;

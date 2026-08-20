@@ -16,7 +16,17 @@ public sealed class TrainingLinkViewModel
     /// never stored (see LinkStatus).</summary>
     public required string Status { get; init; }
 
-    /// <summary>How many people have opened this link. Cheap to include and it is the first thing
-    /// CS looks for after sending one out.</summary>
+    /// <summary>Legacy total-round count retained while the admin frontend moves to the three
+    /// explicit aggregates below.</summary>
     public required int LearningSessionCount { get; init; }
+
+    /// <summary>Distinct browsers (LearnerKey values) that have opened this link. A learner who
+    /// starts another round still counts as one learner.</summary>
+    public required int LearnerCount { get; init; }
+
+    /// <summary>Number of learning rounds currently in progress.</summary>
+    public required int InProgressCount { get; init; }
+
+    /// <summary>Number of learning rounds that have ended.</summary>
+    public required int EndedCount { get; init; }
 }

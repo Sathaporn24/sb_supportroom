@@ -15,6 +15,9 @@ export type ContentSourceType = "google_slides" | "pdf";
 export type LessonConfig = {
   id: string;
   slug: string;
+  /** A KnowledgeCategory id - always a Level 2 (subcategory) row (TX-4). Every lesson has one;
+   * companies with nothing chosen yet fall back to the "ยังไม่จัดหมวด" system-default leaf. */
+  categoryId: string;
   title: string;
   description?: string;
   slidesSourceUrl: string;
@@ -48,6 +51,30 @@ export type LearnerLessonConfig = Pick<
 
 // presentationId is always derived server-side from slidesSourceUrl - CS never sets it directly.
 export type LessonConfigInput = Omit<LessonConfig, "id" | "createdAt" | "updatedAt" | "presentationId">;
+
+// ─── PDF narration overrides (R4/NR-1..NR-9) ──────────────────────────────────────────────────
+// contentSourceType = "pdf" only - Google Slides has no override path (R4, NR-9).
+
+/** Mirrors LessonNarrationSlideViewModel - one PDF page's resolved narration. */
+export type LessonNarrationSlide = {
+  slideObjectId: string;
+  index: number;
+  /** The text that will actually be spoken/indexed - the CS override if one exists, otherwise
+   * the extracted prefill (NR-1). */
+  narrationText: string;
+  /** true when a LessonSlideNarration row exists for this page - tells a CS-authored page apart
+   * from one still showing the extracted prefill. */
+  isOverridden: boolean;
+};
+
+/** Mirrors LessonNarrationsViewModel - GET /api/lessons/{id}/narrations response. */
+export type LessonNarrations = {
+  slides: LessonNarrationSlide[];
+  /** NR-5 - true when every page's freshly-extracted text is blank (almost always a scanned
+   * PDF): a warning, not an error - narration can still be saved normally, CS just has to type
+   * every page by hand. */
+  isLikelyScanned: boolean;
+};
 
 /** A single resolved slide as returned live by SlidesContentProvider (no admin-only fields). */
 export type ResolvedSlide = {
@@ -99,8 +126,14 @@ export type TrainingLink = {
   expiresAt: string;
   /** null = unlimited. Stored but not enforced yet. */
   maxAttendees?: number;
-  /** How many people have opened this link. */
+  /** Legacy total-round count retained by the API during the aggregate rollout. */
   learningSessionCount: number;
+  /** Distinct browser keys that have opened this link. */
+  learnerCount: number;
+  /** Learning rounds currently in progress. */
+  inProgressCount: number;
+  /** Learning rounds that have ended. */
+  endedCount: number;
 };
 
 /** Anonymous pre-join payload: no database ids, lesson slug or attendance count. */
@@ -199,9 +232,9 @@ export type SessionQuestion = {
   answerStatus: AnswerStatus;
   createdAt: string;
   /** CS-facing only. The learner's own recap never renders these. */
-  reviewResult?: ReviewResult;
-  reviewNote?: string;
-  reviewedAt?: string;
+  reviewResult?: ReviewResult | null;
+  reviewNote?: string | null;
+  reviewedAt?: string | null;
 };
 
 /** Public learner shape: answer-review metadata belongs to the back office only. */
@@ -216,7 +249,7 @@ export type CreateSessionQuestionInput = Omit<
 >;
 
 export type ReviewSessionQuestionInput = {
-  reviewResult: ReviewResult;
+  reviewResult: ReviewResult | null;
   reviewNote?: string;
 };
 
@@ -269,20 +302,59 @@ export type ChatMessage = {
 
 /**
  * A CS-uploaded document (.pptx/.pdf/.docx/.xlsx) parsed and embedded into the knowledge base.
- * lessonId null/undefined = standalone document, queried alongside every lesson's own content
- * (see kb-global namespace) instead of being tied to one lesson.
+ * scopeType/scopeId say what it answers for (KnowledgeScopeType, defined below) - "company" with
+ * no scopeId is the standalone/global library, queried alongside every lesson's own content.
  */
 export type DocumentIndexingStatus = "pending" | "indexed" | "failed";
 
+/** Mirrors DocumentFailureReason.cs - which of the 5 upload/index steps failed and why (R6.4).
+ * Each reason needs a different fix from CS, so the UI must never collapse them into one message. */
+export type DocumentFailureReason =
+  | "unsupported_type"
+  | "extract_failed"
+  | "no_text"
+  | "embedding_failed"
+  | "index_failed";
+
+/** Mirrors UploadDocumentDto/MoveDocumentScopeDto's shared shape (design.md DS-1/DS-5) - what
+ * says a document or Q&A answers for one lesson, one category, or the whole company. `scopeId` is
+ * required for "lesson"/"category" and forbidden for "company" (KS-2/DS-3). For "lesson" it is
+ * LessonConfig.Id, never Slug (DS-1). */
+export type DocumentScope = {
+  scopeType: KnowledgeScopeType;
+  scopeId?: string;
+};
+
 export type DocumentResource = {
   id: string;
-  lessonId?: string;
+  scopeType: KnowledgeScopeType;
+  scopeId?: string;
   fileName: string;
   contentType: string;
   sizeBytes: number;
   indexingStatus: DocumentIndexingStatus;
   indexedChunkCount: number;
+  failureReason?: DocumentFailureReason;
   createdAt: string;
+  /** DI-10 - set only while a retry is still scheduled (job pending/running, under the attempt
+   * cap) - lets the UI tell "failed, but will retry itself" apart from "failed, needs a person". */
+  willRetryAt?: string;
+  /** R-4/DI-16 - true while a vector_delete job for this (soft-deleted) document is still
+   * pending/running: the document is gone from the list, but its vectors may still answer
+   * questions in Pinecone until this clears. */
+  hasPendingVectorDelete: boolean;
+};
+
+/** Mirrors DocumentChunkViewModel (DI-7) - one row of GET /api/documents/{id}/chunks, exactly
+ * what the knowledge store received for this document, never re-parsed on the fly. */
+export type DocumentChunk = {
+  id: string;
+  chunkKey: string;
+  seqNo: number;
+  text: string;
+  charCount: number;
+  /** DI-6 - sort hint only, never a correctness verdict - a human still has to look. */
+  hasSuspectCharacters: boolean;
 };
 
 // ─── Back office identity (TD-014) ────────────────────────────────────────────────────────────
@@ -356,4 +428,123 @@ export type LoginInput = {
 export type ChangePasswordInput = {
   currentPassword: string;
   newPassword: string;
+};
+
+// ─── Knowledge base taxonomy & scope (Phase 1) ────────────────────────────────────────────────
+// Mirrors KnowledgeScopeType.cs string constants exactly - both DocumentResource and, from
+// Phase 6 onward, KnowledgeQnA use this same union to say what a piece of knowledge answers for.
+
+export type KnowledgeScopeType = "lesson" | "category" | "company";
+
+/**
+ * Mirrors KnowledgeCategoryViewModel. One table holds both levels via parentId (design.md DM-1):
+ * level 1 (parentId null) is a top-level category, level 2 (parentId set) is its subcategory.
+ * Nesting stops at level 2 - a level 2 row can never be a parent (TX-2).
+ *
+ * isSystemDefault marks the "ยังไม่จัดหมวด" chain every company gets backfilled with (exactly
+ * one level 1 + one level 2 row) - that pair can never be renamed, deleted, or reparented (TX-11).
+ */
+export type KnowledgeCategory = {
+  id: string;
+  parentId: string | null;
+  level: 1 | 2;
+  name: string;
+  description?: string;
+  sortOrder: number;
+  isSystemDefault: boolean;
+};
+
+export type CreateKnowledgeCategoryInput = {
+  /** Omit to create a level 1 category; set to a level 1 category's id to create its subcategory. */
+  parentId?: string;
+  name: string;
+  description?: string;
+  sortOrder: number;
+};
+
+export type UpdateKnowledgeCategoryInput = {
+  name: string;
+  description?: string;
+  sortOrder: number;
+};
+
+/**
+ * Mirrors CategoryMovePreviewViewModel - what GET /api/knowledge-categories/{id}/move-preview
+ * returns before a lesson's category actually changes (R3.1/TX-10).
+ */
+export type CategoryMovePreview = {
+  losingDocuments: number;
+  losingQnAs: number;
+  gainingDocuments: number;
+  gainingQnAs: number;
+};
+
+// ─── Q&A knowledge base & review queue (Phase 6 - R5/QQ-1..QQ-10) ────────────────────────────
+// "คลังความรู้คือคู่ถาม-ตอบ" - CS writes the right answer directly at the point a gap was found,
+// instead of authoring a document and waiting for it to be indexed (see design.md R5).
+
+/** Mirrors KnowledgeQnAViewModel - one saved question/answer pair. */
+export type KnowledgeQnA = {
+  id: string;
+  question: string;
+  answer: string;
+  scopeType: KnowledgeScopeType;
+  scopeId?: string;
+  indexingStatus: DocumentIndexingStatus;
+  failureReason?: DocumentFailureReason;
+  createdAt: string;
+};
+
+export type CreateKnowledgeQnAInput = {
+  question: string;
+  answer: string;
+  scopeType: KnowledgeScopeType;
+  scopeId?: string;
+  /** QQ-7 - one Q&A can close several queue questions at once; at least one is required. */
+  sessionQuestionIds: string[];
+};
+
+export type UpdateKnowledgeQnAInput = {
+  question: string;
+  answer: string;
+};
+
+/**
+ * Mirrors KnowledgeQnAQueueItemViewModel - one row of GET /api/qna-queue (P8/R5.1). A
+ * SessionQuestion (learning-session module) that has no Q&A answering it yet (QQ-1), enriched
+ * with which lesson it happened in (QQ-4) and why it is here (QQ-3).
+ */
+export type KnowledgeQnAQueueItem = {
+  id: string;
+  /** A LearningSession id. */
+  sessionId: string;
+  slideObjectId?: string;
+  transcript?: string;
+  answer?: string;
+  answerStatus: AnswerStatus;
+  reviewResult?: ReviewResult | null;
+  reviewNote?: string | null;
+  createdAt: string;
+  /** Absent when the training link/lesson it happened on has since been deleted. */
+  lessonId?: string;
+  lessonSlug?: string;
+  /** QQ-3 - independent flags, not one source enum: a question can carry both at once. */
+  fromNotFound: boolean;
+  fromIncorrect: boolean;
+};
+
+/**
+ * Mirrors KnowledgeQnAConflictViewModel (QQ-9/QQ-10/R5.5) - raised when the model reports that a
+ * Q&A it retrieved conflicts with a document/slide. The document already won when answering; this
+ * flag exists so CS can go fix the document that caused the mismatch.
+ */
+export type KnowledgeQnAConflict = {
+  id: string;
+  qnaId: string;
+  sessionQuestionId?: string;
+  conflictingSourceLabel: string;
+  modelNote?: string;
+  createdAt: string;
+  resolvedAt?: string;
+  resolvedBy?: string;
 };

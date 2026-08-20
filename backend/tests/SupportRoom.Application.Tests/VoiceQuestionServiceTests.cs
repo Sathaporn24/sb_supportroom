@@ -48,13 +48,17 @@ public class VoiceQuestionServiceTests
             .Register<ILearningSessionRepository>(_learningSessions)
             .Register<ILessonConfigRepository>(_lessons)
             .Register<IDocumentResourceRepository>(new FakeDocumentResourceRepository())
-            .Register<ISessionQuestionRepository>(_questions);
+            .Register<ILessonSlideNarrationRepository>(new FakeLessonSlideNarrationRepository())
+            .Register<ISessionQuestionRepository>(_questions)
+            .Register<IKnowledgeCategoryRepository>(new FakeKnowledgeCategoryRepository());
+        var namespaceResolver = new KnowledgeNamespaceResolver(uow);
 
         var lessonService = new LessonConfigService(
             uow, new FakeServiceProvider(), NullLogger<ILessonConfigService>.Instance,
             new GoogleSlidesProvider(NullLogger<GoogleSlidesProvider>.Instance), new FakeKnowledgeIndexingService(),
             new LocalDocumentStorageProvider(NullLogger<LocalDocumentStorageProvider>.Instance),
-            new MemoryCache(new MemoryCacheOptions()));
+            new MemoryCache(new MemoryCacheOptions()),
+            new LessonSlideNarrationResolver(uow));
         var questionService = new SessionQuestionService(uow, new FakeServiceProvider(), NullLogger<ISessionQuestionService>.Instance);
 
         var serviceProvider = new FakeServiceProvider()
@@ -74,6 +78,7 @@ public class VoiceQuestionServiceTests
         {
             Id = "lesson-1",
             CompanyId = TestFixtures.CompanyId,
+            CategoryId = "kbcat-child",
             Slug = "lesson-a",
             Title = "บทเรียน",
             SlidesSourceUrl = "",
@@ -109,7 +114,7 @@ public class VoiceQuestionServiceTests
         _service = new VoiceQuestionService(
             uow, serviceProvider, NullLogger<IVoiceQuestionService>.Instance,
             new GeminiVoiceQuestionProvider(new RealHttpClientFactory(), NullLogger<GeminiVoiceQuestionProvider>.Instance),
-            _notifier);
+            _notifier, namespaceResolver);
     }
 
     private static AskVoiceQuestionDto Ask(byte[] audio, int durationMs, string expecting = "question") => new()

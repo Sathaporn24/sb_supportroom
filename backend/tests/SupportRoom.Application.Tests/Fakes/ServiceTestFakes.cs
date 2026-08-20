@@ -52,22 +52,172 @@ internal sealed class FakeLessonConfigRepository : ILessonConfigRepository
 
     public LessonConfig? GetBySlug(string slug) => Items.FirstOrDefault(x => x.Slug == slug);
     public IQueryable<LessonConfig> GetActive() => Items.AsQueryable().Where(x => x.IsActive);
+    public IQueryable<LessonConfig> GetByCategoryId(string categoryId) => Items.AsQueryable().Where(x => x.CategoryId == categoryId);
+    public int CountByCategoryId(string categoryId) => Items.Count(x => x.CategoryId == categoryId);
 }
 
 internal sealed class FakeDocumentResourceRepository : IDocumentResourceRepository
 {
     public readonly List<DocumentResource> Items = [];
 
-    public IQueryable<DocumentResource> GetAll() => Items.AsQueryable();
+    // Mirrors the real HasQueryFilter (CompanyId + !IsDelete) - RepositoryBase.Get() uses
+    // DbSet.Find(), which still applies global query filters, so a soft-deleted row must not be
+    // reachable through Get() here either (DS-7 - MoveScopeAsync relies on this to 404 instead of
+    // moving something out of the recovery bin).
+    public IQueryable<DocumentResource> GetAll() => Items.AsQueryable().Where(x => !x.IsDelete);
     public IQueryable<DocumentResource> FindBy(Expression<Func<DocumentResource, bool>> predicate) => Items.AsQueryable().Where(predicate);
-    public DocumentResource? Get(string id) => Items.FirstOrDefault(x => x.Id == id);
+    public DocumentResource? Get(string id) => Items.FirstOrDefault(x => x.Id == id && !x.IsDelete);
     public Task<DocumentResource?> GetAsync(string id) => Task.FromResult(Get(id));
     public void Add(DocumentResource entity) => Items.Add(entity);
     public void Update(DocumentResource entity) { }
     public void Delete(DocumentResource entity) => Items.Remove(entity);
 
-    public IQueryable<DocumentResource> GetByLessonId(string lessonId) => Items.AsQueryable().Where(x => x.LessonId == lessonId);
-    public IQueryable<DocumentResource> GetStandalone() => Items.AsQueryable().Where(x => x.LessonId == null);
+    // Mirrors the real HasQueryFilter (CompanyId + !IsDelete) - GetByScope must not surface a
+    // soft-deleted row, the same as the real DB query would not.
+    public IQueryable<DocumentResource> GetByScope(string scopeType, string? scopeId)
+        => Items.AsQueryable().Where(x => x.ScopeType == scopeType && x.ScopeId == scopeId && !x.IsDelete);
+    public IQueryable<DocumentResource> GetDeleted(string companyId) => Items.AsQueryable().Where(x => x.CompanyId == companyId && x.IsDelete);
+}
+
+/// <summary>⚠️ Unscoped for the same reason as FakeCompanyRepository - the real BackgroundJob
+/// table has no company query filter either (see ApplicationDbContext).</summary>
+internal sealed class FakeBackgroundJobRepository : IBackgroundJobRepository
+{
+    public readonly List<BackgroundJob> Items = [];
+
+    public IQueryable<BackgroundJob> GetAll() => Items.AsQueryable();
+    public IQueryable<BackgroundJob> FindBy(Expression<Func<BackgroundJob, bool>> predicate) => Items.AsQueryable().Where(predicate);
+    public BackgroundJob? Get(string id) => Items.FirstOrDefault(x => x.Id == id);
+    public Task<BackgroundJob?> GetAsync(string id) => Task.FromResult(Get(id));
+    public void Add(BackgroundJob entity) => Items.Add(entity);
+    public void Update(BackgroundJob entity) { }
+    public void Delete(BackgroundJob entity) => Items.Remove(entity);
+
+    public BackgroundJob? ClaimNext(DateTime now) => throw new NotSupportedException("not exercised in unit tests - needs FOR UPDATE SKIP LOCKED against real Postgres");
+    public int RequeueOrphanedRunning() => throw new NotSupportedException("not exercised in unit tests - needs real Postgres");
+}
+
+internal sealed class FakeDocumentChunkRepository : IDocumentChunkRepository
+{
+    public readonly List<DocumentChunk> Items = [];
+
+    public IQueryable<DocumentChunk> GetAll() => Items.AsQueryable().Where(x => !x.IsDelete);
+    public IQueryable<DocumentChunk> FindBy(Expression<Func<DocumentChunk, bool>> predicate) => GetAll().Where(predicate);
+    public DocumentChunk? Get(string id) => GetAll().FirstOrDefault(x => x.Id == id);
+    public Task<DocumentChunk?> GetAsync(string id) => Task.FromResult(Get(id));
+    public void Add(DocumentChunk entity) => Items.Add(entity);
+    public void Update(DocumentChunk entity) { }
+    public void Delete(DocumentChunk entity) => Items.Remove(entity);
+
+    public IQueryable<DocumentChunk> GetByDocumentId(string documentId)
+        => GetAll().Where(x => x.DocumentId == documentId).OrderBy(x => x.SeqNo);
+
+    public void DeleteByDocumentId(string documentId)
+    {
+        foreach (var chunk in Items.Where(x => x.DocumentId == documentId && !x.IsDelete))
+        {
+            chunk.IsDelete = true;
+            chunk.DeletedAt = DateTime.UtcNow;
+        }
+    }
+}
+
+internal sealed class FakeLessonSlideNarrationRepository : ILessonSlideNarrationRepository
+{
+    public readonly List<LessonSlideNarration> Items = [];
+
+    public IQueryable<LessonSlideNarration> GetAll() => Items.AsQueryable().Where(x => !x.IsDelete);
+    public IQueryable<LessonSlideNarration> FindBy(Expression<Func<LessonSlideNarration, bool>> predicate) => GetAll().Where(predicate);
+    public LessonSlideNarration? Get(string id) => GetAll().FirstOrDefault(x => x.Id == id);
+    public Task<LessonSlideNarration?> GetAsync(string id) => Task.FromResult(Get(id));
+    public void Add(LessonSlideNarration entity) => Items.Add(entity);
+    public void Update(LessonSlideNarration entity) { }
+    public void Delete(LessonSlideNarration entity) => Items.Remove(entity);
+
+    public IQueryable<LessonSlideNarration> GetByLessonId(string lessonId)
+        => GetAll().Where(x => x.LessonId == lessonId);
+
+    public LessonSlideNarration? GetOne(string lessonId, string slideObjectId)
+        => GetAll().FirstOrDefault(x => x.LessonId == lessonId && x.SlideObjectId == slideObjectId);
+
+    public int DeleteByLessonId(string lessonId)
+    {
+        var rows = Items.Where(x => x.LessonId == lessonId && !x.IsDelete).ToList();
+        foreach (var row in rows)
+        {
+            row.IsDelete = true;
+            row.DeletedAt = DateTime.UtcNow;
+        }
+        return rows.Count;
+    }
+}
+
+internal sealed class FakeKnowledgeCategoryRepository : IKnowledgeCategoryRepository
+{
+    public readonly List<KnowledgeCategory> Items = [];
+    public IQueryable<KnowledgeCategory> GetAll() => Items.AsQueryable().Where(x => !x.IsDelete);
+    public IQueryable<KnowledgeCategory> FindBy(Expression<Func<KnowledgeCategory, bool>> predicate) => GetAll().Where(predicate);
+    public KnowledgeCategory? Get(string id) => Items.FirstOrDefault(x => x.Id == id && !x.IsDelete);
+    public Task<KnowledgeCategory?> GetAsync(string id) => Task.FromResult(Get(id));
+    public void Add(KnowledgeCategory entity) => Items.Add(entity);
+    public void Update(KnowledgeCategory entity) { }
+    public void Delete(KnowledgeCategory entity) => Items.Remove(entity);
+    public IQueryable<KnowledgeCategory> GetByCompanyOrdered() => GetAll().OrderBy(x => x.Level).ThenBy(x => x.SortOrder).ThenBy(x => x.Name);
+    public IQueryable<KnowledgeCategory> GetChildren(string parentId) => FindBy(x => x.ParentId == parentId);
+    public KnowledgeCategory? GetSystemDefault() => FindBy(x => x.IsSystemDefault && x.Level == 2).SingleOrDefault();
+}
+
+internal sealed class FakeKnowledgeQnARepository : IKnowledgeQnARepository
+{
+    public readonly List<KnowledgeQnA> Items = [];
+
+    public IQueryable<KnowledgeQnA> GetAll() => Items.AsQueryable().Where(x => !x.IsDelete);
+    public IQueryable<KnowledgeQnA> FindBy(Expression<Func<KnowledgeQnA, bool>> predicate) => GetAll().Where(predicate);
+    public KnowledgeQnA? Get(string id) => GetAll().FirstOrDefault(x => x.Id == id);
+    public Task<KnowledgeQnA?> GetAsync(string id) => Task.FromResult(Get(id));
+    public void Add(KnowledgeQnA entity) => Items.Add(entity);
+    public void Update(KnowledgeQnA entity) { }
+    public void Delete(KnowledgeQnA entity) => Items.Remove(entity);
+
+    public IQueryable<KnowledgeQnA> GetByScope(string scopeType, string? scopeId)
+        => GetAll().Where(x => x.ScopeType == scopeType && x.ScopeId == scopeId);
+
+    public IQueryable<KnowledgeQnA> Search(string keyword)
+        => GetAll().Where(x => x.Question.Contains(keyword) || x.Answer.Contains(keyword));
+}
+
+internal sealed class FakeKnowledgeQnASourceRepository : IKnowledgeQnASourceRepository
+{
+    public readonly List<KnowledgeQnASource> Items = [];
+
+    public IQueryable<KnowledgeQnASource> GetAll() => Items.AsQueryable().Where(x => !x.IsDelete);
+    public IQueryable<KnowledgeQnASource> FindBy(Expression<Func<KnowledgeQnASource, bool>> predicate) => GetAll().Where(predicate);
+    public KnowledgeQnASource? Get(string id) => GetAll().FirstOrDefault(x => x.Id == id);
+    public Task<KnowledgeQnASource?> GetAsync(string id) => Task.FromResult(Get(id));
+    public void Add(KnowledgeQnASource entity) => Items.Add(entity);
+    public void Update(KnowledgeQnASource entity) { }
+    public void Delete(KnowledgeQnASource entity) => Items.Remove(entity);
+
+    public IQueryable<KnowledgeQnASource> GetBySessionQuestionIds(IReadOnlyList<string> sessionQuestionIds)
+        => GetAll().Where(x => sessionQuestionIds.Contains(x.SessionQuestionId));
+
+    public IQueryable<KnowledgeQnASource> GetByQnAId(string qnaId)
+        => GetAll().Where(x => x.QnAId == qnaId);
+}
+
+internal sealed class FakeKnowledgeQnAConflictRepository : IKnowledgeQnAConflictRepository
+{
+    public readonly List<KnowledgeQnAConflict> Items = [];
+
+    public IQueryable<KnowledgeQnAConflict> GetAll() => Items.AsQueryable().Where(x => !x.IsDelete);
+    public IQueryable<KnowledgeQnAConflict> FindBy(Expression<Func<KnowledgeQnAConflict, bool>> predicate) => GetAll().Where(predicate);
+    public KnowledgeQnAConflict? Get(string id) => GetAll().FirstOrDefault(x => x.Id == id);
+    public Task<KnowledgeQnAConflict?> GetAsync(string id) => Task.FromResult(Get(id));
+    public void Add(KnowledgeQnAConflict entity) => Items.Add(entity);
+    public void Update(KnowledgeQnAConflict entity) { }
+    public void Delete(KnowledgeQnAConflict entity) => Items.Remove(entity);
+
+    public IQueryable<KnowledgeQnAConflict> GetUnresolved() => GetAll().Where(x => x.ResolvedAt == null);
 }
 
 /// <summary>
@@ -181,6 +331,9 @@ internal sealed class FakeSessionQuestionRepository : ISessionQuestionRepository
     public void Delete(SessionQuestion entity) => Items.Remove(entity);
 
     public IQueryable<SessionQuestion> GetBySessionId(string sessionId) => Items.AsQueryable().Where(x => x.SessionId == sessionId);
+
+    public IQueryable<SessionQuestion> GetReviewQueue()
+        => Items.AsQueryable().Where(x => x.AnswerStatus == AnswerStatus.NotFound || x.ReviewResult == ReviewResult.Incorrect);
 }
 
 internal sealed class FakeChatMessageRepository : IChatMessageRepository
@@ -212,6 +365,9 @@ internal sealed class FakeKnowledgeIndexingService : IKnowledgeIndexingService
 
     public Task<int> IndexChunksAsync(string namespaceKey, IReadOnlyList<KnowledgeSourceChunk> chunks)
         => Task.FromResult(chunks.Count);
+
+    public Task<int> EmbedAndUpsertAsync(string namespaceKey, IReadOnlyList<KnowledgeSourceChunk> chunks)
+        => Task.FromResult(chunks.Count(c => !string.IsNullOrWhiteSpace(c.Text)));
 }
 
 // The three fakes below only exist to satisfy AdminService's constructor for the ResetDemoData
@@ -232,6 +388,8 @@ internal sealed class FakeKnowledgeIndexProvider : IKnowledgeIndexProvider
     public Task UpsertAsync(string namespaceKey, IReadOnlyList<KnowledgeChunk> chunks) => throw new NotSupportedException("not exercised in unit tests");
     public Task<IReadOnlyList<ScoredChunk>> QueryAsync(string namespaceKey, float[] queryVector, int topK) => throw new NotSupportedException("not exercised in unit tests");
     public Task DeleteNamespaceAsync(string namespaceKey) => throw new NotSupportedException("not exercised in unit tests");
+    public Task DeleteVectorsAsync(string namespaceKey, IReadOnlyList<string> ids) => throw new NotSupportedException("not exercised in unit tests");
+    public Task UpdateMetadataAsync(string namespaceKey, string id, string text, IReadOnlyDictionary<string, string>? metadata) => throw new NotSupportedException("not exercised in unit tests");
 }
 
 internal sealed class FakeSlidesProvider : ISlidesProvider

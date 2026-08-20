@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { MicIcon, MicOffIcon, VideoIcon, VideoOffIcon } from "lucide-react";
 import * as api from "@/lib/api-client";
 import { getLearnerName, getOrCreateLearnerKey, grantRoomEntry, peekLearnerKey, setLearnerName } from "@/utils/learner-key";
+import { isValidLearnerName, LEARNER_NAME_MAX_LENGTH } from "@/utils/learner-name";
 import { useLocalMedia } from "@/hooks/use-local-media";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -21,9 +22,6 @@ const errorMessages: Record<string, string> = {
   unsupported: "เบราว์เซอร์นี้ไม่รองรับการใช้งานกล้องหรือไมโครโฟนค่ะ",
   unknown: "เกิดข้อผิดพลาดในการเข้าถึงกล้องหรือไมโครโฟน กรุณาลองใหม่อีกครั้งค่ะ",
 };
-
-/** Matches DtoLimits.RecipientNameMaxLength - the server rejects anything longer. */
-const NAME_MAX_LENGTH = 100;
 
 /**
  * The join screen is the only place that can enforce "ask before continuing someone's lesson".
@@ -45,7 +43,7 @@ export default function JoinPage() {
   useEffect(() => {
     let active = true;
     void api
-      .getLearningResumeState(params.token, peekLearnerKey(params.token))
+      .getLearningResumeState(params.token, peekLearnerKey())
       .then((resume) => {
         if (!active) return;
 
@@ -74,7 +72,7 @@ export default function JoinPage() {
   }
 
   const trimmedName = name.trim();
-  const canJoin = trimmedName.length > 0 && !joining;
+  const canJoin = isValidLearnerName(name) && !joining;
 
   async function handleJoin() {
     if (!canJoin || state === "loading" || state === null) return;
@@ -85,7 +83,7 @@ export default function JoinPage() {
       // session that already exists - no half-joined state to reason about if the request fails.
       // Restart, not join: someone who chose "เริ่มเรียนใหม่ในชื่ออื่น" on a browser that already
       // has a run must get their own row, and join would hand back the other person's.
-      const input = { recipientName: trimmedName, learnerKey: getOrCreateLearnerKey(params.token) };
+      const input = { recipientName: trimmedName, learnerKey: getOrCreateLearnerKey() };
       if (state.resumable || state.lastEnded) {
         await api.restartLearningSession(params.token, input);
       } else {
@@ -292,7 +290,7 @@ function NameForm({
           id="learner-name"
           type="text"
           value={name}
-          maxLength={NAME_MAX_LENGTH}
+          maxLength={LEARNER_NAME_MAX_LENGTH}
           autoComplete="name"
           placeholder="เช่น ครูสมศรี"
           onChange={(e) => onNameChange(e.target.value)}
@@ -300,6 +298,9 @@ function NameForm({
             if (e.key === "Enter") void onSubmit();
           }}
         />
+        {name.trim().length > LEARNER_NAME_MAX_LENGTH && (
+          <p className="text-xs text-destructive">กรุณากรอกชื่อ (ไม่เกิน 80 ตัวอักษร)</p>
+        )}
       </div>
 
       {joinError && <p className="text-sm text-destructive">{joinError}</p>}

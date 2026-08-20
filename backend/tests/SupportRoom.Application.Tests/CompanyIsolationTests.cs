@@ -53,6 +53,7 @@ public class CompanyIsolationTests : IDisposable
         Id = $"lesson-{companyId}-{slug}",
         CompanyId = companyId,
         Slug = slug,
+        CategoryId = "kbcat-child",
         Title = $"บทเรียนของ {companyId}",
         SlidesSourceUrl = "",
         ContentSourceType = "google_slides",
@@ -98,6 +99,33 @@ public class CompanyIsolationTests : IDisposable
         _db.ChatMessage.AddRange(
             new ChatMessage { Id = "chat-a", CompanyId = CompanyA, SessionId = "learning-token-a", SenderRole = ChatSenderRole.Agent, Text = "ของบริษัท A", CreateDate = DateTime.UtcNow },
             new ChatMessage { Id = "chat-b", CompanyId = CompanyB, SessionId = "learning-token-b", SenderRole = ChatSenderRole.Agent, Text = "ของบริษัท B", CreateDate = DateTime.UtcNow });
+        _db.SaveChanges();
+    }
+
+    private static DocumentResource DeletedDocument(string companyId, string id) => new()
+    {
+        Id = id,
+        CompanyId = companyId,
+        ScopeType = KnowledgeScopeType.Company,
+        ScopeId = null,
+        FileName = $"{id}.pdf",
+        ContentType = "application/pdf",
+        SizeBytes = 1024,
+        ObsBucket = "documents",
+        ObsKey = $"documents/{id}/{id}.pdf",
+        IndexingStatus = DocumentIndexingStatus.Pending,
+        IndexedChunkCount = 0,
+        IsDelete = true,
+        DeletedAt = DateTime.UtcNow,
+        CreateDate = DateTime.UtcNow,
+    };
+
+    /// <summary>Both companies have a soft-deleted document in the same DB - the exact shape
+    /// GetDeleted() used to leak across (IgnoreQueryFilters() drops CompanyId, not just
+    /// IsDelete).</summary>
+    private void SeedDeletedDocumentsForBothCompanies()
+    {
+        _db.DocumentResource.AddRange(DeletedDocument(CompanyA, "doc-a"), DeletedDocument(CompanyB, "doc-b"));
         _db.SaveChanges();
     }
 
@@ -178,6 +206,24 @@ public class CompanyIsolationTests : IDisposable
     }
 
     [Fact]
+    public void GetDeletedOnlyReturnsTheCallersCompanysSoftDeletedDocuments()
+    {
+        // Regression test for the leak QA found: GetDeleted() called IgnoreQueryFilters() to see
+        // past the `!IsDelete` half of the filter, but that call drops the CompanyId half too, so
+        // it used to return every company's deleted documents. GetDeleted(companyId) reapplies
+        // CompanyId explicitly - this proves it, against a real DbContext, not a fake.
+        SeedDeletedDocumentsForBothCompanies();
+        _companyContext.Resolve(CompanyA);
+
+        var repository = new DocumentResourceRepository(_db);
+        var deletedForA = repository.GetDeleted(CompanyA).ToList();
+
+        Assert.Single(deletedForA);
+        Assert.Equal("doc-a", deletedForA[0].Id);
+        Assert.DoesNotContain(deletedForA, d => d.CompanyId == CompanyB);
+    }
+
+    [Fact]
     public void EveryEntityIsCompanyScoped()
     {
         // Guards the failure mode a per-entity test cannot: someone adds a seventh entity later,
@@ -186,8 +232,17 @@ public class CompanyIsolationTests : IDisposable
         // GetDeclaredQueryFilters, not the obsolete single-filter GetQueryFilter: EF Core 10
         // allows several named filters per entity, so the question is "are there any" rather
         // than "is there one".
+        // BackgroundJob is the one documented exception (design.md DM-15/DI-4/DI-12): a worker
+        // claims the next ready job across every company before it knows which company that job
+        // belongs to, then resolves ICompanyContext FROM the row it just claimed - a filter here
+        // would make every claim query match zero rows and no job would ever run. Every other
+        // read of this table happens from a request scope that already knows CompanyId and must
+        // filter for itself (see ApplicationDbContext's note on the entity).
+        var exemptFromCompanyFilter = new HashSet<string> { nameof(BackgroundJob) };
+
         var unscoped = _db.Model.GetEntityTypes()
             .Where(e => typeof(ICompanyScoped).IsAssignableFrom(e.ClrType))
+            .Where(e => !exemptFromCompanyFilter.Contains(e.ClrType.Name))
             .Where(e => e.GetDeclaredQueryFilters().Count == 0)
             .Select(e => e.ClrType.Name)
             .ToList();

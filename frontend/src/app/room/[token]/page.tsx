@@ -41,7 +41,7 @@ export default function RoomPage() {
     void (async () => {
       // Missing either one means this browser never completed the join screen, so there is no
       // learner to attribute anything to. The room cannot invent one - send them to type a name.
-      const learnerKey = peekLearnerKey(params.token);
+      const learnerKey = peekLearnerKey();
       const storedName = getLearnerName(params.token);
       if (!learnerKey || !storedName) {
         router.replace(`/join/${params.token}`);

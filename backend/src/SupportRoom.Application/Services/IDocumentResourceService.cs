@@ -1,6 +1,6 @@
+using System.Globalization;
+using System.Text.Json;
 using SupportRoom.Domain.Common;
-using Mapster;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using SupportRoom.Application.Common;
 using SupportRoom.Application.Dto;
@@ -12,7 +12,6 @@ using SupportRoom.Domain.Enums;
 using SupportRoom.Providers.Data.Data.UnitOfWork;
 using SupportRoom.Providers.Data.Repository;
 using SupportRoom.Providers.DocumentParsing;
-using SupportRoom.Providers.Knowledge;
 using SupportRoom.Providers.Storage;
 
 namespace SupportRoom.Application.Services;
@@ -20,45 +19,63 @@ namespace SupportRoom.Application.Services;
 public interface IDocumentResourceService
 {
     Task<DocumentResourceViewModel> UploadAsync(UploadDocumentDto input);
-    IReadOnlyList<DocumentResourceViewModel> GetByLessonSlug(string lessonSlug);
-    IReadOnlyList<DocumentResourceViewModel> GetStandalone();
+
+    /// <summary>DS-4 - replaces GetByLessonSlug/GetStandalone with the one method every scope
+    /// funnels through. scopeType == null means "no query sent" == company (unchanged behaviour
+    /// of the central library screen).</summary>
+    IReadOnlyList<DocumentResourceViewModel> GetByScope(string? scopeType, string? scopeId);
+
+    IReadOnlyList<DocumentResourceViewModel> GetDeleted();
+
+    /// <summary>DI-7 - every chunk the knowledge store received for this document, ordered by
+    /// SeqNo. Explicitly authenticated (not just relying on the query filter) because this is the
+    /// first endpoint in the system that returns raw uploaded-file content back out.</summary>
+    IReadOnlyList<DocumentChunkViewModel> GetChunks(string documentId);
+
     Task DeleteAsync(string id);
+    Task RestoreAsync(string id);
+
+    /// <summary>DS-5/DS-6 - the first call site of KS-4 ("changing scope moves the document, it
+    /// does not just update a column"): re-embeds into the new namespace and queues cleanup of the
+    /// old one.</summary>
+    Task<DocumentResourceViewModel> MoveScopeAsync(string id, MoveDocumentScopeDto input);
 }
 
 /// <summary>
-/// Upload -> object storage -> [respond] -> parse -> embed/index. Only the storage write and the
-/// "Pending" DB row are in the request itself - the slow part (text extraction, embedding,
-/// Pinecone upsert) is enqueued onto IBackgroundTaskQueue and runs after the response is sent
-/// (drained by SupportRoom.Api's QueuedHostedService), since that used to make every upload wait
-/// on N sequential Gemini embed calls before the caller saw anything back. The content-type check
-/// (DocumentParserFactory.Create) stays synchronous, before enqueuing, so an unsupported file
-/// still gets an immediate 400 instead of silently landing in the queue and failing later.
-/// A document attached to a lesson (LessonSlug given) is indexed into that lesson's existing
-/// Pinecone namespace (lessonSlug); a standalone document goes into "kb-global". Both are
-/// retrievable - RagVoiceQuestionProvider queries the lesson namespace AND kb-global on every
-/// question and merges the results, so a standalone document answers questions in any lesson.
+/// Upload -> object storage -> [respond] -> a durable BackgroundJob picks up the slow part (text
+/// extraction, embedding, Pinecone upsert) after the response is sent - see
+/// IBackgroundJobProcessor and SupportRoom.Api's BackgroundJobHostedService, which replaced the
+/// in-memory IBackgroundTaskQueue/QueuedHostedService (design.md DI-1/DI-17): that queue lived
+/// only in process memory, so a restart mid-index left the document stuck at "pending" forever
+/// with no error anywhere. The content-type check (DocumentParserFactory.Create) stays
+/// synchronous, before the job is created, so an unsupported file still gets an immediate 400
+/// instead of silently landing in the queue and failing later (DI-2).
+///
+/// Deleting a document only soft-deletes the DB row and enqueues a `vector_delete` job - the file
+/// itself is left in object storage (needed for restore) and the row stays reachable via
+/// GetDeleted() until an admin restores it (design.md DI-13/DI-15). The vector_delete job's
+/// PayloadJson carries the exact VectorId list read from DocumentChunk at delete time (DM-4) -
+/// the worker no longer re-downloads and re-parses the file to reconstruct those ids.
 /// </summary>
 public sealed class DocumentResourceService(
     IUnitOfWork unitOfWork,
     IServiceProvider serviceProvider,
     ILogger<IDocumentResourceService> logger,
     IDocumentStorageProvider storageProvider,
-    IBackgroundTaskQueue taskQueue)
+    IAuthorizationGuard guard,
+    IKnowledgeNamespaceResolver namespaceResolver)
     : ServiceBase<IDocumentResourceService>(unitOfWork, serviceProvider, logger), IDocumentResourceService
 {
     private readonly IDocumentResourceRepository _repository = unitOfWork.GetRepository<IDocumentResourceRepository>();
     private readonly ILessonConfigRepository _lessonConfigRepository = unitOfWork.GetRepository<ILessonConfigRepository>();
+    private readonly IDocumentChunkRepository _chunkRepository = unitOfWork.GetRepository<IDocumentChunkRepository>();
 
     public async Task<DocumentResourceViewModel> UploadAsync(UploadDocumentDto input)
     {
-        string? lessonId = null;
-        var namespaceKey = KnowledgeNamespaces.ForGlobal(CurrentCompanyId);
-        if (!string.IsNullOrEmpty(input.LessonSlug))
-        {
-            var lesson = _lessonConfigRepository.GetBySlug(input.LessonSlug) ?? throw GeneralException.NotFound("บทเรียน");
-            lessonId = lesson.Id;
-            namespaceKey = KnowledgeNamespaces.For(CurrentCompanyId, lesson.Slug);
-        }
+        // DS-2 - must run before storageProvider.UploadAsync, not after: a file that lands in
+        // object storage but fails validation would have no DB row pointing at it, so nobody
+        // could ever delete it again.
+        namespaceResolver.EnsureValidScope(CurrentCompanyId, input.ScopeType, input.ScopeId);
 
         var id = IdGenerator.GenerateId("doc");
         var obsKey = $"documents/{id}/{input.FileName}";
@@ -72,7 +89,8 @@ public sealed class DocumentResourceService(
         {
             Id = id,
             CompanyId = CurrentCompanyId,
-            LessonId = lessonId,
+            ScopeType = input.ScopeType,
+            ScopeId = input.ScopeId,
             FileName = input.FileName,
             ContentType = input.ContentType,
             SizeBytes = input.Content.Length,
@@ -87,97 +105,69 @@ public sealed class DocumentResourceService(
         UnitOfWork.Commit();
 
         // Cheap content-type dispatch, not parsing - runs now so an unsupported file type still
-        // fails the request immediately, exactly like before this change.
-        IDocumentTextExtractor extractor;
+        // fails the request immediately, exactly like before this change (DI-2).
         try
         {
-            extractor = DocumentParserFactory.Create(input.ContentType, input.FileName);
+            DocumentParserFactory.Create(input.ContentType, input.FileName);
         }
         catch (UnsupportedDocumentTypeException ex)
         {
             entity.IndexingStatus = DocumentIndexingStatus.Failed;
+            entity.FailureReason = DocumentFailureReason.UnsupportedType;
             _repository.Update(entity);
             UnitOfWork.Commit();
             throw GeneralException.ValidationError(ex.Message);
         }
 
-        Logger.LogInformation("Document uploaded: {DocumentId} namespace={Namespace}, indexing queued", id, namespaceKey);
+        EnqueueJob(BackgroundJobType.DocumentIndex, id);
+        UnitOfWork.Commit();
 
-        taskQueue.Enqueue((sp, _) => IndexUploadedDocumentAsync(sp, CurrentCompanyId, id, input.Content, input.FileName, namespaceKey, extractor));
+        Logger.LogInformation("Document uploaded: {DocumentId}, indexing job queued", id);
 
-        return entity.Adapt<DocumentResourceViewModel>();
+        // A document that was just uploaded cannot have a vector_delete job yet - that only
+        // exists once something has deleted it, which hasn't happened between the line above and here.
+        return BuildViewModel(entity, latestJob: null, hasPendingVectorDelete: false);
     }
 
-    /// <summary>
-    /// Runs on QueuedHostedService's background thread, well after UploadAsync's own request
-    /// scope is disposed - every Scoped dependency (UnitOfWork, repository, indexing service) is
-    /// resolved fresh from the work item's own scope (sp), never reused from the request that
-    /// enqueued this. extractor/content/fileName/namespaceKey are plain captured values, safe to
-    /// use as-is (DocumentParserFactory's extractors carry no injected dependencies).
-    ///
-    /// companyId has to be carried across explicitly and re-resolved into this scope's
-    /// ICompanyContext: the new scope starts unresolved, and an unresolved context makes every
-    /// company query filter match nothing - the Get below would return null and this method would
-    /// quietly decide the document had been deleted, leaving it stuck at "pending" forever with
-    /// no error anywhere.
-    /// </summary>
-    private static async Task IndexUploadedDocumentAsync(
-        IServiceProvider sp, string companyId, string documentId, byte[] content, string fileName, string namespaceKey, IDocumentTextExtractor extractor)
+    public IReadOnlyList<DocumentResourceViewModel> GetByScope(string? scopeType, string? scopeId)
     {
-        sp.GetRequiredService<ICompanyContext>().Resolve(companyId);
+        // DS-4 - no query sent at all keeps the central library screen's old behaviour: company
+        // scope. This is not the same case as ScopeType == "company" sent explicitly with a
+        // stray ScopeId, which EnsureValidScope would reject on the write path - reads never
+        // reject, they just resolve what was asked.
+        var effectiveScopeType = string.IsNullOrEmpty(scopeType) ? KnowledgeScopeType.Company : scopeType;
+        var documents = _repository.GetByScope(effectiveScopeType, scopeId).OrderByDescending(x => x.CreateDate).ToList();
+        return BuildViewModels(documents);
+    }
 
-        var uow = sp.GetRequiredService<IUnitOfWork>();
-        var repository = uow.GetRepository<IDocumentResourceRepository>();
-        var knowledgeIndexingService = sp.GetRequiredService<IKnowledgeIndexingService>();
-        var logger = sp.GetRequiredService<ILogger<IDocumentResourceService>>();
+    public IReadOnlyList<DocumentResourceViewModel> GetDeleted()
+    {
+        var documents = _repository.GetDeleted(CurrentCompanyId).OrderByDescending(x => x.DeletedAt).ToList();
+        return BuildViewModels(documents);
+    }
 
-        var entity = repository.Get(documentId);
-        if (entity is null)
-        {
-            // Deleted before its indexing turn came up - nothing left to update.
-            return;
-        }
+    public IReadOnlyList<DocumentChunkViewModel> GetChunks(string documentId)
+    {
+        guard.EnsureAuthenticated();
 
-        try
-        {
-            using var parseStream = new MemoryStream(content);
-            var extracted = extractor.Extract(parseStream);
+        var entity = _repository.Get(documentId) ?? throw GeneralException.NotFound("เอกสาร");
+        guard.EnsureCanAccessCompany(entity.CompanyId);
 
-            var chunks = extracted.Select(c => new KnowledgeSourceChunk
+        return _chunkRepository.GetByDocumentId(documentId)
+            .ToList()
+            .Select(c => new DocumentChunkViewModel
             {
-                Id = $"{documentId}-{c.ChunkId}",
+                Id = c.Id,
+                ChunkKey = c.ChunkKey,
+                SeqNo = c.SeqNo,
                 Text = c.Text,
-                Metadata = new Dictionary<string, string> { ["documentId"] = documentId, ["chunkId"] = c.ChunkId, ["fileName"] = fileName },
-            }).ToList();
-
-            var indexedCount = await knowledgeIndexingService.IndexChunksAsync(namespaceKey, chunks);
-            entity.IndexingStatus = indexedCount > 0 ? DocumentIndexingStatus.Indexed : DocumentIndexingStatus.Failed;
-            entity.IndexedChunkCount = indexedCount;
-        }
-        catch (Exception ex)
-        {
-            logger.LogWarning(ex, "Failed to parse/index document {DocumentId}", documentId);
-            entity.IndexingStatus = DocumentIndexingStatus.Failed;
-        }
-
-        repository.Update(entity);
-        uow.Commit();
-
-        logger.LogInformation(
-            "Document indexed in background: {DocumentId} status={Status} chunks={ChunkCount} namespace={Namespace}",
-            documentId, entity.IndexingStatus, entity.IndexedChunkCount, namespaceKey);
+                CharCount = c.CharCount,
+                HasSuspectCharacters = c.HasSuspectCharacters,
+            })
+            .ToList();
     }
 
-    public IReadOnlyList<DocumentResourceViewModel> GetByLessonSlug(string lessonSlug)
-    {
-        var lesson = _lessonConfigRepository.GetBySlug(lessonSlug) ?? throw GeneralException.NotFound("บทเรียน");
-        return _repository.GetByLessonId(lesson.Id).OrderByDescending(x => x.CreateDate).ToList().Adapt<List<DocumentResourceViewModel>>();
-    }
-
-    public IReadOnlyList<DocumentResourceViewModel> GetStandalone()
-        => _repository.GetStandalone().OrderByDescending(x => x.CreateDate).ToList().Adapt<List<DocumentResourceViewModel>>();
-
-    public async Task DeleteAsync(string id)
+    public Task DeleteAsync(string id)
     {
         var entity = _repository.Get(id) ?? throw GeneralException.NotFound("เอกสาร");
 
@@ -192,10 +182,193 @@ public sealed class DocumentResourceService(
                 $"ลบไม่ได้ - เอกสารนี้ถูกใช้เป็นเนื้อหาสอนหลัก (PDF) ของบทเรียน \"{lessonUsingThisAsPdfSource.Title}\" อยู่ กรุณาเปลี่ยนแหล่งเนื้อหาของบทเรียนนั้นก่อน");
         }
 
-        await storageProvider.DeleteAsync(entity.ObsKey);
-        _repository.Delete(entity);
+        // DI-13 - read the vector ids this document actually has *before* soft-deleting the chunk
+        // rows, group by namespace (normally exactly one - see DocumentChunk.NamespaceKey), and
+        // hand each group to its own vector_delete job via PayloadJson. This is what replaced the
+        // Phase 3 workaround of re-downloading and re-extracting the file to recompute the same
+        // ids: these are the ids that were actually upserted, not ones recomputed after the fact.
+        var chunks = _chunkRepository.GetByDocumentId(id).ToList();
+        foreach (var group in chunks.GroupBy(c => c.NamespaceKey))
+        {
+            var payload = new VectorDeleteJobPayload
+            {
+                NamespaceKey = group.Key,
+                VectorIds = group.Select(c => c.VectorId).ToList(),
+            };
+            EnqueueJob(BackgroundJobType.VectorDelete, id, JsonSerializer.Serialize(payload));
+        }
+
+        _chunkRepository.DeleteByDocumentId(id);
+
+        // Soft delete, not storageProvider.DeleteAsync + _repository.Delete(): the file has to
+        // stay in object storage for restore (DI-15), and the vector cleanup happens in the
+        // background via a vector_delete job (DI-13/DI-16) rather than inline here, so a slow or
+        // failing Pinecone call never blocks the delete response.
+        entity.IsDelete = true;
+        entity.DeletedAt = DateTime.UtcNow;
+        entity.DeleteBy = CurrentUserId;
+        _repository.Update(entity);
         UnitOfWork.Commit();
 
-        Logger.LogInformation("Document deleted: {DocumentId}", id);
+        Logger.LogInformation("Document soft-deleted: {DocumentId}, vector cleanup job(s) queued", id);
+        return Task.CompletedTask;
+    }
+
+    public Task RestoreAsync(string id)
+    {
+        // GetDeleted(CurrentCompanyId) already scopes this to the caller's company, but the
+        // explicit guard below is defense in depth against the query filter ever being weakened
+        // again the way it was before this fix (IgnoreQueryFilters() dropping CompanyId too).
+        var entity = _repository.GetDeleted(CurrentCompanyId).SingleOrDefault(x => x.Id == id) ?? throw GeneralException.NotFound("เอกสาร");
+        guard.EnsureCanAccessCompany(entity.CompanyId);
+
+        entity.IsDelete = false;
+        entity.DeletedAt = null;
+        entity.DeleteBy = null;
+        entity.IndexingStatus = DocumentIndexingStatus.Pending;
+        entity.FailureReason = null;
+        _repository.Update(entity);
+
+        // DI-15: re-index from scratch, spending embedding cost again - the soft-deleted
+        // DocumentChunk set from before is not resurrected, a fresh one replaces it once indexed.
+        EnqueueJob(BackgroundJobType.DocumentIndex, id);
+        UnitOfWork.Commit();
+
+        Logger.LogInformation("Document restored: {DocumentId}, indexing job re-queued", id);
+        return Task.CompletedTask;
+    }
+
+    public Task<DocumentResourceViewModel> MoveScopeAsync(string id, MoveDocumentScopeDto input)
+    {
+        // The query filter behind _repository.Get() already excludes soft-deleted rows (see
+        // RepositoryBase.Get -> DbSet.Find, which still applies HasQueryFilter), so a
+        // soft-deleted document falls straight into NotFound here - DS-7 forbids moving anything
+        // out of the recovery bin without restoring it first.
+        var entity = _repository.Get(id) ?? throw GeneralException.NotFound("เอกสาร");
+
+        // DS-5 - same EnsureValidScope call as DS-3, the first call site of KS-4.
+        namespaceResolver.EnsureValidScope(CurrentCompanyId, input.ScopeType, input.ScopeId);
+
+        // DS-7 - moving to the exact same scope is a no-op: nothing is enqueued, nothing is
+        // touched, 200 is returned as-is.
+        if (entity.ScopeType == input.ScopeType && entity.ScopeId == input.ScopeId)
+        {
+            return Task.FromResult(BuildViewModels([entity]).Single());
+        }
+
+        // DS-6 - group the document's chunks by the namespace they were actually upserted into
+        // (not the namespace the document is about to move to) and queue one vector_delete job
+        // per group, same payload shape as DI-13's delete path. DS-7: a document that was never
+        // successfully indexed has no DocumentChunk rows, so no vector_delete job is created here
+        // at all - only the document_index re-queue below applies to it.
+        var chunks = _chunkRepository.GetByDocumentId(id).ToList();
+        foreach (var group in chunks.GroupBy(c => c.NamespaceKey))
+        {
+            var payload = new VectorDeleteJobPayload
+            {
+                NamespaceKey = group.Key,
+                VectorIds = group.Select(c => c.VectorId).ToList(),
+            };
+            EnqueueJob(BackgroundJobType.VectorDelete, id, JsonSerializer.Serialize(payload));
+        }
+
+        _chunkRepository.DeleteByDocumentId(id);
+
+        entity.ScopeType = input.ScopeType;
+        entity.ScopeId = input.ScopeId;
+        entity.IndexingStatus = DocumentIndexingStatus.Pending;
+        entity.IndexedChunkCount = 0;
+        entity.FailureReason = null;
+        entity.UpdateBy = CurrentUserId;
+        entity.UpdateDate = DateTime.UtcNow;
+        _repository.Update(entity);
+
+        // DS-7 - an in-flight document_index job from before the move is left alone: the worker
+        // resolves namespace from the entity at process time, so it lands in the new namespace
+        // automatically, and this fresh job replaces its output anyway (DI-8 always replaces the
+        // whole chunk set).
+        EnqueueJob(BackgroundJobType.DocumentIndex, id);
+        UnitOfWork.Commit();
+
+        Logger.LogInformation(
+            "Document scope moved: {DocumentId} -> {ScopeType}/{ScopeId}, re-index queued", id, entity.ScopeType, entity.ScopeId);
+
+        return Task.FromResult(BuildViewModels([entity]).Single());
+    }
+
+    private void EnqueueJob(string jobType, string targetId, string? payloadJson = null)
+    {
+        var jobRepository = UnitOfWork.GetRepository<IBackgroundJobRepository>();
+        jobRepository.Add(new BackgroundJob
+        {
+            Id = IdGenerator.GenerateId("job"),
+            CompanyId = CurrentCompanyId,
+            CreateBy = CurrentUserId,
+            CreateDate = DateTime.UtcNow,
+            JobType = jobType,
+            TargetId = targetId,
+            PayloadJson = payloadJson,
+            Status = BackgroundJobStatus.Pending,
+            AttemptCount = 0,
+            NextAttemptAt = DateTime.UtcNow,
+        });
+    }
+
+    private IReadOnlyList<DocumentResourceViewModel> BuildViewModels(IReadOnlyList<DocumentResource> entities)
+    {
+        if (entities.Count == 0)
+        {
+            return [];
+        }
+
+        var ids = entities.Select(e => e.Id).ToList();
+        // BackgroundJob has no company query filter (see ApplicationDbContext) - this request
+        // already knows CurrentCompanyId, so it must filter explicitly rather than relying on one.
+        var jobRepository = UnitOfWork.GetRepository<IBackgroundJobRepository>();
+        var latestByDocumentId = jobRepository
+            .FindBy(j => j.CompanyId == CurrentCompanyId && j.JobType == BackgroundJobType.DocumentIndex && ids.Contains(j.TargetId))
+            .ToList()
+            .GroupBy(j => j.TargetId)
+            .ToDictionary(g => g.Key, g => g.OrderByDescending(j => j.CreateDate).First());
+
+        // R-4/DI-16: TargetId on a vector_delete job is the DocumentResource.Id it cleans up
+        // (see DeleteAsync). A document can have several of these (one per namespace its chunks
+        // spanned) - only the existence of an unfinished one matters here, not which.
+        var pendingVectorDeleteIds = jobRepository
+            .FindBy(j => j.CompanyId == CurrentCompanyId
+                && j.JobType == BackgroundJobType.VectorDelete
+                && ids.Contains(j.TargetId)
+                && (j.Status == BackgroundJobStatus.Pending || j.Status == BackgroundJobStatus.Running))
+            .Select(j => j.TargetId)
+            .ToHashSet();
+
+        return entities.Select(e => BuildViewModel(e, latestByDocumentId.GetValueOrDefault(e.Id), pendingVectorDeleteIds.Contains(e.Id))).ToList();
+    }
+
+    private static DocumentResourceViewModel BuildViewModel(DocumentResource entity, BackgroundJob? latestJob, bool hasPendingVectorDelete)
+    {
+        DateTime? willRetryAt = null;
+        if (latestJob is not null
+            && (latestJob.Status == BackgroundJobStatus.Pending || latestJob.Status == BackgroundJobStatus.Running)
+            && latestJob.AttemptCount < BackgroundJobBackoff.MaxAttempts)
+        {
+            willRetryAt = latestJob.NextAttemptAt;
+        }
+
+        return new DocumentResourceViewModel
+        {
+            Id = entity.Id,
+            ScopeType = entity.ScopeType,
+            ScopeId = entity.ScopeId,
+            FileName = entity.FileName,
+            ContentType = entity.ContentType,
+            SizeBytes = entity.SizeBytes,
+            IndexingStatus = entity.IndexingStatus,
+            IndexedChunkCount = entity.IndexedChunkCount,
+            FailureReason = entity.FailureReason,
+            CreatedAt = entity.CreateDate.ToString("O", CultureInfo.InvariantCulture),
+            WillRetryAt = willRetryAt?.ToString("O", CultureInfo.InvariantCulture),
+            HasPendingVectorDelete = hasPendingVectorDelete,
+        };
     }
 }

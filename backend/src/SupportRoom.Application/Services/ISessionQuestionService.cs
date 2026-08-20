@@ -93,16 +93,22 @@ public sealed class SessionQuestionService(IUnitOfWork unitOfWork, IServiceProvi
 
     public SessionQuestionViewModel Review(string questionId, ReviewSessionQuestionDto input)
     {
-        if (!ReviewResult.IsValid(input.ReviewResult))
+        if (input.ReviewResult is not null && !ReviewResult.IsValid(input.ReviewResult))
         {
-            throw GeneralException.ValidationError("ผลการตรวจต้องเป็น correct หรือ incorrect เท่านั้น");
+            throw GeneralException.ValidationError("ผลรีวิวไม่ถูกต้อง");
+        }
+
+        var reviewNote = string.IsNullOrWhiteSpace(input.ReviewNote) ? null : input.ReviewNote.Trim();
+        if (reviewNote?.Length > DtoLimits.ReviewNoteMaxLength)
+        {
+            throw GeneralException.ValidationError($"หมายเหตุรีวิวต้องไม่เกิน {DtoLimits.ReviewNoteMaxLength} ตัวอักษร");
         }
 
         var entity = _repository.Get(questionId) ?? throw GeneralException.NotFound("คำถาม");
 
         entity.ReviewResult = input.ReviewResult;
-        entity.ReviewNote = string.IsNullOrWhiteSpace(input.ReviewNote) ? null : input.ReviewNote.Trim();
-        entity.ReviewedAt = DateTime.UtcNow;
+        entity.ReviewNote = input.ReviewResult is null ? null : reviewNote;
+        entity.ReviewedAt = input.ReviewResult is null ? null : DateTime.UtcNow;
         // The one place a back-office user edits a row the learner created. Without this there is
         // no way to answer "who reviewed this?" afterwards, and the answer cannot be reconstructed
         // later from anything else - ReviewedAt only says when.

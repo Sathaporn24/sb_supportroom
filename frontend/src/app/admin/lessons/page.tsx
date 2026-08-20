@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { PlusIcon } from "lucide-react";
 import { AdminLink } from "@/components/admin/AdminLink";
 import * as api from "@/lib/api-client";
 import type { LessonConfig } from "@/types/domain";
@@ -18,14 +19,20 @@ export default function LessonsListPage() {
 
   return (
     <main className="mx-auto flex max-w-3xl flex-col gap-6 p-6">
-      <div>
-        <AdminLink href="/admin" className="text-xs text-muted-foreground hover:text-foreground">
-          ← กลับหน้า Admin
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <AdminLink href="/admin" className="text-xs text-muted-foreground hover:text-foreground">
+            ← กลับหน้า Admin
+          </AdminLink>
+          <h1 className="mt-1 text-xl font-semibold">บทเรียน</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            แต่ละบทเรียนดึงเนื้อหาจาก Google Slides หรือไฟล์ PDF — 1 Slide/หน้า = 1 ช่วงการสอน
+          </p>
+        </div>
+        <AdminLink href="/admin/lessons/new" className={buttonVariants({})}>
+          <PlusIcon data-icon="inline-start" />
+          สร้างบทเรียนใหม่
         </AdminLink>
-        <h1 className="mt-1 text-xl font-semibold">บทเรียน (Google Slides)</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          แต่ละบทเรียนดึงเนื้อหาจาก Google Slides โดยตรง — 1 Slide = 1 ช่วงการสอน และ Speaker Notes คือบทพูด
-        </p>
       </div>
 
       {!lessons ? (

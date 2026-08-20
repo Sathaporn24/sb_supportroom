@@ -20,6 +20,13 @@ public sealed class UnitOfWork(ApplicationDbContext dbContext, IServiceProvider 
         { typeof(ILessonConfigRepository), typeof(LessonConfigRepository) },
         { typeof(IChatMessageRepository), typeof(ChatMessageRepository) },
         { typeof(IDocumentResourceRepository), typeof(DocumentResourceRepository) },
+        { typeof(IKnowledgeCategoryRepository), typeof(KnowledgeCategoryRepository) },
+        { typeof(IBackgroundJobRepository), typeof(BackgroundJobRepository) },
+        { typeof(IDocumentChunkRepository), typeof(DocumentChunkRepository) },
+        { typeof(ILessonSlideNarrationRepository), typeof(LessonSlideNarrationRepository) },
+        { typeof(IKnowledgeQnARepository), typeof(KnowledgeQnARepository) },
+        { typeof(IKnowledgeQnASourceRepository), typeof(KnowledgeQnASourceRepository) },
+        { typeof(IKnowledgeQnAConflictRepository), typeof(KnowledgeQnAConflictRepository) },
     };
 
     public TRepository GetRepository<TRepository>()

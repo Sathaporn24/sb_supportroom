@@ -45,6 +45,13 @@ public static class ServiceConfiguration
         services.AddScoped<IRealtimeNotifier, SignalRRealtimeNotifier>();
         services.AddScoped<IKnowledgeIndexingService, KnowledgeIndexingService>();
         services.AddScoped<IDocumentResourceService, DocumentResourceService>();
+        services.AddScoped<IKnowledgeCategoryService, KnowledgeCategoryService>();
+        services.AddScoped<IKnowledgeNamespaceResolver, KnowledgeNamespaceResolver>();
+        services.AddScoped<IBackgroundJobProcessor, BackgroundJobProcessor>();
+        services.AddScoped<ILessonSlideNarrationResolver, LessonSlideNarrationResolver>();
+        services.AddScoped<ILessonSlideNarrationService, LessonSlideNarrationService>();
+        services.AddScoped<IKnowledgeQnAService, KnowledgeQnAService>();
+        services.AddScoped<IKnowledgeQnAConflictService, KnowledgeQnAConflictService>();
 
         // External API calls go through HttpClientFactory-managed clients (see .claude/skills/
         // dotnet-layered-backend/SKILL.md "External API calls").
@@ -55,12 +62,12 @@ public static class ServiceConfiguration
         // per request.
         services.AddMemoryCache();
 
-        // Document upload (DocumentResourceService.UploadAsync) enqueues the slow part (text
-        // extraction, embedding, Pinecone upsert) here instead of doing it inline, so the upload
-        // response returns as soon as the file is stored - see QueuedHostedService for the drain
-        // loop and IBackgroundTaskQueue's doc comment for the tradeoffs of an in-memory queue.
-        services.AddSingleton<IBackgroundTaskQueue, BackgroundTaskQueue>();
-        services.AddHostedService<QueuedHostedService>();
+        // Document upload (DocumentResourceService.UploadAsync) enqueues a BackgroundJob row
+        // instead of doing the slow part (text extraction, embedding, Pinecone upsert) inline, so
+        // the upload response returns as soon as the file is stored - BackgroundJobHostedService
+        // polls for and runs those jobs, surviving a restart (design.md DI-1..DI-17), unlike the
+        // in-memory IBackgroundTaskQueue/QueuedHostedService this replaced.
+        services.AddHostedService<BackgroundJobHostedService>();
 
         // Creates the first owner account when there are none at all - otherwise a fresh
         // deployment has nobody who can sign in to create one.

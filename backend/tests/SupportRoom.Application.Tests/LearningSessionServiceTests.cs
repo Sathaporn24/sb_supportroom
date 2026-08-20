@@ -45,6 +45,7 @@ public class LearningSessionServiceTests
         {
             Id = "lesson-a",
             CompanyId = TestFixtures.CompanyId,
+            CategoryId = "kbcat-child",
             Slug = "lesson-a",
             Title = "บทเรียน",
             SlidesSourceUrl = "",
@@ -89,8 +90,8 @@ public class LearningSessionServiceTests
     {
         var token = SeedLink();
 
-        var first = _service.Join(token, new JoinLearningSessionDto { RecipientName = "ครูเอ", LearnerKey = "key-1" });
-        var second = _service.Join(token, new JoinLearningSessionDto { RecipientName = "ครูเอ", LearnerKey = "key-1" });
+        var first = _service.Join(token, new JoinLearningSessionDto { RecipientName = "ครูเอ", LearnerKey = "learner-1" });
+        var second = _service.Join(token, new JoinLearningSessionDto { RecipientName = "ครูเอ", LearnerKey = "learner-1" });
 
         Assert.Equal(first.Id, second.Id);
         Assert.Single(_learningSessions.Items);
@@ -101,8 +102,8 @@ public class LearningSessionServiceTests
     {
         var token = SeedLink();
 
-        var a = _service.Join(token, new JoinLearningSessionDto { RecipientName = "ครูเอ", LearnerKey = "key-a" });
-        var b = _service.Join(token, new JoinLearningSessionDto { RecipientName = "ครูบี", LearnerKey = "key-b" });
+        var a = _service.Join(token, new JoinLearningSessionDto { RecipientName = "ครูเอ", LearnerKey = "learner-a" });
+        var b = _service.Join(token, new JoinLearningSessionDto { RecipientName = "ครูบี", LearnerKey = "learner-b" });
 
         Assert.NotEqual(a.Id, b.Id);
         Assert.Equal("ครูเอ", a.RecipientName);
@@ -115,8 +116,8 @@ public class LearningSessionServiceTests
     {
         var token = SeedLink();
 
-        var a = _service.Join(token, new JoinLearningSessionDto { RecipientName = "สมชาย", LearnerKey = "key-a" });
-        var b = _service.Join(token, new JoinLearningSessionDto { RecipientName = "สมชาย", LearnerKey = "key-b" });
+        var a = _service.Join(token, new JoinLearningSessionDto { RecipientName = "สมชาย", LearnerKey = "learner-a" });
+        var b = _service.Join(token, new JoinLearningSessionDto { RecipientName = "สมชาย", LearnerKey = "learner-b" });
 
         Assert.NotEqual(a.Id, b.Id);
     }
@@ -125,10 +126,10 @@ public class LearningSessionServiceTests
     public void Join_ReturnsAnEndedSessionAsIs_SoTheRecapCanBeShown()
     {
         var token = SeedLink();
-        var joined = _service.Join(token, new JoinLearningSessionDto { RecipientName = "ครูเอ", LearnerKey = "key-1" });
-        _service.End(token, new EndLearningSessionDto { LearnerKey = "key-1", CompletedAllSlides = true });
+        var joined = _service.Join(token, new JoinLearningSessionDto { RecipientName = "ครูเอ", LearnerKey = "learner-1" });
+        _service.End(token, new EndLearningSessionDto { LearnerKey = "learner-1", CompletedAllSlides = true });
 
-        var reopened = _service.Join(token, new JoinLearningSessionDto { RecipientName = "ครูเอ", LearnerKey = "key-1" });
+        var reopened = _service.Join(token, new JoinLearningSessionDto { RecipientName = "ครูเอ", LearnerKey = "learner-1" });
 
         Assert.Equal(joined.Id, reopened.Id);
         Assert.Equal(SessionStatus.Ended, reopened.Status);
@@ -139,10 +140,10 @@ public class LearningSessionServiceTests
     public void Restart_StartsAFreshRound_LeavingTheFinishedOneAlone()
     {
         var token = SeedLink();
-        var first = _service.Join(token, new JoinLearningSessionDto { RecipientName = "ครูเอ", LearnerKey = "key-1" });
-        _service.End(token, new EndLearningSessionDto { LearnerKey = "key-1", CompletedAllSlides = true });
+        var first = _service.Join(token, new JoinLearningSessionDto { RecipientName = "ครูเอ", LearnerKey = "learner-1" });
+        _service.End(token, new EndLearningSessionDto { LearnerKey = "learner-1", CompletedAllSlides = true });
 
-        var second = _service.Restart(token, new JoinLearningSessionDto { RecipientName = "ครูเอ", LearnerKey = "key-1" });
+        var second = _service.Restart(token, new JoinLearningSessionDto { RecipientName = "ครูเอ", LearnerKey = "learner-1" });
 
         Assert.NotEqual(first.Id, second.Id);
         Assert.Equal(SessionStatus.InProgress, second.Status);
@@ -157,7 +158,7 @@ public class LearningSessionServiceTests
         var token = SeedLink(DateTime.UtcNow.AddHours(-1));
 
         var ex = Assert.Throws<HttpStatusCodeException>(
-            () => _service.Join(token, new JoinLearningSessionDto { RecipientName = "ครูเอ", LearnerKey = "key-1" }));
+            () => _service.Join(token, new JoinLearningSessionDto { RecipientName = "ครูเอ", LearnerKey = "learner-1" }));
         Assert.Equal(400, (int)ex.StatusCode);
     }
 
@@ -165,7 +166,7 @@ public class LearningSessionServiceTests
     public void Join_ReturnsAnExistingSessionAfterLinkExpiry_SoAReconnectCanFinish()
     {
         var token = SeedLink();
-        var first = _service.Join(token, new JoinLearningSessionDto { RecipientName = "ครูเอ", LearnerKey = "key-1" });
+        var first = _service.Join(token, new JoinLearningSessionDto { RecipientName = "ครูเอ", LearnerKey = "learner-1" });
         var link = _links.Items.Single();
         _links.Items[0] = new TrainingLink
         {
@@ -181,30 +182,92 @@ public class LearningSessionServiceTests
             CreateDate = link.CreateDate,
         };
 
-        var reopened = _service.Join(token, new JoinLearningSessionDto { RecipientName = "ครูเอ", LearnerKey = "key-1" });
+        var reopened = _service.Join(token, new JoinLearningSessionDto { RecipientName = "ครูเอ", LearnerKey = "learner-1" });
 
         Assert.Equal(first.Id, reopened.Id);
         Assert.Single(_learningSessions.Items);
     }
 
     [Fact]
-    public void Join_RejectsABlankName()
+    public void Restart_RefusesAnExpiredLink_EvenWhenAnOlderRoundExists()
+    {
+        var token = SeedLink();
+        _service.Join(token, new JoinLearningSessionDto { RecipientName = "ครูเอ", LearnerKey = "learner-1" });
+        _service.End(token, new EndLearningSessionDto { LearnerKey = "learner-1", CompletedAllSlides = true });
+        ExpireLink(token);
+
+        var ex = Assert.Throws<HttpStatusCodeException>(() => _service.Restart(token,
+            new JoinLearningSessionDto { RecipientName = "ครูเอ", LearnerKey = "learner-1" }));
+
+        Assert.Equal(400, (int)ex.StatusCode);
+        Assert.Single(_learningSessions.Items);
+    }
+
+    [Theory]
+    [InlineData("   ")]
+    [InlineData("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")]
+    public void Join_RejectsANameThatIsBlankOrLongerThan80Characters(string recipientName)
     {
         var token = SeedLink();
 
         Assert.Throws<HttpStatusCodeException>(
-            () => _service.Join(token, new JoinLearningSessionDto { RecipientName = "   ", LearnerKey = "key-1" }));
+            () => _service.Join(token, new JoinLearningSessionDto { RecipientName = recipientName, LearnerKey = "learner-1" }));
+    }
+
+    [Fact]
+    public void Join_TrimsAndAcceptsAn80CharacterName()
+    {
+        var token = SeedLink();
+        var name = new string('a', 80);
+
+        var joined = _service.Join(token, new JoinLearningSessionDto
+        {
+            RecipientName = $"  {name}  ",
+            LearnerKey = "learner-1",
+        });
+
+        Assert.Equal(name, joined.RecipientName);
+    }
+
+    [Theory]
+    [InlineData(7)]
+    [InlineData(129)]
+    public void Join_RejectsALearnerKeyOutsideTheContractBounds(int keyLength)
+    {
+        var token = SeedLink();
+
+        Assert.Throws<HttpStatusCodeException>(() => _service.Join(token, new JoinLearningSessionDto
+        {
+            RecipientName = "ครูเอ",
+            LearnerKey = new string('k', keyLength),
+        }));
+    }
+
+    [Theory]
+    [InlineData(8)]
+    [InlineData(128)]
+    public void Join_AcceptsLearnerKeyAtEachContractBoundary(int keyLength)
+    {
+        var token = SeedLink();
+
+        var joined = _service.Join(token, new JoinLearningSessionDto
+        {
+            RecipientName = "ครูเอ",
+            LearnerKey = new string('k', keyLength),
+        });
+
+        Assert.NotNull(joined.Id);
     }
 
     [Fact]
     public void UpdateProgress_MovesTheSameRow_AndBumpsLastActivity()
     {
         var token = SeedLink();
-        var joined = _service.Join(token, new JoinLearningSessionDto { RecipientName = "ครูเอ", LearnerKey = "key-1" });
+        var joined = _service.Join(token, new JoinLearningSessionDto { RecipientName = "ครูเอ", LearnerKey = "learner-1" });
 
         var moved = _service.UpdateProgress(token, new UpdateLearningProgressDto
         {
-            LearnerKey = "key-1",
+            LearnerKey = "learner-1",
             LastSlideObjectId = "slide-7",
             LastSlideIndex = 6,
         });
@@ -213,6 +276,42 @@ public class LearningSessionServiceTests
         Assert.Equal("slide-7", moved.LastSlideObjectId);
         Assert.Equal(6, moved.LastSlideIndex);
         Assert.Single(_learningSessions.Items);
+    }
+
+    [Fact]
+    public void ProgressAndEnd_WithTheWrongLearnerKey_ReturnNotFound()
+    {
+        var token = SeedLink();
+        _service.Join(token, new JoinLearningSessionDto { RecipientName = "ครูเอ", LearnerKey = "learner-1" });
+
+        var progressError = Assert.Throws<HttpStatusCodeException>(() => _service.UpdateProgress(token,
+            new UpdateLearningProgressDto { LearnerKey = "learner-other", LastSlideIndex = 1 }));
+        var endError = Assert.Throws<HttpStatusCodeException>(() => _service.End(token,
+            new EndLearningSessionDto { LearnerKey = "learner-other", CompletedAllSlides = false }));
+
+        Assert.Equal(404, (int)progressError.StatusCode);
+        Assert.Equal(404, (int)endError.StatusCode);
+    }
+
+    [Fact]
+    public void ExpiredLink_AllowsAnExistingRoundToSaveProgressAndEnd()
+    {
+        var token = SeedLink();
+        _service.Join(token, new JoinLearningSessionDto { RecipientName = "ครูเอ", LearnerKey = "learner-1" });
+        ExpireLink(token);
+
+        var progressed = _service.UpdateProgress(token, new UpdateLearningProgressDto
+        {
+            LearnerKey = "learner-1",
+            LastSlideIndex = 4,
+            TotalSlideCount = 10,
+        });
+        var ended = _service.End(token,
+            new EndLearningSessionDto { LearnerKey = "learner-1", CompletedAllSlides = false });
+
+        Assert.Equal(4, progressed.LastSlideIndex);
+        Assert.Equal(SessionStatus.Ended, ended.Status);
+        Assert.NotNull(ended.EndedAt);
     }
 
     [Fact]
@@ -233,9 +332,9 @@ public class LearningSessionServiceTests
     public void GetResumeState_WithAnUnfinishedRun_ReportsItSoTheScreenCanAsk()
     {
         var token = SeedLink();
-        var joined = _service.Join(token, new JoinLearningSessionDto { RecipientName = "ครูเอ", LearnerKey = "key-1" });
+        var joined = _service.Join(token, new JoinLearningSessionDto { RecipientName = "ครูเอ", LearnerKey = "learner-1" });
 
-        var state = _service.GetResumeState(token, "key-1");
+        var state = _service.GetResumeState(token, "learner-1");
 
         Assert.Equal(joined.Id, state.Resumable?.Id);
         // The name is what the confirmation question is built from ("คุณคือครูเอ ใช่ไหม").
@@ -247,10 +346,10 @@ public class LearningSessionServiceTests
     public void GetResumeState_AfterFinishing_ReportsLastEndedAndNothingToResume()
     {
         var token = SeedLink();
-        _service.Join(token, new JoinLearningSessionDto { RecipientName = "ครูเอ", LearnerKey = "key-1" });
-        var ended = _service.End(token, new EndLearningSessionDto { LearnerKey = "key-1", CompletedAllSlides = true });
+        _service.Join(token, new JoinLearningSessionDto { RecipientName = "ครูเอ", LearnerKey = "learner-1" });
+        var ended = _service.End(token, new EndLearningSessionDto { LearnerKey = "learner-1", CompletedAllSlides = true });
 
-        var state = _service.GetResumeState(token, "key-1");
+        var state = _service.GetResumeState(token, "learner-1");
 
         // Nothing to confirm: the round is over, so the screen offers the recap and a fresh round
         // instead of asking whether they are the same person.
@@ -262,11 +361,11 @@ public class LearningSessionServiceTests
     public void GetResumeState_WithBoth_PrefersTheUnfinishedRun()
     {
         var token = SeedLink();
-        _service.Join(token, new JoinLearningSessionDto { RecipientName = "ครูเอ", LearnerKey = "key-1" });
-        _service.End(token, new EndLearningSessionDto { LearnerKey = "key-1", CompletedAllSlides = true });
-        var second = _service.Restart(token, new JoinLearningSessionDto { RecipientName = "ครูเอ", LearnerKey = "key-1" });
+        _service.Join(token, new JoinLearningSessionDto { RecipientName = "ครูเอ", LearnerKey = "learner-1" });
+        _service.End(token, new EndLearningSessionDto { LearnerKey = "learner-1", CompletedAllSlides = true });
+        var second = _service.Restart(token, new JoinLearningSessionDto { RecipientName = "ครูเอ", LearnerKey = "learner-1" });
 
-        var state = _service.GetResumeState(token, "key-1");
+        var state = _service.GetResumeState(token, "learner-1");
 
         Assert.Equal(second.Id, state.Resumable?.Id);
         Assert.Null(state.LastEnded);
@@ -276,12 +375,12 @@ public class LearningSessionServiceTests
     public void GetResumeState_OnAnExpiredLink_StillReportsTheRunWaitingToBeFinished()
     {
         var token = SeedLink(DateTime.UtcNow.AddHours(2));
-        _service.Join(token, new JoinLearningSessionDto { RecipientName = "ครูเอ", LearnerKey = "key-1" });
+        _service.Join(token, new JoinLearningSessionDto { RecipientName = "ครูเอ", LearnerKey = "learner-1" });
         ExpireLink(token);
 
         // Expiry blocks STARTING something new, never finishing what was started in time. Throwing
         // here would lock a learner out mid-lesson and look like their progress was lost.
-        var state = _service.GetResumeState(token, "key-1");
+        var state = _service.GetResumeState(token, "learner-1");
 
         Assert.True(state.LinkExpired);
         Assert.NotNull(state.Resumable);
@@ -291,11 +390,11 @@ public class LearningSessionServiceTests
     public void GetResumeState_ForSomeoneElsesKeyOnTheSameLink_SeesNothing()
     {
         var token = SeedLink();
-        _service.Join(token, new JoinLearningSessionDto { RecipientName = "ครูเอ", LearnerKey = "key-1" });
+        _service.Join(token, new JoinLearningSessionDto { RecipientName = "ครูเอ", LearnerKey = "learner-1" });
 
         // The second person on a shared computer generates their own key. Nothing of the first
         // person's may show up for them.
-        var state = _service.GetResumeState(token, "key-2");
+        var state = _service.GetResumeState(token, "learner-2");
 
         Assert.Null(state.Resumable);
         Assert.Null(state.LastEnded);
@@ -305,21 +404,21 @@ public class LearningSessionServiceTests
     public void UpdateProgress_AfterTheSessionEnded_ChangesNothingAndDoesNotThrow()
     {
         var token = SeedLink();
-        _service.Join(token, new JoinLearningSessionDto { RecipientName = "ครูเอ", LearnerKey = "key-1" });
+        _service.Join(token, new JoinLearningSessionDto { RecipientName = "ครูเอ", LearnerKey = "learner-1" });
         _service.UpdateProgress(token, new UpdateLearningProgressDto
         {
-            LearnerKey = "key-1",
+            LearnerKey = "learner-1",
             LastSlideObjectId = "slide-3",
             LastSlideIndex = 2,
         });
-        _service.End(token, new EndLearningSessionDto { LearnerKey = "key-1", CompletedAllSlides = true });
+        _service.End(token, new EndLearningSessionDto { LearnerKey = "learner-1", CompletedAllSlides = true });
 
         // The tutor engine fires progress asynchronously, so a ping sent just before the learner
         // pressed "จบ" routinely arrives just after it. Rejecting it showed a failure for
         // something that worked; the finished row simply stands.
         var afterEnd = _service.UpdateProgress(token, new UpdateLearningProgressDto
         {
-            LearnerKey = "key-1",
+            LearnerKey = "learner-1",
             LastSlideObjectId = "slide-after-end",
             LastSlideIndex = 99,
         });
@@ -333,10 +432,10 @@ public class LearningSessionServiceTests
     public void UpdateProgress_OmittedFields_LeaveTheStoredProgressAlone()
     {
         var token = SeedLink();
-        _service.Join(token, new JoinLearningSessionDto { RecipientName = "ครูเอ", LearnerKey = "key-1" });
+        _service.Join(token, new JoinLearningSessionDto { RecipientName = "ครูเอ", LearnerKey = "learner-1" });
         _service.UpdateProgress(token, new UpdateLearningProgressDto
         {
-            LearnerKey = "key-1",
+            LearnerKey = "learner-1",
             LastSlideObjectId = "slide-7",
             LastSlideIndex = 6,
             TotalSlideCount = 20,
@@ -344,7 +443,7 @@ public class LearningSessionServiceTests
 
         // A ping fired before the deck resolved carries neither an index nor a count. Writing
         // those through would drag a learner on slide 7 back to slide 1.
-        var stale = _service.UpdateProgress(token, new UpdateLearningProgressDto { LearnerKey = "key-1" });
+        var stale = _service.UpdateProgress(token, new UpdateLearningProgressDto { LearnerKey = "learner-1" });
 
         Assert.Equal(6, stale.LastSlideIndex);
         Assert.Equal(20, stale.TotalSlideCount);
@@ -356,13 +455,13 @@ public class LearningSessionServiceTests
     public void UpdateProgress_ReachingTheLastSlide_MarksTheRunComplete()
     {
         var token = SeedLink();
-        _service.Join(token, new JoinLearningSessionDto { RecipientName = "ครูเอ", LearnerKey = "key-1" });
+        _service.Join(token, new JoinLearningSessionDto { RecipientName = "ครูเอ", LearnerKey = "learner-1" });
 
         // Someone who watches to the end and closes the tab never calls End - without this the
         // CS list showed them as incomplete even though they saw every slide.
         var atLastSlide = _service.UpdateProgress(token, new UpdateLearningProgressDto
         {
-            LearnerKey = "key-1",
+            LearnerKey = "learner-1",
             LastSlideIndex = 19,
             TotalSlideCount = 20,
         });
@@ -374,17 +473,17 @@ public class LearningSessionServiceTests
     public void End_NeverUnsetsCompletedAllSlides()
     {
         var token = SeedLink();
-        _service.Join(token, new JoinLearningSessionDto { RecipientName = "ครูเอ", LearnerKey = "key-1" });
+        _service.Join(token, new JoinLearningSessionDto { RecipientName = "ครูเอ", LearnerKey = "learner-1" });
         _service.UpdateProgress(token, new UpdateLearningProgressDto
         {
-            LearnerKey = "key-1",
+            LearnerKey = "learner-1",
             LastSlideIndex = 19,
             TotalSlideCount = 20,
         });
 
         // An end fired from a stale runtime can still report false. Reaching the last slide
         // already happened, so it stays true.
-        var ended = _service.End(token, new EndLearningSessionDto { LearnerKey = "key-1", CompletedAllSlides = false });
+        var ended = _service.End(token, new EndLearningSessionDto { LearnerKey = "learner-1", CompletedAllSlides = false });
 
         Assert.True(ended.CompletedAllSlides);
     }
@@ -393,12 +492,12 @@ public class LearningSessionServiceTests
     public void End_IsIdempotent_AndDoesNotRewriteTheOriginalEndTime()
     {
         var token = SeedLink();
-        _service.Join(token, new JoinLearningSessionDto { RecipientName = "ครูเอ", LearnerKey = "key-1" });
-        var first = _service.End(token, new EndLearningSessionDto { LearnerKey = "key-1", CompletedAllSlides = true });
+        _service.Join(token, new JoinLearningSessionDto { RecipientName = "ครูเอ", LearnerKey = "learner-1" });
+        var first = _service.End(token, new EndLearningSessionDto { LearnerKey = "learner-1", CompletedAllSlides = true });
 
         var second = _service.End(token, new EndLearningSessionDto
         {
-            LearnerKey = "key-1",
+            LearnerKey = "learner-1",
             CompletedAllSlides = false,
             LastSlideIndex = 99,
         });
@@ -412,7 +511,7 @@ public class LearningSessionServiceTests
     public void IsStalled_IsDerivedFromTheClock_AndNeverStored()
     {
         var token = SeedLink();
-        _service.Join(token, new JoinLearningSessionDto { RecipientName = "ครูเอ", LearnerKey = "key-1" });
+        _service.Join(token, new JoinLearningSessionDto { RecipientName = "ครูเอ", LearnerKey = "learner-1" });
 
         var row = _learningSessions.Items.Single();
         row.LastActivityAt = DateTime.UtcNow.AddMinutes(-(ServerDefaults.GetInactiveThresholdMinutes() + 1));
@@ -425,8 +524,8 @@ public class LearningSessionServiceTests
     public void AFinishedSessionIsNeverStalled_HoweverLongAgoItEnded()
     {
         var token = SeedLink();
-        _service.Join(token, new JoinLearningSessionDto { RecipientName = "ครูเอ", LearnerKey = "key-1" });
-        _service.End(token, new EndLearningSessionDto { LearnerKey = "key-1", CompletedAllSlides = true });
+        _service.Join(token, new JoinLearningSessionDto { RecipientName = "ครูเอ", LearnerKey = "learner-1" });
+        _service.End(token, new EndLearningSessionDto { LearnerKey = "learner-1", CompletedAllSlides = true });
 
         var row = _learningSessions.Items.Single();
         row.LastActivityAt = DateTime.UtcNow.AddDays(-30);
@@ -438,7 +537,7 @@ public class LearningSessionServiceTests
     public void GetSummary_ComputesUnansweredPointsFromQuestions_WithNoSummaryTable()
     {
         var token = SeedLink();
-        var joined = _service.Join(token, new JoinLearningSessionDto { RecipientName = "ครูเอ", LearnerKey = "key-1" });
+        var joined = _service.Join(token, new JoinLearningSessionDto { RecipientName = "ครูเอ", LearnerKey = "learner-1" });
 
         _questions.Items.Add(SeedQuestion(joined.Id, AnswerStatus.Answered, "ถามเรื่องที่ตอบได้"));
         _questions.Items.Add(SeedQuestion(joined.Id, AnswerStatus.NotFound, "ถามเรื่องที่ไม่มีข้อมูล"));
@@ -453,8 +552,8 @@ public class LearningSessionServiceTests
     public void GetSummary_OnlySeesItsOwnLearnersQuestions()
     {
         var token = SeedLink();
-        var a = _service.Join(token, new JoinLearningSessionDto { RecipientName = "ครูเอ", LearnerKey = "key-a" });
-        var b = _service.Join(token, new JoinLearningSessionDto { RecipientName = "ครูบี", LearnerKey = "key-b" });
+        var a = _service.Join(token, new JoinLearningSessionDto { RecipientName = "ครูเอ", LearnerKey = "learner-a" });
+        var b = _service.Join(token, new JoinLearningSessionDto { RecipientName = "ครูบี", LearnerKey = "learner-b" });
 
         _questions.Items.Add(SeedQuestion(a.Id, AnswerStatus.NotFound, "คำถามของเอ"));
         _questions.Items.Add(SeedQuestion(b.Id, AnswerStatus.NotFound, "คำถามของบี"));

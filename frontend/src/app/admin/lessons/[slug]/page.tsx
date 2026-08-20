@@ -5,8 +5,19 @@ import { AdminLink } from "@/components/admin/AdminLink";
 import { useParams } from "next/navigation";
 import * as api from "@/lib/api-client";
 import { ApiClientError } from "@/lib/api-client";
-import type { ContentSourceType, LessonConfig, SlideConfig } from "@/types/domain";
+import type { ContentSourceType, KnowledgeCategory, LessonConfig, SlideConfig } from "@/types/domain";
+import { CategoryMovePreviewDialog } from "@/components/admin/CategoryMovePreviewDialog";
 import { DocumentUploadList } from "@/components/admin/DocumentUploadList";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -14,6 +25,7 @@ import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/u
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
 import { LoadingBlock } from "@/components/shared/LoadingBlock";
 import { formatDateTimeTh } from "@/utils/format";
@@ -23,6 +35,7 @@ type FormState = Omit<LessonConfig, "id" | "presentationId" | "createdAt" | "upd
 function toFormState(lesson: LessonConfig): FormState {
   return {
     slug: lesson.slug,
+    categoryId: lesson.categoryId,
     title: lesson.title,
     description: lesson.description,
     slidesSourceUrl: lesson.slidesSourceUrl,
@@ -41,6 +54,7 @@ export default function LessonEditorPage() {
   const params = useParams<{ slug: string }>();
   const [lesson, setLesson] = useState<LessonConfig | null>(null);
   const [form, setForm] = useState<FormState | null>(null);
+  const [categories, setCategories] = useState<KnowledgeCategory[]>([]);
   const [syncStatus, setSyncStatus] = useState<string | null>(null);
   const [syncedAt, setSyncedAt] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
@@ -48,6 +62,14 @@ export default function LessonEditorPage() {
   const [saving, setSaving] = useState(false);
   const [savedAt, setSavedAt] = useState<string | null>(null);
   const [notFound, setNotFound] = useState(false);
+  // R3.1/TX-10 - set only while the CS is confirming a category change; the general save is
+  // held back until that dialog resolves (or is cancelled) instead of moving silently.
+  const [pendingCategoryChange, setPendingCategoryChange] = useState(false);
+  // NR-3 - set only while confirming a PDF replacement that would delete existing narration
+  // overrides; holds the file back until the CS explicitly confirms (or cancels) instead of
+  // uploading and silently wiping edited pages.
+  const [pendingPdfReplace, setPendingPdfReplace] = useState<{ file: File; narrationCount: number } | null>(null);
+  const [pdfReplaceError, setPdfReplaceError] = useState<string | null>(null);
 
   useEffect(() => {
     void api.listLessons().then(({ lessons }) => {
@@ -59,6 +81,7 @@ export default function LessonEditorPage() {
       setLesson(found);
       setForm(toFormState(found));
     });
+    void api.listKnowledgeCategories().then(({ categories: list }) => setCategories(list));
   }, [params.slug]);
 
   if (notFound) {
@@ -107,12 +130,40 @@ export default function LessonEditorPage() {
     }
   }
 
+  /** NR-3 - a replacement upload for a lesson that already has narration overrides must be
+   * confirmed first: pdf-page-N ids are position-based, so inserting/removing a page silently
+   * shifts every override onto the wrong page. First upload (no lesson yet, or no overrides
+   * saved) skips the dialog entirely - there is nothing to lose. */
+  async function handlePdfFileSelected(file: File) {
+    if (lesson?.contentSourceType === "pdf" && lesson.pdfDocumentResourceId) {
+      try {
+        const { count } = await api.getLessonNarrationCount(lesson.id);
+        if (count > 0) {
+          setPdfReplaceError(null);
+          setPendingPdfReplace({ file, narrationCount: count });
+          return;
+        }
+      } catch (err) {
+        setPdfReplaceError(err instanceof ApiClientError ? err.response.error.message : "ตรวจสอบบทพูดที่แก้ไว้ไม่สำเร็จ");
+        return;
+      }
+    }
+    void handlePdfUpload(file);
+  }
+
+  async function handlePdfReplaceConfirmed() {
+    if (!pendingPdfReplace) return;
+    const { file } = pendingPdfReplace;
+    setPendingPdfReplace(null);
+    await handlePdfUpload(file);
+  }
+
   async function handlePdfUpload(file: File) {
     if (!form) return;
     setPdfUploading(true);
     setSyncStatus("กำลังอัปโหลด PDF...");
     try {
-      const { document } = await api.uploadDocument(file, form.slug);
+      const { document } = await api.uploadDocument(file, { scopeType: "lesson", scopeId: lesson?.id });
       const content = await api.previewPdfLessonContent(document.id);
       const existingBySlideId = new Map(form.slideConfigs.map((s) => [s.slideObjectId, s]));
       const nextSlideConfigs: SlideConfig[] = content.slides.map((slide) => ({
@@ -151,7 +202,7 @@ export default function LessonEditorPage() {
     setSyncedAt(null);
   }
 
-  async function handleSave() {
+  async function doSave() {
     if (!form) return;
     setSaving(true);
     try {
@@ -163,6 +214,33 @@ export default function LessonEditorPage() {
       setSyncStatus(err instanceof ApiClientError ? err.response.error.message : "บันทึกไม่สำเร็จ");
     } finally {
       setSaving(false);
+    }
+  }
+
+  /** R3.1/TX-10 - a changed category never reaches the general save silently: it must go through
+   * the move-preview confirmation dialog first, which itself calls PUT .../category. */
+  function handleSave() {
+    if (!form || !lesson) return;
+    if (form.categoryId !== lesson.categoryId) {
+      setPendingCategoryChange(true);
+      return;
+    }
+    void doSave();
+  }
+
+  function handleCategoryMoveConfirmed() {
+    setPendingCategoryChange(false);
+    // The dialog already committed the category via PUT .../category - lesson.categoryId is
+    // stale until the general save below refreshes it, so update it here too to keep the
+    // "has this changed?" check in handleSave() correct if the CS opens the dialog again.
+    setLesson((prev) => (prev && form ? { ...prev, categoryId: form.categoryId } : prev));
+    void doSave();
+  }
+
+  function handleCategoryMoveCancelled() {
+    setPendingCategoryChange(false);
+    if (lesson) {
+      setForm((prev) => (prev ? { ...prev, categoryId: lesson.categoryId } : prev));
     }
   }
 
@@ -190,6 +268,13 @@ export default function LessonEditorPage() {
   ) : (
     "บันทึก"
   );
+
+  // TX-4 - a lesson can only belong to a Level 2 (subcategory) row.
+  const parentsById = new Map(categories.filter((c) => c.level === 1).map((c) => [c.id, c]));
+  const subcategories = categories
+    .filter((c) => c.level === 2)
+    .sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name, "th"));
+  const selectedCategoryName = subcategories.find((c) => c.id === form.categoryId)?.name ?? "";
 
   return (
     <main className="mx-auto flex max-w-3xl flex-col gap-6 p-6">
@@ -230,6 +315,28 @@ export default function LessonEditorPage() {
               value={form.title}
               onChange={(e) => setForm({ ...form, title: e.target.value })}
             />
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="lesson-category">หมวด</Label>
+            <Select
+              value={form.categoryId}
+              onValueChange={(value) => value && setForm({ ...form, categoryId: value })}
+            >
+              <SelectTrigger id="lesson-category" className="w-full">
+                <SelectValue placeholder="เลือกหมวด" />
+              </SelectTrigger>
+              <SelectContent>
+                {subcategories.map((sub) => (
+                  <SelectItem key={sub.id} value={sub.id}>
+                    {parentsById.get(sub.parentId ?? "")?.name ?? "?"} › {sub.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              เปลี่ยนหมวดแล้วกด &quot;บันทึก&quot; — ระบบจะแสดงผลกระทบให้ยืนยันก่อนย้ายจริงเสมอ
+            </p>
           </div>
 
           <div className="flex flex-col gap-2">
@@ -282,7 +389,7 @@ export default function LessonEditorPage() {
                 disabled={pdfUploading}
                 onChange={(e) => {
                   const file = e.target.files?.[0];
-                  if (file) void handlePdfUpload(file);
+                  if (file) void handlePdfFileSelected(file);
                   e.target.value = "";
                 }}
                 className="h-auto py-1.5"
@@ -291,6 +398,15 @@ export default function LessonEditorPage() {
                 อัปโหลดไฟล์ใหม่เพื่อแทนที่ไฟล์เดิม — แต่ละหน้าจะกลายเป็น 1 Slide
                 โดยใช้ข้อความในหน้านั้นเป็นบทพูดของ AI โดยตรง
               </p>
+              {pdfReplaceError && <p className="text-xs text-destructive">{pdfReplaceError}</p>}
+              {lesson?.pdfDocumentResourceId && lesson.contentSourceType === "pdf" && (
+                <AdminLink
+                  href={`/admin/lessons/${encodeURIComponent(lesson.slug)}/narrations`}
+                  className="text-xs text-primary hover:underline"
+                >
+                  แก้บทพูดต่อหน้า →
+                </AdminLink>
+              )}
             </div>
           )}
 
@@ -360,10 +476,12 @@ export default function LessonEditorPage() {
           </p>
         </CardHeader>
         <CardContent>
-          <DocumentUploadList
-            lessonSlug={form.slug}
-            primaryDocumentId={form.contentSourceType === "pdf" ? form.pdfDocumentResourceId : undefined}
-          />
+          {lesson && (
+            <DocumentUploadList
+              fixedScope={{ scopeType: "lesson", scopeId: lesson.id }}
+              primaryDocumentId={form.contentSourceType === "pdf" ? form.pdfDocumentResourceId : undefined}
+            />
+          )}
         </CardContent>
       </Card>
 
@@ -413,6 +531,34 @@ export default function LessonEditorPage() {
           {saveButtonContent}
         </Button>
       </div>
+
+      {lesson && (
+        <CategoryMovePreviewDialog
+          open={pendingCategoryChange}
+          lessonId={lesson.id}
+          currentCategoryId={lesson.categoryId}
+          targetCategoryId={form.categoryId}
+          targetCategoryName={selectedCategoryName}
+          onConfirmed={handleCategoryMoveConfirmed}
+          onCancel={handleCategoryMoveCancelled}
+        />
+      )}
+
+      <AlertDialog open={pendingPdfReplace !== null} onOpenChange={(next) => !next && setPendingPdfReplace(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>แทนที่ไฟล์ PDF เดิม?</AlertDialogTitle>
+            <AlertDialogDescription>
+              บทพูดที่แก้ไว้ {pendingPdfReplace?.narrationCount ?? 0} หน้าจะถูกลบทั้งหมด เพราะเลขหน้าของไฟล์ใหม่อาจไม่ตรงกับไฟล์เดิม
+              — ทุกหน้าจะกลับไปใช้ข้อความที่ดึงได้จากไฟล์ใหม่แทน
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>ยกเลิก</AlertDialogCancel>
+            <AlertDialogAction onClick={() => void handlePdfReplaceConfirmed()}>ยืนยันแทนที่</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </main>
   );
 }

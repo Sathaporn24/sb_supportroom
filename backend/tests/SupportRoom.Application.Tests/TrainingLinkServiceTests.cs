@@ -38,6 +38,7 @@ public class TrainingLinkServiceTests
         {
             Id = $"lesson-{slug}",
             CompanyId = TestFixtures.CompanyId,
+            CategoryId = "kbcat-child",
             Slug = slug,
             Title = "บทเรียน",
             SlidesSourceUrl = "",
@@ -64,8 +65,28 @@ public class TrainingLinkServiceTests
         Assert.Equal("lesson-a", vm.LessonSlug);
         Assert.Equal("ฝ่ายบุคคล", vm.RecipientOrgName);
         Assert.Equal(0, vm.LearningSessionCount);
+        Assert.Equal(0, vm.LearnerCount);
+        Assert.Equal(0, vm.InProgressCount);
+        Assert.Equal(0, vm.EndedCount);
         Assert.Equal(1, _unitOfWork.CommitCount);
         Assert.Single(_links.Items);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    public void Create_RejectsANonPositiveMaxAttendees(int maxAttendees)
+    {
+        SeedLesson("lesson-a");
+
+        var ex = Assert.Throws<HttpStatusCodeException>(() => _service.Create(new CreateTrainingLinkDto
+        {
+            LessonSlug = "lesson-a",
+            MaxAttendees = maxAttendees,
+        }));
+
+        Assert.Equal(400, (int)ex.StatusCode);
+        Assert.Empty(_links.Items);
     }
 
     [Fact]
@@ -130,25 +151,40 @@ public class TrainingLinkServiceTests
     }
 
     [Fact]
-    public void GetAll_CountsEveryoneWhoOpenedEachLink()
+    public void GetAll_ReturnsDistinctLearnersAndRoundStatusAggregates()
     {
         SeedLesson();
         var first = _service.Create(new CreateTrainingLinkDto { LessonSlug = "lesson-a" });
         var second = _service.Create(new CreateTrainingLinkDto { LessonSlug = "lesson-a" });
 
-        // Two people on the first link, nobody on the second - the whole point of the split.
+        // Two people on the first link. key-1 has learned twice, so there are three rounds but
+        // only two distinct learners.
         _learningSessions.Items.Add(SeedLearningSession(first.Id, "key-1"));
-        _learningSessions.Items.Add(SeedLearningSession(first.Id, "key-2"));
+        var endedForKey1 = SeedLearningSession(first.Id, "key-1");
+        endedForKey1.Status = SessionStatus.Ended;
+        _learningSessions.Items.Add(endedForKey1);
+        var endedForKey2 = SeedLearningSession(first.Id, "key-2");
+        endedForKey2.Status = SessionStatus.Ended;
+        _learningSessions.Items.Add(endedForKey2);
 
         var all = _service.GetAll();
 
-        Assert.Equal(2, all.Single(x => x.Id == first.Id).LearningSessionCount);
-        Assert.Equal(0, all.Single(x => x.Id == second.Id).LearningSessionCount);
+        var populated = all.Single(x => x.Id == first.Id);
+        Assert.Equal(3, populated.LearningSessionCount);
+        Assert.Equal(2, populated.LearnerCount);
+        Assert.Equal(1, populated.InProgressCount);
+        Assert.Equal(2, populated.EndedCount);
+
+        var empty = all.Single(x => x.Id == second.Id);
+        Assert.Equal(0, empty.LearningSessionCount);
+        Assert.Equal(0, empty.LearnerCount);
+        Assert.Equal(0, empty.InProgressCount);
+        Assert.Equal(0, empty.EndedCount);
     }
 
     private static LearningSession SeedLearningSession(string linkId, string learnerKey) => new()
     {
-        Id = $"learning-{learnerKey}",
+        Id = $"learning-{Guid.NewGuid():N}",
         CompanyId = TestFixtures.CompanyId,
         TrainingLinkId = linkId,
         LearnerKey = learnerKey,

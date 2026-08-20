@@ -14,10 +14,21 @@ export function isLinkUsable(link: { expiresAt: string }, now: Date = new Date()
   return new Date(link.expiresAt).getTime() > now.getTime();
 }
 
+/** UI-only threshold for flagging a link as "about to expire" in the admin table - not a business
+ * rule, just makes an approaching deadline visible before it lapses. */
+const LINK_EXPIRING_SOON_THRESHOLD_MS = 2 * 60 * 60 * 1000;
+
+export function isLinkExpiringSoon(link: { expiresAt: string }, now: Date = new Date()): boolean {
+  const remainingMs = new Date(link.expiresAt).getTime() - now.getTime();
+  return remainingMs > 0 && remainingMs <= LINK_EXPIRING_SOON_THRESHOLD_MS;
+}
+
 export const linkStatusLabels: Record<LinkStatus, string> = {
   ACTIVE: "ใช้งานได้",
   EXPIRED: "หมดอายุ",
 };
+
+export const LINK_EXPIRING_SOON_LABEL = "ใกล้หมดอายุ";
 
 export const learningSessionStatusLabels: Record<LearningSessionStatus, string> = {
   IN_PROGRESS: "กำลังเรียน",

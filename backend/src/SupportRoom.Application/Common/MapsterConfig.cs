@@ -56,7 +56,13 @@ public static class MapsterConfig
             .Map(dest => dest.UpdatedAt, src => src.UpdateDate);
         TypeAdapterConfig<ChatMessage, ChatMessageViewModel>.NewConfig()
             .Map(dest => dest.CreatedAt, src => src.CreateDate);
-        TypeAdapterConfig<DocumentResource, DocumentResourceViewModel>.NewConfig()
+        TypeAdapterConfig<KnowledgeQnA, KnowledgeQnAViewModel>.NewConfig()
             .Map(dest => dest.CreatedAt, src => src.CreateDate);
+        TypeAdapterConfig<KnowledgeQnAConflict, KnowledgeQnAConflictViewModel>.NewConfig()
+            .Map(dest => dest.CreatedAt, src => src.CreateDate);
+        // DocumentResource -> DocumentResourceViewModel is built by hand in
+        // IDocumentResourceService instead of Adapt: WillRetryAt (DI-10) is computed from the
+        // document's latest BackgroundJob, which has no entity column to map from - same reason
+        // TrainingLink/LearningSession are hand-built.
     }
 }

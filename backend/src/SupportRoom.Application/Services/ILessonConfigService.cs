@@ -10,6 +10,7 @@ using SupportRoom.Application.ViewModel;
 using SupportRoom.Domain;
 using SupportRoom.Domain.Configuration;
 using SupportRoom.Domain.Entities;
+using SupportRoom.Domain.Enums;
 using SupportRoom.Providers.Data.Data.UnitOfWork;
 using SupportRoom.Providers.Data.Repository;
 using SupportRoom.Providers.Slides;
@@ -49,6 +50,7 @@ public interface ILessonConfigService
 
     /// <summary>Upsert by slug - mirrors lessons/route.ts's POST (re-resolves presentationId server-side on every save).</summary>
     Task<LessonConfigViewModel> SaveAsync(LessonConfigDto input);
+    Task<LessonConfigViewModel> MoveCategoryAsync(string id, string categoryId);
     Task<LessonTeachingContentViewModel> GetTeachingContentBySlugAsync(string slug);
 
     /// <summary>Learner-side variant. Adds the link token to any PDF page URLs after the link has
@@ -74,11 +76,14 @@ public sealed class LessonConfigService(
     ISlidesProvider slidesProvider,
     IKnowledgeIndexingService knowledgeIndexingService,
     IDocumentStorageProvider documentStorageProvider,
-    IMemoryCache memoryCache)
+    IMemoryCache memoryCache,
+    ILessonSlideNarrationResolver narrationResolver)
     : ServiceBase<ILessonConfigService>(unitOfWork, serviceProvider, logger), ILessonConfigService
 {
     private readonly ILessonConfigRepository _repository = unitOfWork.GetRepository<ILessonConfigRepository>();
     private readonly IDocumentResourceRepository _documentResourceRepository = unitOfWork.GetRepository<IDocumentResourceRepository>();
+    private readonly IKnowledgeCategoryRepository _knowledgeCategoryRepository = unitOfWork.GetRepository<IKnowledgeCategoryRepository>();
+    private readonly ILessonSlideNarrationRepository _narrationRepository = unitOfWork.GetRepository<ILessonSlideNarrationRepository>();
 
     public IReadOnlyList<LessonConfigViewModel> GetAll()
         => _repository.GetAll().ToList().Adapt<List<LessonConfigViewModel>>();
@@ -91,6 +96,8 @@ public sealed class LessonConfigService(
 
     public async Task<LessonConfigViewModel> SaveAsync(LessonConfigDto input)
     {
+        ValidateSlug(input.Slug);
+        ValidateCategory(input.CategoryId);
         if (!LessonContentSourceType.Allowed.Contains(input.ContentSourceType))
         {
             throw GeneralException.ValidationError($"contentSourceType ต้องเป็น {string.Join(" หรือ ", LessonContentSourceType.Allowed)}");
@@ -134,6 +141,7 @@ public sealed class LessonConfigService(
         var slideConfigs = input.SlideConfigs.Adapt<List<Domain.Entities.SlideConfig>>();
 
         var isNew = existing is null;
+        var previousPdfDocumentResourceId = existing?.PdfDocumentResourceId;
         LessonConfig entity;
         if (existing is null)
         {
@@ -142,6 +150,7 @@ public sealed class LessonConfigService(
                 Id = IdGenerator.GenerateId("lesson"),
                 CompanyId = CurrentCompanyId,
                 Slug = input.Slug,
+                CategoryId = input.CategoryId,
                 Title = input.Title,
                 Description = input.Description,
                 SlidesSourceUrl = input.SlidesSourceUrl,
@@ -167,6 +176,7 @@ public sealed class LessonConfigService(
             // same Id and calling Update() on it conflicts with EF Core's change tracker, which
             // is still tracking `existing` from the GetBySlug() lookup above.
             existing.Title = input.Title;
+            existing.CategoryId = input.CategoryId;
             existing.Description = input.Description;
             existing.SlidesSourceUrl = input.SlidesSourceUrl;
             existing.PresentationId = presentationId;
@@ -183,6 +193,17 @@ public sealed class LessonConfigService(
             _repository.Update(existing);
             entity = existing;
         }
+
+        // NR-3 - a PDF re-upload (or switching away from PDF) invalidates every CS-authored
+        // narration override in one shot: pdf-page-N is a raw page index, so a different file
+        // silently shifts every later page onto the wrong narration with no error (NR-4 - no
+        // heuristic page-matching is attempted). Soft-deleted in the same transaction as this
+        // save, not a separate request, so there is no window where the two are inconsistent.
+        if (!isNew && previousPdfDocumentResourceId != input.PdfDocumentResourceId)
+        {
+            _narrationRepository.DeleteByLessonId(entity.Id);
+        }
+
         UnitOfWork.Commit();
 
         Logger.LogInformation("Lesson {Action}: {Slug} slides={SlideCount}", isNew ? "created" : "updated", input.Slug, slideConfigs.Count);
@@ -204,8 +225,55 @@ public sealed class LessonConfigService(
                 Logger.LogWarning(ex, "RAG re-index failed on save for lesson {Slug}; knowledge store left stale", input.Slug);
             }
         }
+        else if (input.ContentSourceType == LessonContentSourceType.Pdf && !string.IsNullOrEmpty(entity.PdfDocumentResourceId))
+        {
+            // NR-7 - a PDF lesson was never indexed into its own namespace at all before this
+            // (only the `if (!string.IsNullOrEmpty(presentationId))` branch above ever ran).
+            // Narration overrides go through the same NR-1 resolver as the tutor-facing content
+            // path, so what gets indexed here always matches what CS just heard/read in preview.
+            try
+            {
+                var pdfContent = await BuildPdfContentAsync(entity.PdfDocumentResourceId);
+                var resolvedSlides = await narrationResolver.ResolveAsync(entity.Id, pdfContent.Slides);
+                await knowledgeIndexingService.IndexLessonAsync(KnowledgeNamespaces.For(CurrentCompanyId, input.Slug), resolvedSlides);
+            }
+            catch (Exception ex)
+            {
+                Logger.LogWarning(ex, "RAG re-index failed on save for PDF lesson {Slug}; knowledge store left stale", input.Slug);
+            }
+        }
 
         return entity.Adapt<LessonConfigViewModel>();
+    }
+
+    public Task<LessonConfigViewModel> MoveCategoryAsync(string id, string categoryId)
+    {
+        ValidateCategory(categoryId);
+        var lesson = _repository.Get(id) ?? throw GeneralException.NotFound("บทเรียน");
+        lesson.CategoryId = categoryId;
+        lesson.UpdateBy = CurrentUserId;
+        lesson.UpdateDate = DateTime.UtcNow;
+        _repository.Update(lesson);
+        UnitOfWork.Commit();
+        return Task.FromResult(lesson.Adapt<LessonConfigViewModel>());
+    }
+
+    private static void ValidateSlug(string slug)
+    {
+        if (slug.StartsWith("kbcat-", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(slug, "kb-global", StringComparison.OrdinalIgnoreCase))
+        {
+            throw GeneralException.ValidationError("Slug ห้ามขึ้นต้นด้วย kbcat- หรือเท่ากับ kb-global");
+        }
+    }
+
+    private void ValidateCategory(string categoryId)
+    {
+        var category = _knowledgeCategoryRepository.Get(categoryId) ?? throw GeneralException.ValidationError("ไม่พบหมวดที่เลือก");
+        if (category.Level != 2)
+        {
+            throw GeneralException.ValidationError("บทเรียนต้องอยู่ในหมวดย่อยเท่านั้น");
+        }
     }
 
     public async Task<LessonTeachingContentViewModel> GetTeachingContentBySlugAsync(string slug)
@@ -307,7 +375,23 @@ public sealed class LessonConfigService(
         {
             throw GeneralException.ConfigError("บทเรียนนี้ยังไม่ได้อัปโหลดไฟล์ PDF");
         }
-        return await BuildPdfContentAsync(lesson.PdfDocumentResourceId);
+        var content = await BuildPdfContentAsync(lesson.PdfDocumentResourceId);
+
+        // NR-1 - apply CS-authored narration overrides on top of the extracted text. This is the
+        // tutor-facing consumer of the shared resolver; ProcessLessonIndexAsync (Application
+        // layer, BackgroundJobProcessor) is the other, so what the tutor engine speaks and what
+        // the RAG index answers from can never disagree.
+        var resolvedSlides = await narrationResolver.ResolveAsync(lesson.Id, content.Slides);
+        return ReferenceEquals(resolvedSlides, content.Slides)
+            ? content
+            : new SlidesLessonContent
+            {
+                PresentationId = content.PresentationId,
+                Title = content.Title,
+                EmbedUrl = content.EmbedUrl,
+                Slides = resolvedSlides,
+                SyncedAt = content.SyncedAt,
+            };
     }
 
     public async Task<SlidesLessonContent> PreviewPdfAsync(string documentId) => await BuildPdfContentAsync(documentId);
