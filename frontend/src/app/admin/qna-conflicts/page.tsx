@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { AdminLink } from "@/components/admin/AdminLink";
 import * as api from "@/lib/api-client";
 import { ApiClientError } from "@/lib/api-client";
 import type { KnowledgeQnAConflict } from "@/types/domain";
@@ -52,10 +51,7 @@ export default function QnaConflictsPage() {
   return (
     <main className="mx-auto flex max-w-3xl flex-col gap-6 p-6">
       <div>
-        <AdminLink href="/admin" className="text-xs text-muted-foreground hover:text-foreground">
-          ← กลับหน้า Admin
-        </AdminLink>
-        <h1 className="mt-1 text-xl font-semibold">ธงขัดแย้ง Q&amp;A กับเอกสาร</h1>
+        <h1 className="text-xl font-semibold">ธงขัดแย้ง Q&amp;A กับเอกสาร</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           เกิดเมื่อ AI พบว่า Q&amp;A ที่หยิบมาขัดกับเอกสาร/สไลด์ — AI ตอบตามเอกสารไปแล้ว แถวนี้มีไว้ให้ไปแก้เอกสารต้นเหตุ
           ไม่ใช่การแจ้งว่า Q&amp;A ผิด

@@ -5,8 +5,13 @@ import { useRouter } from "next/navigation";
 import * as api from "@/lib/api-client";
 import { ApiClientError } from "@/lib/api-client";
 import { useAdminSession } from "@/components/admin/AdminSessionProvider";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Spinner } from "@/components/ui/spinner";
 
-/** Unstyled on purpose - see the note on the login page. */
 export default function ChangePasswordPage() {
   const { user, refreshUser } = useAdminSession();
   const router = useRouter();
@@ -43,50 +48,71 @@ export default function ChangePasswordPage() {
   }
 
   return (
-    <main style={{ maxWidth: 360, margin: "10vh auto", padding: 24 }}>
-      <h1>เปลี่ยนรหัสผ่าน</h1>
-      {forced && (
-        <p>
-          บัญชีนี้ยังใช้รหัสผ่านเริ่มต้นที่ผู้สร้างบัญชีเป็นคนตั้ง กรุณาเปลี่ยนก่อนใช้งาน
-        </p>
-      )}
-      <form onSubmit={handleSubmit} style={{ display: "grid", gap: 12, marginTop: 16 }}>
-        <label style={{ display: "grid", gap: 4 }}>
-          รหัสผ่านปัจจุบัน
-          <input
-            type="password"
-            value={currentPassword}
-            onChange={(event) => setCurrentPassword(event.target.value)}
-            required
-            autoComplete="current-password"
-          />
-        </label>
-        <label style={{ display: "grid", gap: 4 }}>
-          รหัสผ่านใหม่ (อย่างน้อย 10 ตัวอักษร)
-          <input
-            type="password"
-            value={newPassword}
-            onChange={(event) => setNewPassword(event.target.value)}
-            required
-            minLength={10}
-            autoComplete="new-password"
-          />
-        </label>
-        <label style={{ display: "grid", gap: 4 }}>
-          ยืนยันรหัสผ่านใหม่
-          <input
-            type="password"
-            value={confirmPassword}
-            onChange={(event) => setConfirmPassword(event.target.value)}
-            required
-            autoComplete="new-password"
-          />
-        </label>
-        {error && <p role="alert">{error}</p>}
-        <button type="submit" disabled={submitting}>
-          {submitting ? "กำลังบันทึก…" : "บันทึก"}
-        </button>
-      </form>
+    <main className="mx-auto flex max-w-sm flex-col gap-6 p-6">
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-xl">เปลี่ยนรหัสผ่าน</CardTitle>
+          {forced && (
+            <CardDescription>
+              บัญชีนี้ยังใช้รหัสผ่านเริ่มต้นที่ผู้สร้างบัญชีเป็นคนตั้ง กรุณาเปลี่ยนก่อนใช้งาน
+            </CardDescription>
+          )}
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="current-password">รหัสผ่านปัจจุบัน</Label>
+              <Input
+                id="current-password"
+                type="password"
+                value={currentPassword}
+                onChange={(event) => setCurrentPassword(event.target.value)}
+                required
+                autoComplete="current-password"
+                autoFocus
+              />
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="new-password">รหัสผ่านใหม่ (อย่างน้อย 10 ตัวอักษร)</Label>
+              <Input
+                id="new-password"
+                type="password"
+                value={newPassword}
+                onChange={(event) => setNewPassword(event.target.value)}
+                required
+                minLength={10}
+                autoComplete="new-password"
+              />
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="confirm-password">ยืนยันรหัสผ่านใหม่</Label>
+              <Input
+                id="confirm-password"
+                type="password"
+                value={confirmPassword}
+                onChange={(event) => setConfirmPassword(event.target.value)}
+                required
+                autoComplete="new-password"
+              />
+            </div>
+            {error && (
+              <Alert variant="destructive" role="alert">
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
+            <Button type="submit" disabled={submitting} className="mt-2">
+              {submitting ? (
+                <>
+                  <Spinner data-icon="inline-start" />
+                  กำลังบันทึก...
+                </>
+              ) : (
+                "บันทึก"
+              )}
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
     </main>
   );
 }

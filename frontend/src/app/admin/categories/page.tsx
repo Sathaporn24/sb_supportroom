@@ -5,7 +5,6 @@ import { PlusIcon } from "lucide-react";
 import * as api from "@/lib/api-client";
 import { ApiClientError } from "@/lib/api-client";
 import type { KnowledgeCategory } from "@/types/domain";
-import { AdminLink } from "@/components/admin/AdminLink";
 import { CategoryFormDialog } from "@/components/admin/CategoryFormDialog";
 import { CategoryTree } from "@/components/admin/CategoryTree";
 import { Button } from "@/components/ui/button";
@@ -64,10 +63,7 @@ export default function CategoriesPage() {
     <main className="mx-auto flex max-w-3xl flex-col gap-6 p-6">
       <div className="flex items-center justify-between">
         <div>
-          <AdminLink href="/admin" className="text-xs text-muted-foreground hover:text-foreground">
-            ← กลับหน้าแรก
-          </AdminLink>
-          <h1 className="mt-1 text-xl font-semibold">จัดการหมวดความรู้</h1>
+          <h1 className="text-xl font-semibold">จัดการหมวดความรู้</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             หมวดใหญ่และหมวดย่อย 2 ชั้น ใช้จัดกลุ่มบทเรียน เอกสาร และคำถาม-คำตอบ
           </p>
