@@ -16,7 +16,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { LoadingBlock } from "@/components/shared/LoadingBlock";
+import { TableSkeleton } from "@/components/shared/TableSkeleton";
 
 const ROLE_LABELS: Record<AdminRole, string> = {
   owner: "เจ้าของ",
@@ -101,7 +101,7 @@ export default function AdminUsersPage() {
       {companyId && (
         <>
           {loading ? (
-            <LoadingBlock label="กำลังโหลดรายชื่อผู้ใช้..." />
+            <TableSkeleton columns={6} />
           ) : users.length === 0 ? (
             <Empty className="border">
               <EmptyHeader>

@@ -21,7 +21,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { LoadingBlock } from "@/components/shared/LoadingBlock";
+import { TableSkeleton } from "@/components/shared/TableSkeleton";
 
 const statusVariant = {
   pending: "outline",
@@ -305,7 +305,7 @@ export function DocumentUploadList({ fixedScope, primaryDocumentId }: Props) {
       {error && <p className="text-xs text-destructive">{error}</p>}
 
       {!documents ? (
-        <LoadingBlock label="กำลังโหลดรายการเอกสาร..." />
+        <TableSkeleton columns={libraryMode ? 6 : 5} />
       ) : documents.length === 0 ? (
         <Empty className="border">
           <EmptyHeader>

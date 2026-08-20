@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { LoadingBlock } from "@/components/shared/LoadingBlock";
+import { TableSkeleton } from "@/components/shared/TableSkeleton";
 import { formatDateTimeTh } from "@/utils/format";
 
 /**
@@ -72,7 +72,7 @@ export default function QnaQueuePage() {
       {error && <p className="text-sm text-destructive">{error}</p>}
 
       {!queue ? (
-        <LoadingBlock label="กำลังโหลดคิว..." />
+        <TableSkeleton columns={5} />
       ) : queue.length === 0 ? (
         <Empty className="border">
           <EmptyHeader>

@@ -9,7 +9,7 @@ import { AdminLink } from "@/components/admin/AdminLink";
 import { Badge } from "@/components/ui/badge";
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { LoadingBlock } from "@/components/shared/LoadingBlock";
+import { TableSkeleton } from "@/components/shared/TableSkeleton";
 import { cn } from "@/lib/utils";
 
 /**
@@ -53,7 +53,7 @@ export default function DocumentChunksPage() {
       {error && <p className="text-sm text-destructive">{error}</p>}
 
       {!sorted ? (
-        <LoadingBlock label="กำลังโหลดข้อความ..." />
+        <TableSkeleton columns={4} />
       ) : sorted.length === 0 ? (
         <Empty className="border">
           <EmptyHeader>

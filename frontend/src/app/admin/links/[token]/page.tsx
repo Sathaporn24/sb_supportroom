@@ -10,8 +10,41 @@ import type { LearningSession, TrainingLink } from "@/types/domain";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { LoadingBlock } from "@/components/shared/LoadingBlock";
+import { TableSkeleton } from "@/components/shared/TableSkeleton";
+
+const STAT_FIELD_COUNT = 6;
+
+/** Mirrors this page's own layout (header, stat card, learner table) so the loading state doesn't
+ * jump once the link and its sessions arrive. */
+function TrainingLinkDetailSkeleton() {
+  return (
+    <main className="mx-auto flex max-w-3xl flex-col gap-6 p-6">
+      <div className="flex flex-col gap-2">
+        <Skeleton className="h-3 w-24" />
+        <Skeleton className="h-6 w-56" />
+        <Skeleton className="h-4 w-40" />
+      </div>
+
+      <Card>
+        <CardContent className="grid grid-cols-2 gap-4">
+          {Array.from({ length: STAT_FIELD_COUNT }).map((_, index) => (
+            <div key={index} className="flex flex-col gap-1">
+              <Skeleton className="h-3 w-20" />
+              <Skeleton className="h-4 w-16" />
+            </div>
+          ))}
+        </CardContent>
+      </Card>
+
+      <section className="flex flex-col gap-3">
+        <Skeleton className="h-3 w-20" />
+        <TableSkeleton columns={6} />
+      </section>
+    </main>
+  );
+}
 
 /**
  * "7/20" when the browser has told us how big the deck is, a bare slide number when it has not,
@@ -55,11 +88,7 @@ export default function TrainingLinkDetailPage() {
   }, [params.token]);
 
   if (link === "loading") {
-    return (
-      <main className="p-6">
-        <LoadingBlock label="กำลังโหลดข้อมูลลิงก์..." />
-      </main>
-    );
+    return <TrainingLinkDetailSkeleton />;
   }
   if (!link) {
     return <main className="p-6 text-muted-foreground">ไม่พบลิงก์นี้ค่ะ</main>;

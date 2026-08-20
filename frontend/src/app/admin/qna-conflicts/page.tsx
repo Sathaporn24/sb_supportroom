@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
 import { Spinner } from "@/components/ui/spinner";
-import { LoadingBlock } from "@/components/shared/LoadingBlock";
+import { CardListSkeleton } from "@/components/shared/CardListSkeleton";
 import { formatDateTimeTh } from "@/utils/format";
 
 /**
@@ -61,7 +61,7 @@ export default function QnaConflictsPage() {
       {error && <p className="text-sm text-destructive">{error}</p>}
 
       {!conflicts ? (
-        <LoadingBlock label="กำลังโหลด..." />
+        <CardListSkeleton />
       ) : conflicts.length === 0 ? (
         <Empty className="border">
           <EmptyHeader>

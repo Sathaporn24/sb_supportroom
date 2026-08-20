@@ -6,9 +6,8 @@ import * as api from "@/lib/api-client";
 import { ApiClientError } from "@/lib/api-client";
 import type { KnowledgeCategory } from "@/types/domain";
 import { CategoryFormDialog } from "@/components/admin/CategoryFormDialog";
-import { CategoryTree } from "@/components/admin/CategoryTree";
+import { CategoryTree, CategoryTreeSkeleton } from "@/components/admin/CategoryTree";
 import { Button } from "@/components/ui/button";
-import { LoadingBlock } from "@/components/shared/LoadingBlock";
 
 type DialogState =
   | { mode: "create-parent" }
@@ -77,7 +76,7 @@ export default function CategoriesPage() {
       {error && <p className="text-sm text-destructive">{error}</p>}
 
       {loading ? (
-        <LoadingBlock label="กำลังโหลดหมวด..." />
+        <CategoryTreeSkeleton />
       ) : (
         <CategoryTree
           categories={categories}

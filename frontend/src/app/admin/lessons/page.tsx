@@ -8,7 +8,7 @@ import type { LessonConfig } from "@/types/domain";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { LoadingBlock } from "@/components/shared/LoadingBlock";
+import { TableSkeleton } from "@/components/shared/TableSkeleton";
 
 export default function LessonsListPage() {
   const [lessons, setLessons] = useState<LessonConfig[] | null>(null);
@@ -33,7 +33,7 @@ export default function LessonsListPage() {
       </div>
 
       {!lessons ? (
-        <LoadingBlock label="กำลังโหลดรายการบทเรียน..." />
+        <TableSkeleton columns={4} />
       ) : (
         <div className="overflow-hidden rounded-xl border">
           <Table className="min-w-[520px]">

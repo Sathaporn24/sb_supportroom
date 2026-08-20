@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
 import { Spinner } from "@/components/ui/spinner";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { LoadingBlock } from "@/components/shared/LoadingBlock";
+import { TableSkeleton } from "@/components/shared/TableSkeleton";
 
 /** R6.1/DI-15 - deleted documents are soft-deleted only (the DB row and file are kept), so they
  * can be brought back. Restoring re-extracts and re-indexes from scratch, spending embedding cost
@@ -43,7 +43,7 @@ export function DeletedDocumentsList() {
   }
 
   if (!documents) {
-    return <LoadingBlock label="กำลังโหลดรายการเอกสารที่ถูกลบ..." />;
+    return <TableSkeleton columns={4} />;
   }
 
   return (
