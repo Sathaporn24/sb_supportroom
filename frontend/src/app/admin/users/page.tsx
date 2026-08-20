@@ -1,15 +1,31 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { PlusIcon } from "lucide-react";
 import * as api from "@/lib/api-client";
 import { ApiClientError } from "@/lib/api-client";
 import { useAdminSession } from "@/components/admin/AdminSessionProvider";
 import type { AdminRole, AdminUser } from "@/types/domain";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Spinner } from "@/components/ui/spinner";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { TableSkeleton } from "@/components/shared/TableSkeleton";
+
+const ROLE_LABELS: Record<AdminRole, string> = {
+  owner: "เจ้าของ",
+  admin: "แอดมิน",
+  cs: "ทีม CS",
+};
 
 /**
  * Add and deactivate the people who can sign in to one company's back office.
- *
- * Unstyled on purpose - see the note on the login page.
  *
  * The role options offered here stop at the signed-in user's own level, matching the server rule
  * that nobody may hand out a role above their own. Hiding the option is a courtesy so the choice
@@ -20,6 +36,7 @@ export default function AdminUsersPage() {
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [createOpen, setCreateOpen] = useState(false);
 
   const companyId = activeCompanyId ?? user?.companyId ?? null;
 
@@ -51,58 +68,81 @@ export default function AdminUsersPage() {
 
   if (user?.role === "cs") {
     return (
-      <main style={{ padding: 24 }}>
-        <p>บัญชีของคุณไม่มีสิทธิ์จัดการผู้ใช้</p>
+      <main className="mx-auto flex max-w-3xl flex-col gap-6 p-6">
+        <p className="text-sm text-muted-foreground">บัญชีของคุณไม่มีสิทธิ์จัดการผู้ใช้</p>
       </main>
     );
   }
 
   return (
-    <main style={{ padding: 24, display: "grid", gap: 24 }}>
-      <h1>จัดการผู้ใช้</h1>
+    <main className="mx-auto flex max-w-3xl flex-col gap-6 p-6">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-xl font-semibold">จัดการผู้ใช้</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            เพิ่ม กำหนดสิทธิ์ และปิดการใช้งานบัญชีที่เข้าระบบหลังบ้านของบริษัทนี้
+          </p>
+        </div>
+        {companyId && (
+          <Button onClick={() => setCreateOpen(true)}>
+            <PlusIcon data-icon="inline-start" />
+            เพิ่มผู้ใช้
+          </Button>
+        )}
+      </div>
 
-      {!companyId && <p>กรุณาเลือกบริษัทจากแถบด้านบนก่อน</p>}
-      {error && <p role="alert">{error}</p>}
+      {!companyId && <p className="text-sm text-muted-foreground">กรุณาเลือกบริษัทจากแถบด้านบนก่อน</p>}
+      {error && (
+        <Alert variant="destructive" role="alert">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
 
       {companyId && (
         <>
-          <CreateUserForm companyId={companyId} assignableRoles={assignableRoles} onCreated={reload} />
-
           {loading ? (
-            <p>กำลังโหลด…</p>
+            <TableSkeleton columns={6} />
+          ) : users.length === 0 ? (
+            <Empty className="border">
+              <EmptyHeader>
+                <EmptyTitle>ยังไม่มีผู้ใช้ในบริษัทนี้</EmptyTitle>
+                <EmptyDescription>เริ่มด้วยการเพิ่มผู้ใช้คนแรก</EmptyDescription>
+              </EmptyHeader>
+            </Empty>
           ) : (
-            <table style={{ borderCollapse: "collapse" }}>
-              <thead>
-                <tr>
-                  <th style={cell}>ชื่อ</th>
-                  <th style={cell}>อีเมล</th>
-                  <th style={cell}>สิทธิ์</th>
-                  <th style={cell}>สถานะ</th>
-                  <th style={cell}>เข้าใช้ล่าสุด</th>
-                  <th style={cell} />
-                </tr>
-              </thead>
-              <tbody>
-                {users.length === 0 && (
-                  <tr>
-                    <td style={cell} colSpan={6}>
-                      ยังไม่มีผู้ใช้ในบริษัทนี้
-                    </td>
-                  </tr>
-                )}
-                {users.map((row) => (
-                  <UserRow key={row.id} row={row} assignableRoles={assignableRoles} onChanged={reload} />
-                ))}
-              </tbody>
-            </table>
+            <div className="overflow-hidden rounded-xl border">
+              <Table className="min-w-[640px]">
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="px-4">ชื่อ</TableHead>
+                    <TableHead className="px-4">อีเมล</TableHead>
+                    <TableHead className="px-4">สิทธิ์</TableHead>
+                    <TableHead className="px-4">สถานะ</TableHead>
+                    <TableHead className="px-4">เข้าใช้ล่าสุด</TableHead>
+                    <TableHead className="px-4" />
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {users.map((row) => (
+                    <UserRow key={row.id} row={row} assignableRoles={assignableRoles} onChanged={reload} />
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
           )}
+
+          <CreateUserDialog
+            open={createOpen}
+            onClose={() => setCreateOpen(false)}
+            companyId={companyId}
+            assignableRoles={assignableRoles}
+            onCreated={reload}
+          />
         </>
       )}
     </main>
   );
 }
-
-const cell: React.CSSProperties = { border: "1px solid #ccc", padding: "4px 8px", textAlign: "left" };
 
 function UserRow({
   row,
@@ -135,42 +175,65 @@ function UserRow({
     }
   }
 
+  // Include the current role even when it is above what this user may assign, so the row shows
+  // the truth rather than silently mis-reporting someone as lower-ranked.
+  const roleOptions = [...new Set([row.role, ...assignableRoles])];
+
   return (
-    <tr>
-      <td style={cell}>{row.displayName}</td>
-      <td style={cell}>{row.email}</td>
-      <td style={cell}>
-        <select
+    <TableRow>
+      <TableCell className="px-4 py-3 font-medium">{row.displayName}</TableCell>
+      <TableCell className="px-4 py-3 text-muted-foreground">{row.email}</TableCell>
+      <TableCell className="px-4 py-3">
+        <Select
           value={row.role}
           disabled={busy}
-          onChange={(event) => void apply({ role: event.target.value as AdminRole })}
+          onValueChange={(value) => value && void apply({ role: value as AdminRole })}
         >
-          {/* Include the current role even when it is above what this user may assign, so the
-              row shows the truth rather than silently mis-reporting someone as lower-ranked. */}
-          {[...new Set([row.role, ...assignableRoles])].map((role) => (
-            <option key={role} value={role} disabled={!assignableRoles.includes(role)}>
-              {role}
-            </option>
-          ))}
-        </select>
-      </td>
-      <td style={cell}>{row.isActive ? "ใช้งานอยู่" : "ปิดใช้งาน"}</td>
-      <td style={cell}>{row.lastLoginAt ? new Date(row.lastLoginAt).toLocaleString("th-TH") : "—"}</td>
-      <td style={cell}>
-        <button type="button" disabled={busy} onClick={() => void apply({ isActive: !row.isActive })}>
-          {row.isActive ? "ปิดบัญชี" : "เปิดบัญชี"}
-        </button>
-        {error && <span role="alert"> {error}</span>}
-      </td>
-    </tr>
+          <SelectTrigger size="sm">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {roleOptions.map((role) => (
+              <SelectItem key={role} value={role} disabled={!assignableRoles.includes(role)}>
+                {ROLE_LABELS[role]}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </TableCell>
+      <TableCell className="px-4 py-3">
+        <Badge variant={row.isActive ? "default" : "secondary"}>{row.isActive ? "ใช้งานอยู่" : "ปิดใช้งาน"}</Badge>
+      </TableCell>
+      <TableCell className="px-4 py-3 text-muted-foreground">
+        {row.lastLoginAt ? new Date(row.lastLoginAt).toLocaleString("th-TH") : "—"}
+      </TableCell>
+      <TableCell className="px-4 py-3">
+        <div className="flex flex-col items-end gap-1">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={busy}
+            onClick={() => void apply({ isActive: !row.isActive })}
+          >
+            {row.isActive ? "ปิดบัญชี" : "เปิดบัญชี"}
+          </Button>
+          {error && <p className="text-xs text-destructive">{error}</p>}
+        </div>
+      </TableCell>
+    </TableRow>
   );
 }
 
-function CreateUserForm({
+function CreateUserDialog({
+  open,
+  onClose,
   companyId,
   assignableRoles,
   onCreated,
 }: {
+  open: boolean;
+  onClose: () => void;
   companyId: string;
   assignableRoles: AdminRole[];
   onCreated: () => Promise<void>;
@@ -181,6 +244,19 @@ function CreateUserForm({
   const [initialPassword, setInitialPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    setEmail("");
+    setDisplayName("");
+    setRole(assignableRoles.includes("cs") ? "cs" : assignableRoles[0]);
+    setInitialPassword("");
+    setError(null);
+    setSubmitting(false);
+    // assignableRoles is derived from the signed-in user's own role, which does not change while
+    // the dialog is open - only re-run this when the dialog itself opens.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
@@ -194,10 +270,8 @@ function CreateUserForm({
         companyId,
         initialPassword,
       });
-      setEmail("");
-      setDisplayName("");
-      setInitialPassword("");
       await onCreated();
+      onClose();
     } catch (caught) {
       setError(caught instanceof ApiClientError ? caught.message : "เพิ่มผู้ใช้ไม่สำเร็จ");
     } finally {
@@ -206,42 +280,76 @@ function CreateUserForm({
   }
 
   return (
-    <form onSubmit={handleSubmit} style={{ display: "grid", gap: 8, maxWidth: 420 }}>
-      <h2>เพิ่มผู้ใช้</h2>
-      <input
-        type="email"
-        placeholder="อีเมล"
-        value={email}
-        onChange={(event) => setEmail(event.target.value)}
-        required
-      />
-      <input
-        placeholder="ชื่อที่แสดง"
-        value={displayName}
-        onChange={(event) => setDisplayName(event.target.value)}
-        required
-      />
-      <select value={role} onChange={(event) => setRole(event.target.value as AdminRole)}>
-        {assignableRoles.map((option) => (
-          <option key={option} value={option}>
-            {option}
-          </option>
-        ))}
-      </select>
-      <input
-        type="password"
-        placeholder="รหัสผ่านเริ่มต้น (อย่างน้อย 10 ตัวอักษร)"
-        value={initialPassword}
-        onChange={(event) => setInitialPassword(event.target.value)}
-        required
-        minLength={10}
-        autoComplete="new-password"
-      />
-      <p>ผู้ใช้ใหม่จะต้องเปลี่ยนรหัสผ่านนี้ทันทีที่เข้าสู่ระบบครั้งแรก</p>
-      {error && <p role="alert">{error}</p>}
-      <button type="submit" disabled={submitting}>
-        {submitting ? "กำลังเพิ่ม…" : "เพิ่มผู้ใช้"}
-      </button>
-    </form>
+    <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>เพิ่มผู้ใช้</DialogTitle>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="new-user-email">อีเมล</Label>
+            <Input
+              id="new-user-email"
+              type="email"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              required
+            />
+          </div>
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="new-user-name">ชื่อที่แสดง</Label>
+            <Input
+              id="new-user-name"
+              value={displayName}
+              onChange={(event) => setDisplayName(event.target.value)}
+              required
+            />
+          </div>
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="new-user-role">สิทธิ์</Label>
+            <Select value={role} onValueChange={(value) => value && setRole(value as AdminRole)}>
+              <SelectTrigger id="new-user-role" className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {assignableRoles.map((option) => (
+                  <SelectItem key={option} value={option}>
+                    {ROLE_LABELS[option]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="new-user-password">รหัสผ่านเริ่มต้น (อย่างน้อย 10 ตัวอักษร)</Label>
+            <Input
+              id="new-user-password"
+              type="password"
+              value={initialPassword}
+              onChange={(event) => setInitialPassword(event.target.value)}
+              required
+              minLength={10}
+              autoComplete="new-password"
+            />
+            <p className="text-xs text-muted-foreground">ผู้ใช้ใหม่จะต้องเปลี่ยนรหัสผ่านนี้ทันทีที่เข้าสู่ระบบครั้งแรก</p>
+          </div>
+          {error && (
+            <Alert variant="destructive" role="alert">
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+          <Button type="submit" disabled={submitting}>
+            {submitting ? (
+              <>
+                <Spinner data-icon="inline-start" />
+                กำลังเพิ่ม...
+              </>
+            ) : (
+              "เพิ่มผู้ใช้"
+            )}
+          </Button>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }

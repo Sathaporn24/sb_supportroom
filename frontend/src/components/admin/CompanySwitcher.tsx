@@ -1,14 +1,13 @@
 "use client";
 
 import { useAdminSession } from "@/components/admin/AdminSessionProvider";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 /**
  * Picks which customer's data the back office is showing.
  *
  * Hidden when there is nothing to choose between - a company-scoped user belongs to exactly one
  * customer, and a dropdown with a single option is just a control that does nothing.
- *
- * Unstyled on purpose - see the note on AdminBar.
  */
 export function CompanySwitcher() {
   const { companies, activeCompanyId, switchCompany, user } = useAdminSession();
@@ -21,21 +20,20 @@ export function CompanySwitcher() {
   }
 
   return (
-    <label style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
-      กำลังดูข้อมูลของ
-      <select
-        value={activeCompanyId ?? user?.companyId ?? ""}
-        onChange={(event) => switchCompany(event.target.value)}
-      >
-        {/* An owner arrives with no company chosen; the blank option is what that state looks
-            like, rather than silently showing the first customer as if they had picked it. */}
-        {!activeCompanyId && <option value="">— เลือกบริษัท —</option>}
+    <Select
+      value={activeCompanyId ?? user?.companyId ?? ""}
+      onValueChange={(value) => value && switchCompany(value)}
+    >
+      <SelectTrigger size="sm" aria-label="เลือกบริษัท">
+        <SelectValue placeholder="— เลือกบริษัท —" />
+      </SelectTrigger>
+      <SelectContent>
         {companies.map((company) => (
-          <option key={company.id} value={company.id}>
+          <SelectItem key={company.id} value={company.id}>
             {company.name}
-          </option>
+          </SelectItem>
         ))}
-      </select>
-    </label>
+      </SelectContent>
+    </Select>
   );
 }

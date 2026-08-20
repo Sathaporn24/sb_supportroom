@@ -6,7 +6,38 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+
+const SKELETON_PARENT_COUNT = 3;
+const SKELETON_CHILD_COUNT = 2;
+
+/** Mirrors CategoryTree's own shape (a Card per Level 1 category with Level 2 rows inside) so the
+ * loading state doesn't jump in layout once the real tree renders. */
+export function CategoryTreeSkeleton() {
+  return (
+    <div className="flex flex-col gap-4">
+      {Array.from({ length: SKELETON_PARENT_COUNT }).map((_, parentIndex) => (
+        <Card key={parentIndex}>
+          <CardHeader className="flex flex-row items-center justify-between gap-2">
+            <Skeleton className="h-4 w-32" />
+            <Skeleton className="h-8 w-20" />
+          </CardHeader>
+          <CardContent className="flex flex-col gap-1">
+            <ul className="flex flex-col divide-y divide-border rounded-lg border">
+              {Array.from({ length: SKELETON_CHILD_COUNT }).map((_, childIndex) => (
+                <li key={childIndex} className="flex items-center justify-between gap-2 px-3 py-2">
+                  <Skeleton className="h-4 w-40" />
+                  <Skeleton className="h-6 w-14" />
+                </li>
+              ))}
+            </ul>
+          </CardContent>
+        </Card>
+      ))}
+    </div>
+  );
+}
 
 type Props = {
   categories: KnowledgeCategory[];

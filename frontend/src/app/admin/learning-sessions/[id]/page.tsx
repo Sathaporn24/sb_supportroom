@@ -11,8 +11,47 @@ import type { ReviewResult, SessionQuestion, SessionSummary } from "@/types/doma
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { LoadingBlock } from "@/components/shared/LoadingBlock";
+import { Skeleton } from "@/components/ui/skeleton";
 import { ChatDrawer } from "@/components/meeting/ChatDrawer";
+
+const STAT_FIELD_COUNT = 4;
+const QUESTION_ROW_COUNT = 3;
+
+/** Mirrors this page's own layout (header, stat card, question list, unresolved list) so the
+ * loading state doesn't jump once the summary arrives. */
+function LearningSessionSummarySkeleton() {
+  return (
+    <main className="mx-auto flex max-w-2xl flex-col gap-6 p-6">
+      <div className="flex flex-col gap-2">
+        <Skeleton className="h-3 w-24" />
+        <Skeleton className="h-6 w-40" />
+      </div>
+
+      <Card>
+        <CardContent className="grid grid-cols-2 gap-4">
+          {Array.from({ length: STAT_FIELD_COUNT }).map((_, index) => (
+            <div key={index} className="flex flex-col gap-1">
+              <Skeleton className="h-3 w-24" />
+              <Skeleton className="h-4 w-16" />
+            </div>
+          ))}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardContent className="flex flex-col gap-3">
+          <Skeleton className="h-4 w-48" />
+          {Array.from({ length: QUESTION_ROW_COUNT }).map((_, index) => (
+            <div key={index} className="flex flex-col gap-2 rounded-lg border bg-muted p-3">
+              <Skeleton className="h-4 w-full" />
+              <Skeleton className="h-4 w-2/3" />
+            </div>
+          ))}
+        </CardContent>
+      </Card>
+    </main>
+  );
+}
 
 function mergeQuestions(base: SessionQuestion[], live: SessionQuestion[]): SessionQuestion[] {
   const byId = new Map(base.map((q) => [q.id, q]));
@@ -57,11 +96,7 @@ export default function LearningSessionSummaryPage() {
   }, [params.id]);
 
   if (summary === "loading") {
-    return (
-      <main className="p-6">
-        <LoadingBlock label="กำลังโหลดสรุปการเรียน..." />
-      </main>
-    );
+    return <LearningSessionSummarySkeleton />;
   }
   if (!summary) {
     return <main className="p-6 text-muted-foreground">ไม่พบการเรียนนี้ค่ะ</main>;

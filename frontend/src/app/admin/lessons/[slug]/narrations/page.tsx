@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
+import { CardListSkeleton } from "@/components/shared/CardListSkeleton";
 import { LoadingBlock } from "@/components/shared/LoadingBlock";
 
 // DtoLimits.NarrationTextMaxLength (backend) - 5000 characters is what Edge TTS can synthesize
@@ -120,7 +121,7 @@ export default function LessonNarrationsPage() {
       {error && <p className="text-sm text-destructive">{error}</p>}
 
       {!narrations ? (
-        <LoadingBlock label="กำลังโหลดบทพูด..." />
+        <CardListSkeleton count={4} />
       ) : (
         <div className="flex flex-col gap-4">
           {narrations.slides.map((slide) => {

@@ -8,7 +8,7 @@ import type { LessonConfig } from "@/types/domain";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { LoadingBlock } from "@/components/shared/LoadingBlock";
+import { TableSkeleton } from "@/components/shared/TableSkeleton";
 
 export default function LessonsListPage() {
   const [lessons, setLessons] = useState<LessonConfig[] | null>(null);
@@ -21,10 +21,7 @@ export default function LessonsListPage() {
     <main className="mx-auto flex max-w-3xl flex-col gap-6 p-6">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <AdminLink href="/admin" className="text-xs text-muted-foreground hover:text-foreground">
-            ← กลับหน้า Admin
-          </AdminLink>
-          <h1 className="mt-1 text-xl font-semibold">บทเรียน</h1>
+          <h1 className="text-xl font-semibold">บทเรียน</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             แต่ละบทเรียนดึงเนื้อหาจาก Google Slides หรือไฟล์ PDF — 1 Slide/หน้า = 1 ช่วงการสอน
           </p>
@@ -36,7 +33,7 @@ export default function LessonsListPage() {
       </div>
 
       {!lessons ? (
-        <LoadingBlock label="กำลังโหลดรายการบทเรียน..." />
+        <TableSkeleton columns={4} />
       ) : (
         <div className="overflow-hidden rounded-xl border">
           <Table className="min-w-[520px]">

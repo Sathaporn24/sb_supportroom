@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { AdminLink } from "@/components/admin/AdminLink";
 import { KnowledgeQnAAnswerDialog } from "@/components/admin/KnowledgeQnAAnswerDialog";
 import * as api from "@/lib/api-client";
 import { ApiClientError } from "@/lib/api-client";
@@ -11,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { LoadingBlock } from "@/components/shared/LoadingBlock";
+import { TableSkeleton } from "@/components/shared/TableSkeleton";
 import { formatDateTimeTh } from "@/utils/format";
 
 /**
@@ -59,10 +58,7 @@ export default function QnaQueuePage() {
     <main className="mx-auto flex max-w-4xl flex-col gap-6 p-6">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <AdminLink href="/admin" className="text-xs text-muted-foreground hover:text-foreground">
-            ← กลับหน้า Admin
-          </AdminLink>
-          <h1 className="mt-1 text-xl font-semibold">คิวคำถามที่ยังไม่มีคำตอบ</h1>
+          <h1 className="text-xl font-semibold">คิวคำถามที่ยังไม่มีคำตอบ</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             รวมคำถามที่ AI ตอบไม่ได้ (not_found) และคำถามที่ CS ตรวจแล้วพบว่า AI ตอบผิด ข้ามทุกการเรียนและทุกบทเรียน —
             เลือกคำถามที่ตอบด้วยคำตอบเดียวกันได้พร้อมกัน
@@ -76,7 +72,7 @@ export default function QnaQueuePage() {
       {error && <p className="text-sm text-destructive">{error}</p>}
 
       {!queue ? (
-        <LoadingBlock label="กำลังโหลดคิว..." />
+        <TableSkeleton columns={5} />
       ) : queue.length === 0 ? (
         <Empty className="border">
           <EmptyHeader>

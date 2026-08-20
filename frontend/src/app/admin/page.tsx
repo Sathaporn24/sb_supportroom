@@ -10,7 +10,7 @@ import { useAdminSession } from "@/components/admin/AdminSessionProvider";
 import { useAdminReviewCounts } from "@/hooks/use-admin-review-counts";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
-import { LoadingBlock } from "@/components/shared/LoadingBlock";
+import { TableSkeleton } from "@/components/shared/TableSkeleton";
 import { OnboardingChecklist } from "@/components/admin/OnboardingChecklist";
 
 export default function AdminPage() {
@@ -102,7 +102,7 @@ export default function AdminPage() {
       <section className="flex flex-col gap-3">
         <h2 className="text-sm font-semibold tracking-wide text-muted-foreground uppercase">รายการลิงก์</h2>
         {loading ? (
-          <LoadingBlock label="กำลังโหลดรายการลิงก์..." />
+          <TableSkeleton columns={6} />
         ) : links.length === 0 ? (
           <OnboardingChecklist hasLesson={lessons.length > 0} />
         ) : (
