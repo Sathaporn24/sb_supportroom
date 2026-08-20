@@ -20,7 +20,7 @@ public sealed class ReindexResult
 
 public interface IAdminService
 {
-    /// <summary>Deletes all TrainingSession/SessionQuestion/SessionSummary rows - keeps LessonConfig.</summary>
+    /// <summary>Deletes all TrainingLink/LearningSession/SessionQuestion rows - keeps LessonConfig.</summary>
     void ResetDemoData();
 
     /// <summary>Rebuilds the entire RAG index from source (stored lesson decks + document files).
@@ -35,14 +35,25 @@ public sealed class AdminService(
     IUnitOfWork unitOfWork,
     IServiceProvider serviceProvider,
     ILogger<IAdminService> logger,
+    IAuthorizationGuard guard,
     IDocumentStorageProvider storageProvider,
     IKnowledgeIndexingService knowledgeIndexingService,
     IKnowledgeIndexProvider knowledgeIndexProvider,
     ISlidesProvider slidesProvider)
     : ServiceBase<IAdminService>(unitOfWork, serviceProvider, logger), IAdminService
 {
-    private static void EnsureResetAllowed()
+    /// <summary>
+    /// Both operations here are destructive and act on whatever company the request resolved to,
+    /// so they are owner-only (TD-014). A customer's own admin must never be able to wipe data or
+    /// trigger a full re-index - the latter also spends real money on embeddings.
+    ///
+    /// The ALLOW_DATA_RESET switch stays as a second, independent lock: being an owner is about
+    /// who you are, that flag is about whether this deployment is a demo at all.
+    /// </summary>
+    private void EnsureAllowed()
     {
+        guard.EnsureOwner();
+
         if (Environment.GetEnvironmentVariable("ALLOW_DATA_RESET") != "true")
         {
             throw GeneralException.ConfigError("การดำเนินการนี้ถูกปิดใช้งาน - ตั้ง ALLOW_DATA_RESET=true เพื่อเปิดใช้ (ใช้เฉพาะฐานข้อมูล Demo เท่านั้น)");
@@ -51,7 +62,7 @@ public sealed class AdminService(
 
     public void ResetDemoData()
     {
-        EnsureResetAllowed();
+        EnsureAllowed();
 
         var questionRepository = UnitOfWork.GetRepository<ISessionQuestionRepository>();
         var questions = questionRepository.GetAll().ToList();
@@ -60,30 +71,37 @@ public sealed class AdminService(
             questionRepository.Delete(question);
         }
 
-        var summaryRepository = UnitOfWork.GetRepository<ISessionSummaryRepository>();
-        var summaries = summaryRepository.GetAll().ToList();
-        foreach (var summary in summaries)
+        var chatRepository = UnitOfWork.GetRepository<IChatMessageRepository>();
+        var chatMessages = chatRepository.GetAll().ToList();
+        foreach (var chatMessage in chatMessages)
         {
-            summaryRepository.Delete(summary);
+            chatRepository.Delete(chatMessage);
         }
 
-        var sessionRepository = UnitOfWork.GetRepository<ITrainingSessionRepository>();
-        var sessions = sessionRepository.GetAll().ToList();
-        foreach (var session in sessions)
+        var learningSessionRepository = UnitOfWork.GetRepository<ILearningSessionRepository>();
+        var learningSessions = learningSessionRepository.GetAll().ToList();
+        foreach (var learningSession in learningSessions)
         {
-            sessionRepository.Delete(session);
+            learningSessionRepository.Delete(learningSession);
+        }
+
+        var linkRepository = UnitOfWork.GetRepository<ITrainingLinkRepository>();
+        var links = linkRepository.GetAll().ToList();
+        foreach (var link in links)
+        {
+            linkRepository.Delete(link);
         }
 
         UnitOfWork.Commit();
 
         Logger.LogWarning(
-            "Demo data reset: deleted {SessionCount} sessions, {QuestionCount} questions, {SummaryCount} summaries",
-            sessions.Count, questions.Count, summaries.Count);
+            "Demo data reset: deleted {LinkCount} links, {LearningSessionCount} learning sessions, {QuestionCount} questions, {ChatCount} chat messages",
+            links.Count, learningSessions.Count, questions.Count, chatMessages.Count);
     }
 
     public async Task<ReindexResult> ReindexAllAsync()
     {
-        EnsureResetAllowed();
+        EnsureAllowed();
 
         var lessonRepository = UnitOfWork.GetRepository<ILessonConfigRepository>();
         var documentRepository = UnitOfWork.GetRepository<IDocumentResourceRepository>();
@@ -131,7 +149,9 @@ public sealed class AdminService(
         {
             try
             {
-                var namespaceKey = document.LessonId is not null && lessonSlugById.TryGetValue(document.LessonId, out var slug)
+                var namespaceKey = document.ScopeType == KnowledgeScopeType.Lesson
+                    && document.ScopeId is not null
+                    && lessonSlugById.TryGetValue(document.ScopeId, out var slug)
                     ? KnowledgeNamespaces.For(CurrentCompanyId, slug)
                     : KnowledgeNamespaces.ForGlobal(CurrentCompanyId);
 
@@ -149,7 +169,13 @@ public sealed class AdminService(
                 {
                     Id = $"{document.Id}-{c.ChunkId}",
                     Text = c.Text,
-                    Metadata = new Dictionary<string, string> { ["documentId"] = document.Id, ["chunkId"] = c.ChunkId, ["fileName"] = document.FileName },
+                    Metadata = new Dictionary<string, string>
+                    {
+                        ["documentId"] = document.Id,
+                        ["chunkId"] = c.ChunkId,
+                        ["fileName"] = document.FileName,
+                        ["sourceType"] = KnowledgeSourceType.Document,
+                    },
                 }).ToList();
 
                 var indexedCount = await knowledgeIndexingService.IndexChunksAsync(namespaceKey, chunks);

@@ -14,22 +14,28 @@ namespace SupportRoom.Application.Tests;
 /// </summary>
 public class AdminServiceTests
 {
-    private readonly FakeTrainingSessionRepository _sessions = new();
+    private readonly FakeTrainingLinkRepository _links = new();
+    private readonly FakeLearningSessionRepository _learningSessions = new();
     private readonly FakeSessionQuestionRepository _questions = new();
-    private readonly FakeSessionSummaryRepository _summaries = new();
+    private readonly FakeChatMessageRepository _chatMessages = new();
     private readonly FakeUnitOfWork _unitOfWork = new();
     private readonly AdminService _service;
 
     public AdminServiceTests()
     {
         _unitOfWork
-            .Register<ITrainingSessionRepository>(_sessions)
+            .Register<ITrainingLinkRepository>(_links)
+            .Register<ILearningSessionRepository>(_learningSessions)
             .Register<ISessionQuestionRepository>(_questions)
-            .Register<ISessionSummaryRepository>(_summaries);
+            .Register<IChatMessageRepository>(_chatMessages);
         _service = new AdminService(
             _unitOfWork,
             new FakeServiceProvider(),
             NullLogger<IAdminService>.Instance,
+            // Reset and reindex are owner-only (TD-014); these tests exercise the rest of the
+            // behaviour, so they run as an owner. The refusal path has its own tests in
+            // AuthorizationTests.
+            TestFixtures.OwnerGuard(),
             new FakeDocumentStorageProvider(),
             new FakeKnowledgeIndexingService(),
             new FakeKnowledgeIndexProvider(),
@@ -53,18 +59,30 @@ public class AdminServiceTests
         });
 
     [Fact]
-    public void ResetDemoData_DeletesSessionsQuestionsSummaries_WhenEnabled()
+    public void ResetDemoData_DeletesLinksSessionsQuestionsAndChat_WhenEnabled()
         => WithResetFlag("true", () =>
         {
-            _sessions.Items.Add(new TrainingSession { Id = "s1", CompanyId = TestFixtures.CompanyId, Token = "t1", LessonId = "l", LessonSlug = "a", Status = SessionStatus.Ended, ExpiresAt = DateTime.UtcNow });
-            _questions.Items.Add(new SessionQuestion { Id = "q1", CompanyId = TestFixtures.CompanyId, SessionId = "s1", AnswerStatus = AnswerStatus.Answered });
-            _summaries.Items.Add(new SessionSummary { Id = "sum1", CompanyId = TestFixtures.CompanyId, SessionId = "s1", CompletedAllSlides = true, UnansweredPoints = [] });
+            _links.Items.Add(new TrainingLink { Id = "link-1", CompanyId = TestFixtures.CompanyId, Token = "t1", LessonId = "l", LessonSlug = "a", ExpiresAt = DateTime.UtcNow });
+            _learningSessions.Items.Add(new LearningSession
+            {
+                Id = "learning-1",
+                CompanyId = TestFixtures.CompanyId,
+                TrainingLinkId = "link-1",
+                LearnerKey = "key-1",
+                RecipientName = "ครูเอ",
+                Status = SessionStatus.Ended,
+                StartedAt = DateTime.UtcNow,
+                LastActivityAt = DateTime.UtcNow,
+            });
+            _questions.Items.Add(new SessionQuestion { Id = "q1", CompanyId = TestFixtures.CompanyId, SessionId = "learning-1", AnswerStatus = AnswerStatus.Answered });
+            _chatMessages.Items.Add(new ChatMessage { Id = "c1", CompanyId = TestFixtures.CompanyId, SessionId = "learning-1", SenderRole = ChatSenderRole.Recipient, Text = "hi" });
 
             _service.ResetDemoData();
 
-            Assert.Empty(_sessions.Items);
+            Assert.Empty(_links.Items);
+            Assert.Empty(_learningSessions.Items);
             Assert.Empty(_questions.Items);
-            Assert.Empty(_summaries.Items);
+            Assert.Empty(_chatMessages.Items);
             Assert.Equal(1, _unitOfWork.CommitCount);
         });
 }

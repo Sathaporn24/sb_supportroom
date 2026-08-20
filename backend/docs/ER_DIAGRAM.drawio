@@ -1,178 +1,252 @@
 <mxfile host="app.diagrams.net" agent="claude-code" version="24.7.0" type="device">
   <diagram id="er-diagram-supportroom" name="ER Diagram">
-    <mxGraphModel dx="1600" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1600" pageHeight="1200" math="0" shadow="0">
+    <mxGraphModel dx="1600" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1700" pageHeight="1300" math="0" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
 
-        <!-- LESSON_CONFIG -->
-        <mxCell id="lc" value="LESSON_CONFIG" style="swimlane;fontStyle=1;align=center;verticalAlign=middle;childLayout=stackLayout;horizontal=1;startSize=30;horizontalStack=0;resizeParent=0;resizeParentMax=0;collapsible=0;marginBottom=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=13;" vertex="1" parent="1">
-          <mxGeometry x="40" y="40" width="260" height="316" as="geometry" />
+        <mxCell id="identity-note" value="Identity (TD-014) — ไม่มี query filter, ดู IAuthorizationGuard" style="text;html=1;align=left;fontSize=13;fontStyle=1;fontColor=#B85450;" vertex="1" parent="1">
+          <mxGeometry x="40" y="20" width="420" height="24" as="geometry" />
         </mxCell>
-        <mxCell id="lc-1" value="PK   Id : string" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=8;fontStyle=1;fontSize=11;whiteSpace=nowrap;overflow=hidden;html=1;" vertex="1" parent="lc">
+
+        <mxCell id="company" value="COMPANY" style="swimlane;fontStyle=1;align=center;startSize=30;fillColor=#f8cecc;strokeColor=#b85450;" vertex="1" parent="1">
+          <mxGeometry x="40" y="50" width="260" height="180" as="geometry" />
+        </mxCell>
+        <mxCell id="company-1" value="PK   Id : string (slug เช่น &quot;scb&quot;)" style="text;html=1;align=left;fontSize=12;" vertex="1" parent="company">
           <mxGeometry y="30" width="260" height="26" as="geometry" />
         </mxCell>
-        <mxCell id="lc-2" value="UK   Slug : string" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=8;fontSize=11;whiteSpace=nowrap;overflow=hidden;html=1;" vertex="1" parent="lc">
+        <mxCell id="company-2" value="Name : string" style="text;html=1;align=left;fontSize=12;" vertex="1" parent="company">
           <mxGeometry y="56" width="260" height="26" as="geometry" />
         </mxCell>
-        <mxCell id="lc-3" value="Title : string" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=8;fontSize=11;whiteSpace=nowrap;overflow=hidden;html=1;" vertex="1" parent="lc">
+        <mxCell id="company-3" value="IsActive : bool" style="text;html=1;align=left;fontSize=12;" vertex="1" parent="company">
           <mxGeometry y="82" width="260" height="26" as="geometry" />
         </mxCell>
-        <mxCell id="lc-4" value="SlidesSourceUrl : string" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=8;fontSize=11;whiteSpace=nowrap;overflow=hidden;html=1;" vertex="1" parent="lc">
+        <mxCell id="company-4" value="🔴 ไม่มี query filter — เป็นทะเบียนบริษัทเอง" style="text;html=1;align=left;fontSize=11;fontColor=#B85450;" vertex="1" parent="company">
+          <mxGeometry y="128" width="260" height="46" as="geometry" />
+        </mxCell>
+
+        <mxCell id="adminuser" value="ADMIN_USER" style="swimlane;fontStyle=1;align=center;startSize=30;fillColor=#f8cecc;strokeColor=#b85450;" vertex="1" parent="1">
+          <mxGeometry x="360" y="50" width="300" height="290" as="geometry" />
+        </mxCell>
+        <mxCell id="adminuser-1" value="PK   Id : string" style="text;html=1;align=left;fontSize=12;" vertex="1" parent="adminuser">
+          <mxGeometry y="30" width="300" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="adminuser-2" value="FK   CompanyId : string? (null เฉพาะ owner)" style="text;html=1;align=left;fontSize=12;" vertex="1" parent="adminuser">
+          <mxGeometry y="56" width="300" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="adminuser-3" value="Role : owner | admin | cs" style="text;html=1;align=left;fontSize=12;" vertex="1" parent="adminuser">
+          <mxGeometry y="82" width="300" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="adminuser-4" value="UK   Email : string (unique ทั้งระบบ)" style="text;html=1;align=left;fontSize=12;" vertex="1" parent="adminuser">
+          <mxGeometry y="108" width="300" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="adminuser-5" value="PasswordHash : string?" style="text;html=1;align=left;fontSize=12;" vertex="1" parent="adminuser">
+          <mxGeometry y="134" width="300" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="adminuser-6" value="DisplayName : string" style="text;html=1;align=left;fontSize=12;" vertex="1" parent="adminuser">
+          <mxGeometry y="160" width="300" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="adminuser-7" value="IsActive : bool  ·  LastLoginAt : datetime?" style="text;html=1;align=left;fontSize=12;" vertex="1" parent="adminuser">
+          <mxGeometry y="186" width="300" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="adminuser-8" value="MustChangePassword : bool" style="text;html=1;align=left;fontSize=12;" vertex="1" parent="adminuser">
+          <mxGeometry y="212" width="300" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="adminuser-9" value="🔴 ไม่มี query filter — sign-in ค้นด้วย email&#10;ก่อนรู้ company, owner มี CompanyId=null" style="text;html=1;align=left;fontSize=11;fontColor=#B85450;" vertex="1" parent="adminuser">
+          <mxGeometry y="248" width="300" height="42" as="geometry" />
+        </mxCell>
+
+        <mxCell id="data-note" value="Company-scoped data — มี EF query filter ทุกตาราง (TD-010)" style="text;html=1;align=left;fontSize=13;fontStyle=1;fontColor=#666666;" vertex="1" parent="1">
+          <mxGeometry x="40" y="380" width="500" height="24" as="geometry" />
+        </mxCell>
+
+        <mxCell id="lesson" value="LESSON_CONFIG" style="swimlane;fontStyle=1;align=center;startSize=30;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="40" y="410" width="260" height="266" as="geometry" />
+        </mxCell>
+        <mxCell id="lesson-1" value="PK   Id : string" style="text;html=1;align=left;fontSize=12;" vertex="1" parent="lesson">
+          <mxGeometry y="30" width="260" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="lesson-2" value="FK   CompanyId : string" style="text;html=1;align=left;fontSize=12;" vertex="1" parent="lesson">
+          <mxGeometry y="56" width="260" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="lesson-3" value="UK   (CompanyId, Slug) : string" style="text;html=1;align=left;fontSize=12;" vertex="1" parent="lesson">
+          <mxGeometry y="82" width="260" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="lesson-4" value="Title : string" style="text;html=1;align=left;fontSize=12;" vertex="1" parent="lesson">
           <mxGeometry y="108" width="260" height="26" as="geometry" />
         </mxCell>
-        <mxCell id="lc-5" value="PresentationId / PdfDocumentResourceId : string?" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=8;fontSize=11;whiteSpace=nowrap;overflow=hidden;html=1;" vertex="1" parent="lc">
+        <mxCell id="lesson-5" value="ContentSourceType : google_slides|pdf" style="text;html=1;align=left;fontSize=12;" vertex="1" parent="lesson">
           <mxGeometry y="134" width="260" height="26" as="geometry" />
         </mxCell>
-        <mxCell id="lc-6" value="ContentSourceType / SlidesEmbedUrl" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=8;fontSize=11;whiteSpace=nowrap;overflow=hidden;html=1;" vertex="1" parent="lc">
+        <mxCell id="lesson-6" value="PresentationId / PdfDocumentResourceId : string?" style="text;html=1;align=left;fontSize=12;" vertex="1" parent="lesson">
           <mxGeometry y="160" width="260" height="26" as="geometry" />
         </mxCell>
-        <mxCell id="lc-7" value="IntroWaitMs : int" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=8;fontSize=11;whiteSpace=nowrap;overflow=hidden;html=1;" vertex="1" parent="lc">
+        <mxCell id="lesson-7" value="IntroWaitMs / BreathPauseMs / FinalQuestionWaitMs : int" style="text;html=1;align=left;fontSize=12;" vertex="1" parent="lesson">
           <mxGeometry y="186" width="260" height="26" as="geometry" />
         </mxCell>
-        <mxCell id="lc-8" value="BreathPauseMs : int" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=8;fontSize=11;whiteSpace=nowrap;overflow=hidden;html=1;" vertex="1" parent="lc">
+        <mxCell id="lesson-8" value="SlideConfigs : JSON owned collection" style="text;html=1;align=left;fontSize=12;" vertex="1" parent="lesson">
           <mxGeometry y="212" width="260" height="26" as="geometry" />
         </mxCell>
-        <mxCell id="lc-9" value="FinalQuestionWaitMs : int" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=8;fontSize=11;whiteSpace=nowrap;overflow=hidden;html=1;" vertex="1" parent="lc">
+        <mxCell id="lesson-9" value="IsActive : bool" style="text;html=1;align=left;fontSize=12;" vertex="1" parent="lesson">
           <mxGeometry y="238" width="260" height="26" as="geometry" />
         </mxCell>
-        <mxCell id="lc-10" value="SlideConfigs : JSON owned collection" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=8;fontSize=11;whiteSpace=nowrap;overflow=hidden;html=1;" vertex="1" parent="lc">
-          <mxGeometry y="264" width="260" height="26" as="geometry" />
+
+        <mxCell id="link" value="TRAINING_LINK" style="swimlane;fontStyle=1;align=center;startSize=30;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="360" y="410" width="280" height="266" as="geometry" />
         </mxCell>
-        <mxCell id="lc-11" value="IsActive : bool" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=8;fontSize=11;whiteSpace=nowrap;overflow=hidden;html=1;" vertex="1" parent="lc">
-          <mxGeometry y="290" width="260" height="26" as="geometry" />
+        <mxCell id="link-1" value="PK   Id : string (prefix &quot;link_&quot;)" style="text;html=1;align=left;fontSize=12;" vertex="1" parent="link">
+          <mxGeometry y="30" width="280" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="link-2" value="FK   CompanyId : string" style="text;html=1;align=left;fontSize=12;" vertex="1" parent="link">
+          <mxGeometry y="56" width="280" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="link-3" value="UK   Token : string (join link, unique ทั้งระบบ)" style="text;html=1;align=left;fontSize=12;" vertex="1" parent="link">
+          <mxGeometry y="82" width="280" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="link-4" value="FK   LessonId : string  ·  LessonSlug : string" style="text;html=1;align=left;fontSize=12;" vertex="1" parent="link">
+          <mxGeometry y="108" width="280" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="link-5" value="RecipientOrgName : string? (label เฉย ๆ)" style="text;html=1;align=left;fontSize=12;" vertex="1" parent="link">
+          <mxGeometry y="134" width="280" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="link-6" value="ExpiresAt : datetime" style="text;html=1;align=left;fontSize=12;" vertex="1" parent="link">
+          <mxGeometry y="160" width="280" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="link-7" value="MaxAttendees : int? (ยังไม่บังคับใช้)" style="text;html=1;align=left;fontSize=12;" vertex="1" parent="link">
+          <mxGeometry y="186" width="280" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="link-8" value="1 ลิงก์ = หลายคนเข้าได้ (ไม่ใช่ 1:1 เหมือนเดิม)&#10;ไม่มีคอลัมน์ Status — ACTIVE/EXPIRED คำนวณจาก ExpiresAt" style="text;html=1;align=left;fontSize=11;fontColor=#666666;" vertex="1" parent="link">
+          <mxGeometry y="212" width="280" height="46" as="geometry" />
         </mxCell>
 
-        <!-- TRAINING_SESSION -->
-        <mxCell id="ts" value="TRAINING_SESSION" style="swimlane;fontStyle=1;align=center;verticalAlign=middle;childLayout=stackLayout;horizontal=1;startSize=30;horizontalStack=0;resizeParent=0;resizeParentMax=0;collapsible=0;marginBottom=0;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=13;" vertex="1" parent="1">
-          <mxGeometry x="420" y="40" width="260" height="342" as="geometry" />
+        <mxCell id="learning" value="LEARNING_SESSION" style="swimlane;fontStyle=1;align=center;startSize=30;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="700" y="410" width="300" height="344" as="geometry" />
         </mxCell>
-        <mxCell id="ts-1" value="PK   Id : string" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=8;fontStyle=1;fontSize=11;whiteSpace=nowrap;overflow=hidden;html=1;" vertex="1" parent="ts">
-          <mxGeometry y="30" width="260" height="26" as="geometry" />
+        <mxCell id="learning-1" value="PK   Id : string (prefix &quot;learning_&quot;)" style="text;html=1;align=left;fontSize=12;" vertex="1" parent="learning">
+          <mxGeometry y="30" width="300" height="26" as="geometry" />
         </mxCell>
-        <mxCell id="ts-2" value="UK   Token : string  (join link)" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=8;fontSize=11;whiteSpace=nowrap;overflow=hidden;html=1;" vertex="1" parent="ts">
-          <mxGeometry y="56" width="260" height="26" as="geometry" />
+        <mxCell id="learning-2" value="FK   CompanyId : string" style="text;html=1;align=left;fontSize=12;" vertex="1" parent="learning">
+          <mxGeometry y="56" width="300" height="26" as="geometry" />
         </mxCell>
-        <mxCell id="ts-3" value="FK   LessonId : string" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=8;fontSize=11;whiteSpace=nowrap;overflow=hidden;html=1;" vertex="1" parent="ts">
-          <mxGeometry y="82" width="260" height="26" as="geometry" />
+        <mxCell id="learning-3" value="FK   TrainingLinkId : string" style="text;html=1;align=left;fontSize=12;" vertex="1" parent="learning">
+          <mxGeometry y="82" width="300" height="26" as="geometry" />
         </mxCell>
-        <mxCell id="ts-4" value="LessonSlug : string" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=8;fontSize=11;whiteSpace=nowrap;overflow=hidden;html=1;" vertex="1" parent="ts">
-          <mxGeometry y="108" width="260" height="26" as="geometry" />
+        <mxCell id="learning-4" value="LearnerKey : string (browser เก็บ, ไม่ใช่ credential)" style="text;html=1;align=left;fontSize=12;" vertex="1" parent="learning">
+          <mxGeometry y="108" width="300" height="26" as="geometry" />
         </mxCell>
-        <mxCell id="ts-5" value="TeacherName : string?" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=8;fontSize=11;whiteSpace=nowrap;overflow=hidden;html=1;" vertex="1" parent="ts">
-          <mxGeometry y="134" width="260" height="26" as="geometry" />
+        <mxCell id="learning-5" value="RecipientName : string (ผู้ใช้กรอกเอง)" style="text;html=1;align=left;fontSize=12;" vertex="1" parent="learning">
+          <mxGeometry y="134" width="300" height="26" as="geometry" />
         </mxCell>
-        <mxCell id="ts-6" value="SchoolName : string?" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=8;fontSize=11;whiteSpace=nowrap;overflow=hidden;html=1;" vertex="1" parent="ts">
-          <mxGeometry y="160" width="260" height="26" as="geometry" />
+        <mxCell id="learning-6" value="Status : IN_PROGRESS | ENDED" style="text;html=1;align=left;fontSize=12;" vertex="1" parent="learning">
+          <mxGeometry y="160" width="300" height="26" as="geometry" />
         </mxCell>
-        <mxCell id="ts-7" value="Status : string" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=8;fontSize=11;whiteSpace=nowrap;overflow=hidden;html=1;" vertex="1" parent="ts">
-          <mxGeometry y="186" width="260" height="26" as="geometry" />
+        <mxCell id="learning-7" value="StartedAt : datetime  ·  EndedAt : datetime?" style="text;html=1;align=left;fontSize=12;" vertex="1" parent="learning">
+          <mxGeometry y="186" width="300" height="26" as="geometry" />
         </mxCell>
-        <mxCell id="ts-8" value="ExpiresAt : datetime" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=8;fontSize=11;whiteSpace=nowrap;overflow=hidden;html=1;" vertex="1" parent="ts">
-          <mxGeometry y="212" width="260" height="26" as="geometry" />
+        <mxCell id="learning-8" value="LastActivityAt : datetime (ใช้คำนวณ &quot;หยุดกลางคัน&quot;)" style="text;html=1;align=left;fontSize=12;" vertex="1" parent="learning">
+          <mxGeometry y="212" width="300" height="26" as="geometry" />
         </mxCell>
-        <mxCell id="ts-9" value="StartedAt : datetime?" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=8;fontSize=11;whiteSpace=nowrap;overflow=hidden;html=1;" vertex="1" parent="ts">
-          <mxGeometry y="238" width="260" height="26" as="geometry" />
+        <mxCell id="learning-9" value="LastSlideObjectId : string?  ·  LastSlideIndex : int" style="text;html=1;align=left;fontSize=12;" vertex="1" parent="learning">
+          <mxGeometry y="238" width="300" height="26" as="geometry" />
         </mxCell>
-        <mxCell id="ts-10" value="EndedAt : datetime?" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=8;fontSize=11;whiteSpace=nowrap;overflow=hidden;html=1;" vertex="1" parent="ts">
-          <mxGeometry y="264" width="260" height="26" as="geometry" />
+        <mxCell id="learning-10" value="CompletedAllSlides : bool" style="text;html=1;align=left;fontSize=12;" vertex="1" parent="learning">
+          <mxGeometry y="264" width="300" height="26" as="geometry" />
         </mxCell>
-        <mxCell id="ts-11" value="CompletedAllSlides : bool" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=8;fontSize=11;whiteSpace=nowrap;overflow=hidden;html=1;" vertex="1" parent="ts">
-          <mxGeometry y="290" width="260" height="26" as="geometry" />
-        </mxCell>
-        <mxCell id="ts-12" value="LastSlideObjectId : string?" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=8;fontSize=11;whiteSpace=nowrap;overflow=hidden;html=1;" vertex="1" parent="ts">
-          <mxGeometry y="316" width="260" height="26" as="geometry" />
+        <mxCell id="learning-11" value="1 คนมีได้หลายแถว — กด &quot;เรียนอีกครั้ง&quot;&#10;สร้างรอบใหม่ใต้ LearnerKey เดิม" style="text;html=1;align=left;fontSize=11;fontColor=#666666;" vertex="1" parent="learning">
+          <mxGeometry y="290" width="300" height="46" as="geometry" />
         </mxCell>
 
-        <!-- SESSION_QUESTION -->
-        <mxCell id="sq" value="SESSION_QUESTION" style="swimlane;fontStyle=1;align=center;verticalAlign=middle;childLayout=stackLayout;horizontal=1;startSize=30;horizontalStack=0;resizeParent=0;resizeParentMax=0;collapsible=0;marginBottom=0;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=13;" vertex="1" parent="1">
-          <mxGeometry x="40" y="480" width="240" height="186" as="geometry" />
+        <mxCell id="question" value="SESSION_QUESTION" style="swimlane;fontStyle=1;align=center;startSize=30;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="1060" y="410" width="300" height="292" as="geometry" />
         </mxCell>
-        <mxCell id="sq-1" value="PK   Id : string" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=8;fontStyle=1;fontSize=11;whiteSpace=nowrap;overflow=hidden;html=1;" vertex="1" parent="sq">
-          <mxGeometry y="30" width="240" height="26" as="geometry" />
+        <mxCell id="question-1" value="PK   Id : string" style="text;html=1;align=left;fontSize=12;" vertex="1" parent="question">
+          <mxGeometry y="30" width="300" height="26" as="geometry" />
         </mxCell>
-        <mxCell id="sq-2" value="FK   SessionId : string" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=8;fontSize=11;whiteSpace=nowrap;overflow=hidden;html=1;" vertex="1" parent="sq">
-          <mxGeometry y="56" width="240" height="26" as="geometry" />
+        <mxCell id="question-2" value="FK   CompanyId : string" style="text;html=1;align=left;fontSize=12;" vertex="1" parent="question">
+          <mxGeometry y="56" width="300" height="26" as="geometry" />
         </mxCell>
-        <mxCell id="sq-3" value="SlideObjectId : string?" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=8;fontSize=11;whiteSpace=nowrap;overflow=hidden;html=1;" vertex="1" parent="sq">
-          <mxGeometry y="82" width="240" height="26" as="geometry" />
+        <mxCell id="question-3" value="FK   SessionId : string → LEARNING_SESSION.Id" style="text;html=1;align=left;fontSize=12;" vertex="1" parent="question">
+          <mxGeometry y="82" width="300" height="26" as="geometry" />
         </mxCell>
-        <mxCell id="sq-4" value="Transcript : string?" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=8;fontSize=11;whiteSpace=nowrap;overflow=hidden;html=1;" vertex="1" parent="sq">
-          <mxGeometry y="108" width="240" height="26" as="geometry" />
+        <mxCell id="question-4" value="SlideObjectId : string?  ·  Transcript : string?" style="text;html=1;align=left;fontSize=12;" vertex="1" parent="question">
+          <mxGeometry y="108" width="300" height="26" as="geometry" />
         </mxCell>
-        <mxCell id="sq-5" value="Answer : string?" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=8;fontSize=11;whiteSpace=nowrap;overflow=hidden;html=1;" vertex="1" parent="sq">
-          <mxGeometry y="134" width="240" height="26" as="geometry" />
+        <mxCell id="question-5" value="Answer : string?" style="text;html=1;align=left;fontSize=12;" vertex="1" parent="question">
+          <mxGeometry y="134" width="300" height="26" as="geometry" />
         </mxCell>
-        <mxCell id="sq-6" value="AnswerStatus : string" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=8;fontSize=11;whiteSpace=nowrap;overflow=hidden;html=1;" vertex="1" parent="sq">
-          <mxGeometry y="160" width="240" height="26" as="geometry" />
+        <mxCell id="question-6" value="AnswerStatus : answered|not_found|out_of_scope|..." style="text;html=1;align=left;fontSize=12;" vertex="1" parent="question">
+          <mxGeometry y="160" width="300" height="26" as="geometry" />
         </mxCell>
-
-        <!-- CHAT_MESSAGE -->
-        <mxCell id="cm" value="CHAT_MESSAGE" style="swimlane;fontStyle=1;align=center;verticalAlign=middle;childLayout=stackLayout;horizontal=1;startSize=30;horizontalStack=0;resizeParent=0;resizeParentMax=0;collapsible=0;marginBottom=0;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=13;" vertex="1" parent="1">
-          <mxGeometry x="340" y="480" width="240" height="160" as="geometry" />
+        <mxCell id="question-7" value="ReviewResult : correct|incorrect|null" style="text;html=1;align=left;fontSize=12;" vertex="1" parent="question">
+          <mxGeometry y="186" width="300" height="26" as="geometry" />
         </mxCell>
-        <mxCell id="cm-1" value="PK   Id : string" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=8;fontStyle=1;fontSize=11;whiteSpace=nowrap;overflow=hidden;html=1;" vertex="1" parent="cm">
-          <mxGeometry y="30" width="240" height="26" as="geometry" />
+        <mxCell id="question-8" value="ReviewNote : string? (free text ไม่ใช่ enum)" style="text;html=1;align=left;fontSize=12;" vertex="1" parent="question">
+          <mxGeometry y="212" width="300" height="26" as="geometry" />
         </mxCell>
-        <mxCell id="cm-2" value="FK   SessionId : string" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=8;fontSize=11;whiteSpace=nowrap;overflow=hidden;html=1;" vertex="1" parent="cm">
-          <mxGeometry y="56" width="240" height="26" as="geometry" />
-        </mxCell>
-        <mxCell id="cm-3" value="SenderRole : string  (teacher/cs/system)" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=8;fontSize=11;whiteSpace=nowrap;overflow=hidden;html=1;" vertex="1" parent="cm">
-          <mxGeometry y="82" width="240" height="26" as="geometry" />
-        </mxCell>
-        <mxCell id="cm-4" value="SenderName : string?" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=8;fontSize=11;whiteSpace=nowrap;overflow=hidden;html=1;" vertex="1" parent="cm">
-          <mxGeometry y="108" width="240" height="26" as="geometry" />
-        </mxCell>
-        <mxCell id="cm-5" value="Text : string" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=8;fontSize=11;whiteSpace=nowrap;overflow=hidden;html=1;" vertex="1" parent="cm">
-          <mxGeometry y="134" width="240" height="26" as="geometry" />
+        <mxCell id="question-9" value="ReviewedAt : datetime?  ·  UpdateBy : ใคร CS ตรวจ" style="text;html=1;align=left;fontSize=12;" vertex="1" parent="question">
+          <mxGeometry y="238" width="300" height="26" as="geometry" />
         </mxCell>
 
-        <!-- SESSION_SUMMARY -->
-        <mxCell id="ss" value="SESSION_SUMMARY" style="swimlane;fontStyle=1;align=center;verticalAlign=middle;childLayout=stackLayout;horizontal=1;startSize=30;horizontalStack=0;resizeParent=0;resizeParentMax=0;collapsible=0;marginBottom=0;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=13;" vertex="1" parent="1">
-          <mxGeometry x="640" y="480" width="260" height="160" as="geometry" />
+        <mxCell id="chat" value="CHAT_MESSAGE" style="swimlane;fontStyle=1;align=center;startSize=30;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="1060" y="736" width="300" height="188" as="geometry" />
         </mxCell>
-        <mxCell id="ss-1" value="PK   Id : string" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=8;fontStyle=1;fontSize=11;whiteSpace=nowrap;overflow=hidden;html=1;" vertex="1" parent="ss">
-          <mxGeometry y="30" width="260" height="26" as="geometry" />
+        <mxCell id="chat-1" value="PK   Id : string" style="text;html=1;align=left;fontSize=12;" vertex="1" parent="chat">
+          <mxGeometry y="30" width="300" height="26" as="geometry" />
         </mxCell>
-        <mxCell id="ss-2" value="FK,UK   SessionId : string" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=8;fontSize=11;whiteSpace=nowrap;overflow=hidden;html=1;" vertex="1" parent="ss">
-          <mxGeometry y="56" width="260" height="26" as="geometry" />
+        <mxCell id="chat-2" value="FK   CompanyId : string" style="text;html=1;align=left;fontSize=12;" vertex="1" parent="chat">
+          <mxGeometry y="56" width="300" height="26" as="geometry" />
         </mxCell>
-        <mxCell id="ss-3" value="CompletedAllSlides : bool" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=8;fontSize=11;whiteSpace=nowrap;overflow=hidden;html=1;" vertex="1" parent="ss">
-          <mxGeometry y="82" width="260" height="26" as="geometry" />
+        <mxCell id="chat-3" value="FK   SessionId : string → LEARNING_SESSION.Id" style="text;html=1;align=left;fontSize=12;" vertex="1" parent="chat">
+          <mxGeometry y="82" width="300" height="26" as="geometry" />
         </mxCell>
-        <mxCell id="ss-4" value="LastSlideObjectId : string?" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=8;fontSize=11;whiteSpace=nowrap;overflow=hidden;html=1;" vertex="1" parent="ss">
-          <mxGeometry y="108" width="260" height="26" as="geometry" />
+        <mxCell id="chat-4" value="SenderRole : recipient|agent|system" style="text;html=1;align=left;fontSize=12;" vertex="1" parent="chat">
+          <mxGeometry y="108" width="300" height="26" as="geometry" />
         </mxCell>
-        <mxCell id="ss-5" value="UnansweredPoints : text[]" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=8;fontSize=11;whiteSpace=nowrap;overflow=hidden;html=1;" vertex="1" parent="ss">
-          <mxGeometry y="134" width="260" height="26" as="geometry" />
+        <mxCell id="chat-5" value="SenderName : string?  ·  Text : string" style="text;html=1;align=left;fontSize=12;" vertex="1" parent="chat">
+          <mxGeometry y="134" width="300" height="26" as="geometry" />
         </mxCell>
 
-        <!-- DOCUMENT_RESOURCE -->
-        <mxCell id="dr" value="DOCUMENT_RESOURCE" style="swimlane;fontStyle=1;align=center;verticalAlign=middle;childLayout=stackLayout;horizontal=1;startSize=30;horizontalStack=0;resizeParent=0;resizeParentMax=0;collapsible=0;marginBottom=0;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=13;" vertex="1" parent="1">
-          <mxGeometry x="960" y="480" width="280" height="212" as="geometry" />
+        <mxCell id="doc" value="DOCUMENT_RESOURCE" style="swimlane;fontStyle=1;align=center;startSize=30;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="40" y="710" width="280" height="240" as="geometry" />
         </mxCell>
-        <mxCell id="dr-1" value="PK   Id : string" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=8;fontStyle=1;fontSize=11;whiteSpace=nowrap;overflow=hidden;html=1;" vertex="1" parent="dr"><mxGeometry y="30" width="280" height="26" as="geometry" /></mxCell>
-        <mxCell id="dr-2" value="LessonId : string?" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=8;fontSize=11;whiteSpace=nowrap;overflow=hidden;html=1;" vertex="1" parent="dr"><mxGeometry y="56" width="280" height="26" as="geometry" /></mxCell>
-        <mxCell id="dr-3" value="FileName / ContentType / SizeBytes" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=8;fontSize=11;whiteSpace=nowrap;overflow=hidden;html=1;" vertex="1" parent="dr"><mxGeometry y="82" width="280" height="26" as="geometry" /></mxCell>
-        <mxCell id="dr-4" value="ObsBucket / ObsKey" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=8;fontSize=11;whiteSpace=nowrap;overflow=hidden;html=1;" vertex="1" parent="dr"><mxGeometry y="108" width="280" height="26" as="geometry" /></mxCell>
-        <mxCell id="dr-5" value="IndexingStatus : pending/indexed/failed" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=8;fontSize=11;whiteSpace=nowrap;overflow=hidden;html=1;" vertex="1" parent="dr"><mxGeometry y="134" width="280" height="26" as="geometry" /></mxCell>
-        <mxCell id="dr-6" value="IndexedChunkCount : int" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=8;fontSize=11;whiteSpace=nowrap;overflow=hidden;html=1;" vertex="1" parent="dr"><mxGeometry y="160" width="280" height="26" as="geometry" /></mxCell>
-        <mxCell id="dr-7" value="Used by PDF source and RAG documents" style="text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;spacingLeft=8;fontSize=11;whiteSpace=nowrap;overflow=hidden;html=1;" vertex="1" parent="dr"><mxGeometry y="186" width="280" height="26" as="geometry" /></mxCell>
+        <mxCell id="doc-1" value="PK   Id : string (chunk id = &quot;{Id}-{chunkId}&quot;)" style="text;html=1;align=left;fontSize=12;" vertex="1" parent="doc">
+          <mxGeometry y="30" width="280" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="doc-2" value="FK   CompanyId : string" style="text;html=1;align=left;fontSize=12;" vertex="1" parent="doc">
+          <mxGeometry y="56" width="280" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="doc-3" value="LessonId : string? (null = standalone/kb-global)" style="text;html=1;align=left;fontSize=12;" vertex="1" parent="doc">
+          <mxGeometry y="82" width="280" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="doc-4" value="FileName / ContentType / SizeBytes" style="text;html=1;align=left;fontSize=12;" vertex="1" parent="doc">
+          <mxGeometry y="108" width="280" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="doc-5" value="ObsBucket / ObsKey" style="text;html=1;align=left;fontSize=12;" vertex="1" parent="doc">
+          <mxGeometry y="134" width="280" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="doc-6" value="IndexingStatus : pending|indexed|failed" style="text;html=1;align=left;fontSize=12;" vertex="1" parent="doc">
+          <mxGeometry y="160" width="280" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="doc-7" value="IndexedChunkCount : int" style="text;html=1;align=left;fontSize=12;" vertex="1" parent="doc">
+          <mxGeometry y="186" width="280" height="26" as="geometry" />
+        </mxCell>
 
-        <!-- Relationships -->
-        <mxCell id="e1" value="spawns" style="edgeStyle=entityRelationEdgeStyle;rounded=0;html=1;fontSize=11;startArrow=ERone;startFill=0;endArrow=ERmany;endFill=0;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="lc" target="ts">
+        <mxCell id="e-adminuser-company" style="edgeStyle=entityRelationEdgeStyle;rounded=0;html=1;endArrow=ERmany;startArrow=ERone;dashed=1;strokeColor=#B85450;" edge="1" parent="1" source="company" target="adminuser">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e2" value="logs" style="edgeStyle=entityRelationEdgeStyle;rounded=0;html=1;fontSize=11;startArrow=ERone;startFill=0;endArrow=ERmany;endFill=0;exitX=0.25;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="ts" target="sq">
+        <mxCell id="e-lesson-link" value="creates" style="edgeStyle=entityRelationEdgeStyle;rounded=0;html=1;endArrow=ERmany;startArrow=ERone;" edge="1" parent="1" source="lesson" target="link">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e3" value="carries" style="edgeStyle=entityRelationEdgeStyle;rounded=0;html=1;fontSize=11;startArrow=ERone;startFill=0;endArrow=ERmany;endFill=0;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="ts" target="cm">
+        <mxCell id="e-lesson-doc" value="attaches" style="edgeStyle=entityRelationEdgeStyle;rounded=0;html=1;endArrow=ERmany;startArrow=ERone;" edge="1" parent="1" source="lesson" target="doc">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e4" value="closes with" style="edgeStyle=entityRelationEdgeStyle;rounded=0;html=1;fontSize=11;startArrow=ERone;startFill=0;endArrow=ERzeroToOne;endFill=0;exitX=0.75;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="ts" target="ss">
+        <mxCell id="e-link-learning" value="opened by many people" style="edgeStyle=entityRelationEdgeStyle;rounded=0;html=1;endArrow=ERmany;startArrow=ERone;" edge="1" parent="1" source="link" target="learning">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e5" value="attaches" style="edgeStyle=entityRelationEdgeStyle;rounded=0;html=1;fontSize=11;startArrow=ERone;startFill=0;endArrow=ERmany;endFill=0;exitX=1;exitY=0.7;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="lc" target="dr">
+        <mxCell id="e-learning-question" value="records" style="edgeStyle=entityRelationEdgeStyle;rounded=0;html=1;endArrow=ERmany;startArrow=ERone;" edge="1" parent="1" source="learning" target="question">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e-learning-chat" value="contains" style="edgeStyle=entityRelationEdgeStyle;rounded=0;html=1;endArrow=ERmany;startArrow=ERone;" edge="1" parent="1" source="learning" target="chat">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
 

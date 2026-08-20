@@ -14,6 +14,7 @@ const ctx: TutorContext = {
   introWaitMs: 5_000,
   breathPauseMs: 1_000,
   finalQuestionWaitMs: 5_000,
+  resumeSlideIndex: 0,
 };
 
 function toSlideSpeaking(startIndex = 0) {
@@ -53,6 +54,33 @@ describe("tutorReducer: startup sequence", () => {
 
     const started = tutorReducer(r, { type: "START" }, ctx);
     expect(started.runtime.state).toBe("slide-loading");
+    expect(started.effect).toEqual({ kind: "LOAD_SLIDE", slideIndex: 0 });
+  });
+});
+
+describe("tutorReducer: resuming where the learner left off", () => {
+  function startWith(context: TutorContext) {
+    let r = createInitialRuntime();
+    r = tutorReducer(r, { type: "JOIN" }, context).runtime;
+    r = tutorReducer(r, { type: "LESSON_LOADED" }, context).runtime;
+    r = tutorReducer(r, { type: "TTS_ENDED", elapsedMs: 1000 }, context).runtime; // -> ready
+    return tutorReducer(r, { type: "START" }, context);
+  }
+
+  it("opens on the stored slide instead of the first one", () => {
+    const started = startWith({ ...ctx, resumeSlideIndex: 1 });
+    expect(started.effect).toEqual({ kind: "LOAD_SLIDE", slideIndex: 1 });
+    expect(started.runtime.currentSlideIndex).toBe(1);
+  });
+
+  it("clamps a stored slide that no longer exists to the last one", () => {
+    // A deck can lose slides between two visits - resuming past the end would load nothing.
+    const started = startWith({ ...ctx, resumeSlideIndex: 99 });
+    expect(started.effect).toEqual({ kind: "LOAD_SLIDE", slideIndex: slides.length - 1 });
+  });
+
+  it("still starts at 0 for someone who has never been here", () => {
+    const started = startWith({ ...ctx, resumeSlideIndex: 0 });
     expect(started.effect).toEqual({ kind: "LOAD_SLIDE", slideIndex: 0 });
   });
 });

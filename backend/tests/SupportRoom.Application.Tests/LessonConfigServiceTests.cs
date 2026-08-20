@@ -20,6 +20,8 @@ public class LessonConfigServiceTests
 {
     private readonly FakeLessonConfigRepository _lessons = new();
     private readonly FakeDocumentResourceRepository _documents = new();
+    private readonly FakeKnowledgeCategoryRepository _categories = new();
+    private readonly FakeLessonSlideNarrationRepository _narrations = new();
     private readonly FakeKnowledgeIndexingService _knowledge = new();
     private readonly FakeUnitOfWork _unitOfWork = new();
     private readonly LocalDocumentStorageProvider _storage = new(NullLogger<LocalDocumentStorageProvider>.Instance);
@@ -33,6 +35,18 @@ public class LessonConfigServiceTests
 
         _unitOfWork.Register<ILessonConfigRepository>(_lessons);
         _unitOfWork.Register<IDocumentResourceRepository>(_documents);
+        _unitOfWork.Register<IKnowledgeCategoryRepository>(_categories);
+        _unitOfWork.Register<ILessonSlideNarrationRepository>(_narrations);
+        _categories.Items.Add(new KnowledgeCategory
+        {
+            Id = "kbcat-child",
+            CompanyId = TestFixtures.CompanyId,
+            ParentId = "kbcat-parent",
+            Level = 2,
+            Name = "หมวดย่อย",
+            SortOrder = 0,
+            IsSystemDefault = false,
+        });
 
         _service = new LessonConfigService(
             _unitOfWork,
@@ -41,7 +55,8 @@ public class LessonConfigServiceTests
             new GoogleSlidesProvider(NullLogger<GoogleSlidesProvider>.Instance),
             _knowledge,
             _storage,
-            new MemoryCache(new MemoryCacheOptions()));
+            new MemoryCache(new MemoryCacheOptions()),
+            new LessonSlideNarrationResolver(_unitOfWork));
     }
 
     private static LessonConfigDto NewDto(
@@ -52,6 +67,7 @@ public class LessonConfigServiceTests
         bool isActive = true) => new()
     {
         Slug = slug,
+        CategoryId = "kbcat-child",
         Title = "บทเรียนทดสอบ",
         Description = null,
         SlidesSourceUrl = slidesSourceUrl,
@@ -71,7 +87,8 @@ public class LessonConfigServiceTests
         {
             Id = id,
             CompanyId = TestFixtures.CompanyId,
-            LessonId = lessonId,
+            ScopeType = lessonId is null ? "company" : "lesson",
+            ScopeId = lessonId,
             FileName = "manual.pdf",
             ContentType = "application/pdf",
             SizeBytes = 1234,
@@ -140,6 +157,7 @@ public class LessonConfigServiceTests
     }
 
     [Fact]
+    [Trait(TestCategories.Category, TestCategories.Integration)]
     public async Task SaveAsync_ForGoogleSlidesWithAUrl_ResolvesPresentationIdViaTheProvider()
     {
         // Real GoogleSlidesProvider hits the live API to confirm access, so this needs an
@@ -187,6 +205,7 @@ public class LessonConfigServiceTests
     }
 
     [Fact]
+    [Trait(TestCategories.Category, TestCategories.Integration)]
     public async Task GetTeachingContent_ForGoogleSlides_ReturnsResolvedSlides()
     {
         await _service.SaveAsync(NewDto(

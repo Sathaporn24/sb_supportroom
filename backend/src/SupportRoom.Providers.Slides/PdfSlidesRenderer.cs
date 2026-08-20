@@ -63,7 +63,11 @@ public static class PdfSlidesRenderer
                 SlideObjectId = $"pdf-page-{page.Number}",
                 Index = page.Number - 1,
                 SpeakerNotes = BuildNarration(page),
-                SlideUrl = $"/api/lessons/pdf-pages/{documentId}/{page.Number}",
+                // The public page endpoint also needs the training-link token to recover company
+                // context. LessonConfigService replaces this provider-local marker at the API
+                // boundary; persisting or guessing a token down in this provider would violate
+                // the layer separation.
+                SlideUrl = $"pdf-page:{documentId}:{page.Number}",
             });
         }
 

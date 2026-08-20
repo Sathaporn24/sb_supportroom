@@ -7,6 +7,10 @@ public static class TutorConfig
     public const int DefaultBreathPauseMs = 500;
     public const int DefaultFinalQuestionWaitMs = 5_000;
     public const int DefaultSessionExpiryHours = 24;
+
+    /// <summary>A LearningSession that has not moved a slide in this long is *displayed* as
+    /// stalled. Never written to the database - see CORE_FEATURE_SPEC §2.6.</summary>
+    public const int DefaultInactiveThresholdMinutes = 30;
 }
 
 public sealed class LessonTimingDefaults
@@ -40,6 +44,9 @@ public static class ServerDefaults
 
     public static int GetDefaultSessionExpiryHours() =>
         NumberEnv("DEFAULT_SESSION_EXPIRY_HOURS", TutorConfig.DefaultSessionExpiryHours);
+
+    public static int GetInactiveThresholdMinutes() =>
+        NumberEnv("INACTIVE_THRESHOLD_MINUTES", TutorConfig.DefaultInactiveThresholdMinutes);
 }
 
 /// <summary>Mirrors src/config/env.ts's uploadLimits.</summary>
@@ -57,6 +64,85 @@ public static class UploadLimits
 
     /// <summary>Documents (pptx/pdf/docx) are naturally bigger than a short voice clip.</summary>
     public static int MaxDocumentUploadMb => NumberEnv("MAX_DOCUMENT_UPLOAD_MB", 20);
+}
+
+public sealed class JwtSettings
+{
+    /// <summary>Signing key. No default on purpose - a fallback secret would mean every
+    /// deployment that forgot to set it shares a key an attacker can read in this repo, and
+    /// would fail silently instead of loudly.</summary>
+    public required string Secret { get; init; }
+
+    public required string Issuer { get; init; }
+    public required string Audience { get; init; }
+
+    /// <summary>Short-lived by design. There is no refresh token yet, so this is also how long a
+    /// deactivated account keeps working - anything longer widens that window for no benefit to
+    /// a back office people sign into once a day.</summary>
+    public required int ExpiryMinutes { get; init; }
+}
+
+/// <summary>The very first owner account, seeded at startup only when no user exists at all.
+/// Solves the chicken-and-egg problem: nobody can sign in to create the first account.</summary>
+public sealed class FirstOwnerSeed
+{
+    public required string Email { get; init; }
+    public required string Password { get; init; }
+    public required string DisplayName { get; init; }
+}
+
+/// <summary>
+/// The app's own back-office authentication settings. Separate from ExternalServiceEnv on purpose:
+/// everything there is a credential for someone else's service (Google, Gemini, Pinecone), whereas
+/// these are this system's own secrets. Reading them from the same class would make the name lie
+/// and blur which vendor an outage belongs to.
+/// </summary>
+public static class AuthEnv
+{
+    /// <summary>Rejects a short key here rather than letting it surface as an opaque IDX10653 at
+    /// the first sign-in attempt. HMAC-SHA256 gains nothing from a key shorter than its 256-bit
+    /// hash, and Microsoft's handler refuses one outright.</summary>
+    public const int MinSecretLength = 32;
+
+    public static JwtSettings GetJwt()
+    {
+        var secret = Environment.GetEnvironmentVariable("JWT_SECRET");
+        if (string.IsNullOrEmpty(secret))
+        {
+            throw new MissingEnvException(["JWT_SECRET"]);
+        }
+        if (secret.Length < MinSecretLength)
+        {
+            throw new MissingEnvException([$"JWT_SECRET (ต้องยาวอย่างน้อย {MinSecretLength} ตัวอักษร)"]);
+        }
+
+        return new JwtSettings
+        {
+            Secret = secret,
+            Issuer = Environment.GetEnvironmentVariable("JWT_ISSUER") is { Length: > 0 } i ? i : "supportroom",
+            Audience = Environment.GetEnvironmentVariable("JWT_AUDIENCE") is { Length: > 0 } a ? a : "supportroom-admin",
+            ExpiryMinutes = int.TryParse(Environment.GetEnvironmentVariable("JWT_EXPIRY_MINUTES"), out var m) && m > 0 ? m : 480,
+        };
+    }
+
+    /// <summary>Null when the seed variables are unset - startup then logs and skips rather than
+    /// failing, so an environment that already has accounts never needs these set at all.</summary>
+    public static FirstOwnerSeed? GetFirstOwnerSeed()
+    {
+        var email = Environment.GetEnvironmentVariable("FIRST_OWNER_EMAIL");
+        var password = Environment.GetEnvironmentVariable("FIRST_OWNER_PASSWORD");
+        if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(password))
+        {
+            return null;
+        }
+
+        return new FirstOwnerSeed
+        {
+            Email = email.Trim(),
+            Password = password,
+            DisplayName = Environment.GetEnvironmentVariable("FIRST_OWNER_NAME") is { Length: > 0 } n ? n : email.Trim(),
+        };
+    }
 }
 
 public sealed class GoogleServiceAccountCredentials

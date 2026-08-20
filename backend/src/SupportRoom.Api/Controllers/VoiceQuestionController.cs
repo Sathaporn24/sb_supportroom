@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
 using SupportRoom.Application.Dto;
@@ -11,10 +12,13 @@ public sealed class VoiceQuestionRequest
 {
     public IFormFile? Audio { get; init; }
 
-    /// <summary>The session's public join token. Replaced the old lessonSlug+sessionId pair:
+    /// <summary>The link's public join token. Replaced the old lessonSlug+sessionId pair:
     /// those were two independent client-supplied values that nothing checked belonged
     /// together.</summary>
     public string? Token { get; init; }
+
+    /// <summary>Which learner on that link is asking - see AskVoiceQuestionDto.LearnerKey.</summary>
+    public string? LearnerKey { get; init; }
 
     public string? CurrentSlideObjectId { get; init; }
     public string? DurationMs { get; init; }
@@ -32,13 +36,14 @@ public sealed class VoiceQuestionController : ControllerBase
         _service = serviceProvider.GetRequiredService<IVoiceQuestionService>();
     }
 
+    [AllowAnonymous]
     [HttpPost]
     [RequestSizeLimit(10 * 1024 * 1024)]
     public async Task<ActionResult> Ask([FromForm] VoiceQuestionRequest request)
     {
-        if (request.Audio is null || string.IsNullOrEmpty(request.Token))
+        if (request.Audio is null || string.IsNullOrEmpty(request.Token) || string.IsNullOrEmpty(request.LearnerKey))
         {
-            throw GeneralException.ValidationError("ต้องแนบไฟล์เสียง (audio) และ token");
+            throw GeneralException.ValidationError("ต้องแนบไฟล์เสียง (audio), token และ learnerKey");
         }
 
         var maxBytes = UploadLimits.MaxVoiceUploadMb * 1024 * 1024;
@@ -59,6 +64,7 @@ public sealed class VoiceQuestionController : ControllerBase
             Audio = stream.ToArray(),
             MimeType = string.IsNullOrEmpty(request.Audio.ContentType) ? "audio/webm" : request.Audio.ContentType,
             Token = request.Token,
+            LearnerKey = request.LearnerKey,
             DurationMs = int.TryParse(request.DurationMs, out var ms) ? ms : 0,
             CurrentSlideObjectId = request.CurrentSlideObjectId,
             Expecting = request.Expecting == "readiness" ? "readiness" : "question",

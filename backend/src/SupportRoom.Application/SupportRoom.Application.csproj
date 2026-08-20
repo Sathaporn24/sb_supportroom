@@ -14,6 +14,17 @@
   <ItemGroup>
     <PackageReference Include="Mapster" Version="10.0.11" />
     <PackageReference Include="Microsoft.Extensions.Caching.Memory" Version="10.0.10" />
+    <!-- Pin the relational assembly explicitly. Npgsql accepts 10.0.4+, but without this direct
+         reference NuGet selected its minimum 10.0.4 in this project while Providers.Data built
+         against 10.0.10, producing MSB3277 and a risky runtime binding mismatch. -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.10" />
+    <!-- Only IPasswordHasher<T> is used from Identity, not the full Identity stack (TD-014):
+         the stack brings its own seven tables whose shape fights this project's conventions
+         (no IEntityMaster, no CompanyId, different naming), while the reason for choosing
+         Identity in the first place was simply "do not hand-roll password hashing" - which
+         this one interface satisfies completely. -->
+    <PackageReference Include="Microsoft.Extensions.Identity.Core" Version="10.0.10" />
+    <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.16.0" />
   </ItemGroup>
 
   <PropertyGroup>

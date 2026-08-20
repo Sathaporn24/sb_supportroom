@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
 using Serilog;
@@ -74,6 +75,7 @@ builder.Services.AddControllers().AddJsonOptions(options =>
 builder.Services.AddFrontendCors(builder.Environment.IsDevelopment());
 builder.Services.AddEntityFrameworkConfiguration(builder.Configuration);
 builder.Services.AddServiceConfiguration();
+builder.Services.AddBackOfficeAuthentication();
 builder.Services.AddSignalR();
 MapsterConfig.Apply();
 
@@ -100,12 +102,50 @@ app.Use(async (context, next) =>
 });
 
 // Request logging sits OUTSIDE the exception handler so it records the final, client-visible
-// status: a GeneralException that the handler turns into a 400/404 would otherwise be seen here
-// while still propagating as an unhandled exception and get logged as a 500 - flooding the error
-// log with false 500s for ordinary validation/not-found responses.
-app.UseSerilogRequestLogging();
+// status. Do not use Serilog's default request middleware here: its RequestPath property contains
+// the public token on learner routes, and several learner keys arrive in the query string. This
+// deliberately logs only method/status/duration and never path, query, token, or learnerKey.
+var safeRequestLogger = app.Services.GetRequiredService<ILoggerFactory>()
+    .CreateLogger("SupportRoom.Api.SafeRequestLogging");
+app.Use(async (context, next) =>
+{
+    var stopwatch = Stopwatch.StartNew();
+    try
+    {
+        await next();
+    }
+    finally
+    {
+        stopwatch.Stop();
+        safeRequestLogger.LogInformation(
+            "HTTP {RequestMethod} responded {StatusCode} in {ElapsedMs:0.0000} ms",
+            context.Request.Method,
+            context.Response.StatusCode,
+            stopwatch.Elapsed.TotalMilliseconds);
+    }
+});
 
 app.UseExceptionHandler();
+
+// (token, learnerKey) is a composite bearer credential. Responses from any route that accepts
+// either half must not be retained by a browser/shared proxy or leaked as a referrer. This is
+// intentionally enforced at the pipeline boundary so new actions under these route prefixes
+// inherit the protection automatically.
+app.Use(async (context, next) =>
+{
+    if (IsSensitiveLearnerPath(context.Request.Path))
+    {
+        context.Response.OnStarting(() =>
+        {
+            context.Response.Headers.CacheControl = "no-store";
+            context.Response.Headers.Pragma = "no-cache";
+            context.Response.Headers["Referrer-Policy"] = "no-referrer";
+            return Task.CompletedTask;
+        });
+    }
+
+    await next();
+});
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
@@ -119,22 +159,35 @@ if (app.Environment.IsDevelopment())
 // determine the https port for redirect" on every request.
 if (!app.Environment.IsDevelopment())
 {
+    app.UseHsts();
     app.UseHttpsRedirection();
 }
 
 app.UseCors(CorsSetup.PolicyName);
 
+app.UseAuthentication();
 app.UseAuthorization();
 
-// After UseAuthorization so it can read a verified claim once auth exists (TD-002), and before
-// MapControllers so every action already has a company resolved. Recipient-side services
-// overwrite it from the session token - see CompanyContextMiddleware.
-app.UseMiddleware<CompanyContextMiddleware>();
+// Must run AFTER UseAuthentication so context.User already carries verified claims, and BEFORE
+// MapControllers so every action starts with a company resolved and checked. Learner-side
+// requests carry no token and pass straight through, resolving their own company from
+// TrainingLink.Token instead - see CurrentUserMiddleware.
+app.UseMiddleware<CurrentUserMiddleware>();
 
 app.MapControllers();
 app.MapHub<SessionHub>("/hubs/session");
 
 app.Run();
+
+static bool IsSensitiveLearnerPath(PathString path)
+    => path.StartsWithSegments("/api/training-links")
+       || path.StartsWithSegments("/api/learning-sessions")
+       || path.StartsWithSegments("/api/session-questions")
+       || path.StartsWithSegments("/api/chat-messages")
+       || path.StartsWithSegments("/api/voice-question")
+       || path.StartsWithSegments("/api/lessons/by-link")
+       || path.StartsWithSegments("/api/lessons/pdf-pages")
+       || path.StartsWithSegments("/hubs/session");
 
 // Exposed for SupportRoom.Api.IntegrationTests' WebApplicationFactory<Program>.
 public partial class Program;

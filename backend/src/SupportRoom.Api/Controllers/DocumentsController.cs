@@ -11,8 +11,11 @@ public sealed class UploadDocumentRequest
 {
     public IFormFile? File { get; init; }
 
-    /// <summary>Omit to store as a standalone/global knowledge-base document.</summary>
-    public string? LessonSlug { get; init; }
+    /// <summary>DS-1 - one of SupportRoom.Domain.Enums.KnowledgeScopeType. When "lesson",
+    /// ScopeId must be LessonConfig.Id, not Slug.</summary>
+    public string? ScopeType { get; init; }
+
+    public string? ScopeId { get; init; }
 }
 
 [ApiController]
@@ -49,19 +52,38 @@ public sealed class DocumentsController : ControllerBase
             Content = stream.ToArray(),
             FileName = request.File.FileName,
             ContentType = string.IsNullOrEmpty(request.File.ContentType) ? "application/octet-stream" : request.File.ContentType,
-            LessonSlug = request.LessonSlug,
+            // Passed through as-is (empty string, not null) - EnsureValidScope's default branch
+            // rejects an unrecognized/empty ScopeType with a 400, same DS-3 case as an explicit
+            // typo, so the controller does not need a second check of its own.
+            ScopeType = request.ScopeType ?? string.Empty,
+            ScopeId = request.ScopeId,
         });
 
         return Ok(new { document = result });
     }
 
     [HttpGet]
-    public ActionResult GetAll([FromQuery] string? lessonSlug)
+    public ActionResult GetAll([FromQuery] string? scopeType, [FromQuery] string? scopeId)
     {
-        var documents = string.IsNullOrEmpty(lessonSlug)
-            ? _service.GetStandalone()
-            : _service.GetByLessonSlug(lessonSlug);
+        var documents = _service.GetByScope(scopeType, scopeId);
         return Ok(new { documents });
+    }
+
+    [HttpGet("deleted")]
+    public ActionResult GetDeleted()
+    {
+        var documents = _service.GetDeleted();
+        return Ok(new { documents });
+    }
+
+    /// <summary>DI-7 - the extracted-text-visibility screen's data source. This is the first
+    /// endpoint in the system that returns raw uploaded-file content, so authorization is checked
+    /// explicitly inside the service (IAuthorizationGuard), not left to the query filter alone.</summary>
+    [HttpGet("{id}/chunks")]
+    public ActionResult GetChunks(string id)
+    {
+        var chunks = _service.GetChunks(id);
+        return Ok(new { chunks });
     }
 
     [HttpDelete("{id}")]
@@ -69,5 +91,23 @@ public sealed class DocumentsController : ControllerBase
     {
         await _service.DeleteAsync(id);
         return Ok(new { status = "deleted" });
+    }
+
+    [HttpPost("{id}/restore")]
+    public async Task<ActionResult> Restore(string id)
+    {
+        await _service.RestoreAsync(id);
+        return Ok(new { status = "restored" });
+    }
+
+    /// <summary>DS-5 - first call site of KS-4 ("changing scope moves the document"). id comes
+    /// from the path, scope from the body - both feed IKnowledgeNamespaceResolver.EnsureValidScope
+    /// inside MoveScopeAsync, so an id/scope pair that spans two companies is rejected there, not
+    /// trusted here.</summary>
+    [HttpPatch("{id}/scope")]
+    public async Task<ActionResult> MoveScope(string id, [FromBody] MoveDocumentScopeDto request)
+    {
+        var result = await _service.MoveScopeAsync(id, request);
+        return Ok(new { document = result });
     }
 }

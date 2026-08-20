@@ -12,12 +12,21 @@ public sealed class UnitOfWork(ApplicationDbContext dbContext, IServiceProvider 
 {
     private static readonly Dictionary<Type, Type> Register = new()
     {
-        { typeof(ITrainingSessionRepository), typeof(TrainingSessionRepository) },
+        { typeof(ICompanyRepository), typeof(CompanyRepository) },
+        { typeof(IAdminUserRepository), typeof(AdminUserRepository) },
+        { typeof(ITrainingLinkRepository), typeof(TrainingLinkRepository) },
+        { typeof(ILearningSessionRepository), typeof(LearningSessionRepository) },
         { typeof(ISessionQuestionRepository), typeof(SessionQuestionRepository) },
         { typeof(ILessonConfigRepository), typeof(LessonConfigRepository) },
-        { typeof(ISessionSummaryRepository), typeof(SessionSummaryRepository) },
         { typeof(IChatMessageRepository), typeof(ChatMessageRepository) },
         { typeof(IDocumentResourceRepository), typeof(DocumentResourceRepository) },
+        { typeof(IKnowledgeCategoryRepository), typeof(KnowledgeCategoryRepository) },
+        { typeof(IBackgroundJobRepository), typeof(BackgroundJobRepository) },
+        { typeof(IDocumentChunkRepository), typeof(DocumentChunkRepository) },
+        { typeof(ILessonSlideNarrationRepository), typeof(LessonSlideNarrationRepository) },
+        { typeof(IKnowledgeQnARepository), typeof(KnowledgeQnARepository) },
+        { typeof(IKnowledgeQnASourceRepository), typeof(KnowledgeQnASourceRepository) },
+        { typeof(IKnowledgeQnAConflictRepository), typeof(KnowledgeQnAConflictRepository) },
     };
 
     public TRepository GetRepository<TRepository>()

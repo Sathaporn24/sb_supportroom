@@ -33,4 +33,17 @@ public abstract class ServiceBase<TServiceInterface>(
     /// </summary>
     protected string CurrentCompanyId => CompanyContext.CompanyId
         ?? throw GeneralException.ConfigError("ยังไม่ทราบบริษัทของคำขอนี้");
+
+    /// <summary>
+    /// Who to stamp into CreateBy/UpdateBy, or null when nobody is signed in.
+    ///
+    /// Null is the correct, expected value on the learner surface: those rows are created by
+    /// someone with no account, and RecipientName already records who they said they were. That
+    /// makes this usable without branching - assign it unconditionally and it records the admin
+    /// when there is one, and nothing when the learner acted.
+    ///
+    /// Unlike CurrentCompanyId this never throws: an unattributed row is a small gap in the audit
+    /// trail, not a row that vanishes from every query.
+    /// </summary>
+    protected string? CurrentUserId => ServiceProvider.GetService<ICurrentUser>()?.UserId;
 }

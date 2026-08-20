@@ -19,6 +19,13 @@ public static class KnowledgeNamespaces
     public static string For(string companyId, string lessonSlug) => $"{companyId}:{lessonSlug}";
 
     public static string ForGlobal(string companyId) => $"{companyId}:{GlobalSuffix}";
+
+    /// <summary>R3 - category-level namespace. categoryId already comes prefixed "kbcat-" from
+    /// IdGenerator, so it cannot collide with a lessonSlug as long as TX-7 keeps rejecting slugs
+    /// that start with "kbcat-" or equal "kb-global". Keyed by id, not category name, on purpose:
+    /// renaming a category must not orphan its vectors the way renaming a lesson slug already does
+    /// (see R-8) - that would be the same debt twice.</summary>
+    public static string ForCategory(string companyId, string categoryId) => $"{companyId}:{categoryId}";
 }
 
 public sealed class KnowledgeChunk
@@ -48,4 +55,18 @@ public interface IKnowledgeIndexProvider
     Task UpsertAsync(string namespaceKey, IReadOnlyList<KnowledgeChunk> chunks);
     Task<IReadOnlyList<ScoredChunk>> QueryAsync(string namespaceKey, float[] queryVector, int topK);
     Task DeleteNamespaceAsync(string namespaceKey);
+
+    /// <summary>R6.1 - deletes specific vectors by id, instead of the whole namespace. `ids` empty
+    /// is a no-op (never fires a request). Same contract as DeleteNamespaceAsync: deleting an id
+    /// that no longer exists is not a failure.</summary>
+    Task DeleteVectorsAsync(string namespaceKey, IReadOnlyList<string> ids);
+
+    /// <summary>
+    /// QQ-6 - updates only the text/metadata of an existing vector, leaving its embedding
+    /// untouched. Exists specifically so editing a Q&A's Answer (but not its Question) never
+    /// re-embeds: KS-5 embeds the Question only, so if the Question did not change the vector is
+    /// still correct, and only the "ถาม: ...\nตอบ: ..." text stored in metadata needs to catch up.
+    /// Pinecone's /vectors/update accepts setMetadata without values for exactly this case.
+    /// </summary>
+    Task UpdateMetadataAsync(string namespaceKey, string id, string text, IReadOnlyDictionary<string, string>? metadata);
 }

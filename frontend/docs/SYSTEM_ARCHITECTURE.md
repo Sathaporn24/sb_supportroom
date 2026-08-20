@@ -64,9 +64,11 @@ PostgreSQL เป็น dependency บังคับและไม่มี `D
 
 ## Data Ownership
 
-- PostgreSQL เก็บ metadata/config/history: lesson, session, question, chat, summary และ document metadata
+- PostgreSQL เก็บ metadata/config/history: company, admin user, lesson, link, learning session,
+  question, chat และ document metadata; summary คำนวณสด ไม่มีตาราง summary
 - Google Slides หรือ PDF storage เป็น source of truth ของ teaching content
-- Pinecone เก็บ embeddings/chunks แยกจาก PostgreSQL โดยใช้ lesson slug หรือ `kb-global` เป็น namespace
+- Pinecone เก็บ embeddings/chunks แยกจาก PostgreSQL โดยใช้ `{companyId}:{lessonSlug}` หรือ
+  `{companyId}:kb-global` เป็น namespace
 - Frontend ไม่เข้าถึงฐานข้อมูลหรือ provider ภายนอกโดยตรง
 
 ## Background Work
@@ -84,4 +86,5 @@ Document upload จะบันทึกไฟล์และแถว `Document
 - Serilog ใส่ correlation ID และเขียน console/rolling files
 - Development CORS อนุญาต `http://localhost:3000`; production อ่าน `ALLOWED_ORIGINS`
 - Swagger/OpenAPI เปิดเฉพาะ Development
-- ปัจจุบันยังไม่มี authentication, authorization หรือ rate limiting
+- Back office มี JWT/RBAC และ company authorization แล้ว; learner ใช้ link token + learnerKey
+- ยังไม่มี rate limiting/abuse protection และ provider settings ยังเป็น env ตอน startup

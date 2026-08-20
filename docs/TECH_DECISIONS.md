@@ -49,8 +49,8 @@ Azure subscription จากทีม
 
 ## TD-002 — ป้องกัน admin surface และใส่ rate limiting ก่อน deploy
 
-**Problem**
-ไม่มี authentication เลย `app.UseAuthorization()` เป็น no-op เมื่อ deploy ออกไป ใครก็ตามที่รู้ URL
+**Problem (baseline ตอนตัดสินใจ; auth แก้แล้วใน TD-014)**
+เดิมไม่มี authentication และ `app.UseAuthorization()` เป็น no-op เมื่อ deploy ออกไป ใครก็ตามที่รู้ URL
 สามารถอ่านบทเรียนทั้งหมด สร้าง/ลบข้อมูล เรียก `/api/admin/reset` (ถ้า `ALLOW_DATA_RESET=true`
 ซึ่ง `.env.example` ตั้งไว้เป็น `true`) และยิง `/api/tts` กับ `/api/voice-question` ที่มีค่าใช้จ่ายจริงได้ไม่จำกัด
 
@@ -77,7 +77,8 @@ Azure subscription จากทีม
 `ApiErrorCode.Unauthorized` ถูกเตรียมไว้เป็นจุดเสียบอยู่แล้ว
 เลือก **C** ก็ต่อเมื่อยืนยันได้ว่า School Bright มี IdP ที่ใช้ร่วมได้อยู่แล้ว — **ต้องถามทีมก่อน**
 
-**Status** `Proposed`
+**Status** `Accepted / Partially Implemented` (13 ส.ค. 2026) — JWT/RBAC/company authorization
+ทำแล้วใน TD-014; rate limiting และ production abuse controls ยังไม่ทำ
 
 ---
 
@@ -205,8 +206,9 @@ Pinecone เป็นระบบที่สองที่ต้อง sync �
 | งานที่ต้องทำก่อน | แยก unit/integration ด้วย xUnit trait | + native PDFium ใน image | + secrets, environment |
 
 **Recommendation**
-**A แล้วต่อด้วย B** — งานที่ต้องทำก่อนคือแยก test ที่ยิงของจริงออกด้วย xUnit trait
-แล้วให้ CI รันเฉพาะ unit tests (`dotnet test --filter Category!=Integration`)
+**A แล้วต่อด้วย B** — ✅ งานที่ต้องทำก่อน (แยก test ที่ยิงของจริงด้วย xUnit trait) **ทำเสร็จแล้ว
+13 ส.ค. 2026**: 11 test ติด `[Trait("Category","Integration")]` และ
+`dotnet test --filter "Category!=Integration"` ผ่าน 76/76 — CI มีคำสั่งที่เขียวสะอาดให้ใช้แล้ว
 เลื่อน **C** ไว้จนกว่าจะสรุปได้ว่า deploy ที่ไหน (Azure? Huawei Cloud? on-prem?) — **ต้องถามทีม**
 ⚠️ ตอนทำ Dockerfile: `PDFtoImage` ต้องมี native PDFium ใน image
 
@@ -255,7 +257,7 @@ Pinecone เป็นระบบที่สองที่ต้อง sync �
    `bufferutil`, `utf-8-validate` (ไม่มีโค้ดเรียกใช้)
 2. ไฟล์ตกค้างที่ repo root: `node_modules/`, `.next/`, `next-env.d.ts`,
    `tsconfig.tsbuildinfo`, `public/` (เหลือจากตอนย้ายเป็น monorepo)
-3. EF Core version conflict — MSB3277 ×5 (Npgsql 10.0.3 ดึง EF Relational 10.0.4 vs ที่อ้าง 10.0.10)
+3. ~~EF Core version conflict~~ — แก้แล้วโดย pin EF Relational 10.0.10 ที่ Application project
 4. `PackageReference` แบบ floating: `AWSSDK.S3 3.*`, `PdfPig 0.*`,
    `DocumentFormat.OpenXml 3.*`, `PDFtoImage 5.*`
 5. `IsDelete`/`DeletedAt` มีในทุก entity แต่ไม่มีพฤติกรรม soft-delete จริง (ลบจริงทุกครั้ง
@@ -438,11 +440,228 @@ schema และ UI เขียนด้วยภาษาของ School Brig
 
 ---
 
+## TD-013 — ตั้งชื่อและขอบเขตตาราง เมื่อแยก "ลิงก์" ออกจาก "การเรียน"
+
+**Problem**
+[`CORE_FEATURE_SPEC.md`](./CORE_FEATURE_SPEC.md) เคาะให้ 1 ลิงก์รองรับหลายการเรียน
+ผลคือ **ความหมายของแถวใน `TrainingSession` กลับด้าน** — วันนี้ 1 แถว = การเรียนของคน 1 คน
+(มี `StartedAt`, `Status`, `LastSlideObjectId` อยู่ในตัว) หลังแยกแล้ว 1 แถว = ลิงก์ที่หลายคนใช้ร่วมกัน
+
+จุดที่เจ็บจริงคือ `SessionQuestion.SessionId` และ `ChatMessage.SessionId` ซึ่งหลังแยกแล้ว
+**ต้อง**ชี้ไปที่ "การเรียน" (คำถามเป็นของคนที่ถาม ไม่ใช่ของลิงก์) พร้อมกันนั้น `SessionSummary`
+ก็ซ้ำซ้อนทั้ง 3 คอลัมน์
+
+**Options**
+
+- **A — `TrainingLink` + `LearningSession`** rename ของเดิม แล้วตั้งของใหม่เป็น `LearningSession`
+- **B — คงชื่อ `TrainingSession` + เพิ่ม `LearningSession`** churn น้อยที่สุดตอนนี้
+- **C — `TrainingInvite` + `LearningSession`** เหมือน A แต่ใช้คำว่า Invite
+
+**Comparison**
+
+| | A: TrainingLink | B: คงชื่อเดิม | C: TrainingInvite |
+|---|---|---|---|
+| `SessionQuestion.SessionId` อ่านแล้วเข้าใจตรง | **ใช่** (Session = การเรียน ที่เดียว) | **ไม่** — ชี้ไปตารางที่ไม่ชื่อ Session | ใช่ |
+| ต้อง rename `SessionQuestion`/`ChatMessage`/route | ไม่ต้อง | ไม่ต้อง แต่ชื่อโกหกถาวร | ไม่ต้อง |
+| `GetBySessionId()` (มี 4–5 ที่) กำกวมไหม | ไม่ | **กำกวมตลอดไป** | ไม่ |
+| churn รอบนี้ | ~148 จุด แต่ compiler จับครบ | ต่ำสุด | เท่า A |
+| ความแม่นของคำ | ลิงก์ส่งให้หลายคน = "link" ตรง | — | "invite" สื่อว่าเจาะจงคน — ไม่ตรง |
+
+**Recommendation**
+**Option A** — เหตุผลหลักไม่ใช่ความสวยของชื่อ แต่คือ พอคำว่า "Session" หายจากฝั่งลิงก์
+ชื่อ `SessionQuestion` · `ChatMessage.SessionId` · `api/session-questions` กลับมา*ถูกต้อง*
+โดยไม่ต้องแตะ — เปลี่ยนแค่ FK
+
+ต้นทุนต่ำกว่าเลข 148 มาก เพราะ (ก) rename คลาส/property ใน C# compiler จับให้ครบ
+(ข) `migrationBuilder.RenameTable` บรรทัดเดียว (ค) ไฟล์ส่วนใหญ่ **ต้องแก้อยู่แล้ว**
+เพราะ `Status`/`StartedAt`/`LastSlideObjectId` ย้ายออกตามสเปก — การ rename เกาะไปกับ
+churn ที่เกิดแน่นอนอยู่แล้ว และยังไม่เคย deploy migration จริง (ดู TD-006) จึงทำตอนนี้ถูกที่สุด
+
+พ่วงในรายการเดียวกัน — **ลบ `SessionSummary`**: เหตุผลเดียวที่จะเก็บ snapshot คือ
+"แช่แข็งภาพ ณ เวลานั้น" แต่โค้ดไม่ได้ทำแบบนั้นอยู่แล้ว (`GetBySessionId` join คำถามสดตอนอ่าน
+ตาม comment ในไฟล์เอง) ได้ของครึ่งแช่แข็งครึ่งสด และฟีเจอร์รีวิวของ CS จะแก้ `SessionQuestion`
+*หลัง*เรียนจบ ทำให้ `UnansweredPoints` ที่แช่แข็งไว้ค่อย ๆ ขัดกับความจริง
+→ ลบ entity/ตาราง/repository/service แต่ **คง `SessionSummaryViewModel`** ไว้แบบคำนวณสด
+frontend ไม่ต้องแก้
+
+**Status** `Accepted` (13 ส.ค. 2026)
+
+---
+
+## TD-014 — ระบบล็อกอินฝั่ง admin และตาราง `Company`
+
+**Problem**
+TD-011 เคาะไว้ว่าฝั่งผู้เรียน derive `CompanyId` จาก token (ทำเสร็จแล้ว) แต่ **ฝั่ง admin ระบุว่า
+"มาจาก auth claim" ซึ่งยังไม่เคยมี auth** ปัจจุบันใช้ `X-Company-Id` header ที่ใครก็ปลอมได้
+คู่กับ `DEFAULT_COMPANY_ID` เป็น scaffold ชั่วคราว
+
+สองอย่างที่ทำให้เรื่องนี้เร่งขึ้น:
+
+1. หน้า settings ที่จะให้ admin แก้ API key / สลับ provider ผ่านหน้าเว็บ — เป็น endpoint
+   ที่อันตรายที่สุดในระบบ ทำก่อน auth ไม่ได้
+2. School Bright ดูแลลูกค้าหลายราย แปลว่า CS **คนเดียวต้องสลับดูข้อมูลข้ามหลาย company**
+   ซึ่งตรงข้ามกับ `CompanyContextMiddleware` วันนี้ที่ล็อก 1 request = 1 company
+
+ข้อกำหนดที่ได้จากทีม (13 ส.ค. 2026):
+
+- **เจ้าของระบบคือ School Bright ฝ่ายเดียว** — ไม่มีใครอื่นแก้ค่าระดับระบบได้
+- **แต่พนักงานของลูกค้าเข้าใช้หลังบ้านเองได้** (SCB มีทีม CS ของตัวเอง) และมีคนที่ต้อง
+  ถูกจำกัดแล้วตั้งแต่วันนี้ — จึงต้องมี role และการจำกัดเป็น **ด่านความปลอดภัยจริง**
+  ไม่ใช่แค่ความเป็นระเบียบ
+- คนของลูกค้าสร้างลิงก์เทรนนิ่ง แก้บทเรียน และอัปโหลดเอกสารของ company ตัวเองได้
+- **`admin` ของลูกค้าเพิ่ม/ปิดบัญชีลูกทีมตัวเองได้** ไม่ต้องส่งเรื่องมาที่ School Bright
+  (ไม่งั้น School Bright กลายเป็นคอขวดของงานประจำที่ไม่ควรผ่านมือตัวเอง)
+- API key เป็นของ School Bright ชุดเดียวทั้งระบบ ไม่แยกต่อ company → หน้า settings
+  ต้องเป็นของ `owner` เท่านั้น
+- **ห้ามบังคับ SSO อย่างเดียว** — พนักงานใหม่ที่ยังไม่ผ่านโปรอาจยังไม่มีเมลบริษัท
+  แต่ต้องเข้าใช้ระบบแล้ว
+
+**Options**
+
+**หมายเหตุก่อนอ่าน** — "user store" กับ "วิธีพิสูจน์ตัวในแต่ละ request" เป็นคนละชั้น ไม่ใช่ทางเลือก
+ที่ต้องเลือกอย่างใดอย่างหนึ่ง ตัวเลือกด้านล่างว่าด้วยชั้นแรก ส่วนชั้นที่สองสรุปแยกไว้ท้าย Recommendation
+
+- **A — ASP.NET Core Identity** password เป็นพื้นฐาน, external login (Google/Microsoft)
+  เป็นของเสริมที่ผูกเข้าบัญชีเดิมได้ทีหลัง
+- **B — เขียน password hashing + token validation เอง**
+- **C — IdP ภายนอก** (Auth0 / Clerk / Keycloak)
+
+**Comparison**
+
+| | A: Identity ในตัว | B: เขียนเอง | C: IdP ภายนอก |
+|---|---|---|---|
+| รองรับ password + SSO บนบัญชีเดียว | **มีในตัว** | เขียนเองทั้งหมด | มี |
+| password hashing / lockout / reset | มีในตัว | **เขียนเอง = ที่พลาดง่ายสุด** | มี |
+| ค่าใช้จ่าย | $0 | $0 | รายเดือน |
+| dependency ใหม่ | ไม่มี (อยู่ใน framework) | ไม่มี | service ภายนอก |
+| เลื่อน SSO ไปทำทีหลังได้ | **ได้** | ได้ | ได้ |
+| เหมาะกับทีมเล็กภายใน | ใช่ | เกินจำเป็น | เกินจำเป็น |
+
+**Recommendation**
+
+**Option A** — ข้อกำหนด "password เป็นพื้นฐาน + SSO เสริมทีหลัง" คือสิ่งที่ ASP.NET Core Identity
+ออกแบบมารองรับพอดี ไม่ใช่ระบบล็อกอินสองระบบซ้อนกัน แต่เป็นบัญชีเดียวที่มีสองประตู
+**ทำ password ก่อน แล้วเสียบ external provider ทีหลังได้โดยไม่ต้องแตะบัญชีเดิม** จึงยังไม่ต้อง
+ตัดสินใจเรื่อง Google vs Microsoft ตอนนี้
+Option B คือการเขียน Identity ฉบับด้อยกว่าในส่วนที่พลาดแล้วเจ็บที่สุด — ไม่แนะนำ
+
+**ชั้นที่สอง: ใช้ JWT bearer ไม่ใช่ cookie**
+
+⚠️ แก้จากร่างแรกที่เขียนว่า "Identity + cookie auth" ซึ่งผิด — frontend กับ backend อยู่คนละ origin
+(`NEXT_PUBLIC_API_BASE_URL` ชี้คนละโฮสต์) และคอมเมนต์ใน `use-session-chat.ts` บันทึกไว้เองว่า
+จงใจตั้ง `withCredentials: false` เพื่อเลี่ยง `AllowCredentials()` บน CORS policy ที่ระบุ origin ชัดแล้ว
+
+| | Cookie | JWT ผ่าน Authorization header |
+|---|---|---|
+| ข้าม origin | ต้อง `SameSite=None; Secure` + เปิด `AllowCredentials()` | ไม่ต้องแตะอะไร |
+| CORS ที่ตั้งไว้ | ต้องผ่อนให้หลวมลง | คงเดิม |
+| SignalR | ต้องเปลี่ยน `withCredentials` เป็น `true` | ส่ง token ผ่าน `accessTokenFactory` ที่รองรับในตัว |
+
+ใช้ `Microsoft.AspNetCore.Authentication.JwtBearer` ที่มากับ framework — ไม่ได้เขียน token
+validation เอง ซึ่งเป็นเหตุผลเดียวกับที่ Option B ถูกปฏิเสธ
+
+**สรุปสองชั้น: Identity (จัดการผู้ใช้/รหัสผ่าน/SSO) + JwtBearer (พิสูจน์ตัวต่อ request)**
+
+**ตาราง `Company` — ให้มี**
+
+```
+Company
+  Id        ← ค่าเดียวกับคอลัมน์ CompanyId ของทุกตาราง
+  Name
+  IsActive
+```
+
+⚠️ **ไม่ได้กลับคำ TD-012** — TD-012 ปฏิเสธตารางนี้เพราะเหตุผลเดียวตอนนั้นคือ "เก็บ vocabulary
+ต่อบริษัท" ซึ่งพอตัดการทักทายด้วยชื่อออกก็ไม่เหลือเหตุผล เหตุผลรอบนี้เป็นคนละเรื่อง:
+ต้องมีรายชื่อลูกค้าที่เชื่อถือได้ไว้ทำ dropdown สลับ company ข้อสรุปเรื่อง vocabulary ของ
+TD-012 ยังคงเดิม — ไม่เก็บคำเรียกต่อบริษัท
+
+**การเข้าถึงข้ามลูกค้า — role 3 ระดับ**
+
+> 🔄 **แก้ไขสำคัญ 13 ส.ค. 2026 (วันเดียวกับที่เคาะ ยังไม่ได้เขียนโค้ด auth สักบรรทัด)**
+>
+> ร่างแรกเขียนว่า *"`AdminUser` ไม่ต้องมี `CompanyId` เพราะ admin ทุกคนคือ School Bright"*
+> ตั้งอยู่บนคำตอบที่ว่า SCB เป็นแค่ลูกค้าที่ School Bright ดูแลให้
+>
+> ทีมยืนยันเพิ่มว่า **"CS" คือพนักงานของลูกค้าเอง** (SCB มีทีมของตัวเองเข้ามาใช้หลังบ้าน)
+> และมีคนที่ต้องถูกจำกัดแล้วตั้งแต่วันนี้ ข้อสรุปเดิมจึงใช้ไม่ได้ และที่สำคัญกว่าคือ
+> **ธรรมชาติของการจำกัดเปลี่ยนไป**:
+>
+> ```
+> เดิม  จำกัด company = ความเป็นระเบียบ   พลาดแล้วน่ารำคาญ
+> ใหม่  จำกัด company = ด่านความปลอดภัย  พลาดแล้วข้อมูล School Bright ไปโผล่ที่ SCB
+> ```
+
+```
+AdminUser
+  Role        "owner" | "admin" | "cs"
+  CompanyId   null เฉพาะ owner · บังคับมีค่าเมื่อ admin/cs
+```
+
+| role | ขอบเขต | ทำอะไรได้ |
+|---|---|---|
+| `owner` | ทุก company | ทุกอย่าง + จัดการรายชื่อ company + หน้า settings (API key/provider) |
+| `admin` | company ตัวเอง | งานทั้งหมดของ company นั้น **+ เพิ่ม/ปิดบัญชีคนใน company ตัวเอง** |
+| `cs` | company ตัวเอง | สร้างลิงก์ · แก้บทเรียน · อัปโหลดเอกสาร · รีวิวคำตอบ — แต่จัดการ user ไม่ได้ |
+
+School Bright เป็นแถวหนึ่งใน `Company` ด้วย — เป็นทั้งเจ้าของระบบและลูกค้าของตัวเอง
+(ครูของ School Bright ก็ใช้ระบบนี้) `owner` จึงไม่ใช่ "คนของ company หนึ่ง" แต่เป็นสิทธิ์ที่
+ตั้งฉากกับ company
+
+**ทำไมต้องมี `Role` แยก ไม่ใช่ตีความจาก `CompanyId == null`**
+เพราะตอนนี้เป็นด่านความปลอดภัยแล้ว ถ้ากติกาคือ "null = เห็นทุกอย่าง" วันไหนมีบั๊กที่เผลอ null
+คอลัมน์นั้น คนคนนั้นได้สิทธิ์สูงสุดทันทีโดยไม่มีอะไรฟ้อง — ต้องออกแบบให้**พังแล้วปิด
+ไม่ใช่พังแล้วเปิด**
+
+**เลือก column แทนตาราง `AdminUserCompany` ที่ร่างแรกเสนอไว้** เพราะ admin/cs สังกัด company
+*เดียว* ตารางเชื่อมจะคุ้มก็ต่อเมื่อคนหนึ่งคุมได้หลายราย ซึ่งยังไม่มีเคสนั้น
+
+**ไม่ทำหน้าตั้งค่าสิทธิ์** — role ตายตัว 3 แบบพอ สิ่งที่ต้องมีจริงคือ dropdown เลือก role
+ตอนเพิ่มคน ไม่ใช่หน้าประกอบสิทธิ์เอง หน้านั้นมีต้นทุนที่มองไม่เห็น: ทุกฟีเจอร์ใหม่หลังจากนั้น
+ต้องมาเพิ่มสวิตช์ในหน้านั้นทุกครั้ง และต้องคิดว่าเปิดอันนี้ปิดอันนั้นแล้วเกิดอะไร
+ค่อยทำวันที่ลูกค้าขอ role ที่เราไม่ได้เตรียมไว้ ซึ่งอาจไม่มีวันนั้น
+
+**สามอย่างที่กลายเป็นเรื่องอันตรายทันทีเพราะมีผู้ใช้จากนอกองค์กร**
+
+1. **`ALLOW_COMPANY_HEADER` ต้องลบทิ้งจากโค้ด ไม่ใช่แค่ปิดไว้** — เดิมยอมรับได้เพราะผู้ใช้
+   ทุกคนเป็นคนใน ตอนนี้ใครตั้ง header นี้ได้ = ข้ามด่านทั้งหมด `DEFAULT_COMPANY_ID` ก็ถอดด้วย
+2. **`/api/admin/reset` และ `/api/admin/reindex` ต้องเป็น `owner` เท่านั้น** — ตอนนี้ไม่มีการ
+   แยกสิทธิ์เลย CS ของลูกค้ากดลบข้อมูลไม่ได้เด็ดขาด
+3. **หน้า settings (API key/provider) ต้องเป็น `owner` เท่านั้น** — key เป็นของ School Bright
+   ชุดเดียวทั้งระบบ ถ้า admin ของลูกค้าเปิดได้ เขาจะเห็น/แก้ key ที่ทุก company ใช้ร่วมกัน
+   และสลับ provider ให้ทั้งระบบพังได้
+
+**เส้นทาง 403 ต้องมีเทสต์คุม** — "cs ของ SCB ขอ `?company=schoolbright` แล้วต้องถูกปฏิเสธ"
+คือด่านความปลอดภัยตัวจริง ต่อยอดจาก `CompanyIsolationTests` ที่มีอยู่แล้ว
+
+**สิ่งที่ต้องทำไปพร้อมกัน เพราะทำทีหลังไม่ได้**
+
+ก่อน TD-014 ทุก entity มี `CreateBy` / `UpdateBy` แต่ไม่มีที่ไหนเขียนค่า เพราะยังไม่มี auth;
+implementation ปัจจุบันเติม actor ใน write paths หลักแล้ว การเติม user id ลงสองคอลัมน์นี้
+แทบไม่มีต้นทุน ขณะที่ถ้าข้ามไป **จะไม่มีวันย้อนกลับไปรู้ได้ว่าใครสร้างลิงก์ไหน หรือใครรีวิวคำตอบไหน**
+ข้อมูลที่ไม่ได้บันทึกตอนนั้นสร้างขึ้นใหม่ไม่ได้ — ให้ทำไปกับ TD นี้ อย่าเลื่อน
+
+**ขอบเขตรอบแรก**
+
+login + ปิด `/admin/*` + ตาราง `Company` + `AdminUser` (3 role) + ตัวสลับ company ผ่าน
+`?company=` + เติม `CreateBy`/`UpdateBy` + **หน้าจัดการ admin user** (เพิ่ม/ปิดบัญชี/เลือก role)
+— การเพิ่มคนเป็นความต้องการของวันนี้ ไม่ใช่ของอนาคต ถ้าไม่มีหน้านี้ต้องแก้ DB ด้วยมือ
+ทุกครั้งที่มีคนเข้าใหม่ และ `admin` ของลูกค้าต้องทำเองได้โดยไม่ผ่าน School Bright
+
+ยังไม่ทำรอบนี้: reset password ทางอีเมล (ต้องมี SMTP), invite flow, และ SSO
+(รอรู้ก่อนว่าองค์กรใช้ Google หรือ Microsoft — เสียบทีหลังได้โดยไม่แตะบัญชีเดิม)
+
+**Status** `Accepted` (13 ส.ค. 2026)
+⚠️ ต้องทำ **ก่อน** หน้า settings (ดู TD-015 เมื่อมี) และ EF migration ของ TD-013 ควรรอไปสร้าง
+พร้อมกับ schema ของ TD นี้ในตัวเดียว จะได้ไม่เสีย migration เปล่า
+
+---
+
 ## รายการที่รอข้อมูลจากทีมก่อนตัดสินใจ
 
 | คำถาม | ทำไมถึงบล็อก |
 |---|---|
 | จะ deploy ที่ไหน (Azure / Huawei Cloud / on-prem)? | กำหนดทิศทาง TD-001, TD-002, TD-006 พร้อมกัน (โค้ดรองรับ Huawei OBS + ModelArts อยู่แล้ว ซึ่งอาจเป็นสัญญาณ) |
-| School Bright มี identity provider ให้ใช้ร่วมหรือไม่? | เปลี่ยนคำตอบของ TD-002 อย่างมีนัยสำคัญ |
-| ระบบต้องรองรับหลายโรงเรียนแบบแยกข้อมูลกันหรือไม่? | multi-tenancy ต้องออกแบบตั้งแต่ต้น ไม่ใช่แปะทีหลัง |
+| ~~School Bright มี identity provider ให้ใช้ร่วมหรือไม่?~~ | ตอบแล้ว 13 ส.ค. 2026 — ไม่ผูกกับ IdP ตัวเดียว ต้องรองรับทั้ง password และ SSO (ดู TD-014) |
+| ~~ระบบต้องรองรับหลายโรงเรียนแบบแยกข้อมูลกันหรือไม่?~~ | ตอบแล้ว — ใช่ ทำเสร็จแล้ว (TD-010/TD-011) |
 | ปริมาณคาดหวัง — กี่ session ต่อวัน, พร้อมกันสูงสุดเท่าไร? | ตัดสินเรื่อง scale-out, Pinecone vs pgvector, และงบ TTS |

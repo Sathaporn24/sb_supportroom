@@ -1,10 +1,13 @@
+using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Logging;
 using SupportRoom.Api.Realtime;
 using SupportRoom.Api;
 using SupportRoom.Application.Common;
 using SupportRoom.Application.Realtime;
 using SupportRoom.Application.Services;
+using SupportRoom.Domain.Common;
 using SupportRoom.Domain.Configuration;
+using SupportRoom.Domain.Entities;
 using SupportRoom.Providers.Knowledge;
 using SupportRoom.Providers.Slides;
 using SupportRoom.Providers.Storage;
@@ -17,10 +20,22 @@ public static class ServiceConfiguration
 {
     public static IServiceCollection AddServiceConfiguration(this IServiceCollection services)
     {
+        // Request-scoped identity. ICurrentUser is resolved by CurrentUserMiddleware from a
+        // verified JWT; both start out unresolved so an anonymous request reads as "nobody"
+        // rather than as anyone trusted.
+        services.AddScoped<ICurrentUser, CurrentUser>();
+        services.AddScoped<IAuthorizationGuard, AuthorizationGuard>();
+        // Only the hasher is taken from Identity, not the full stack - see the package comment in
+        // SupportRoom.Application.csproj.
+        services.AddScoped<IPasswordHasher<AdminUser>, PasswordHasher<AdminUser>>();
+
+        services.AddScoped<IAuthService, AuthService>();
+        services.AddScoped<IAdminUserService, AdminUserService>();
+        services.AddScoped<ICompanyService, CompanyService>();
         services.AddScoped<IHealthService, HealthService>();
-        services.AddScoped<ITrainingSessionService, TrainingSessionService>();
+        services.AddScoped<ITrainingLinkService, TrainingLinkService>();
+        services.AddScoped<ILearningSessionService, LearningSessionService>();
         services.AddScoped<ISessionQuestionService, SessionQuestionService>();
-        services.AddScoped<ISessionSummaryService, SessionSummaryService>();
         services.AddScoped<ILessonConfigService, LessonConfigService>();
         services.AddScoped<ISlidesService, SlidesService>();
         services.AddScoped<ITtsService, TtsService>();
@@ -30,6 +45,13 @@ public static class ServiceConfiguration
         services.AddScoped<IRealtimeNotifier, SignalRRealtimeNotifier>();
         services.AddScoped<IKnowledgeIndexingService, KnowledgeIndexingService>();
         services.AddScoped<IDocumentResourceService, DocumentResourceService>();
+        services.AddScoped<IKnowledgeCategoryService, KnowledgeCategoryService>();
+        services.AddScoped<IKnowledgeNamespaceResolver, KnowledgeNamespaceResolver>();
+        services.AddScoped<IBackgroundJobProcessor, BackgroundJobProcessor>();
+        services.AddScoped<ILessonSlideNarrationResolver, LessonSlideNarrationResolver>();
+        services.AddScoped<ILessonSlideNarrationService, LessonSlideNarrationService>();
+        services.AddScoped<IKnowledgeQnAService, KnowledgeQnAService>();
+        services.AddScoped<IKnowledgeQnAConflictService, KnowledgeQnAConflictService>();
 
         // External API calls go through HttpClientFactory-managed clients (see .claude/skills/
         // dotnet-layered-backend/SKILL.md "External API calls").
@@ -40,12 +62,16 @@ public static class ServiceConfiguration
         // per request.
         services.AddMemoryCache();
 
-        // Document upload (DocumentResourceService.UploadAsync) enqueues the slow part (text
-        // extraction, embedding, Pinecone upsert) here instead of doing it inline, so the upload
-        // response returns as soon as the file is stored - see QueuedHostedService for the drain
-        // loop and IBackgroundTaskQueue's doc comment for the tradeoffs of an in-memory queue.
-        services.AddSingleton<IBackgroundTaskQueue, BackgroundTaskQueue>();
-        services.AddHostedService<QueuedHostedService>();
+        // Document upload (DocumentResourceService.UploadAsync) enqueues a BackgroundJob row
+        // instead of doing the slow part (text extraction, embedding, Pinecone upsert) inline, so
+        // the upload response returns as soon as the file is stored - BackgroundJobHostedService
+        // polls for and runs those jobs, surviving a restart (design.md DI-1..DI-17), unlike the
+        // in-memory IBackgroundTaskQueue/QueuedHostedService this replaced.
+        services.AddHostedService<BackgroundJobHostedService>();
+
+        // Creates the first owner account when there are none at all - otherwise a fresh
+        // deployment has nobody who can sign in to create one.
+        services.AddHostedService<SeedFirstOwnerHostedService>();
 
         // Providers select among Real implementations per SupportRoom.Domain.Configuration.
         // ProviderSelectionReader (mirrors src/providers/*/index.ts's createXProvider() factories)

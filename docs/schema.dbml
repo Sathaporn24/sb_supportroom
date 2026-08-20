@@ -1,6 +1,23 @@
-// SupportRoom AI — PostgreSQL schema
-// สร้างจาก EF Core migrations จริง (ถึง 20260807205425_AddLessonPdfSource) เมื่อ 11 ส.ค. 2026
-// วางลง https://dbdiagram.io ได้เลย
+// SupportRoom AI — CURRENT-STATE LOGICAL SCHEMA (AS-IS)
+// สถานะเอกสาร: พร้อมใช้เป็น baseline สำหรับส่งต่อทีม Backend / review ERD / วางใน dbdiagram.io
+// ไม่ใช่: production SQL, หลักฐานว่า migration ผ่าน staging, หรือแบบ To-Be ของ Provider/Knowledge
+// แหล่งจริงสำหรับสร้างฐานข้อมูล: EF Core migrations (ล่าสุด 20260813140603_SplitLinkAndAddAuth)
+// ตรวจเทียบกับ Domain entities + ApplicationDbContext + migration ล่าสุดเมื่อ 14 ส.ค. 2026
+// (TD-013 แยกลิงก์/การเรียน + TD-014 auth/Company)
+//
+// ไฟล์นี้บอก "อะไร" — เหตุผลเบื้องหลังแต่ละการตัดสินใจ ("ทำไม") อยู่ที่:
+//   TD-013 + TD-014 ใน docs/TECH_DECISIONS.md   — ตัดสินใจเชิงสถาปัตยกรรม/ความปลอดภัย
+//   docs/CORE_FEATURE_SPEC.md                    — flow ที่เคาะกัน (join, รีวิว, หยุดกลางคัน)
+// อ่านสองไฟล์นั้นก่อนเปลี่ยน schema — comment ในไฟล์นี้สรุปย่อ ไม่ใช่ต้นฉบับ
+// ⚠️ migration เขียนเสร็จและตรวจ SQL ที่ generate แล้ว (ยืนยันว่า RENAME ไม่ใช่ DROP —
+//    ข้อมูลลิงก์เดิมไม่หาย) แต่ "ยังไม่เคย apply กับฐานข้อมูลจริงสักครั้ง" — เครื่องที่เขียนโค้ด
+//    ล่าสุดไม่มีทั้ง Postgres และ Docker รันคำสั่งนี้แล้วอัปเดตบรรทัดนี้ทันทีที่ apply สำเร็จ:
+//      dotnet ef database update --project backend/src/SupportRoom.Providers.Data --startup-project backend/src/SupportRoom.Api
+//    ต้องตั้ง JWT_SECRET (≥32 ตัว) ใน .env ก่อน ไม่งั้น backend สตาร์ทไม่ขึ้น — ดู .env.example
+// วิธีส่งมอบ: ส่งไฟล์นี้คู่กับ docs/BACKEND_DB_HANDOFF.md และ migration ล่าสุดเสมอ
+// วางลง https://dbdiagram.io เพื่อดู ERD ได้เลย แต่ห้ามใช้ไฟล์นี้ apply production โดยตรง
+// Provider/API key และ Knowledge เวอร์ชันถัดไปยังไม่อยู่ใน schema นี้ เพราะยังมี decision gate
+// เรื่อง shared key/BYOK, secret storage, provider versioning และ knowledge quality workflow
 //
 // ⚠️ ความสัมพันธ์ทุกเส้นด้านล่างเป็น "logical" เท่านั้น
 //    ไม่มี FOREIGN KEY จริงในฐานข้อมูล (ไม่มี navigation property ใน OnModelCreating)
@@ -11,9 +28,13 @@ Project supportroom {
   Note: '''
   ห้องเรียนสาธิตด้วยเสียงสำหรับทีม CS ของ School Bright
 
+  สถานะ: AS-IS logical model ของระบบที่ implement แล้ว
+  Deployment: migration ล่าสุดยังไม่ผ่าน staging PostgreSQL
+  Future scope: Provider/API key management และ Knowledge workflow รุ่นถัดไปยังไม่รวม
+
   ข้อมูลที่ไม่ได้อยู่ในฐานข้อมูลนี้:
   - Vector สำหรับ RAG อยู่ใน Pinecone (นอก PostgreSQL)
-    namespace = LessonConfig.Slug หรือค่าคงที่ "kb-global"
+    namespace = "{CompanyId}:{LessonSlug}" หรือ "{CompanyId}:kb-global"
     ไม่มีคอลัมน์ใดในฐานข้อมูลนี้ชี้ไปยัง vector id
   - ไฟล์เอกสารจริงอยู่ใน object storage (local disk หรือ Huawei OBS)
     DocumentResource เก็บแค่ metadata + pointer (ObsBucket/ObsKey)
@@ -25,10 +46,16 @@ Project supportroom {
 // ทุกตารางมีคอลัมน์ audit ชุดเดียวกันจาก IEntityMaster<string>:
 // CreateBy, CreateDate, UpdateBy, UpdateDate, DeleteBy, IsDelete, DeletedAt
 // หมายเหตุ: IsDelete/DeletedAt ยังไม่มีพฤติกรรมจริง โค้ดลบแบบ hard delete ทุกครั้ง
-//           และไม่มี global query filter
+//
+// CompanyId มี EF Core global query filter ทุกตาราง (TD-010) ยกเว้น 3 ทางที่ต้อง
+// IgnoreQueryFilters เพราะถูก query ก่อนรู้ company:
+//   - TrainingLinkRepository.GetByToken (ผู้เรียนถือแค่ token ยังไม่รู้ company)
+//   - Company และ AdminUser ทั้งสองตารางไม่มี query filter เลย (ดูคำเตือนที่ตารางนั้น) — TD-014
 
-Table LessonConfig {
-  Id text [pk, note: 'prefix "lesson_" สร้างโดย IdGenerator']
+Table Company {
+  Id text [pk, note: 'slug เช่น "scb", "school-bright" — ไม่ใช่เลข generate เพราะโผล่ใน URL (?company=)']
+  Name text [not null, note: 'ชื่อที่แสดงในตัวสลับบริษัท เช่น "ธนาคารไทยพาณิชย์"']
+  IsActive boolean [not null, note: 'ปิดใช้งาน = offboard ลูกค้า ข้อมูลเดิมไม่ถูกลบ แต่ staff ของบริษัทนั้น sign in ไม่ได้อีก']
   CreateBy text [null]
   CreateDate timestamptz [not null]
   UpdateBy text [null]
@@ -37,7 +64,55 @@ Table LessonConfig {
   IsDelete boolean [not null]
   DeletedAt timestamptz [null]
 
-  Slug text [not null, unique, note: '🔴 unique ทั้งระบบ — ชนกันทันทีเมื่อมีหลาย company']
+  Indexes {
+    IsActive [name: 'IX_Company_IsActive']
+  }
+
+  Note: '''🔴 ไม่มี query filter — เป็นทะเบียนบริษัทเอง filter ตัวเองไม่ได้ (ตัวสลับบริษัทต้อง list ได้ทุกแถวสำหรับ owner) ทุก query ต้องกรองเองผ่าน IAuthorizationGuard ไม่ใช่พึ่ง EF (TD-014)
+
+  School Bright เป็นแถวหนึ่งในตารางนี้ด้วย ไม่ใช่ special case ที่อยู่นอกระบบ — เป็นทั้งเจ้าของระบบและลูกค้าของตัวเอง (ครูของ School Bright ก็ใช้ระบบนี้) สิทธิ์ owner จึงตั้งฉากกับ company ไม่ใช่ "คนของ company หนึ่ง"
+
+  ⚠️ ห้ามเพิ่มคอลัมน์ vocabulary/greeting (RecipientTerm, GreetingScript ฯลฯ) ลงตารางนี้ — TD-012 ตัดการทักทายรายบุคคลออกไปแล้วและยังไม่กลับคำ ตารางนี้เกิดขึ้นเพราะต้องมีรายชื่อลูกค้าให้ตัวสลับ company เท่านั้น ไม่ใช่เพราะจะเก็บคำเรียกต่อบริษัท'''
+}
+
+Table AdminUser {
+  Id text [pk, note: 'prefix "user_"']
+  CompanyId text [null, note: 'null เฉพาะ role=owner (ครอบทุกบริษัท) — ห้ามตีความ null ว่า "เห็นได้ทุกอย่าง" ต้องเช็ค Role เท่านั้น']
+  Role text [not null, note: '"owner" | "admin" | "cs" — ดู AdminRole.cs สำหรับสิทธิ์แต่ละระดับ']
+  Email text [not null, unique, note: 'unique ทั้งระบบ ไม่ใช่ต่อบริษัท — ตอน sign in ยังไม่รู้ company']
+  PasswordHash text [null, note: 'null ได้ถ้าจะรองรับ SSO-only ทีหลัง (ยังไม่ทำ)']
+  DisplayName text [not null]
+  IsActive boolean [not null, note: 'ปิดบัญชี ไม่ลบ — audit trail ที่ CreateBy/UpdateBy ชี้มายัง user นี้ต้อง resolve ได้เสมอ']
+  LastLoginAt timestamptz [null]
+  MustChangePassword boolean [not null, note: 'บังคับเปลี่ยนรหัสผ่านตอน sign in ครั้งแรก — คนสร้างบัญชีรู้รหัสผ่านเริ่มต้นอยู่แล้ว']
+  CreateBy text [null]
+  CreateDate timestamptz [not null]
+  UpdateBy text [null]
+  UpdateDate timestamptz [null]
+  DeleteBy text [null]
+  IsDelete boolean [not null]
+  DeletedAt timestamptz [null]
+
+  Indexes {
+    Email [unique, name: 'IX_AdminUser_Email']
+    CompanyId [name: 'IX_AdminUser_CompanyId']
+  }
+
+  Note: '🔴 ไม่มี query filter — sign-in ค้นหาด้วย email ก่อนรู้ company และ owner มี CompanyId เป็น null ซึ่ง filter แบบ CompanyId==context จะไม่ match อะไรเลย IAuthorizationGuard คือด่านเดียวที่ป้องกันตารางนี้ ไม่ใช่ query filter (TD-014)'
+}
+
+Table LessonConfig {
+  Id text [pk, note: 'prefix "lesson_" สร้างโดย IdGenerator']
+  CompanyId text [not null]
+  CreateBy text [null]
+  CreateDate timestamptz [not null]
+  UpdateBy text [null]
+  UpdateDate timestamptz [null]
+  DeleteBy text [null]
+  IsDelete boolean [not null]
+  DeletedAt timestamptz [null]
+
+  Slug text [not null, note: 'unique ต่อ company ไม่ใช่ทั้งระบบ — สอง company ต้องตั้งชื่อซ้ำกันได้']
   Title text [not null]
   Description text [null]
   SlidesSourceUrl text [not null]
@@ -52,14 +127,15 @@ Table LessonConfig {
   IsActive boolean [not null]
 
   Indexes {
-    Slug [unique, name: 'IX_LessonConfig_Slug']
+    (CompanyId, Slug) [unique, name: 'IX_LessonConfig_CompanyId_Slug']
   }
 
   Note: 'เก็บเฉพาะ metadata ที่ admin ตั้ง ห้ามเก็บสำเนาเนื้อหาสอน (architecture rule 8)'
 }
 
-Table TrainingSession {
-  Id text [pk, note: 'prefix "session_"']
+Table TrainingLink {
+  Id text [pk, note: 'prefix "link_"']
+  CompanyId text [not null]
   CreateBy text [null]
   CreateDate timestamptz [not null]
   UpdateBy text [null]
@@ -68,25 +144,54 @@ Table TrainingSession {
   IsDelete boolean [not null]
   DeletedAt timestamptz [null]
 
-  Token text [not null, unique, note: 'ลิงก์สาธารณะ + ใช้เป็น SignalR group key — ความลับเดียวที่ระบบมีตอนนี้']
+  Token text [not null, unique, note: 'ลิงก์สาธารณะ — unique ทั้งระบบเพราะถูก lookup ก่อนรู้ company']
   LessonId text [not null]
-  LessonSlug text [not null, note: 'denormalized — ใช้เป็น Pinecone namespace ตอนถามคำถาม']
-  TeacherName text [null]
-  SchoolName text [null]
-  Status text [not null, note: '"NOT_STARTED" | "IN_PROGRESS" | "ENDED" ("EXPIRED" คำนวณที่ frontend ไม่ได้เก็บ)']
-  ExpiresAt timestamptz [not null, note: 'บังคับที่ frontend เท่านั้น backend ยังรับ token ที่หมดอายุ']
-  StartedAt timestamptz [null]
-  EndedAt timestamptz [null]
-  CompletedAllSlides boolean [not null]
-  LastSlideObjectId text [null]
+  LessonSlug text [not null, note: 'denormalized — ประกอบเป็น Pinecone namespace ตอนถามคำถาม']
+  RecipientOrgName text [null, note: 'หน่วยงานของผู้รับ (โรงเรียน/สาขา/ฝ่าย) — label เฉย ๆ คนละชั้นกับ CompanyId']
+  ExpiresAt timestamptz [not null, note: 'บังคับที่ backend ตอน join — ไม่บล็อกคนที่เรียนค้างอยู่ไม่ให้จบ']
+  MaxAttendees integer [null, note: 'null = ไม่จำกัด — มีคอลัมน์ไว้ก่อน ยังไม่บังคับใช้']
 
   Indexes {
-    Token [unique, name: 'IX_TrainingSession_Token']
+    Token [unique, name: 'IX_TrainingLink_Token']
+    CompanyId [name: 'IX_TrainingLink_CompanyId']
   }
+
+  Note: 'ลิงก์ ไม่ใช่การเรียน — 1 แถวเปิดได้หลายคน แต่ละคนได้ LearningSession ของตัวเอง. ไม่มีคอลัมน์ Status: ACTIVE/EXPIRED คำนวณจาก ExpiresAt ตอนอ่าน'
+}
+
+Table LearningSession {
+  Id text [pk, note: 'prefix "learning_"']
+  CompanyId text [not null]
+  CreateBy text [null]
+  CreateDate timestamptz [not null]
+  UpdateBy text [null]
+  UpdateDate timestamptz [null]
+  DeleteBy text [null]
+  IsDelete boolean [not null]
+  DeletedAt timestamptz [null]
+
+  TrainingLinkId text [not null]
+  LearnerKey text [not null, note: 'key ที่ browser สร้างและเก็บเอง — แยกคนบนลิงก์เดียวกัน + กลับมาเรียนต่อ. ไม่ใช่ credential']
+  RecipientName text [not null, note: 'ผู้เรียนกรอกเองตอน join — ไม่ใช่ตัวตน ชื่อซ้ำกันได้']
+  Status text [not null, note: '"IN_PROGRESS" | "ENDED" — ไม่มี NOT_STARTED เพราะแถวเกิดตอน join เท่านั้น']
+  StartedAt timestamptz [not null]
+  EndedAt timestamptz [null]
+  LastActivityAt timestamptz [not null, note: '🔴 ตัวเดียวที่ใช้คำนวณ "หยุดกลางคัน" — bump ทุกครั้งที่เปลี่ยนสไลด์']
+  LastSlideObjectId text [null]
+  LastSlideIndex integer [not null, note: 'เก็บคู่กับ ObjectId เพื่อแสดง "7/20" โดยไม่ต้อง resolve deck ใหม่']
+  CompletedAllSlides boolean [not null]
+
+  Indexes {
+    (TrainingLinkId, LearnerKey) [name: 'IX_LearningSession_TrainingLinkId_LearnerKey']
+    CompanyId [name: 'IX_LearningSession_CompanyId']
+  }
+
+  Note: 'การเรียนของคนหนึ่งคน. index ไม่ unique โดยตั้งใจ — กด "เรียนอีกครั้ง" สร้างแถวใหม่ใต้ LearnerKey เดิม. "หยุดกลางคัน" ไม่ใช่คอลัมน์ แต่คำนวณจาก LastActivityAt เทียบ INACTIVE_THRESHOLD_MINUTES ตอนแสดงผล'
 }
 
 Table SessionQuestion {
   Id text [pk]
+  CompanyId text [not null]
   CreateBy text [null]
   CreateDate timestamptz [not null]
   UpdateBy text [null]
@@ -95,21 +200,26 @@ Table SessionQuestion {
   IsDelete boolean [not null]
   DeletedAt timestamptz [null]
 
-  SessionId text [not null]
+  SessionId text [not null, note: '→ LearningSession.Id (ไม่ใช่ลิงก์) — คำถามเป็นของคนที่ถาม']
   SlideObjectId text [null]
   Transcript text [null]
   Answer text [null]
   AnswerStatus text [not null, note: '"answered" | "not_found" | "out_of_scope" | "no_speech" | "transcription_failed"']
+  ReviewResult text [null, note: '"correct" | "incorrect" — null = CS ยังไม่ตรวจ']
+  ReviewNote text [null, note: 'free text ไม่ใช่ enum: "ตอบผิด" มี 3 สาเหตุที่แก้คนละทาง (ไม่มีเอกสาร / ค้นไม่เจอ / AI เดาเอง)']
+  ReviewedAt timestamptz [null]
 
   Indexes {
     SessionId [name: 'IX_SessionQuestion_SessionId']
+    CompanyId [name: 'IX_SessionQuestion_CompanyId']
   }
 
-  Note: 'บันทึกคำถาม Push-to-Talk — คำถาม readiness ("พร้อมหรือยัง") ไม่ถูกบันทึกที่นี่'
+  Note: 'บันทึกคำถาม Push-to-Talk — คำถาม readiness ("พร้อมหรือยัง") ไม่ถูกบันทึกที่นี่. ผู้เรียนไม่เห็นคอลัมน์ Review* — เป็นข้อมูลภายในของ CS'
 }
 
 Table ChatMessage {
   Id text [pk]
+  CompanyId text [not null]
   CreateBy text [null]
   CreateDate timestamptz [not null]
   UpdateBy text [null]
@@ -118,42 +228,22 @@ Table ChatMessage {
   IsDelete boolean [not null]
   DeletedAt timestamptz [null]
 
-  SessionId text [not null]
-  SenderRole text [not null, note: '"teacher" | "cs"']
+  SessionId text [not null, note: '→ LearningSession.Id (ไม่ใช่ลิงก์)']
+  SenderRole text [not null, note: '"recipient" | "agent" | "system"']
   SenderName text [null]
   Text text [not null]
 
   Indexes {
     SessionId [name: 'IX_ChatMessage_SessionId']
+    CompanyId [name: 'IX_ChatMessage_CompanyId']
   }
 
   Note: 'ช่องข้อความสำรอง แยกจาก SessionQuestion — เก็บไว้ให้คนเข้ากลางคันเห็นย้อนหลัง'
 }
 
-Table SessionSummary {
-  Id text [pk]
-  CreateBy text [null]
-  CreateDate timestamptz [not null]
-  UpdateBy text [null]
-  UpdateDate timestamptz [null]
-  DeleteBy text [null]
-  IsDelete boolean [not null]
-  DeletedAt timestamptz [null]
-
-  SessionId text [not null, unique]
-  CompletedAllSlides boolean [not null]
-  LastSlideObjectId text [null]
-  UnansweredPoints text[] [not null, note: 'Postgres text[] ผ่าน Npgsql ไม่ได้ใช้ JSON']
-
-  Indexes {
-    SessionId [unique, name: 'IX_SessionSummary_SessionId']
-  }
-
-  Note: 'snapshot เขียนครั้งเดียวตอนจบ session ไม่ recompute — รายการคำถามไม่ถูก duplicate มาที่นี่ อ่านจาก SessionQuestion แทน'
-}
-
 Table DocumentResource {
   Id text [pk, note: 'prefix "doc_" — chunk id ใน Pinecone คือ "{Id}-{chunkId}"']
+  CompanyId text [not null]
   CreateBy text [null]
   CreateDate timestamptz [not null]
   UpdateBy text [null]
@@ -173,57 +263,84 @@ Table DocumentResource {
 
   Indexes {
     LessonId [name: 'IX_DocumentResource_LessonId']
+    CompanyId [name: 'IX_DocumentResource_CompanyId']
   }
 }
 
 // ── ความสัมพันธ์ (logical เท่านั้น ไม่มี FK จริงในฐานข้อมูล) ──
 
-Ref: TrainingSession.LessonId > LessonConfig.Id
+// ทุกเส้นเป็น logical relationship เพื่อส่งต่อ domain model — ไม่มี FK constraint จริง
+// วาด CompanyId ครบทุกตารางเพื่อให้ทีมเห็น tenant boundary ชัดเจน
+Ref: AdminUser.CompanyId > Company.Id
+Ref: LessonConfig.CompanyId > Company.Id
+Ref: TrainingLink.CompanyId > Company.Id
+Ref: LearningSession.CompanyId > Company.Id
+Ref: SessionQuestion.CompanyId > Company.Id
+Ref: ChatMessage.CompanyId > Company.Id
+Ref: DocumentResource.CompanyId > Company.Id
+
+Ref: TrainingLink.LessonId > LessonConfig.Id
 Ref: DocumentResource.LessonId > LessonConfig.Id
-Ref: LessonConfig.PdfDocumentResourceId - DocumentResource.Id
-Ref: SessionQuestion.SessionId > TrainingSession.Id
-Ref: ChatMessage.SessionId > TrainingSession.Id
-Ref: SessionSummary.SessionId - TrainingSession.Id
+Ref: LessonConfig.PdfDocumentResourceId > DocumentResource.Id
+Ref: LearningSession.TrainingLinkId > TrainingLink.Id
+Ref: SessionQuestion.SessionId > LearningSession.Id
+Ref: ChatMessage.SessionId > LearningSession.Id
+
+TableGroup identity {
+  Company
+  AdminUser
+}
 
 TableGroup lesson_content {
   LessonConfig
   DocumentResource
 }
 
+TableGroup invite {
+  TrainingLink
+}
+
 TableGroup session_runtime {
-  TrainingSession
+  LearningSession
   SessionQuestion
   ChatMessage
-  SessionSummary
 }
 
 // ──────────────────────────────────────────────────────────────
-// migration ถัดไป — multi-company (ตัดสินใจแล้ว: TD-010 / TD-011 / TD-012)
-// ยังไม่ได้ลงมือ ดูลำดับงานใน PRODUCTION_ROADMAP.md §0.1
+// ตารางที่ "จงใจไม่มี" — กันคนมาเพิ่มกลับเข้าไปโดยไม่รู้ที่มา
 //
-// 1. เพิ่ม CompanyId text [not null] ทุกตาราง + index ทุกตาราง
-//      CompanyId [name: 'IX_<Table>_CompanyId']
-//    ไม่มีตาราง Company — CompanyId เป็น string ที่ derive จาก IdP claim (TD-012)
-//    ฝั่งผู้รับลิงก์ derive จาก TrainingSession.Token เท่านั้น ห้ามเชื่อค่าจาก client (TD-011)
+// SessionSummary (เคยมี ลบทิ้งแล้ว TD-013 / CORE_FEATURE_SPEC §3.5)
+//   เก็บ 3 อย่าง ซึ่งหลังแยก TrainingLink/LearningSession แล้วซ้ำซ้อนหมด:
+//     CompletedAllSlides + LastSlideObjectId → ย้ายไปอยู่บน LearningSession
+//       (ถ้าเก็บทั้งสองที่ = มี 2 แหล่งความจริงเรื่องเดียวกัน ต้องคอยเขียนให้ตรงกันตลอด)
+//     UnansweredPoints → derived อยู่แล้ว คำนวณจาก SessionQuestion ที่ AnswerStatus='not_found'
 //
-// 2. LessonConfig — เปลี่ยน unique จาก Slug เดี่ยว เป็น composite:
-//      Indexes {
-//        (CompanyId, Slug) [unique]
-//      }
+//   เหตุผลเดียวที่จะเก็บ snapshot คือ "อยากได้ภาพ ณ เวลานั้น แช่แข็งไม่เปลี่ยน" แต่โค้ดเดิม
+//   ไม่เคยทำแบบนั้น (join คำถามสดตอนอ่านอยู่แล้ว) = ได้ของครึ่งแช่แข็งครึ่งสด แย่กว่าทั้งสองแบบ
+//   และฟีเจอร์รีวิวยิ่งทำให้แย่ลง: CS แก้ ReviewResult/ReviewNote *หลัง* เรียนจบ แต่ snapshot
+//   ค้างไว้ตั้งแต่วินาทีที่จบ นานไปสองอันเล่าเรื่องไม่ตรงกันแล้วไม่มีใครรู้ว่าอันไหนถูก
 //
-// 3. TrainingSession — rename ให้เป็นกลาง (ไปกับ migration เดียวกัน):
-//      TeacherName      → RecipientName      ชื่อคนที่ได้รับลิงก์
-//      SchoolName       → RecipientOrgName   องค์กรของผู้รับ (คนละชั้นกับ CompanyId)
+//   → สรุปคำนวณสดตอนอ่านแทน. SessionSummaryViewModel ฝั่ง Application ยังอยู่
+//     (เปลี่ยนจาก "อ่านจากตาราง" เป็น "คำนวณสด") frontend จึงไม่ต้องแก้
 //
-//    สามชั้นที่ต้องแยกให้ออก:
-//      CompanyId        = เจ้าของ support room   → School Bright / SCB
-//      RecipientOrgName = องค์กรของผู้รับลิงก์     → โรงเรียนวัดโพธิ์ / สาขาสีลม
-//      RecipientName    = ตัวบุคคล               → สมชาย / มานี
+// Event log ต่อสไลด์ (ยังไม่ทำ CORE_FEATURE_SPEC §6)
+//   เพิ่ม *ตาราง* ใหม่ทีหลังไม่เจ็บ ต่างจากการเพิ่ม *คอลัมน์* — รอจนมีคนใช้ข้อมูลนี้จริงก่อน
 //
-// 4. ChatMessage.SenderRole — "teacher" → "recipient", "cs" → "agent" ("system" คงเดิม)
+// AdminUserCompany (ตารางเชื่อม many-to-many ที่ร่างแรกของ TD-014 เสนอ แล้วไม่เอา)
+//   admin/cs สังกัด company เดียว ใช้คอลัมน์ AdminUser.CompanyId พอ
+//   ตารางเชื่อมจะคุ้มก็ต่อเมื่อคนหนึ่งคุมได้หลายบริษัท ซึ่งยังไม่มีเคสนั้น
+// ──────────────────────────────────────────────────────────────
+
+// ──────────────────────────────────────────────────────────────
+// สถานะ migration — เขียนเสร็จแล้ว รอ apply เท่านั้น
 //
-// 5. นอกฐานข้อมูล — Pinecone namespace ต้องเปลี่ยนเป็น
-//      "{CompanyId}:{LessonSlug}" และ "{CompanyId}:kb-global"
-//      ข้อนี้ dbdiagram ไม่แสดง แต่เป็นจุดที่รั่วง่ายที่สุด
-//      และการแยก database ต่อ company ก็ไม่ได้แก้ข้อนี้ให้อัตโนมัติ
+// 20260813140603_SplitLinkAndAddAuth คลุมทั้ง TD-013 (แยกลิงก์/การเรียน) และ TD-014
+// (auth + Company) ในตัวเดียว — ไม่ได้ scaffold ตรง ๆ เพราะ EF สร้างแบบ DROP TrainingSession +
+// CREATE TrainingLink ซึ่งลบข้อมูลลิงก์เดิมทิ้งหมด เขียนใหม่ด้วยมือให้ RENAME แทน + แตก
+// "การเรียน" ออกมาเป็น LearningSession + ย้าย FK ของ SessionQuestion/ChatMessage ตาม
+// (รายละเอียดขั้นตอนอยู่ในตัว migration ไฟล์เอง ไม่ใช่ที่นี่ เพื่อไม่ให้สองที่ไม่ตรงกัน)
+//
+// รัน apply เมื่อพร้อม:
+//   dotnet ef database update --project backend/src/SupportRoom.Providers.Data --startup-project backend/src/SupportRoom.Api
+// ต้องตั้ง JWT_SECRET (≥32 ตัว) ก่อน backend จะสตาร์ทไม่ขึ้นถ้าไม่มี — ดู .env.example
 // ──────────────────────────────────────────────────────────────
