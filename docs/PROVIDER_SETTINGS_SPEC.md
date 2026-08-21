@@ -3,6 +3,12 @@
 > สถานะ: **Proposed / ยังไม่ implement** ต้องผ่าน D-01 ถึง D-05 ใน `HANDOFF_MASTER.md`
 > หน้า settings เป็น system-wide และ `owner` เท่านั้นตาม TD-014
 
+> **2026-08-21 — ความสนใจล่าสุดจากเจ้าของโปรเจกต์:** หลังเพิ่ม ElevenLabs เป็น TTS provider ตัวที่สอง
+> (แก้ TD-001) เจ้าของโปรเจกต์ถามถึงการสลับ provider (เริ่มจาก TTS: edge ↔ elevenlabs) ผ่านหน้าเว็บ
+> "ในอนาคตอันใกล้" — ยังไม่ได้เรียก `business-analyst` มาตอบ D-01..D-05 จริง แค่บันทึกไว้ว่ามีความ
+> สนใจเป็นรูปธรรมแล้ว ไม่ใช่แค่แนวคิดลอยๆ ในเอกสารเดิม — ตอนนี้สลับ TTS provider ทำได้แล้วผ่าน
+> `TTS_PROVIDER` ใน `.env` + restart backend (ไม่มีหน้าเว็บ) ตามที่ตกลงกันไว้ชั่วคราว
+
 ## ปัญหาที่ต้องแก้
 
 ระบบปัจจุบันเลือก provider ด้วย environment variables ตอน process startup และ key อยู่ `.env`/

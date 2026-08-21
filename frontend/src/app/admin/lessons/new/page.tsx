@@ -43,9 +43,13 @@ export default function NewLessonPage() {
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    void api.listKnowledgeCategories().then(({ categories: list }) => setCategories(list));
+    api
+      .listKnowledgeCategories()
+      .then(({ categories: list }) => setCategories(list))
+      .catch((err) => setError(err instanceof ApiClientError ? err.response.error.message : "โหลดรายการหมวดไม่สำเร็จ"));
   }, []);
 
   function handleContentSourceChange(next: ContentSourceType) {
@@ -151,6 +155,7 @@ export default function NewLessonPage() {
       </div>
 
       {status && <p className="text-xs font-medium text-foreground">{status}</p>}
+      {error && <p className="text-sm text-destructive">{error}</p>}
 
       <Card>
         <CardContent className="flex flex-col gap-4">

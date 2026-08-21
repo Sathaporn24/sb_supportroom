@@ -4,17 +4,23 @@ import { useEffect, useState } from "react";
 import { PlusIcon } from "lucide-react";
 import { AdminLink } from "@/components/admin/AdminLink";
 import * as api from "@/lib/api-client";
+import { ApiClientError } from "@/lib/api-client";
 import type { LessonConfig } from "@/types/domain";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
+import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { TableSkeleton } from "@/components/shared/TableSkeleton";
 
 export default function LessonsListPage() {
   const [lessons, setLessons] = useState<LessonConfig[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    void api.listLessons().then(({ lessons: list }) => setLessons(list));
+    api
+      .listLessons()
+      .then(({ lessons: list }) => setLessons(list))
+      .catch((err) => setError(err instanceof ApiClientError ? err.response.error.message : "โหลดรายการบทเรียนไม่สำเร็จ"));
   }, []);
 
   return (
@@ -32,8 +38,17 @@ export default function LessonsListPage() {
         </AdminLink>
       </div>
 
+      {error && <p className="text-sm text-destructive">{error}</p>}
+
       {!lessons ? (
         <TableSkeleton columns={4} />
+      ) : lessons.length === 0 ? (
+        <Empty className="border">
+          <EmptyHeader>
+            <EmptyTitle>ยังไม่มีบทเรียน</EmptyTitle>
+            <EmptyDescription>เริ่มด้วยการสร้างบทเรียนแรก</EmptyDescription>
+          </EmptyHeader>
+        </Empty>
       ) : (
         <div className="overflow-hidden rounded-xl border">
           <Table className="min-w-[520px]">

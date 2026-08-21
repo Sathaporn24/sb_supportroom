@@ -145,6 +145,35 @@ public static class AuthEnv
     }
 }
 
+/// <summary>
+/// The tenant registry's own bootstrap problem: an owner can sign in with no companies to pick
+/// from (Company has no self-registration), so the switcher and every company-scoped screen have
+/// nothing to show. Defaults to School Bright itself, since it is company row zero in this system
+/// (see Company.cs) - override FIRST_COMPANY_ID/FIRST_COMPANY_NAME for any deployment that isn't
+/// School Bright's own.
+///
+/// ⚠️ A fork of this codebase for something other than School Bright's real deployment - e.g. an
+/// academic thesis writeup - must override these two env vars (or blank them out) before sharing
+/// the result, so "School Bright" doesn't show up as if it endorsed or commissioned that copy.
+/// </summary>
+public static class CompanyEnv
+{
+    private const string DefaultCompanyId = "schoolbright";
+    private const string DefaultCompanyName = "School Bright";
+
+    public static FirstCompanySeed GetFirstCompanySeed() => new()
+    {
+        Id = Environment.GetEnvironmentVariable("FIRST_COMPANY_ID") is { Length: > 0 } id ? id : DefaultCompanyId,
+        Name = Environment.GetEnvironmentVariable("FIRST_COMPANY_NAME") is { Length: > 0 } name ? name : DefaultCompanyName,
+    };
+}
+
+public sealed class FirstCompanySeed
+{
+    public required string Id { get; init; }
+    public required string Name { get; init; }
+}
+
 public sealed class GoogleServiceAccountCredentials
 {
     public required string ProjectId { get; init; }
@@ -162,6 +191,17 @@ public sealed class EdgeTtsSettings
 {
     public required string Voice { get; init; }
     public required string Rate { get; init; }
+}
+
+public sealed class ElevenLabsCredentials
+{
+    public required string ApiKey { get; init; }
+    public required string VoiceId { get; init; }
+
+    /// <summary>eleven_v3 by default - verified against elevenlabs.io/docs that this is the only
+    /// ElevenLabs model that supports Thai; eleven_multilingual_v2 and eleven_flash_v2.5 do not,
+    /// despite the "multilingual" name. Do not change the default to one of those.</summary>
+    public required string ModelId { get; init; }
 }
 
 public sealed class OpenAiCredentials
@@ -272,6 +312,20 @@ public static class ExternalServiceEnv
         // -10% verified to sound more natural for instructional narration than the raw default rate.
         Rate = Environment.GetEnvironmentVariable("EDGE_TTS_RATE") is { Length: > 0 } r ? r : "-10%",
     };
+
+    public static ElevenLabsCredentials GetElevenLabs()
+    {
+        Require("ELEVENLABS_API_KEY");
+        Require("ELEVENLABS_VOICE_ID");
+        return new ElevenLabsCredentials
+        {
+            ApiKey = Environment.GetEnvironmentVariable("ELEVENLABS_API_KEY")!,
+            VoiceId = Environment.GetEnvironmentVariable("ELEVENLABS_VOICE_ID")!,
+            // eleven_multilingual_v2 and eleven_flash_v2.5 do NOT support Thai despite the name -
+            // verified live against elevenlabs.io/docs. eleven_v3 is the only model that does.
+            ModelId = Environment.GetEnvironmentVariable("ELEVENLABS_MODEL_ID") is { Length: > 0 } m ? m : "eleven_v3",
+        };
+    }
 
     public static PineconeCredentials GetPinecone()
     {

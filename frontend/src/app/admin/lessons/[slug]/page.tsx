@@ -70,22 +70,32 @@ export default function LessonEditorPage() {
   // uploading and silently wiping edited pages.
   const [pendingPdfReplace, setPendingPdfReplace] = useState<{ file: File; narrationCount: number } | null>(null);
   const [pdfReplaceError, setPdfReplaceError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
-    void api.listLessons().then(({ lessons }) => {
-      const found = lessons.find((l) => l.slug === params.slug);
-      if (!found) {
-        setNotFound(true);
-        return;
-      }
-      setLesson(found);
-      setForm(toFormState(found));
-    });
-    void api.listKnowledgeCategories().then(({ categories: list }) => setCategories(list));
+    api
+      .listLessons()
+      .then(({ lessons }) => {
+        const found = lessons.find((l) => l.slug === params.slug);
+        if (!found) {
+          setNotFound(true);
+          return;
+        }
+        setLesson(found);
+        setForm(toFormState(found));
+      })
+      .catch((err) => setLoadError(err instanceof ApiClientError ? err.response.error.message : "โหลดบทเรียนไม่สำเร็จ"));
+    api
+      .listKnowledgeCategories()
+      .then(({ categories: list }) => setCategories(list))
+      .catch((err) => setLoadError(err instanceof ApiClientError ? err.response.error.message : "โหลดรายการหมวดไม่สำเร็จ"));
   }, [params.slug]);
 
   if (notFound) {
     return <main className="p-6 text-muted-foreground">ไม่พบบทเรียนนี้ค่ะ</main>;
+  }
+  if (loadError && !form) {
+    return <main className="p-6 text-sm text-destructive">{loadError}</main>;
   }
   if (!form) {
     return (
@@ -297,6 +307,7 @@ export default function LessonEditorPage() {
         </div>
       </div>
 
+      {loadError && <p className="text-sm text-destructive">{loadError}</p>}
       {savedAt && <p className="text-xs text-primary">บันทึกแล้วเมื่อ {savedAt}</p>}
       {/* ข้อความนี้เป็นได้ทั้งสำเร็จและล้มเหลว (เช่น env ที่ยังไม่ได้ตั้ง) - ต้องอ่านออกชัด
           ไม่ใช่สีจางแบบ muted ไม่งั้น error จะกลืนไปกับบรรทัดสถานะอื่น */}

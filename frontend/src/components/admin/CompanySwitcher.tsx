@@ -6,13 +6,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 /**
  * Picks which customer's data the back office is showing.
  *
- * Hidden when there is nothing to choose between - a company-scoped user belongs to exactly one
- * customer, and a dropdown with a single option is just a control that does nothing.
+ * Only `owner` ever switches between customers - `admin`/`cs` belong to exactly one company
+ * permanently (no permission builder), so a dropdown for them would offer a single option that
+ * does nothing and imply a switch that can never happen. They keep the plain-text label instead.
  */
 export function CompanySwitcher() {
   const { companies, activeCompanyId, switchCompany, user } = useAdminSession();
 
-  if (companies.length <= 1) {
+  if (user?.role !== "owner") {
     // Still name the customer being viewed. Without it there is no on-screen answer to "whose
     // data am I looking at right now?", which is the question the whole switcher exists for.
     const only = companies[0] ?? null;

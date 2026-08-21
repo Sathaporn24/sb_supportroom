@@ -8,7 +8,27 @@ Already scaffolded — this is an existing project (`frontend/` Next.js + `backe
 | Module | Stage | Next agent |
 |---|---|---|
 | knowledge-base | **QA FULL (2026-08-20) — Phase 7 verified ✅ (FULL)**, module overall ✅ — 139/140 `plan.md` tasks ✅ ติ๊กแล้วทั้ง 7 phase (เหลือแค่ R-2 latency ที่บล็อกด้วย deployment ไม่ใช่ล้มเหลว), ไม่มีข้อค้าง ❌/⚠️ เหลือเลย. Phase 7 (Document scope assignment, Module G, 🔒 gate) 22/22 ✅ ยืนยันด้วยโค้ดจริง + unit test ใหม่ 14 ตัว (backend 204/204) + ทดสอบจริงกับแอปที่รันอยู่ (curl ยิง 6 กรณีปฏิเสธของ DS-3 ผ่าน JWT จริง, login+`GET /api/companies` จริง) · Phase 1's TX-5 partial ปิดแล้ว (ปิดพร้อม Phase 7 wiring call site) → Phase 1 ตอนนี้ 15/15 ✅ · **บั๊ก 2 (owner บริษัทเดียว login ไม่ได้)** แก้ใน `AdminSessionProvider.tsx` ยืนยันแล้วด้วย code trace + live data (`GET /api/companies` คืนบริษัทเดียวจริงสำหรับ `owner@local.test`) — ไม่มี browser tool ในเซสชันนี้ให้คลิกทดสอบเอง แต่ผู้ใช้ยืนยันด้วยตาตัวเองแล้ว · **บั๊ก 3 (Select ต้องเลือกสองรอบ)** แก้ใน `DocumentUploadList.tsx` + `KnowledgeQnAAnswerDialog.tsx` (ไฟล์ Phase 6 เดิม, regression check ผ่านครบไม่กระทบ flow เดิม) ยืนยันแล้วด้วย diff อ่านโค้ดตรง · Phase 3 ยังเหมือนเดิม (21/21 ✅ แต่รอบล่าสุดเป็น TARGETED ไม่ใช่ FULL ต้องมี FULL ก่อน deploy ได้) · **`security` ยังไม่เคยรันสักครั้งตลอดทั้ง 7 phase** — เป็นตัวบล็อกเดียวที่เหลือสำหรับทุก phase ที่ติด gate (2,3,4,6,7) ก่อนส่ง `devops` · รายละเอียดเต็มใน `review.md` (Phase 1–6 เดิมย้ายไป `review/phase-1-6.md` แล้ว, Phase 3 Round 1 เดิมอยู่ที่ `review/phase-3.md`) | `security` (เมื่อผู้ใช้เรียก), `devops` (Phase 1 พร้อม accept ได้ทันที ไม่ติด gate) |
+| company-admin | **Security SECURITY-1 ⚠️ — 3 Important findings open**: stale JWT ยังใช้ได้หลัง deactivate/demotion · `MustChangePassword` bypass ผ่าน API · login ไม่มี rate limiting. QA: Phase 1 15/15 verified ✅ (TARGETED, ต้อง FULL ก่อน devops) · Phase 2 7/7 verified ✅ (FULL) · **Phase 3 (Company Switching — Owner UX) 6/6 verified ✅ (FULL) — implement เสร็จแล้ว, ตรวจโค้ดจริงครบทั้ง 6 task ตรง F4.0–F4.6, `typecheck`/`lint`/`test` (41/41)/`build` ผ่านหมด, auto-accepted (all-✅ FULL round)** · deployed ⬜ ทั้งโมดูล · ทั้งสาม phase ยังติด `🔒 Security gate` ของ Module A — Phase 3 ยังไม่เคยผ่าน `security` เลย (SECURITY-1 คลุมแค่ Phase 1/2) | `backend-engineer` แก้ `SEC-01`–`SEC-03`; จากนั้นรอผู้ใช้เรียก `security` re-audit (Phase 1/2 ที่แก้แล้ว + Phase 3 ที่ยังไม่เคยตรวจ) · `qa-engineer` ต้องรัน FULL รอบใหม่ให้ Phase 1 ก่อน `devops` รับได้ |
 | learning-session | **QA FULL-3 + manual-4/5 ✅ ครบ 53/53** — LS-QA-05 ปิดหมดแล้ว (6/6 กรณี LR-3 + R1 isolation ยืนยันด้วย SignalR connection จริง) · Phase 1–2 (A, B) ไม่ติด gate พร้อมให้ `devops` accept ได้เลย · Phase 3–6 ยังรอ `security` audit ก่อน deploy ได้ | `security` (เมื่อผู้ใช้เรียก) สำหรับ Phase 3–6 · `devops` accept Phase 1–2 ได้ทันที |
+
+## 🟡 เรื่องที่ค้างการตัดสินใจ — บันทึกไว้ 2026-08-21 (capture-only ไม่ได้เปลี่ยนสถานะ phase ใด)
+
+> วันที่มาจาก system context **ยังไม่ได้ให้เจ้าของโปรเจกต์ยืนยันเอง** (เซสชันที่บันทึกไม่มี
+> เครื่องมือถามผู้ใช้ และเจ้าของโปรเจกต์กำลังย้ายเครื่อง/ย้ายบัญชี) · **ไม่มีโค้ด ไม่มี checkbox
+> ไม่มีมติใดถูกเปลี่ยนในรอบนี้** — บันทึกบริบทอย่างเดียวเพื่อให้เซสชันใหม่ที่ไม่มีความจำต่อได้
+
+1. **ค่า pacing ของบทเรียน → ค่าเริ่มต้นระดับบริษัท** — `_docs/module/learning-session/requirement.md`
+   §Open Questions (หัวข้อ 2026-08-21) + `_docs/module/company-admin/requirement.md` **OQ-8** ·
+   ตรวจโค้ดจริงแล้วว่า `introWaitMs`/`breathPauseMs`/`finalQuestionWaitMs` มีผลจริง ตัดไม่ได้
+   ย้ายได้อย่างเดียว · ต้องปิดผ่าน **A5/B3/B4** ซึ่งอยู่ใน **`company-admin/design.md`**
+   (ไม่ใช่ `learning-session/design.md` ตามที่เคยเข้าใจกัน) · **ยังไม่เคยสัมภาษณ์ P1–P4**
+   → รอ `business-analyst` · แยกต่างหาก: `videoDurationMs` เป็นงานลดความรกของ UI ล้วน
+   ส่ง `frontend-engineer` ได้ตรงๆ ไม่ต้องรออะไร
+2. **CR-1 ยุบ knowledge scope บทเรียน/บริษัทให้เหลือกองเดียว** —
+   `_docs/module/knowledge-base/requirement.md` §Open Change Request · **ขัดกับมติข้อ 5 ใน
+   `docs/HANDOFF_MASTER.md` ที่ประกาศห้ามเปลี่ยนเงียบๆ** (ใส่ตัวชี้ไว้ที่นั่นแล้ว โดยไม่แก้ตัวมติ) ·
+   ต้องสัมภาษณ์เต็มรูปแบบ + `system-analyst` (Pinecone namespace, ingestion, retrieval quality)
+   → **ยังไม่พร้อมส่ง engineer**
 
 ## knowledge-base
 
@@ -808,3 +828,123 @@ credentials ใน local `.env` ยังว่าง) แล้วเรีย�
 `project-manager` ต้องติด gate ที่หัวข้อ phase ที่ครอบ Module E ด้วย
 
 **ขั้นถัดไป:** ยึด routing จาก FULL QA ใน `review.md`; ข้อความ project-manager เดิมถูก supersede แล้ว
+
+---
+
+## company-admin
+
+**รับลูกค้าใหม่เข้าระบบ + ปรับระบบให้เข้ากับลูกค้าแต่ละราย** — เกิดจากการทบทวนระบบผ่าน
+UX wireframe หน้า admin แล้วเจอ 3 gap ที่ยืนยันด้วยการตรวจโค้ดจริง
+
+Docs: requirement ✅ (2026-08-21) · design ✅ (**Module A เป็น contract แล้ว · F2/Module B–C ยังพัก**) · plan ✅ (2026-08-21, 2 phase, 22/22 tasks checked — checkbox เป็นของ QA) · review ✅ (QA TARGETED-1) · security ⚠️ (SECURITY-1, SEC-01–03 remediation implemented; re-audit pending)
+
+- Phase 1 — implemented ✅ · verified ✅ (TARGETED, 15/15; ต้อง FULL ก่อน `devops`) · security ⚠️ (SEC-01–03 remediation implemented; re-audit pending) · deployed ⬜
+- Phase 2 — implemented ✅ · verified ✅ (FULL, 7/7) · security ⚠️ (SEC-01–03 remediation implemented; re-audit pending) · deployed ⬜
+
+> **🟢 design ปิดแล้วสำหรับ Module A / F1 (2026-08-21)** — trigger คือลูกค้าใหม่ **"scb"**
+> · **F2 (ตั้งค่าระดับบริษัท) ยังพักไว้** เพราะทุกบริษัทรวม scb ใช้ค่ากลางจาก env ได้อยู่แล้ว
+>
+> **เคาะครบ 5 ข้อ**: **B1** สร้าง default chain อัตโนมัติให้บริษัทใหม่ + ซ่อมบริษัทเก่าทันที ·
+> **A1** owner พิมพ์รหัสเอง + `MustChangePassword = true` · **B2** ลิงก์เดิมเรียนต่อจนหมดอายุ
+> (ไม่แตะฝั่งผู้เรียน) · **N1** ปฏิเสธ slug ซ้ำ + แก้ข้อความ error ให้บอกเหตุผล · **N2** เพิ่มช่อง
+> `AdminDisplayName` ในฟอร์ม
+>
+> **สิ่งที่ engineer ต้องอ่านก่อนเขียนโค้ด**: `## Company Provisioning Rules` (CP-1..CP-15) และ
+> `## Default Category Chain Rules` (CH-1..CH-8) ใน `design.md` — เป็น contract ไม่ใช่คำแนะนำ
+> · กับดักที่เขียนไว้ชัดแล้ว: **single-`Commit()`** (CP-6 ห้ามเรียก `AdminUserService.Create`
+> ที่ commit เอง), **ห้าม `IgnoreQueryFilters()`** (CP-12), **`Role` ตายตัวเป็น `admin`** (CP-8),
+> **`ON CONFLICT` ใช้แทนการเช็คไม่ได้ใน backfill** (CH-6)
+
+**ทำไมเป็น module แยก ไม่ใช่พ่วง `knowledge-base`/`learning-session`** (มติเจ้าของโปรเจกต์
+2026-08-21 ตาม `conventions.md` §1): ผู้ใช้คนละกลุ่ม (owner ของ School Bright / admin ของ
+บริษัทลูกค้า ไม่ใช่ CS ที่ดูแลเนื้อหา) · business purpose คนละเรื่อง · ตัดทั้งก้อนได้โดยไม่กระทบ
+สองโมดูลเดิม
+
+**3 gap ที่ยืนยันจากโค้ดจริง**:
+1. **P1 สร้างบริษัทไม่มี UI** — `POST /api/companies` (`CompanyController.cs:26`) และ
+   `createCompany()` (`api-client.ts:559`) มีครบทั้งคู่ แต่ grep ทั้ง `frontend/src` แล้ว
+   **ไม่มีไฟล์ใดเรียกเลย** วันนี้ลูกค้าใหม่เข้าระบบได้ทางเดียวคือ insert DB ตรงๆ
+2. **P2 ไม่มีตั้งค่าระดับบริษัท** — ไม่มี entity `CompanySettings`/`CompanyConfig` ที่ไหนเลย ·
+   `DEFAULT_SESSION_EXPIRY_HOURS` = `ServerDefaults.cs:46`, `EDGE_TTS_VOICE/RATE` =
+   `ServerDefaults.cs:271-273` ทุกตัวเป็น env ระดับ deployment เดียวใช้ร่วมทุกบริษัท
+3. **P3 (เจอเพิ่มระหว่างสัมภาษณ์) — ปิดแล้วใน Phase 1**:
+   `CreateDefaultChain()` สร้าง chain ให้บริษัทใหม่ใน transaction เดียว และ migration เดิมถูก apply
+   พร้อม CH-3 invariant ผ่าน · QA FULL-1 พบว่ากรณีเติม leaf ใต้ parent เดิมใช้ `CreateDate` ไม่ตรง
+   CH-2/CH-6; corrective data-only migration ซ่อมเฉพาะ leaf กลุ่มนั้น และ QA TARGETED-1 ยืนยัน
+   contract/test/EF discovery แล้ว (15/15) · **นี่คือ hard dependency ข้ามโมดูลไปที่ `knowledge-base`**
+
+**เคาะแล้ว 2026-08-21**: F1 ฟอร์มเดียวจบ (Company + AdminUser คนแรก role `admin` + default
+category chain สำเร็จพร้อมกันหรือไม่เกิดอะไรเลย, `owner` เท่านั้น) · F2 ตั้งค่า **3 ข้อเท่านั้น**
+(ลิงก์หมดอายุ · เสียง+ความเร็ว TTS · ชื่อ/โลโก้/สีแบรนด์ที่ผู้เรียนเห็น) แบบ **null = inherit
+จาก env** สิทธิ์แก้ = owner + admin ของบริษัทนั้น · ลำดับ: F1 ก่อน F2
+
+**ตัดออกโดยตั้งใจ (DC-1..DC-5)**: แจ้งเตือนเชิงรุกอีเมล/LINE/สรุปรายวัน (in-app badge มีอยู่แล้ว
+จริงที่ `AdminSidebar.tsx:130` → ปิด requirement ด้วยของเดิม) · จังหวะการสอน 3 ค่า ms ·
+ขนาดไฟล์อัปโหลด · เกณฑ์หยุดกลางคัน · default จำนวนคนสูงสุดต่อลิงก์
+
+**✅ open questions ของ Module A เคาะครบแล้ว (2026-08-21)** — A1 · B1 · B2 · N1 · N2 ปิดหมด
+บันทึกอยู่ใน `design.md` ตาราง "การตัดสินใจที่ผู้ใช้ยืนยันแล้ว" พร้อมสิ่งที่แต่ละคำตอบตัดออก ·
+⏸️ **ยังเหลือ 6 ข้อของ F2 (A2–A6 · B4 · B3)** ที่ **ไม่บล็อกอะไรตอนนี้** · **B4 (รูปร่าง schema
+ของค่าตั้งค่า) ไม่ใช่ตัวบล็อกอีกต่อไป** เพราะเป็นเรื่อง F2 ล้วนๆ และ F1 ไม่ต้องแก้ schema เลย ·
+**A1 (= OQ-1) ไม่ได้บล็อกหนักอย่างที่ประเมินไว้ตอนแรก**: ตรวจโค้ดแล้วพบว่า
+ข้อเสนอเดิม (owner ตั้งรหัสในฟอร์ม + `MustChangePassword`) **เป็นสิ่งที่ระบบทำอยู่แล้วครบทุกขั้น**
+(`IAdminUserService.cs:80`, `IAuthService.cs:186`, `/admin/change-password`, test ที่
+`AdminUserServiceTests.cs:277`) เลือกทางนี้ = ไม่ต้องสร้างกลไกใหม่เลย
+
+**✅ ผลสำรวจ feasibility (2026-08-21) — ใช้ได้เลยไม่ต้องตรวจซ้ำ**: **ทุกฟีเจอร์ F1.1–F2.4
+ทำได้ด้วย stack ปัจจุบัน ไม่ต้องเพิ่ม dependency/provider ใหม่แม้แต่ตัวเดียว** (แม้แต่ทาง
+อัปโหลดโลโก้ก็ใช้ `IDocumentStorageProvider` เดิม และค่า TTS ต่อบริษัทไม่ต้องแก้ `ITtsProvider`
+เพราะ `TtsInput.Voice`/`Rate` เป็น optional override อยู่แล้ว) — สิ่งที่บล็อกคือคำถามที่ยัง
+ไม่ถูกเคาะ ไม่ใช่ความเป็นไปได้ทางเทคนิค
+
+**🔍 findings จากโค้ดจริง 7 ข้อ (F-1..F-7) เก็บครบใน `design.md` §Findings from Feasibility Check**
+— อ้างไฟล์+บรรทัดไว้ทุกจุด ไม่ต้อง grep ซ้ำ สรุปหัวข้อ:
+1. **F-1** `GET /api/companies` คืนเฉพาะบริษัท active (`ICompanyService.cs:45`) → **เปิดบริษัท
+   ที่ปิดไปแล้วกลับมาไม่ได้ผ่าน UI** F1.6 ต้องมี endpoint ใหม่ ไม่ใช่ reuse ของเดิมอย่างที่
+   `requirement.md` §Pre-existing assets เขียนไว้
+2. **F-2** `IsActive = false` **ไม่ได้บล็อกฝั่งผู้เรียนเลย** — `IAuthService.cs:105-117` บล็อกแค่
+   login ของ admin/cs ส่วน join/TTS/voice-question/`GET /api/training-links/{token}` ไม่เคยเช็ค
+   → "offboard ลูกค้า" วันนี้แปลว่าลิงก์ที่แจกไปแล้วยังเรียนได้จนหมดอายุ **เป็นกฎธุรกิจที่ยังไม่เคาะ (B2)**
+3. **F-3 — ปิดแล้วใน Phase 1**: migration เดิมครอบไม่ครบ แต่
+   `BackfillMissingDefaultCategoryChain` ครอบทุกบริษัทและ apply กับ local PostgreSQL แล้ว;
+   integration invariant check ยืนยันว่าแต่ละบริษัทมี system-default leaf หนึ่งแถวเป๊ะ
+4. **F-4** `POST /api/tts` เชื่อ `Voice`/`Rate` จาก client ตรงๆ (`TtsController.cs:20-34` +
+   `ITtsService.cs:23`) → ถ้าจะบังคับค่าต่อบริษัทในอนาคต **ต้อง resolve ที่ server** โดยคงกรณี
+   per-utterance override ของ filler ไว้ (`config/response-texts.ts:57-62`)
+5. **F-5** `KnowledgeCategory` มี query filter ตาม company context ปัจจุบัน
+   (`ApplicationDbContext.cs:136`) → **owner ที่ switch อยู่บริษัทอื่นจะอ่านแถวของบริษัทที่เพิ่ง
+   สร้างไม่เจอ** (insert ผ่าน แต่อ่านกลับได้ 0 แถว) — กับดักที่ engineer ต้องรู้ล่วงหน้า และ
+   **ห้ามแก้ด้วย `IgnoreQueryFilters()`** ซึ่งเคยทำให้เกิด data leak มาแล้ว (`CompanyIsolationTests.cs:211-214`)
+6. **F-6** `CompanyIsolationTests.EveryEntityIsCompanyScoped` (`CompanyIsolationTests.cs:227-251`)
+   จะ fail ทันทีถ้าเพิ่ม entity ที่ `ICompanyScoped` โดยไม่มี query filter → กระทบทางเลือก B4 โดยตรง
+7. **F-7** `.claude/agents/backend-engineer.md` §Auth ล้าสมัย (เขียนว่ายังไม่มี auth แต่ของจริง
+   มี JWT + RBAC + `IAuthorizationGuard` ครบ) — `system-analyst` แก้ไฟล์นั้นไม่ได้ตาม
+   `conventions.md` §9 ควรให้ `backend-engineer` แก้ในรอบที่แตะ backend ครั้งถัดไป
+
+**Security note สำหรับ `project-manager`/`security` ในอนาคต**: งานทั้งโมดูลแตะ `Company` และ
+`AdminUser` ซึ่งเป็นสองตารางที่ **ไม่มี query filter โดยตั้งใจ** (tenant registry เอง) —
+`IAuthorizationGuard` คือสิ่งเดียวที่กั้นข้อมูลข้ามลูกค้า (TD-014) จุดนี้ควรติด `🔒 Security gate`
+
+**Scope ปิดแล้ว 2026-08-21** (ถามรอบปิดท้ายครบ เจ้าของโปรเจกต์ยืนยันว่าเท่านี้): ไม่สร้างหน้า
+จัดการผู้ใช้ใหม่ ใช้ `/admin/users` เดิม · **แพ็กเกจ/โควตา/สัญญา/usage ยังไม่คิด ห้ามออกแบบเผื่อ**
+(ยอมรับความเสี่ยงว่าอนาคตอาจต้องแตะ `Company` ซ้ำ) · หน้า audit log ยังไม่ต้องมี
+
+**Now**: `backend-engineer` implement remediation ของ **SEC-01–SEC-03** แล้ว: ทุก authenticated
+back-office request refresh account/role/company state จาก server และ fail closed เมื่อ account/company
+ไม่ active หรือเปลี่ยน assignment · `MustChangePassword` อนุญาตเฉพาะ `/api/auth/me` และ
+`/api/auth/change-password` ที่ server boundary · `POST /api/auth/login` ถูกจำกัดด้วย ASP.NET Core
+source-IP policy และ normalized-account short-lived policy พร้อม 429 error envelope ที่ไม่ reveal
+account. Build 0 warning/0 error · focused security regression 13/13 · non-integration tests 228/228
+· frontend typecheck ผ่าน. **Security gate ยัง open** จนกว่า `security` จะ re-audit และเป็นผู้ปิด
+finding เอง; QA คงเดิม: Phase 1 15/15 TARGETED (ต้อง FULL ก่อน devops), Phase 2 7/7 FULL.
+
+**Blocked on**: ผู้ใช้เรียก `security` re-audit เพื่อตรวจและปิด/เปิด SEC-01–SEC-03; หลัง security
+ผ่าน Phase 1 ยังต้อง QA FULL ก่อนส่ง `devops` เพราะผลล่าสุดเป็น TARGETED
+
+**F2 / Module B–C ยังพักไว้**: คำถาม A2–A6/B3/B4 ยังเปิดอยู่แต่ **ไม่บล็อก Module A** ·
+trigger ที่จะปลุก = scb (หรือลูกค้ารายอื่น) ขอแบรนด์/เสียง/อายุลิงก์เป็นของตัวเอง ·
+วันปลุกต้อง re-run STATE: ANALYZE ของส่วนนั้นใหม่ตามกฎ deferred module
+
+**F2 / Module B ยังพักไว้**: คำถาม A2–A6/B4 ไม่ต้องตอบรอบนี้ · trigger ที่จะปลุก = scb (หรือ
+ลูกค้ารายอื่น) ขอแบรนด์/เสียง/อายุลิงก์เป็นของตัวเอง · วันปลุกต้อง re-run STATE: ANALYZE
+ของส่วนนั้นใหม่ตามกฎ deferred module

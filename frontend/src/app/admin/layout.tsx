@@ -13,7 +13,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
  */
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   return (
-    <Suspense fallback={<p style={{ padding: 24 }}>กำลังโหลด…</p>}>
+    <Suspense fallback={<p className="p-6">กำลังโหลด…</p>}>
       <AdminSessionProvider>
         <TooltipProvider>
           <AdminGuard>{children}</AdminGuard>

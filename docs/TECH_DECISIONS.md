@@ -25,25 +25,39 @@ retry 2 ครั้ง, timeout 12 วินาที, คอมเมนต์
 - **B — Google Cloud TTS** อยู่ในระบบ Google เดียวกับ Slides/Gemini เสียงไทยคนละตัว
 - **C — Gemini TTS / Live API** ลดจำนวน vendor
 - **D — คงเดิม + residential proxy**
+- **E — ElevenLabs Text to Speech** commercial API มี SLA เสียงไทยคนละตัวจากเดิม
 
 **Comparison**
 
-| | A: Azure | B: Google | C: Gemini TTS | D: คงเดิม |
-|---|---|---|---|---|
-| ความซับซ้อน | ต่ำมาก (1 คลาส) | ต่ำมาก | ต่ำ–กลาง | ไม่มี |
-| ค่าใช้จ่าย | ~$16/1M อักขระ | ~$16/1M อักขระ | ตาม token | $0 + ค่า proxy |
-| เสียงเปลี่ยนไหม | **ไม่เปลี่ยนเลย** | เปลี่ยน | เปลี่ยน | ไม่เปลี่ยน |
-| ความน่าเชื่อถือ | SLA | SLA | SLA | ไม่มี |
-| Vendor lock-in | ต่ำ (`ITtsProvider` กันไว้แล้ว) | ต่ำ | ต่ำ | — |
-| ดูแลต่อ | ต่ำ | ต่ำ | ต่ำ | สูง (เปราะ) |
+| | A: Azure | B: Google | C: Gemini TTS | D: คงเดิม | E: ElevenLabs |
+|---|---|---|---|---|---|
+| ความซับซ้อน | ต่ำมาก (1 คลาส) | ต่ำมาก | ต่ำ–กลาง | ไม่มี | ต่ำมาก (1 คลาส, HTTP POST เดียว) |
+| ค่าใช้จ่าย | ~$16/1M อักขระ | ~$16/1M อักขระ | ตาม token | $0 + ค่า proxy | ตาม subscription tier |
+| เสียงเปลี่ยนไหม | **ไม่เปลี่ยนเลย** | เปลี่ยน | เปลี่ยน | ไม่เปลี่ยน | เปลี่ยน |
+| ความน่าเชื่อถือ | SLA | SLA | SLA | ไม่มี | SLA |
+| Vendor lock-in | ต่ำ (`ITtsProvider` กันไว้แล้ว) | ต่ำ | ต่ำ | — | ต่ำ (`ITtsProvider` กันไว้แล้ว) |
+| ดูแลต่อ | ต่ำ | ต่ำ | ต่ำ | สูง (เปราะ) | ต่ำ |
+| รองรับภาษาไทยจริง | ใช่ | ใช่ | ใช่ | ใช่ | เฉพาะโมเดล `eleven_v3`/`eleven_v3_conversational` — `eleven_multilingual_v2` และ `eleven_flash_v2.5` **ไม่รองรับไทย** แม้ชื่อจะบอกว่า multilingual (ตรวจสอบสด ส.ค. 2026 กับ elevenlabs.io/docs) |
 
 **Recommendation**
-**Option A** — ได้เสียงเดิมเป๊ะ ไม่ต้องให้ผู้มีส่วนได้เสียมาฟังอนุมัติใหม่ และงานคือเขียน
-`AzureTtsProvider` หนึ่งคลาสแล้วเพิ่ม `"azure"` ใน `TtsProvider.Allowed` — abstraction พร้อมอยู่แล้ว
-เก็บ `edge` ไว้เป็นทางเลือกสำหรับ dev ในเครื่องได้
+**Option E (ElevenLabs)** ถูกนำมาใช้งานจริงแล้ว — implement เป็น `ElevenLabsTtsProvider`
+(`SupportRoom.Providers.Tts`) ตาม abstraction เดิม (`ITtsProvider`), เพิ่ม `"elevenlabs"` ใน
+`TtsProvider.Allowed`, เพิ่ม factory case ใน `TtsProviderFactory`, และอ่าน credential ผ่าน
+`ExternalServiceEnv.GetElevenLabs()` (`ELEVENLABS_API_KEY`, `ELEVENLABS_VOICE_ID` บังคับ,
+`ELEVENLABS_MODEL_ID` optional)
 
-**Status** `Proposed` — **มีความสำคัญสูงสุดในบรรดาข้อเสนอทั้งหมด** ต้องการการอนุมัติเรื่อง
-Azure subscription จากทีม
+⚠️ **ต้องใช้ model `eleven_v3` เท่านั้น** — เป็นโมเดลเดียวของ ElevenLabs ที่รองรับภาษาไทย
+(ตรวจสอบสดกับเอกสารจริงที่ elevenlabs.io/docs) `eleven_multilingual_v2` และ `eleven_flash_v2.5`
+ไม่รองรับไทยทั้งที่ชื่อบอกว่า multilingual — `GetElevenLabs()` จึง default `ELEVENLABS_MODEL_ID`
+เป็น `eleven_v3` เสมอ ห้ามเปลี่ยนเป็นโมเดลอื่นโดยไม่ตรวจสอบก่อนว่ารองรับไทย
+
+Option A (Azure) ยังคงเป็นทางเลือกที่ให้เสียงเดิมเป๊ะถ้าทีมต้องการเปรียบเทียบต่อ แต่ยังไม่ได้
+ตัดสินใจเลือก A — ทีมเลือกทดสอบ ElevenLabs ก่อนโดยยังไม่ตัดการใช้งานจริง (`TTS_PROVIDER` ใน
+`.env` การ deploy จริงยังเป็น `edge`)
+
+**Status** `Accepted / Implemented, not yet cut over` — provider เขียนเสร็จแล้ว รอผู้พัฒนาใส่
+`ELEVENLABS_API_KEY`/`ELEVENLABS_VOICE_ID` ของตัวเองและตั้ง `TTS_PROVIDER=elevenlabs` เพื่อทดสอบ
+ก่อนตัดสินใจ cut over การ deploy จริง
 
 ---
 

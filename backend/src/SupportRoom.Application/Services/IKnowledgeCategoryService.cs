@@ -16,6 +16,7 @@ namespace SupportRoom.Application.Services;
 public interface IKnowledgeCategoryService
 {
     IReadOnlyList<KnowledgeCategoryViewModel> GetAll();
+    void CreateDefaultChain(string companyId);
     Task<KnowledgeCategoryViewModel> CreateAsync(CreateKnowledgeCategoryDto input);
     Task<KnowledgeCategoryViewModel> UpdateAsync(string id, UpdateKnowledgeCategoryDto input);
     Task DeleteAsync(string id);
@@ -35,6 +36,43 @@ public sealed class KnowledgeCategoryService(
 
     public IReadOnlyList<KnowledgeCategoryViewModel> GetAll()
         => _repository.GetByCompanyOrdered().ToList().Adapt<List<KnowledgeCategoryViewModel>>();
+
+    public void CreateDefaultChain(string companyId)
+    {
+        var createdAt = DateTime.UtcNow;
+        var createdBy = CurrentUserId;
+        var parent = new KnowledgeCategory
+        {
+            Id = IdGenerator.GenerateId("kbcat"),
+            CompanyId = companyId,
+            ParentId = null,
+            Level = 1,
+            Name = "ยังไม่จัดหมวด",
+            Description = null,
+            SortOrder = 9999,
+            IsSystemDefault = true,
+            IsDelete = false,
+            CreateBy = createdBy,
+            CreateDate = createdAt,
+        };
+        var leaf = new KnowledgeCategory
+        {
+            Id = IdGenerator.GenerateId("kbcat"),
+            CompanyId = companyId,
+            ParentId = parent.Id,
+            Level = 2,
+            Name = "ยังไม่จัดหมวด",
+            Description = null,
+            SortOrder = 9999,
+            IsSystemDefault = true,
+            IsDelete = false,
+            CreateBy = createdBy,
+            CreateDate = createdAt,
+        };
+
+        _repository.Add(parent);
+        _repository.Add(leaf);
+    }
 
     public Task<KnowledgeCategoryViewModel> CreateAsync(CreateKnowledgeCategoryDto input)
     {

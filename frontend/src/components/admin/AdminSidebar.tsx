@@ -5,6 +5,7 @@ import {
   FileTextIcon,
   FlagIcon,
   FolderTreeIcon,
+  Building2Icon,
   LayoutDashboardIcon,
   LinkIcon,
   MessageCircleQuestionIcon,
@@ -144,6 +145,27 @@ export function AdminSidebar() {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
+
+        {user?.role === "owner" && (
+          <SidebarGroup>
+            <SidebarGroupLabel>จัดการระบบ</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    isActive={isActivePath(pathname, "/admin/companies")}
+                    render={
+                      <AdminLink href="/admin/companies">
+                        <Building2Icon />
+                        <span>บริษัททั้งหมด</span>
+                      </AdminLink>
+                    }
+                  />
+                </SidebarMenuItem>
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
 
         {user?.role !== "cs" && (
           <SidebarGroup>

@@ -32,6 +32,12 @@ public static class AuthClaims
 public interface IAuthService
 {
     LoginResultViewModel Login(LoginDto input);
+    /// <summary>
+    /// Re-resolves the authenticated back-office identity from persistent state. JWT claims are
+    /// intentionally only a proof of token issuance; authorization uses this fresh state so an
+    /// account, role, or company change takes effect immediately.
+    /// </summary>
+    SignedInUserViewModel RefreshCurrentUser();
     SignedInUserViewModel GetSignedInUser();
     void ChangePassword(ChangePasswordDto input);
 
@@ -149,6 +155,29 @@ public sealed class AuthService(
             ExpiresAt = expiresAt.Adapt<string>(),
             User = ToViewModel(user),
         };
+    }
+
+    public SignedInUserViewModel RefreshCurrentUser()
+    {
+        if (!currentUser.IsAuthenticated)
+        {
+            throw GeneralException.Unauthorized("กรุณาเข้าสู่ระบบก่อน");
+        }
+
+        var user = _users.Get(currentUser.UserId!)
+            ?? throw GeneralException.Unauthorized("บัญชีผู้ใช้นี้ไม่สามารถใช้งานได้");
+
+        if (!user.IsActive || !AdminRole.IsValid(user.Role))
+        {
+            throw GeneralException.Unauthorized("บัญชีผู้ใช้นี้ไม่สามารถใช้งานได้");
+        }
+
+        EnsureCompanyStillUsable(user);
+
+        // Refresh every authorization-bearing field; no downstream guard may use a stale JWT
+        // role or company binding after this point.
+        currentUser.Resolve(user.Id, user.Role, user.CompanyId);
+        return ToViewModel(user);
     }
 
     public SignedInUserViewModel GetSignedInUser()

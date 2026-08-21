@@ -18,5 +18,6 @@ public static class ApiErrorCode
     public const string Forbidden = "FORBIDDEN";
     public const string UpstreamError = "UPSTREAM_ERROR";
     public const string ConfigError = "CONFIG_ERROR";
+    public const string RateLimited = "RATE_LIMITED";
     public const string InternalError = "INTERNAL_ERROR";
 }

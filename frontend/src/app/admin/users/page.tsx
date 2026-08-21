@@ -32,7 +32,7 @@ const ROLE_LABELS: Record<AdminRole, string> = {
  * never appears and then fails; the check that matters is server-side, in IAuthorizationGuard.
  */
 export default function AdminUsersPage() {
-  const { user, activeCompanyId } = useAdminSession();
+  const { user, activeCompanyId, companies } = useAdminSession();
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -44,8 +44,12 @@ export default function AdminUsersPage() {
 
   const reload = useCallback(async () => {
     if (!companyId) {
-      // An owner who has not picked a customer yet. There is no sensible list to show, and
-      // guessing one would silently pick a customer for them.
+      // A company-scoped user always has companyId set from their own session, so this only fires
+      // for an owner: either briefly, before AdminSessionProvider's auto-select effect resolves
+      // the first company once the companies fetch comes back, or persistently if the company
+      // registry has genuinely zero companies. There is no manual "pick a company" step to send
+      // the owner to anymore - the effect does it automatically - so there is no sensible list to
+      // show either way.
       setUsers([]);
       setLoading(false);
       return;
@@ -91,7 +95,11 @@ export default function AdminUsersPage() {
         )}
       </div>
 
-      {!companyId && <p className="text-sm text-muted-foreground">กรุณาเลือกบริษัทจากแถบด้านบนก่อน</p>}
+      {!companyId && (
+        <p className="text-sm text-muted-foreground">
+          {companies.length === 0 ? "ยังไม่มีบริษัทในระบบ" : "กำลังโหลดข้อมูลบริษัท..."}
+        </p>
+      )}
       {error && (
         <Alert variant="destructive" role="alert">
           <AlertDescription>{error}</AlertDescription>

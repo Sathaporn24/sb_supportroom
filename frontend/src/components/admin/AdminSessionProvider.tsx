@@ -106,14 +106,15 @@ export function AdminSessionProvider({ children }: { children: React.ReactNode }
       .catch(() => setCompanies([]));
   }, [user]);
 
-  // An owner with nothing resolved yet and exactly one company to pick from has no real choice to
-  // make - the "pick a company" screen above would otherwise strand them forever, since there is
-  // no control that lets them make that pick. Waits on the companies fetch above, so this only
-  // fires once the list is known.
+  // An owner always lands on a real company with no interstitial "pick one" step: if nothing is
+  // resolved yet, or the company currently in the URL has dropped out of the active-company list
+  // (e.g. someone else deactivated it mid-session), fall back to the first company in the list.
+  // Waits on the companies fetch above, so this only fires once the list is known.
   useEffect(() => {
     if (user?.role !== "owner" || isAuthTransitionPage) return;
+    if (companies.length === 0) return;
     const resolved = companyFromUrl ?? user?.companyId ?? getActiveCompanyId();
-    if (resolved || companies.length !== 1) return;
+    if (resolved && companies.some((company) => company.id === resolved)) return;
 
     const params = new URLSearchParams(searchParams.toString());
     params.set("company", companies[0].id);
