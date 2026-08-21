@@ -1,4 +1,17 @@
 {
+  "permissions": {
+    "allow": [
+      "Bash(grep -v '=$' \"backend/src/SupportRoom.Api/.env\")",
+      "Bash(powershell -Command \"Get-Service -Name postgresql* -ErrorAction SilentlyContinue | Select-Object Name,Status\")",
+      "Bash(powershell -Command \"Test-NetConnection -ComputerName localhost -Port 5432 -WarningAction SilentlyContinue | Select-Object TcpTestSucceeded\")",
+      "Bash(docker --version)",
+      "Bash(docker compose *)",
+      "Bash(openssl rand *)",
+      "Bash(curl -s -X POST http://localhost:5138/api/companies -H \"Content-Type: application/json\" -d '{}' -w \"\\\\nHTTP_STATUS:%{http_code}\\\\n\")",
+      "Bash(curl -s -X POST http://localhost:5138/api/auth/login -H \"Content-Type: application/json\" -d '{\"email\":\"admin@supportroom.local\",\"password\":\"ChangeMe123!\"}' -w \"\\\\nHTTP_STATUS:%{http_code}\\\\n\")",
+      "Bash(docker exec *)"
+    ]
+  },
   "hooks": {
     "PreToolUse": [
       {
