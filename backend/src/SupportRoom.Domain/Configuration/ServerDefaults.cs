@@ -193,6 +193,17 @@ public sealed class EdgeTtsSettings
     public required string Rate { get; init; }
 }
 
+public sealed class ElevenLabsCredentials
+{
+    public required string ApiKey { get; init; }
+    public required string VoiceId { get; init; }
+
+    /// <summary>eleven_v3 by default - verified against elevenlabs.io/docs that this is the only
+    /// ElevenLabs model that supports Thai; eleven_multilingual_v2 and eleven_flash_v2.5 do not,
+    /// despite the "multilingual" name. Do not change the default to one of those.</summary>
+    public required string ModelId { get; init; }
+}
+
 public sealed class OpenAiCredentials
 {
     public required string ApiKey { get; init; }
@@ -301,6 +312,20 @@ public static class ExternalServiceEnv
         // -10% verified to sound more natural for instructional narration than the raw default rate.
         Rate = Environment.GetEnvironmentVariable("EDGE_TTS_RATE") is { Length: > 0 } r ? r : "-10%",
     };
+
+    public static ElevenLabsCredentials GetElevenLabs()
+    {
+        Require("ELEVENLABS_API_KEY");
+        Require("ELEVENLABS_VOICE_ID");
+        return new ElevenLabsCredentials
+        {
+            ApiKey = Environment.GetEnvironmentVariable("ELEVENLABS_API_KEY")!,
+            VoiceId = Environment.GetEnvironmentVariable("ELEVENLABS_VOICE_ID")!,
+            // eleven_multilingual_v2 and eleven_flash_v2.5 do NOT support Thai despite the name -
+            // verified live against elevenlabs.io/docs. eleven_v3 is the only model that does.
+            ModelId = Environment.GetEnvironmentVariable("ELEVENLABS_MODEL_ID") is { Length: > 0 } m ? m : "eleven_v3",
+        };
+    }
 
     public static PineconeCredentials GetPinecone()
     {

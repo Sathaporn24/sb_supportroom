@@ -84,7 +84,7 @@ public static class ServiceConfiguration
         var selection = ProviderSelectionReader.Read();
         services.AddScoped<ISlidesProvider>(sp => SlidesProviderFactory.Create(selection.SlidesProvider, sp.GetRequiredService<ILoggerFactory>()));
         services.AddScoped<ITtsProvider>(sp => TtsProviderFactory.Create(
-            selection.TtsProvider, sp.GetRequiredService<ILoggerFactory>()));
+            selection.TtsProvider, sp.GetRequiredService<IHttpClientFactory>(), sp.GetRequiredService<ILoggerFactory>()));
         services.AddScoped(sp => KnowledgeProviderFactory.Create(
             selection.KnowledgeProvider, sp.GetRequiredService<IHttpClientFactory>(), sp.GetRequiredService<ILoggerFactory>()));
         services.AddScoped<IEmbeddingProvider>(sp => sp.GetRequiredService<KnowledgeProviders>().Embedding);

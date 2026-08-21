@@ -9,7 +9,11 @@ public static class SlidesProvider
 public static class TtsProvider
 {
     public const string Edge = "edge";
-    public static readonly string[] Allowed = [Edge];
+
+    /// <summary>Real commercial TTS API with an SLA - see TD-001. Model defaults to
+    /// eleven_v3, the only ElevenLabs model that supports Thai.</summary>
+    public const string ElevenLabs = "elevenlabs";
+    public static readonly string[] Allowed = [Edge, ElevenLabs];
 }
 
 public static class VoiceQuestionProvider
