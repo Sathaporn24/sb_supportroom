@@ -145,6 +145,35 @@ public static class AuthEnv
     }
 }
 
+/// <summary>
+/// The tenant registry's own bootstrap problem: an owner can sign in with no companies to pick
+/// from (Company has no self-registration), so the switcher and every company-scoped screen have
+/// nothing to show. Defaults to School Bright itself, since it is company row zero in this system
+/// (see Company.cs) - override FIRST_COMPANY_ID/FIRST_COMPANY_NAME for any deployment that isn't
+/// School Bright's own.
+///
+/// ⚠️ A fork of this codebase for something other than School Bright's real deployment - e.g. an
+/// academic thesis writeup - must override these two env vars (or blank them out) before sharing
+/// the result, so "School Bright" doesn't show up as if it endorsed or commissioned that copy.
+/// </summary>
+public static class CompanyEnv
+{
+    private const string DefaultCompanyId = "schoolbright";
+    private const string DefaultCompanyName = "School Bright";
+
+    public static FirstCompanySeed GetFirstCompanySeed() => new()
+    {
+        Id = Environment.GetEnvironmentVariable("FIRST_COMPANY_ID") is { Length: > 0 } id ? id : DefaultCompanyId,
+        Name = Environment.GetEnvironmentVariable("FIRST_COMPANY_NAME") is { Length: > 0 } name ? name : DefaultCompanyName,
+    };
+}
+
+public sealed class FirstCompanySeed
+{
+    public required string Id { get; init; }
+    public required string Name { get; init; }
+}
+
 public sealed class GoogleServiceAccountCredentials
 {
     public required string ProjectId { get; init; }

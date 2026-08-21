@@ -6,6 +6,7 @@ using SupportRoom.Application.Exceptions;
 using SupportRoom.Application.ViewModel;
 using SupportRoom.Domain;
 using SupportRoom.Domain.Common;
+using SupportRoom.Domain.Configuration;
 using SupportRoom.Domain.Entities;
 using SupportRoom.Domain.Enums;
 using SupportRoom.Providers.Data.Data.UnitOfWork;
@@ -22,6 +23,13 @@ public interface ICompanyService
 
     CompanyViewModel Create(CreateCompanyDto input);
     CompanyViewModel Update(string id, UpdateCompanyDto input);
+
+    /// <summary>Creates the very first company (School Bright by default; see CompanyEnv) when the
+    /// registry is completely empty, mirroring IAuthService.SeedFirstOwnerIfEmpty. Called once at
+    /// startup - see SeedFirstCompanyHostedService. Unlike Create, this makes no AdminUser: the
+    /// seeded owner (SeedFirstOwnerIfEmpty) already spans every company and creates admin/cs users
+    /// for this one through the normal UI once it exists.</summary>
+    void SeedFirstCompanyIfEmpty();
 }
 
 public sealed class CompanyService(
@@ -151,6 +159,29 @@ public sealed class CompanyService(
         }
 
         return ToViewModel(company);
+    }
+
+    public void SeedFirstCompanyIfEmpty()
+    {
+        if (_companies.GetAllIncludingInactive().Any())
+        {
+            return;
+        }
+
+        var seed = CompanyEnv.GetFirstCompanySeed();
+        var company = new Company
+        {
+            Id = seed.Id,
+            Name = seed.Name,
+            IsActive = true,
+            CreateDate = DateTime.UtcNow,
+        };
+
+        _companies.Add(company);
+        knowledgeCategoryService.CreateDefaultChain(company.Id);
+        UnitOfWork.Commit();
+
+        Logger.LogWarning("Seeded first company {CompanyId} ({CompanyName})", company.Id, company.Name);
     }
 
     private static CompanyViewModel ToViewModel(Company company) => new()

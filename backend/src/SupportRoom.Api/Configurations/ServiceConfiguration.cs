@@ -73,6 +73,11 @@ public static class ServiceConfiguration
         // deployment has nobody who can sign in to create one.
         services.AddHostedService<SeedFirstOwnerHostedService>();
 
+        // Creates the first company (School Bright by default) when the registry is completely
+        // empty - otherwise the seeded owner above signs in with nothing to switch to and every
+        // company-scoped screen is a dead end.
+        services.AddHostedService<SeedFirstCompanyHostedService>();
+
         // Providers select among Real implementations per SupportRoom.Domain.Configuration.
         // ProviderSelectionReader (mirrors src/providers/*/index.ts's createXProvider() factories)
         // - every category requires an explicit, valid env var; there is no Mock fallback.
