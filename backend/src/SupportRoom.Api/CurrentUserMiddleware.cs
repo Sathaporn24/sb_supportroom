@@ -1,4 +1,5 @@
 using SupportRoom.Application.Common;
+using SupportRoom.Application.Exceptions;
 using SupportRoom.Application.Services;
 using SupportRoom.Domain.Common;
 using SupportRoom.Domain.Enums;
@@ -32,7 +33,8 @@ public sealed class CurrentUserMiddleware(RequestDelegate next)
         HttpContext context,
         ICurrentUser currentUser,
         ICompanyContext companyContext,
-        IAuthorizationGuard guard)
+        IAuthorizationGuard guard,
+        IAuthService authService)
     {
         var userId = context.User.FindFirst(AuthClaims.UserId)?.Value;
         var role = context.User.FindFirst(AuthClaims.Role)?.Value;
@@ -47,6 +49,13 @@ public sealed class CurrentUserMiddleware(RequestDelegate next)
 
         var tokenCompanyId = context.User.FindFirst(AuthClaims.CompanyId)?.Value;
         currentUser.Resolve(userId, role, string.IsNullOrEmpty(tokenCompanyId) ? null : tokenCompanyId);
+        var authenticatedUser = authService.RefreshCurrentUser();
+
+        if (!IsAllowedWhilePasswordChangeIsRequired(context.Request.Path)
+            && authenticatedUser.MustChangePassword)
+        {
+            throw GeneralException.Forbidden("กรุณาเปลี่ยนรหัสผ่านก่อนใช้งานระบบ");
+        }
 
         var requested = ResolveRequestedCompany(context, currentUser);
         if (requested is not null)
@@ -79,4 +88,10 @@ public sealed class CurrentUserMiddleware(RequestDelegate next)
 
         return currentUser.Role != AdminRole.Owner ? currentUser.CompanyId : null;
     }
+
+    /// <summary>Accounts created with an initial password may only inspect their own state and
+    /// replace that password. This is enforced before controllers, services, hubs, or business
+    /// endpoints run, so a direct bearer request cannot bypass the frontend redirect.</summary>
+    public static bool IsAllowedWhilePasswordChangeIsRequired(PathString path)
+        => path.Equals("/api/auth/me") || path.Equals("/api/auth/change-password");
 }

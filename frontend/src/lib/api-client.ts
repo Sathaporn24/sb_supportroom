@@ -8,6 +8,7 @@ import type {
   ChangePasswordInput,
   ChatMessage,
   Company,
+  CreateCompanyInput,
   CreateAdminUserInput,
   CreateKnowledgeCategoryInput,
   CreateKnowledgeQnAInput,
@@ -556,7 +557,12 @@ export function listSwitchableCompanies(): Promise<{ companies: Company[] }> {
   return request(apiUrl("/api/companies"));
 }
 
-export function createCompany(input: { id: string; name: string }): Promise<{ company: Company }> {
+/** Owner registry: unlike the switcher endpoint above, this includes inactive companies (CP-13). */
+export function listAllCompanies(): Promise<{ companies: Company[] }> {
+  return request(apiUrl("/api/companies/all"));
+}
+
+export function createCompany(input: CreateCompanyInput): Promise<{ company: Company }> {
   return request(apiUrl("/api/companies"), { method: "POST", headers: jsonHeaders, body: JSON.stringify(input) });
 }
 

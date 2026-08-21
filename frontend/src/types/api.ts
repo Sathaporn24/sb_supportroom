@@ -12,6 +12,7 @@ export type ApiErrorCode =
   | "FORBIDDEN"
   | "UPSTREAM_ERROR"
   | "CONFIG_ERROR"
+  | "RATE_LIMITED"
   | "INTERNAL_ERROR";
 
 export type ApiErrorResponse = {

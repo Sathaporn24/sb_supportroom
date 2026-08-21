@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using SupportRoom.Application.Common;
 using SupportRoom.Application.Services;
@@ -184,6 +185,37 @@ public class CompanyIsolationTests : IDisposable
         Assert.Empty(_db.TrainingLink.ToList());
         Assert.Empty(_db.LearningSession.ToList());
         Assert.Empty(_db.ChatMessage.ToList());
+    }
+
+    [Fact]
+    public void DefaultChainBecomesVisibleOnlyAfterResolvingTheNewCompanyContext()
+    {
+        var currentUser = new CurrentUser();
+        currentUser.Resolve("user-owner", AdminRole.Owner, companyId: null);
+        var services = new ServiceCollection()
+            .AddSingleton(_db)
+            .AddSingleton<ICompanyContext>(_companyContext)
+            .AddSingleton<ICurrentUser>(currentUser)
+            .BuildServiceProvider();
+        using (services)
+        {
+            var unitOfWork = new UnitOfWork(_db, services);
+            var service = new KnowledgeCategoryService(
+                unitOfWork,
+                services,
+                NullLogger<IKnowledgeCategoryService>.Instance);
+
+            service.CreateDefaultChain(CompanyB);
+            unitOfWork.Commit();
+
+            Assert.Empty(_db.KnowledgeCategory.ToList());
+
+            _companyContext.Resolve(CompanyB);
+            var categories = _db.KnowledgeCategory.OrderBy(x => x.Level).ToList();
+            Assert.Equal(2, categories.Count);
+            Assert.Equal(categories[0].Id, categories[1].ParentId);
+            Assert.Single(categories, x => x.IsSystemDefault && x.Level == 2);
+        }
     }
 
     [Fact]

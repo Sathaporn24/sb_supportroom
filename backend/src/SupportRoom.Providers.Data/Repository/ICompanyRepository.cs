@@ -14,6 +14,9 @@ public interface ICompanyRepository : IRepositoryBase<Company, string>
     /// <summary>Every active company, name-ordered - the owner's switcher list.</summary>
     IQueryable<Company> GetAllActive();
 
+    /// <summary>Every company including inactive rows, name-ordered - owner administration only.</summary>
+    IQueryable<Company> GetAllIncludingInactive();
+
     bool ExistsActive(string id);
 }
 
@@ -22,6 +25,9 @@ public sealed class CompanyRepository(ApplicationDbContext dbContext)
 {
     public IQueryable<Company> GetAllActive()
         => FindBy(x => x.IsActive).OrderBy(x => x.Name);
+
+    public IQueryable<Company> GetAllIncludingInactive()
+        => GetAll().OrderBy(x => x.Name);
 
     public bool ExistsActive(string id)
         => FindBy(x => x.Id == id && x.IsActive).Any();

@@ -1,8 +1,10 @@
+using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Logging;
 using SupportRoom.Application.Common;
 using SupportRoom.Application.Dto;
 using SupportRoom.Application.Exceptions;
 using SupportRoom.Application.ViewModel;
+using SupportRoom.Domain;
 using SupportRoom.Domain.Common;
 using SupportRoom.Domain.Entities;
 using SupportRoom.Domain.Enums;
@@ -16,6 +18,7 @@ public interface ICompanyService
     /// <summary>What the signed-in user may switch between: every active company for an owner,
     /// exactly their own for anyone else.</summary>
     IReadOnlyList<CompanyViewModel> GetSwitchableCompanies();
+    IReadOnlyList<CompanyViewModel> GetAllIncludingInactive();
 
     CompanyViewModel Create(CreateCompanyDto input);
     CompanyViewModel Update(string id, UpdateCompanyDto input);
@@ -26,10 +29,13 @@ public sealed class CompanyService(
     IServiceProvider serviceProvider,
     ILogger<ICompanyService> logger,
     ICurrentUser currentUser,
-    IAuthorizationGuard guard)
+    IAuthorizationGuard guard,
+    IPasswordHasher<AdminUser> passwordHasher,
+    IKnowledgeCategoryService knowledgeCategoryService)
     : ServiceBase<ICompanyService>(unitOfWork, serviceProvider, logger), ICompanyService
 {
     private readonly ICompanyRepository _companies = unitOfWork.GetRepository<ICompanyRepository>();
+    private readonly IAdminUserRepository _users = unitOfWork.GetRepository<IAdminUserRepository>();
 
     /// <summary>
     /// Company has no query filter (it is the tenant registry), so the scoping below is written by
@@ -54,6 +60,12 @@ public sealed class CompanyService(
         return own is { IsActive: true } ? [ToViewModel(own)] : [];
     }
 
+    public IReadOnlyList<CompanyViewModel> GetAllIncludingInactive()
+    {
+        guard.EnsureOwner();
+        return _companies.GetAllIncludingInactive().ToList().Select(ToViewModel).ToList();
+    }
+
     public CompanyViewModel Create(CreateCompanyDto input)
     {
         guard.EnsureOwner();
@@ -64,24 +76,54 @@ public sealed class CompanyService(
             throw GeneralException.ValidationError(CompanySlug.RuleTh);
         }
 
-        if (_companies.Get(id) is not null)
+        var existingCompany = _companies.Get(id);
+        if (existingCompany is { IsActive: true })
         {
             throw GeneralException.ValidationError("รหัสบริษัทนี้ถูกใช้งานแล้ว");
         }
+        if (existingCompany is not null)
+        {
+            throw GeneralException.ValidationError(
+                "มีบริษัทรหัสนี้อยู่แล้วแต่ถูกปิดใช้งาน หากต้องการใช้งานอีกครั้ง ให้เปิดกลับจากหน้ารายการบริษัท ไม่ใช่สร้างใหม่");
+        }
 
+        var email = input.AdminEmail.Trim();
+        if (_users.GetByEmail(email) is not null)
+        {
+            throw GeneralException.ValidationError("อีเมลนี้ถูกใช้งานแล้ว");
+        }
+
+        var createdAt = DateTime.UtcNow;
         var company = new Company
         {
             Id = id,
             Name = input.Name.Trim(),
             IsActive = true,
             CreateBy = currentUser.UserId,
-            CreateDate = DateTime.UtcNow,
+            CreateDate = createdAt,
         };
+        var adminUser = new AdminUser
+        {
+            Id = IdGenerator.GenerateId("user"),
+            CompanyId = id,
+            Role = AdminRole.Admin,
+            Email = email,
+            DisplayName = input.AdminDisplayName.Trim(),
+            IsActive = true,
+            MustChangePassword = true,
+            CreateBy = currentUser.UserId,
+            CreateDate = createdAt,
+        };
+        adminUser.PasswordHash = passwordHasher.HashPassword(adminUser, input.AdminInitialPassword);
 
         _companies.Add(company);
+        _users.Add(adminUser);
+        knowledgeCategoryService.CreateDefaultChain(company.Id);
         UnitOfWork.Commit();
 
-        Logger.LogInformation("Company created: {CompanyId} by={ActorId}", company.Id, currentUser.UserId);
+        Logger.LogInformation(
+            "Company created: {CompanyId} admin={AdminUserId} by={ActorId}",
+            company.Id, adminUser.Id, currentUser.UserId);
 
         return ToViewModel(company);
     }

@@ -21,6 +21,7 @@ export function AdminGuard({ children }: { children: React.ReactNode }) {
 
   const isLoginPage = pathname === "/admin/login";
   const isChangePasswordPage = pathname === "/admin/change-password";
+  const isOwnerOnlyPage = pathname === "/admin/companies" || pathname.startsWith("/admin/companies/");
 
   useEffect(() => {
     if (!ready) return;
@@ -33,20 +34,25 @@ export function AdminGuard({ children }: { children: React.ReactNode }) {
     // opens until it has been replaced.
     if (user?.mustChangePassword && !isChangePasswordPage) {
       router.replace("/admin/change-password");
+      return;
     }
-  }, [ready, user, isLoginPage, isChangePasswordPage, router]);
+    if (user && isOwnerOnlyPage && user.role !== "owner") {
+      router.replace("/admin");
+    }
+  }, [ready, user, isLoginPage, isChangePasswordPage, isOwnerOnlyPage, router]);
 
   if (!ready) return <p style={{ padding: 24 }}>กำลังตรวจสอบสิทธิ์…</p>;
   if (isLoginPage) return <>{children}</>;
   if (!user) return null;
   if (user.mustChangePassword && !isChangePasswordPage) return null;
+  if (isOwnerOnlyPage && user.role !== "owner") return null;
 
   // Every implemented work screen is company-scoped. An owner has no company baked into the
   // token, so rendering a child before they choose one only fires requests that must fail with
   // "company unknown". Keep the navigation/switcher visible and hold the work screen until the
   // URL has a real context. Future system-wide routes (provider settings/company registry) should
   // be explicitly exempted here when they are implemented.
-  if (user.role === "owner" && !activeCompanyId && !isChangePasswordPage) {
+  if (user.role === "owner" && !activeCompanyId && !isChangePasswordPage && !isOwnerOnlyPage) {
     return (
       <AdminShell>
         <main className="mx-auto flex max-w-4xl flex-col gap-2 p-6">

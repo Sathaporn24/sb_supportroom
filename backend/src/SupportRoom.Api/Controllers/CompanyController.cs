@@ -23,6 +23,10 @@ public sealed class CompanyController : ControllerBase
     [HttpGet]
     public ActionResult GetSwitchable() => Ok(new { companies = _service.GetSwitchableCompanies() });
 
+    [HttpGet("all")]
+    public ActionResult GetAllIncludingInactive()
+        => Ok(new { companies = _service.GetAllIncludingInactive() });
+
     [HttpPost]
     public ActionResult Create([FromBody] CreateCompanyDto input)
         => StatusCode(StatusCodes.Status201Created, new { company = _service.Create(input) });

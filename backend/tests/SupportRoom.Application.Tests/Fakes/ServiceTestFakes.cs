@@ -155,9 +155,22 @@ internal sealed class FakeLessonSlideNarrationRepository : ILessonSlideNarration
 internal sealed class FakeKnowledgeCategoryRepository : IKnowledgeCategoryRepository
 {
     public readonly List<KnowledgeCategory> Items = [];
-    public IQueryable<KnowledgeCategory> GetAll() => Items.AsQueryable().Where(x => !x.IsDelete);
-    public IQueryable<KnowledgeCategory> FindBy(Expression<Func<KnowledgeCategory, bool>> predicate) => GetAll().Where(predicate);
-    public KnowledgeCategory? Get(string id) => Items.FirstOrDefault(x => x.Id == id && !x.IsDelete);
+    public int QueryCount { get; private set; }
+    public IQueryable<KnowledgeCategory> GetAll()
+    {
+        QueryCount++;
+        return Items.AsQueryable().Where(x => !x.IsDelete);
+    }
+    public IQueryable<KnowledgeCategory> FindBy(Expression<Func<KnowledgeCategory, bool>> predicate)
+    {
+        QueryCount++;
+        return Items.AsQueryable().Where(x => !x.IsDelete).Where(predicate);
+    }
+    public KnowledgeCategory? Get(string id)
+    {
+        QueryCount++;
+        return Items.FirstOrDefault(x => x.Id == id && !x.IsDelete);
+    }
     public Task<KnowledgeCategory?> GetAsync(string id) => Task.FromResult(Get(id));
     public void Add(KnowledgeCategory entity) => Items.Add(entity);
     public void Update(KnowledgeCategory entity) { }
@@ -238,6 +251,7 @@ internal sealed class FakeCompanyRepository : ICompanyRepository
     public void Delete(Company entity) => Items.Remove(entity);
 
     public IQueryable<Company> GetAllActive() => Items.AsQueryable().Where(x => x.IsActive).OrderBy(x => x.Name);
+    public IQueryable<Company> GetAllIncludingInactive() => Items.AsQueryable().OrderBy(x => x.Name);
     public bool ExistsActive(string id) => Items.Any(x => x.Id == id && x.IsActive);
 }
 

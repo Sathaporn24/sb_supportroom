@@ -371,6 +371,15 @@ export type Company = {
   isActive: boolean;
 };
 
+/** Mirrors CreateCompanyDto. Role and CompanyId are deliberately not request fields (CP-2/CP-8). */
+export type CreateCompanyInput = {
+  id: string;
+  name: string;
+  adminEmail: string;
+  adminDisplayName: string;
+  adminInitialPassword: string;
+};
+
 /** Mirrors SignedInUserViewModel - the signed-in user's own profile. */
 export type SignedInUser = {
   id: string;

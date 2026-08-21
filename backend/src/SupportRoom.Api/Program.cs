@@ -76,6 +76,7 @@ builder.Services.AddFrontendCors(builder.Environment.IsDevelopment());
 builder.Services.AddEntityFrameworkConfiguration(builder.Configuration);
 builder.Services.AddServiceConfiguration();
 builder.Services.AddBackOfficeAuthentication();
+builder.Services.AddLoginRateLimiting();
 builder.Services.AddSignalR();
 MapsterConfig.Apply();
 
@@ -165,6 +166,10 @@ if (!app.Environment.IsDevelopment())
 
 app.UseCors(CorsSetup.PolicyName);
 
+// Defaults trust forwarded headers only from loopback proxies. Deployments behind another proxy
+// must explicitly configure it as trusted rather than accepting a spoofable client header.
+app.UseForwardedHeaders();
+app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
 

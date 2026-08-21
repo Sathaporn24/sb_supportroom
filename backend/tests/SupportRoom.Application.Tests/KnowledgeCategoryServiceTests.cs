@@ -48,6 +48,34 @@ public class KnowledgeCategoryServiceTests
     }
 
     [Fact]
+    public void CreateDefaultChain_StagesTheExactLinkedParentAndLeafWithoutQueryingOrCommitting()
+    {
+        _service.CreateDefaultChain("company-new");
+
+        Assert.Equal(0, _categories.QueryCount);
+        Assert.Equal(0, _unitOfWork.CommitCount);
+        Assert.Equal(2, _categories.Items.Count);
+
+        var parent = Assert.Single(_categories.Items, x => x.Level == 1);
+        var leaf = Assert.Single(_categories.Items, x => x.Level == 2);
+        Assert.Null(parent.ParentId);
+        Assert.Equal(parent.Id, leaf.ParentId);
+        Assert.Equal("company-new", parent.CompanyId);
+        Assert.Equal("company-new", leaf.CompanyId);
+        Assert.Equal("ยังไม่จัดหมวด", parent.Name);
+        Assert.Equal("ยังไม่จัดหมวด", leaf.Name);
+        Assert.Equal(9999, parent.SortOrder);
+        Assert.Equal(9999, leaf.SortOrder);
+        Assert.True(parent.IsSystemDefault);
+        Assert.True(leaf.IsSystemDefault);
+        Assert.False(parent.IsDelete);
+        Assert.False(leaf.IsDelete);
+        Assert.Equal(parent.CreateDate, leaf.CreateDate);
+        Assert.StartsWith("kbcat-", parent.Id);
+        Assert.StartsWith("kbcat-", leaf.Id);
+    }
+
+    [Fact]
     public async Task CreateAsync_RejectsAThirdLevel()
     {
         var child = SeedCategory("child", "parent", 2);
