@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { LinkIcon, PlusIcon } from "lucide-react";
 import { AdminLink } from "@/components/admin/AdminLink";
 import * as api from "@/lib/api-client";
+import { ApiClientError } from "@/lib/api-client";
 import type { LessonConfig, TrainingLink } from "@/types/domain";
 import { TrainingLinksTable } from "@/components/admin/TrainingLinksTable";
 import { useAdminSession } from "@/components/admin/AdminSessionProvider";
@@ -21,16 +22,22 @@ export default function AdminPage() {
   const [origin, setOrigin] = useState("");
   const [loading, setLoading] = useState(true);
   const [resetting, setResetting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   async function reload() {
     setLoading(true);
-    const [{ links: list }, { lessons: lessonList }] = await Promise.all([
-      api.listTrainingLinks(),
-      api.listLessons(),
-    ]);
-    setLinks(list);
-    setLessons(lessonList);
-    setLoading(false);
+    try {
+      const [{ links: list }, { lessons: lessonList }] = await Promise.all([
+        api.listTrainingLinks(),
+        api.listLessons(),
+      ]);
+      setLinks(list);
+      setLessons(lessonList);
+    } catch (err) {
+      setError(err instanceof ApiClientError ? err.response.error.message : "โหลดข้อมูลไม่สำเร็จ");
+    } finally {
+      setLoading(false);
+    }
   }
 
   useEffect(() => {
@@ -98,6 +105,8 @@ export default function AdminPage() {
           {conflictCount} Q&amp;A ขัดกับเอกสาร
         </AdminLink>
       </div>
+
+      {error && <p className="text-sm text-destructive">{error}</p>}
 
       <section className="flex flex-col gap-3">
         <h2 className="text-sm font-semibold tracking-wide text-muted-foreground uppercase">รายการลิงก์</h2>

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { AdminLink } from "@/components/admin/AdminLink";
 import * as api from "@/lib/api-client";
+import { ApiClientError } from "@/lib/api-client";
 import type { LessonConfig } from "@/types/domain";
 import { CreateTrainingLinkModal } from "@/components/admin/CreateTrainingLinkModal";
 import { Badge } from "@/components/ui/badge";
@@ -19,9 +20,13 @@ export default function NewTrainingLinkPage() {
   const [query, setQuery] = useState("");
   const [selectedLesson, setSelectedLesson] = useState<LessonConfig | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    void api.listLessons().then(({ lessons: list }) => setLessons(list));
+    api
+      .listLessons()
+      .then(({ lessons: list }) => setLessons(list))
+      .catch((err) => setError(err instanceof ApiClientError ? err.response.error.message : "โหลดรายการสื่อการสอนไม่สำเร็จ"));
   }, []);
 
   const filtered = useMemo(() => {
@@ -53,6 +58,8 @@ export default function NewTrainingLinkPage() {
         aria-label="ค้นหาสื่อการสอน"
         className="h-10"
       />
+
+      {error && <p className="text-sm text-destructive">{error}</p>}
 
       {lessons === null ? (
         <LoadingBlock label="กำลังโหลดรายการสื่อการสอน..." />

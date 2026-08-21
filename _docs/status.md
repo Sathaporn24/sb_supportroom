@@ -8,8 +8,27 @@ Already scaffolded — this is an existing project (`frontend/` Next.js + `backe
 | Module | Stage | Next agent |
 |---|---|---|
 | knowledge-base | **QA FULL (2026-08-20) — Phase 7 verified ✅ (FULL)**, module overall ✅ — 139/140 `plan.md` tasks ✅ ติ๊กแล้วทั้ง 7 phase (เหลือแค่ R-2 latency ที่บล็อกด้วย deployment ไม่ใช่ล้มเหลว), ไม่มีข้อค้าง ❌/⚠️ เหลือเลย. Phase 7 (Document scope assignment, Module G, 🔒 gate) 22/22 ✅ ยืนยันด้วยโค้ดจริง + unit test ใหม่ 14 ตัว (backend 204/204) + ทดสอบจริงกับแอปที่รันอยู่ (curl ยิง 6 กรณีปฏิเสธของ DS-3 ผ่าน JWT จริง, login+`GET /api/companies` จริง) · Phase 1's TX-5 partial ปิดแล้ว (ปิดพร้อม Phase 7 wiring call site) → Phase 1 ตอนนี้ 15/15 ✅ · **บั๊ก 2 (owner บริษัทเดียว login ไม่ได้)** แก้ใน `AdminSessionProvider.tsx` ยืนยันแล้วด้วย code trace + live data (`GET /api/companies` คืนบริษัทเดียวจริงสำหรับ `owner@local.test`) — ไม่มี browser tool ในเซสชันนี้ให้คลิกทดสอบเอง แต่ผู้ใช้ยืนยันด้วยตาตัวเองแล้ว · **บั๊ก 3 (Select ต้องเลือกสองรอบ)** แก้ใน `DocumentUploadList.tsx` + `KnowledgeQnAAnswerDialog.tsx` (ไฟล์ Phase 6 เดิม, regression check ผ่านครบไม่กระทบ flow เดิม) ยืนยันแล้วด้วย diff อ่านโค้ดตรง · Phase 3 ยังเหมือนเดิม (21/21 ✅ แต่รอบล่าสุดเป็น TARGETED ไม่ใช่ FULL ต้องมี FULL ก่อน deploy ได้) · **`security` ยังไม่เคยรันสักครั้งตลอดทั้ง 7 phase** — เป็นตัวบล็อกเดียวที่เหลือสำหรับทุก phase ที่ติด gate (2,3,4,6,7) ก่อนส่ง `devops` · รายละเอียดเต็มใน `review.md` (Phase 1–6 เดิมย้ายไป `review/phase-1-6.md` แล้ว, Phase 3 Round 1 เดิมอยู่ที่ `review/phase-3.md`) | `security` (เมื่อผู้ใช้เรียก), `devops` (Phase 1 พร้อม accept ได้ทันที ไม่ติด gate) |
-| company-admin | **Security SECURITY-1 ⚠️ — 3 Important findings open**: stale JWT ยังใช้ได้หลัง deactivate/demotion · `MustChangePassword` bypass ผ่าน API · login ไม่มี rate limiting. QA: Phase 1 15/15 TARGETED (ต้อง FULL ก่อน devops) · Phase 2 7/7 FULL · deployed ⬜ | `backend-engineer` แก้ `SEC-01`–`SEC-03`; จากนั้นรอผู้ใช้เรียก `security` re-audit |
+| company-admin | **Security SECURITY-1 ⚠️ — 3 Important findings open**: stale JWT ยังใช้ได้หลัง deactivate/demotion · `MustChangePassword` bypass ผ่าน API · login ไม่มี rate limiting. QA: Phase 1 15/15 verified ✅ (TARGETED, ต้อง FULL ก่อน devops) · Phase 2 7/7 verified ✅ (FULL) · **Phase 3 (Company Switching — Owner UX) 6/6 verified ✅ (FULL) — implement เสร็จแล้ว, ตรวจโค้ดจริงครบทั้ง 6 task ตรง F4.0–F4.6, `typecheck`/`lint`/`test` (41/41)/`build` ผ่านหมด, auto-accepted (all-✅ FULL round)** · deployed ⬜ ทั้งโมดูล · ทั้งสาม phase ยังติด `🔒 Security gate` ของ Module A — Phase 3 ยังไม่เคยผ่าน `security` เลย (SECURITY-1 คลุมแค่ Phase 1/2) | `backend-engineer` แก้ `SEC-01`–`SEC-03`; จากนั้นรอผู้ใช้เรียก `security` re-audit (Phase 1/2 ที่แก้แล้ว + Phase 3 ที่ยังไม่เคยตรวจ) · `qa-engineer` ต้องรัน FULL รอบใหม่ให้ Phase 1 ก่อน `devops` รับได้ |
 | learning-session | **QA FULL-3 + manual-4/5 ✅ ครบ 53/53** — LS-QA-05 ปิดหมดแล้ว (6/6 กรณี LR-3 + R1 isolation ยืนยันด้วย SignalR connection จริง) · Phase 1–2 (A, B) ไม่ติด gate พร้อมให้ `devops` accept ได้เลย · Phase 3–6 ยังรอ `security` audit ก่อน deploy ได้ | `security` (เมื่อผู้ใช้เรียก) สำหรับ Phase 3–6 · `devops` accept Phase 1–2 ได้ทันที |
+
+## 🟡 เรื่องที่ค้างการตัดสินใจ — บันทึกไว้ 2026-08-21 (capture-only ไม่ได้เปลี่ยนสถานะ phase ใด)
+
+> วันที่มาจาก system context **ยังไม่ได้ให้เจ้าของโปรเจกต์ยืนยันเอง** (เซสชันที่บันทึกไม่มี
+> เครื่องมือถามผู้ใช้ และเจ้าของโปรเจกต์กำลังย้ายเครื่อง/ย้ายบัญชี) · **ไม่มีโค้ด ไม่มี checkbox
+> ไม่มีมติใดถูกเปลี่ยนในรอบนี้** — บันทึกบริบทอย่างเดียวเพื่อให้เซสชันใหม่ที่ไม่มีความจำต่อได้
+
+1. **ค่า pacing ของบทเรียน → ค่าเริ่มต้นระดับบริษัท** — `_docs/module/learning-session/requirement.md`
+   §Open Questions (หัวข้อ 2026-08-21) + `_docs/module/company-admin/requirement.md` **OQ-8** ·
+   ตรวจโค้ดจริงแล้วว่า `introWaitMs`/`breathPauseMs`/`finalQuestionWaitMs` มีผลจริง ตัดไม่ได้
+   ย้ายได้อย่างเดียว · ต้องปิดผ่าน **A5/B3/B4** ซึ่งอยู่ใน **`company-admin/design.md`**
+   (ไม่ใช่ `learning-session/design.md` ตามที่เคยเข้าใจกัน) · **ยังไม่เคยสัมภาษณ์ P1–P4**
+   → รอ `business-analyst` · แยกต่างหาก: `videoDurationMs` เป็นงานลดความรกของ UI ล้วน
+   ส่ง `frontend-engineer` ได้ตรงๆ ไม่ต้องรออะไร
+2. **CR-1 ยุบ knowledge scope บทเรียน/บริษัทให้เหลือกองเดียว** —
+   `_docs/module/knowledge-base/requirement.md` §Open Change Request · **ขัดกับมติข้อ 5 ใน
+   `docs/HANDOFF_MASTER.md` ที่ประกาศห้ามเปลี่ยนเงียบๆ** (ใส่ตัวชี้ไว้ที่นั่นแล้ว โดยไม่แก้ตัวมติ) ·
+   ต้องสัมภาษณ์เต็มรูปแบบ + `system-analyst` (Pinecone namespace, ingestion, retrieval quality)
+   → **ยังไม่พร้อมส่ง engineer**
 
 ## knowledge-base
 

@@ -34,14 +34,17 @@ export default function LessonNarrationsPage() {
   const [notFound, setNotFound] = useState(false);
 
   useEffect(() => {
-    void api.listLessons().then(({ lessons }) => {
-      const found = lessons.find((l) => l.slug === params.slug);
-      if (!found) {
-        setNotFound(true);
-        return;
-      }
-      setLesson(found);
-    });
+    api
+      .listLessons()
+      .then(({ lessons }) => {
+        const found = lessons.find((l) => l.slug === params.slug);
+        if (!found) {
+          setNotFound(true);
+          return;
+        }
+        setLesson(found);
+      })
+      .catch((err) => setError(err instanceof ApiClientError ? err.response.error.message : "โหลดบทเรียนไม่สำเร็จ"));
   }, [params.slug]);
 
   useEffect(() => {
@@ -57,6 +60,9 @@ export default function LessonNarrationsPage() {
 
   if (notFound) {
     return <main className="p-6 text-muted-foreground">ไม่พบบทเรียนนี้ค่ะ</main>;
+  }
+  if (error && !lesson) {
+    return <main className="p-6 text-sm text-destructive">{error}</main>;
   }
   if (!lesson) {
     return (

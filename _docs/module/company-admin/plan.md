@@ -117,6 +117,54 @@ payload แล้ว และ `GET /api/companies/all` ที่เป็นข
       เข้าสู่ระบบไม่ได้ทันที แต่ลิงก์เรียนที่แจกออกไปแล้วยังใช้งานได้จนกว่าจะหมดอายุ" — **ห้ามเขียนข้อความ
       ที่ทำให้เข้าใจว่าการปิดตัดทุกอย่างทันที** (ความเสี่ยงที่ยอมรับแล้ว R-8/B2 — ไม่ใช่สิ่งที่มองข้าม)
 
+## Phase 3: Company Switching — Owner UX 🔒 Security gate
+
+Change request จาก developer หลังทดลองใช้งานจริงหลัง Phase 1/2 ส่งมอบแล้ว (`requirement.md` F4,
+เคาะรอบที่ 2, ✅ 2026-08-21) — เป็นการปรับ UX ล้วนบนของที่มีอยู่แล้ว **ไม่แตะ schema ไม่แตะ
+endpoint ใดๆ** ทั้งสามไฟล์ที่แก้เป็น frontend ทั้งหมด: `CompanySwitcher.tsx`,
+`AdminSessionProvider.tsx`, `AdminGuard.tsx`
+
+**เหตุผลที่ติด gate** (คัดลอกจาก `design.md` §Modules → Module A → "🔒 Security gate — คำสั่งถึง
+`project-manager`" ตรงตัว): **"ทุก phase ที่ implement Module A ต้องมี `🔒 Security gate` ต่อท้าย
+หัวข้อ phase ใน `plan.md` ... ไม่มีข้อยกเว้น ไม่มี phase ไหนของโมดูลนี้ที่ปลอดจาก gate เพราะแม้แต่
+phase ที่ทำแค่ UI ก็ต่อกับ endpoint ที่สร้าง tenant/บัญชี"** — Phase นี้อยู่ใน Module A (F1/F4
+เป็น feature เดียวกันที่ทำต่อ ไม่ใช่ module แยก) กฎนี้จึงใช้แบบไม่มีเงื่อนไข **แม้ F4 เองจะไม่แตะ
+endpoint สร้าง tenant/บัญชีโดยตรง และไม่เข้าเกณฑ์ความเสี่ยง 4 ข้อของ Phase 1/2 เป็นรายข้อก็ตาม**
+— ติด gate เพราะกฎของ `design.md` บังคับทั้ง Module ไม่มีข้อยกเว้น ไม่ใช่เพราะ F4 มีความเสี่ยงชนิด
+เดียวกับ Phase 1/2 เอง
+
+- [x] [frontend] `CompanySwitcher.tsx` — เปลี่ยนเงื่อนไขแสดงผลจาก `companies.length <= 1` (ปัจจุบัน
+      บรรทัด 15-20) เป็นการ branch ตาม **role**: ถ้า `user?.role === "owner"` ให้แสดง `Select`
+      dropdown เสมอไม่ว่าจะมีกี่บริษัท (F4.1) — ใช้ `Select`/`SelectTrigger`/`SelectContent`/
+      `SelectItem` เดิมที่ import อยู่แล้ว **ห้ามเปลี่ยนเป็น Combobox แบบค้นหาได้** (developer เลื่อน
+      ไว้จนกว่าจำนวนบริษัทจะโตจริง) ถ้า role เป็น `admin`/`cs` ให้คงข้อความเฉยๆ `บริษัท: {only.name}`
+      แบบเดิมไว้ **ไม่เปลี่ยนพฤติกรรมของสอง role นี้เลย** (F4.2) — ห้ามซ่อนชื่อบริษัททิ้งสำหรับ
+      admin/cs เด็ดขาด
+- [x] [frontend] `CompanySwitcher.tsx` — ยืนยันว่า dropdown ที่แก้ใหม่ไม่มีลิงก์/ทางลัดไปหน้า
+      `/admin/companies` อยู่ภายใน (F4.4) — dropdown ทำหน้าที่เดียวคือสลับบริษัทที่กำลังดู
+      การจัดการบริษัท (สร้าง/ปิด/เปิด) อยู่ที่เมนู sidebar เดิมเท่านั้น
+- [x] [frontend] `AdminSessionProvider.tsx` — ขยาย effect "exactly 1 company auto-select" (ปัจจุบัน
+      บรรทัด ~113-121) ให้ auto-select บริษัทแรก (`companies[0].id`) ทุกครั้งที่ยังไม่มี `resolved`
+      **ไม่ว่า `companies.length` จะเป็นเท่าไหร่** (ตัดเงื่อนไข `companies.length !== 1` ออก) เพื่อให้
+      owner ลงหน้าแรกโดยอัตโนมัติเสมอ ไม่มีขั้นตอนเลือกบริษัทคั่นอีกต่อไป (F4.3)
+- [x] [frontend] `AdminSessionProvider.tsx` — เพิ่ม logic ให้เมื่อ `activeCompanyId`/`resolved`
+      ปัจจุบันไม่อยู่ในรายการ `companies` ที่ fetch ล่าสุดอีกแล้ว (กรณีบริษัทที่กำลังดูอยู่ถูกปิดใช้งาน
+      กลางคันโดยคนอื่น) ให้ auto-switch ไปบริษัท active ตัวแรกในรายการทันที โดยอัปเดต `?company=`
+      ใน URL แบบเดียวกับ effect อื่นๆ ในไฟล์นี้ **ห้ามมีจอคั่นบอกว่า "บริษัทนี้ถูกปิดแล้ว"** (F4.6)
+      — กลไก detect (fetch ตอนไหน/ผูกกับ effect ไหน) ให้ตัดสินใจตามโค้ดจริงในไฟล์นี้ ขอแค่ผลลัพธ์
+      ตรงตามกฎ F4.6
+- [x] [frontend] `AdminGuard.tsx` — ลบบล็อกจอ **"เลือกบริษัทก่อนเริ่มทำงาน"** ทั้งหมด (ปัจจุบัน
+      บรรทัด ~76-85) เพราะ effect ที่ขยายแล้วใน `AdminSessionProvider.tsx` (task ด้านบน) ทำให้ owner
+      มี `activeCompanyId` เสมอ จอนี้จึงไม่มีทาง reachable อีกต่อไป — ลบทิ้งจริง ไม่ใช่ปล่อยเป็น
+      dead code (F4.3)
+- [x] [frontend] `AdminGuard.tsx` — ลบบล็อกจอ **"ยังไม่มีบริษัทในระบบ"** ทั้งหมด (ปัจจุบันบรรทัด
+      ~60-74) ตามความเสี่ยงที่ยอมรับแล้วใน `requirement.md` §Constraints & Assumptions ("สถานะ
+      0 บริษัทจะไม่มี UI รองรับเลย") — **ห้ามสร้างจอทดแทนใดๆ** owner ที่ปิดใช้งานทุกบริษัทจะเจอ
+      request ที่ล้มเหลวแบบ "company unknown" ทั่วไปแทน ซึ่งเป็นความเสี่ยงที่ยอมรับแล้วโดยตั้งใจ
+      ไม่ใช่สิ่งที่ตกหล่น — หลังลบสองจอนี้ (task นี้ + task ก่อนหน้า) ให้ลบเงื่อนไข
+      `if (user.role === "owner" && !activeCompanyId ...)` ที่ครอบทั้งสองบล็อกออกไปด้วย เพราะจะไม่มี
+      เนื้อหาเหลือให้ครอบ (F4.3, ความเสี่ยงที่ยอมรับใน Constraints & Assumptions)
+
 ## Sequencing Notes
 
 - **Phase 2 ขึ้นกับ Phase 1 ทั้งหมด** — ทุก task ของ Phase 2 เรียก endpoint ที่ Phase 1 สร้างหรือขยาย
@@ -140,6 +188,17 @@ payload แล้ว และ `GET /api/companies/all` ที่เป็นข
 - **ห้ามแตะเส้นทางฝั่งผู้เรียนเลยในทั้งสอง phase** — B2 เคาะแล้วว่าปิดบริษัทไม่ตัดผู้เรียนทันที ลิงก์เดิม
   เรียนได้จนหมดอายุเอง ไม่มี task ให้แก้ `TrainingLinkController`/`TtsController`/
   `VoiceQuestionController`/join flow ในแผนนี้เลยโดยตั้งใจ
+- **Phase 3 ขึ้นกับ Phase 1/2 ในเชิงข้อมูลเท่านั้น ไม่ใช่เชิง sequencing** — Phase 1/2 เสร็จและ
+  verify แล้วทั้งคู่ ณ ตอนที่ Phase 3 ถูกเพิ่มเข้ามา (`[x]` ครบทุก task) จึงไม่มีอะไรบล็อก Phase 3
+  ให้เริ่มได้ทันที Phase 3 **ไม่แตะ schema ไม่แตะ endpoint ใดๆ เลย** — งานทั้งหมดเป็น frontend-only
+  บน `CompanySwitcher.tsx`/`AdminSessionProvider.tsx`/`AdminGuard.tsx` ที่ Phase 2 สร้าง/แก้ไว้แล้ว
+  จึงไม่ต้องรอ Phase ใดใหม่ก่อน และไม่กระทบ backend endpoint ที่ Phase 1 ทำไว้เลยแม้แต่จุดเดียว
+- **Phase 3 ติด `🔒 Security gate` เพราะกฎของ Module A ใน `design.md` ไม่มีข้อยกเว้นต่อ phase**
+  ไม่ใช่เพราะ F4 เข้าเกณฑ์ความเสี่ยง 4 ข้อของ Phase 1/2 เอง (ดูเหตุผลเต็มที่หัวข้อ Phase 3) —
+  ผู้ใช้ต้องเรียก `security` เองด้วยชื่อก่อน deploy Phase 3 เช่นเดียวกับ Phase 1/2 (`security` ไม่ถูก
+  auto-chain แม้ในโหมดอัตโนมัติ) จุดที่ควรดูคือการลบเงื่อนไข guard ใน `AdminGuard.tsx` ต้องไม่เผลอ
+  เปิดช่องให้ non-owner เห็น dropdown หรือให้ owner ที่ยังไม่มี `activeCompanyId` หลุดเข้าหน้าที่ยิง
+  request ข้ามบริษัทได้โดยไม่ตั้งใจ
 
 ## Unresolved Open Questions
 
@@ -158,3 +217,10 @@ A5 (ขอบเขตค่า session expiry/rate/สี/ชื่อแบร
   เป็น contract แล้ว — 2 phase (backend → frontend) ทั้งคู่ติด `🔒 Security gate` ตามคำสั่งตรงจาก
   `system-analyst` ไม่มีข้อยกเว้น · ไม่มี task schema/DDL ใดๆ เพราะ Module A ไม่แก้โครงตาราง —
   มีแค่ migration data-only ใบเดียว (`BackfillMissingDefaultCategoryChain`) อยู่ใน Phase 1
+- 2026-08-21 — เพิ่ม **Phase 3: Company Switching — Owner UX** (`project-manager`, amend) ตาม
+  change request F4 ที่ `business-analyst` เพิ่งเคาะเสร็จใน `requirement.md` (F4.0–F4.6, developer
+  ยืนยันครบทุกข้อ 9 คำถามข้ามสามรอบ ไม่มีอะไรค้าง) — 7 task ทั้งหมดเป็น `[frontend]` บน
+  `CompanySwitcher.tsx`/`AdminSessionProvider.tsx`/`AdminGuard.tsx` ไม่แตะ schema/endpoint เลย
+  ติด `🔒 Security gate` ตามกฎ Module A ที่ไม่มีข้อยกเว้นต่อ phase (ไม่ใช่เพราะ F4 เข้าเกณฑ์ความเสี่ยง
+  4 ข้อของ Phase 1/2 เอง — ระบุเหตุผลนี้ไว้ตรงๆ ในหัวข้อ Phase 3 กับ Sequencing Notes) · ไม่บล็อก
+  ด้วย Phase 1/2 เพราะทั้งคู่เสร็จ/verify แล้วก่อนหน้านี้

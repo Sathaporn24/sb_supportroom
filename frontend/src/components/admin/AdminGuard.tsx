@@ -15,7 +15,7 @@ import { AdminShell } from "@/components/admin/AdminShell";
  * screen instead of a page that renders and then fails every request.
  */
 export function AdminGuard({ children }: { children: React.ReactNode }) {
-  const { user, ready, activeCompanyId } = useAdminSession();
+  const { user, ready } = useAdminSession();
   const router = useRouter();
   const pathname = usePathname();
 
@@ -34,32 +34,22 @@ export function AdminGuard({ children }: { children: React.ReactNode }) {
     // opens until it has been replaced.
     if (user?.mustChangePassword && !isChangePasswordPage) {
       router.replace("/admin/change-password");
-      return;
     }
-    if (user && isOwnerOnlyPage && user.role !== "owner") {
-      router.replace("/admin");
-    }
-  }, [ready, user, isLoginPage, isChangePasswordPage, isOwnerOnlyPage, router]);
+    // No redirect here, unlike the checks above: a non-owner on an owner-only page still gets a
+    // rendered page (the message below), matching how /admin/users handles a role without
+    // permission - an inline explanation, not a silent bounce back to /admin.
+  }, [ready, user, isLoginPage, isChangePasswordPage, router]);
 
-  if (!ready) return <p style={{ padding: 24 }}>กำลังตรวจสอบสิทธิ์…</p>;
+  if (!ready) return <p className="p-6">กำลังตรวจสอบสิทธิ์…</p>;
   if (isLoginPage) return <>{children}</>;
   if (!user) return null;
   if (user.mustChangePassword && !isChangePasswordPage) return null;
-  if (isOwnerOnlyPage && user.role !== "owner") return null;
 
-  // Every implemented work screen is company-scoped. An owner has no company baked into the
-  // token, so rendering a child before they choose one only fires requests that must fail with
-  // "company unknown". Keep the navigation/switcher visible and hold the work screen until the
-  // URL has a real context. Future system-wide routes (provider settings/company registry) should
-  // be explicitly exempted here when they are implemented.
-  if (user.role === "owner" && !activeCompanyId && !isChangePasswordPage && !isOwnerOnlyPage) {
+  if (isOwnerOnlyPage && user.role !== "owner") {
     return (
       <AdminShell>
-        <main className="mx-auto flex max-w-4xl flex-col gap-2 p-6">
-          <h1 className="text-lg font-semibold">เลือกบริษัทก่อนเริ่มทำงาน</h1>
-          <p className="text-sm text-muted-foreground">
-            กรุณาเลือกบริษัทจากแถบด้านบน เพื่อให้ทุกหน้ารู้ว่ากำลังดูข้อมูลของใคร
-          </p>
+        <main className="mx-auto flex max-w-3xl flex-col gap-6 p-6">
+          <p className="text-sm text-muted-foreground">ไม่มีสิทธิ์เข้าถึงหน้านี้</p>
         </main>
       </AdminShell>
     );
