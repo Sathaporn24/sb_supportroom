@@ -42,9 +42,6 @@ function toFormState(lesson: LessonConfig): FormState {
     slidesEmbedUrl: lesson.slidesEmbedUrl,
     contentSourceType: lesson.contentSourceType,
     pdfDocumentResourceId: lesson.pdfDocumentResourceId,
-    introWaitMs: lesson.introWaitMs,
-    breathPauseMs: lesson.breathPauseMs,
-    finalQuestionWaitMs: lesson.finalQuestionWaitMs,
     slideConfigs: lesson.slideConfigs,
     isActive: lesson.isActive,
   };
@@ -71,7 +68,6 @@ export default function LessonEditorPage() {
   const [pendingPdfReplace, setPendingPdfReplace] = useState<{ file: File; narrationCount: number } | null>(null);
   const [pdfReplaceError, setPdfReplaceError] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
-
   useEffect(() => {
     api
       .listLessons()
@@ -432,46 +428,6 @@ export default function LessonEditorPage() {
             หมายเหตุ: 1 Slide = 1 ช่วงการสอน · Speaker Notes ของแต่ละ Slide คือบทพูดของ AI โดยตรง
             ไม่ต้องใส่คำสั่งพิเศษใดๆ ในช่อง Notes · หากมีวิดีโอใน Slide ต้องปิดเสียงวิดีโอไว้เสมอ
           </p>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-xs tracking-wide text-muted-foreground uppercase">
-            จังหวะเวลา (ทั้งบทเรียน)
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="intro-wait">รอตอบรับก่อนเริ่ม (ms)</Label>
-            <Input
-              id="intro-wait"
-              type="number"
-              min={0}
-              value={form.introWaitMs}
-              onChange={(e) => setForm({ ...form, introWaitMs: Math.max(0, Number(e.target.value) || 0) })}
-            />
-          </div>
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="breath-pause">เว้นจังหวะหายใจระหว่าง Slide (ms)</Label>
-            <Input
-              id="breath-pause"
-              type="number"
-              min={0}
-              value={form.breathPauseMs}
-              onChange={(e) => setForm({ ...form, breathPauseMs: Math.max(0, Number(e.target.value) || 0) })}
-            />
-          </div>
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="final-question-wait">รอคำถามท้ายบทเรียน (ms)</Label>
-            <Input
-              id="final-question-wait"
-              type="number"
-              min={0}
-              value={form.finalQuestionWaitMs}
-              onChange={(e) => setForm({ ...form, finalQuestionWaitMs: Math.max(0, Number(e.target.value) || 0) })}
-            />
-          </div>
         </CardContent>
       </Card>
 

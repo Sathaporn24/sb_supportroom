@@ -8,27 +8,110 @@ Already scaffolded — this is an existing project (`frontend/` Next.js + `backe
 | Module | Stage | Next agent |
 |---|---|---|
 | knowledge-base | **QA FULL (2026-08-20) — Phase 7 verified ✅ (FULL)**, module overall ✅ — 139/140 `plan.md` tasks ✅ ติ๊กแล้วทั้ง 7 phase (เหลือแค่ R-2 latency ที่บล็อกด้วย deployment ไม่ใช่ล้มเหลว), ไม่มีข้อค้าง ❌/⚠️ เหลือเลย. Phase 7 (Document scope assignment, Module G, 🔒 gate) 22/22 ✅ ยืนยันด้วยโค้ดจริง + unit test ใหม่ 14 ตัว (backend 204/204) + ทดสอบจริงกับแอปที่รันอยู่ (curl ยิง 6 กรณีปฏิเสธของ DS-3 ผ่าน JWT จริง, login+`GET /api/companies` จริง) · Phase 1's TX-5 partial ปิดแล้ว (ปิดพร้อม Phase 7 wiring call site) → Phase 1 ตอนนี้ 15/15 ✅ · **บั๊ก 2 (owner บริษัทเดียว login ไม่ได้)** แก้ใน `AdminSessionProvider.tsx` ยืนยันแล้วด้วย code trace + live data (`GET /api/companies` คืนบริษัทเดียวจริงสำหรับ `owner@local.test`) — ไม่มี browser tool ในเซสชันนี้ให้คลิกทดสอบเอง แต่ผู้ใช้ยืนยันด้วยตาตัวเองแล้ว · **บั๊ก 3 (Select ต้องเลือกสองรอบ)** แก้ใน `DocumentUploadList.tsx` + `KnowledgeQnAAnswerDialog.tsx` (ไฟล์ Phase 6 เดิม, regression check ผ่านครบไม่กระทบ flow เดิม) ยืนยันแล้วด้วย diff อ่านโค้ดตรง · Phase 3 ยังเหมือนเดิม (21/21 ✅ แต่รอบล่าสุดเป็น TARGETED ไม่ใช่ FULL ต้องมี FULL ก่อน deploy ได้) · **`security` ยังไม่เคยรันสักครั้งตลอดทั้ง 7 phase** — เป็นตัวบล็อกเดียวที่เหลือสำหรับทุก phase ที่ติด gate (2,3,4,6,7) ก่อนส่ง `devops` · รายละเอียดเต็มใน `review.md` (Phase 1–6 เดิมย้ายไป `review/phase-1-6.md` แล้ว, Phase 3 Round 1 เดิมอยู่ที่ `review/phase-3.md`) | `security` (เมื่อผู้ใช้เรียก), `devops` (Phase 1 พร้อม accept ได้ทันที ไม่ติด gate) |
-| company-admin | **Security SECURITY-1 ⚠️ — 3 Important findings open**: stale JWT ยังใช้ได้หลัง deactivate/demotion · `MustChangePassword` bypass ผ่าน API · login ไม่มี rate limiting. QA: Phase 1 15/15 verified ✅ (TARGETED, ต้อง FULL ก่อน devops) · Phase 2 7/7 verified ✅ (FULL) · **Phase 3 (Company Switching — Owner UX) 6/6 verified ✅ (FULL) — implement เสร็จแล้ว, ตรวจโค้ดจริงครบทั้ง 6 task ตรง F4.0–F4.6, `typecheck`/`lint`/`test` (41/41)/`build` ผ่านหมด, auto-accepted (all-✅ FULL round)** · deployed ⬜ ทั้งโมดูล · ทั้งสาม phase ยังติด `🔒 Security gate` ของ Module A — Phase 3 ยังไม่เคยผ่าน `security` เลย (SECURITY-1 คลุมแค่ Phase 1/2) | `backend-engineer` แก้ `SEC-01`–`SEC-03`; จากนั้นรอผู้ใช้เรียก `security` re-audit (Phase 1/2 ที่แก้แล้ว + Phase 3 ที่ยังไม่เคยตรวจ) · `qa-engineer` ต้องรัน FULL รอบใหม่ให้ Phase 1 ก่อน `devops` รับได้ |
+| company-admin | **✅ 2026-08-22: Phase 4 "ต้องถอด/แก้ย้อนหลัง" (backend+frontend, contract กลับทิศ P1) เสร็จครบแล้ว พร้อม `qa-engineer` FULL รอบแรก (R-17)** · Phase 5 (Company Settings Page) implemented ✅ พร้อม `qa-engineer` — หน้า `/admin/settings` + section pacing + `section-access.ts`/`resolveSectionAccess`/registry ครบตาม SP-1..SP-15, `AdminSidebar.tsx` แก้ gate เมนู "ตั้งค่า" ให้ derive จาก registry แล้ว, typecheck/lint/test(60)/build ผ่านหมด · checkbox ใน `plan.md` §Phase 5 ยังเป็น `[ ]` ทั้งหมดรอ QA ติ๊ก · **Security SECURITY-1 ⚠️ — 3 Important findings open (ยังไม่แก้ในรอบนี้)**: stale JWT ยังใช้ได้หลัง deactivate/demotion · `MustChangePassword` bypass ผ่าน API · login ไม่มี rate limiting. QA: Phase 1 15/15 verified ✅ (TARGETED, ต้อง FULL ก่อน devops) · Phase 2 7/7 verified ✅ (FULL) · Phase 3 (Company Switching — Owner UX) 6/6 verified ✅ (FULL) · deployed ⬜ ทั้งโมดูล · ทั้งสาม phase ยังติด `🔒 Security gate` ของ Module A — Phase 3 ยังไม่เคยผ่าน `security` เลย (SECURITY-1 คลุมแค่ Phase 1/2) · **design amend 2026-08-22: ปิด B4 · B3a · A5 (แถว pacing) แล้ว** — เกิด **Module P · Lesson Pacing Defaults** (schema change จริง 2 จุด + contract `## Lesson Pacing Resolution Rules` LP-1..LP-15) · **A2 · A3 · A4 · B3b + A6 เฉพาะส่วนที่ไม่ใช่ pacing ยังเปิด** (บล็อกเฉพาะ Module B ที่เหลือ · **A5 แถว pacing และ A8 ปิดแล้ว 2026-08-22**) · **2026-08-22 (comment cleanup, รอบแรก): แก้ comment ตกค้างใน `ICompanyService.cs` ที่ยังอ้างถึง `ILessonPacingResolver` (ถูกลบไปแล้วจริงในรอบแก้ Module P) ให้ตรงกับโมเดลปัจจุบัน — ไม่มี resolver layer แล้ว อ่านค่า pacing จาก `Company` ตรงๆ · build 0 warning/0 error · ⚠️ claim ตอนนั้นว่า "grep ทั้ง backend แล้วไม่พบ reference อื่นเหลืออยู่" ไม่จริง — QA รอบถัดมา (Codex ภายนอก) grep ซ้ำแล้วเจอเพิ่มอีก 4 จุด ดูรายการแก้จริงในบรรทัดถัดไป** · **2026-08-22 (`backend-engineer`, comment cleanup รอบสอง หลัง QA จับ claim เดิมผิด): grep repo-wide จริงหา `LP-5`/`lesson-edit form`/`lesson-form placeholder`/`inherit`/`ILessonPacingResolver` ทั่ว `backend/` แล้วแก้ครบ 5 จุดที่เหลือซึ่งยังพูดถึงโมเดล per-lesson override เก่า — `ICompanyService.cs:28` (เหตุผลที่ `cs` อ่านได้ เปลี่ยนจากอ้าง "lesson-edit form placeholder (LP-5)" เป็นอ้าง section pacing บน `/admin/settings` ที่ `visibleToRoles` รวม `cs` ตาม SP-4/SP-15), `CompanyController.cs:38-40` (เหตุผลเดียวกัน), `CompanyViewModel.cs:11-13` (เลิกเทียบกับ `LessonConfigViewModel`'s nullable fields ที่ไม่มีอยู่แล้ว เหลือแค่เหตุผลว่า `Company` เป็นชั้นสุดท้ายของ resolve chain ตาม LP-1), `CompanyDto.cs:39-44` (เหตุผลเดียวกัน ไม่เทียบกับ `LessonConfigDto` อีก), `CompanyServiceTests.cs:222,312` (comment บน test แก้ให้ตรงเหตุผลใหม่) · grep ซ้ำหลังแก้เจอ `inherit` เหลือ 2 จุดที่เป็นของจริง ไม่ใช่ของเก่า — `Company.cs:45` พูดถึง Module B (settings ที่ยังพักไว้ ตาม design.md บรรทัด 296/1373 ที่ nullable = inherit ยังใช้จริงกับ Module B ไม่เกี่ยวกับ per-lesson pacing ที่ถูกลบ) และ `Program.cs:134` (เรื่อง middleware protection ไม่เกี่ยวกับ pacing เลย) — ทั้งสองจุดนี้ถูกต้องอยู่แล้ว ไม่แก้ · ไม่แตะ logic ใดๆ ทั้งหมดเป็น comment-only · build 0 warning/0 error ยืนยันแล้วจริงรอบนี้** · **2026-08-22 (`frontend-engineer`, แก้ QA findings จาก Codex ภายนอก ตรวจ Phase 5): แก้ 4 จุดใน `frontend/` — (1) Important: `LessonPacingSettingsSection.tsx` `CardDescription` เคยเขียนตามโมเดล per-lesson override เก่า แก้เป็นข้อความที่ตรง LP-7/SP-10 ปัจจุบัน (ค่ามีผลกับทุกบทเรียนของบริษัทตั้งแต่เข้าห้องครั้งถัดไป ห้องที่กำลังเรียนไม่เปลี่ยนกลางคัน ไม่เขียนว่า "มีผลทันที") (2) Important: แก้ race condition ตอนสลับบริษัทเร็วๆ ที่ทำให้ response เก่าของบริษัท A ทับ state ของบริษัท B บนจอ (และเสี่ยงบันทึกค่าผิดบริษัทถ้ากด save) — เลือกทาง (ก) เปลี่ยน `key={id}` เป็น `key={`${id}-${companyId}`}` ใน `page.tsx` บังคับ remount ทั้ง component เมื่อสลับบริษัท (3) Minor: ย้าย `LESSON_PACING_SECTION_ACCESS` ออกจาก `LessonPacingSettingsSection.tsx` (.tsx) ไปไฟล์ใหม่ `lesson-pacing-access.ts` เพื่อให้ `section-access.test.ts` import ค่าจริงจาก production แทนการ copy literal เอง (4) Minor: แก้ comment ที่อ้างอิงโมเดล lesson-vs-company inheritance เก่าใน `types/domain.ts` และ comment "lesson form placeholder" เก่าใน `api-client.ts` ให้ตรงโมเดลปัจจุบัน (ไม่มี per-lesson override แล้ว) · typecheck/lint/test(60)/build ผ่านหมด · ยังไม่แตะ checkbox ใดๆ ใน `plan.md`, รอ `qa-engineer` ตรวจซ้ำ** · **2026-08-22 (`frontend-engineer`, แก้จุดตกหล่นรอบ QA ที่สอง): แก้ 1 จุดที่เหลือ — comment ใน `frontend/src/components/admin/settings/lesson-pacing-fields.ts` (บรรทัด ~21) เคยเทียบ SP-7 กับ "the lesson form's LP-11 (empty means inherit)" ที่ไม่มีอยู่แล้ว ตัดการเทียบทิ้ง เหลือแค่เหตุผลของ SP-7 เอง (ที่ชั้นบริษัทว่างไม่ใช่ค่าที่ถูกต้องเพราะไม่มีชั้นถัดไปให้ fallback) · ตามด้วย grep ทั่ว `frontend/src/` จริงหา `LP-11`/`LP-5`/`inherit`/`lesson form`/`lesson-edit`/`ILessonPacingResolver`/`placeholder` — ไม่พบ reference อื่นที่ยังพูดถึงโมเดล per-lesson override เก่า (`inherit` ที่เจอ 2 จุดเป็นเรื่อง learner-key/JWT ไม่เกี่ยวกับ pacing, `pacing` ที่ match ใน `card.tsx`/`sidebar.tsx` เป็น CSS `--card-spacing`/`--sidebar-width` ไม่ใช่ pacing จริง) · sweep ครบ ไม่มีจุดตกหล่นเพิ่ม · typecheck/lint/test(60)/build ผ่านหมด · ไม่แตะ checkbox/`design.md`/`requirement.md`/`plan.md`, รอ `qa-engineer` ปิด gate**
+  **2026-08-22 (`backend-engineer`): `plan.md` §Phase 4 `[backend]` ทุก task เสร็จแล้ว รอ QA** — migration ใหม่ `AddCompanyLessonPacingDefaults` (ใบเดียว: `Company` เพิ่ม `DefaultIntroWaitMs`/`DefaultBreathPauseMs`/`DefaultFinalQuestionWaitMs` เป็น `int` NOT NULL backfill literal `5000`/`500`/`5000` ตาม R-11 · `LessonConfig` 3 คอลัมน์เดิมเปลี่ยนเป็น `int?` โดยไม่แตะข้อมูลเดิม) — **applied จริงกับ local Postgres แล้ว** (`docker` container `supportroom-local-postgres-1`, verified ด้วย `\d "Company"`/`\d "LessonConfig"` ตรง contract เป๊ะ **⚠️ แก้ไข 2026-08-22: นี่คือ container ที่ไม่ได้ใช้งานจริง — `.env` ชี้ไป `supportroom-pg` พอร์ต 5432 ตามที่บันทึกไว้ถูกต้องแล้วที่บรรทัดถัดๆ ไป (`AddCompanyLessonPacingDefaults` ถูก apply ซ้ำให้ `supportroom-pg` ในรอบหลังแล้ว, ดูบรรทัด ~43 และ status ของ `RemoveLessonConfigPacingOverrides` ที่ apply ถูก container ตั้งแต่แรก) — ห้ามอ้างอิงบรรทัดนี้เพื่อเช็คสถานะ migration ของ runtime DB จริง**) · `dotnet ef migrations has-pending-model-changes` clean · `ILessonPacingResolver`/`LessonPacingResolver` ใหม่ (จุดเดียวที่ resolve, ต่อเข้า `GetTeachingContentByLinkAsync`) · `ICompanyService.Create`/`SeedFirstCompanyIfEmpty` (regression surface ของ Phase 1 ตาม R-12) แก้ให้ตั้ง pacing จาก `ServerDefaults` เสมอ — **ยืนยันสดกับแอปที่รันจริง**: restart แอปสำเร็จ, `SeedFirstCompanyIfEmpty` ตั้งค่า 5000/500/5000 ให้บริษัทแรกจริง, `POST /api/companies` ตั้งค่าให้บริษัทใหม่จริง (curl จริงผ่าน JWT จริง) · endpoint ใหม่ `GET`/`PUT /api/companies/{companyId}/lesson-pacing` (LP-9) ทดสอบสดครบ: owner GET/PUT ผ่าน, cs GET ผ่าน cs PUT ได้ 403 จริง, ค่านอกช่วง LP-8 ได้ 400 จริง, บริษัทไม่มีจริงได้ 404 จริง · `backend`: build 0 warning ใหม่/0 error, `dotnet test --filter "Category!=Integration"` **243/243 ผ่านหมด** (210 Application + 23 Providers + 10 Api.IntegrationTests, รวม unit test ใหม่ตาม LP-14 ครบ 4 กรณี + regression test ของ `Create`/`SeedFirstCompanyIfEmpty`) · **`[frontend]` ของ Phase 4 ยังไม่ทำเลย** (types/`api-client.ts`/ฟอร์มบทเรียน/ค่า fallback ยังเป็นงานเดิมทั้งหมด) — endpoint พร้อมให้ frontend เรียกแล้ว แต่หน้าจอยังไม่มีอะไรเปลี่ยน · หนี้ข้ามโมดูล D-3 (`knowledge-base/design.md` §DM-2 ยังไม่ตรง DM-P2) ยังไม่ปิด ไม่บล็อก Phase 4
+  **2026-08-22 (`frontend-engineer`): `plan.md` §Phase 4 `[frontend]` ทุก task ที่มีอยู่ใน `plan.md` เสร็จแล้ว รอ QA** — `types/domain.ts`: `LessonConfig` 3 ฟิลด์ pacing เป็น `number | null` ตรง `LessonConfigViewModel` จริง (LP-12), `LearnerLessonConfig` เลิกใช้ `Pick` กับ 3 ฟิลด์นี้ ประกาศเป็น `number` ตรงๆ (LP-5/LP-12), เพิ่ม type `CompanyLessonPacing` ตรง `CompanyLessonPacingViewModel` จริง · `api-client.ts` เพิ่ม `getCompanyLessonPacing(companyId)` เรียก `GET /api/companies/{companyId}/lesson-pacing` (response ไม่ wrap เป็น `{ company }` ตรงกับ controller จริง) — **ไม่เพิ่มฟังก์ชัน `PUT`** เพราะไม่มี UI ตั้งค่าบริษัทให้เรียกใช้ในรอบนี้ (ดู open question ด้านล่าง) · `admin/lessons/[slug]/page.tsx`: handler ของ 3 ช่อง pacing แยกค่าว่าง (`null`) กับ `0` ได้จริงแล้ว (เลิกใช้ `Math.max(0, Number(e.target.value) || 0)`, LP-11), เพิ่ม placeholder `ว่าง = ใช้ค่าบริษัท (N ms)` ดึงค่าจริงจาก `getCompanyLessonPacing(activeCompanyId)` ไม่ hardcode ตัวเลข · `admin/lessons/new/page.tsx`: ค่าเริ่มต้น 3 ช่อง pacing เปลี่ยนจาก `3000/800/5000` เป็น `null` ทั้งหมด (ฟอร์มนี้ไม่มี input field ให้กรอกอยู่แล้ว เป็นแค่ default ของ payload ตอนสร้าง) · `use-tutor-session.ts:46` แก้ fallback `breathPauseMs` จาก `1000` เป็น `500` ให้ตรง `TutorConfig.Default*`/`ServerDefaults` จริง (LP-13) · frontend: `typecheck`/`lint`/`test` (41/41)/`build` ผ่านทั้งหมด (Node 22) · **Phase 4 backend+frontend เสร็จครบตาม `plan.md` แล้ว พร้อมให้ `qa-engineer` verify**
+  **2026-08-22 (`system-analyst` รอบที่ 5 · amend design เท่านั้น ไม่มีโค้ด): 🔓 LP-15 ข้อ "ห้ามสร้างหน้า UI ตั้งค่าบริษัท" ถูกยกแล้ว (มติ P6)** — เจ้าของโปรเจกต์ตัดสินใจใหม่ในแชทว่าให้เริ่มทำหน้าตั้งค่าเลย ไม่ต้องรอ F2 ครบชุด (เริ่มจาก section pacing ก่อน แล้วเติมลิงก์หมดอายุ/TTS/แบรนด์ทีละอย่างทีหลัง) · **`design.md` เพิ่ม contract ชุดใหม่ `## Company Settings Page Rules` (SP-1..SP-14)**: route `/admin/settings` หน้าเดียวแบ่งเป็น `Card` ต่อ section (ปฏิเสธ Tabs — รอบนี้มี section เดียว), หนึ่ง section = หนึ่ง component ที่โหลด/เซฟ/validate/ตัดสินสิทธิ์เอง ห้ามมีปุ่มบันทึกรวม, `companyId` จาก session + refetch เมื่อ owner สลับบริษัท, **สิทธิ์เป็นของ section ไม่ใช่ของหน้า**, **SP-7: ที่ชั้นบริษัท "ว่าง" ไม่ใช่ค่าที่ถูกต้อง ตรงข้ามกับ LP-11 ของฟอร์มบทเรียน** · **ปิด A6 เฉพาะส่วน "ตัวหน้า + section pacing" = `cs` อ่านอย่างเดียว** (ตรงเจตนา LP-9 เดิม) · **เพิ่ม A8** (สิทธิ์ต่อ section — ไม่บล็อกรอบนี้ แต่บล็อกการเพิ่ม section ที่สอง) · เพิ่ม **R-13/R-14** และข้อ 4 ในหมายเหตุ 🔒 Security gate ของ Module P · **ไม่มี schema change และไม่มีงาน backend ใหม่เลย — `GET`/`PUT /api/companies/{companyId}/lesson-pacing` มีอยู่แล้วจาก Phase 4 ที่ทดสอบสดผ่านหมด งานที่เหลือเป็น frontend ล้วน** · **A2/A3/A4/B3b ยังเปิด · Module B ยังพัก** (P6 อนุญาต "หน้าจอ" ไม่ได้อนุญาต "ค่า") · **ต้องมี `project-manager` มาเพิ่ม task ของงานนี้ก่อน `frontend-engineer` หยิบไปทำ** — `plan.md` §Phase 4 วันนี้ยังไม่มี task สร้างหน้านี้แม้แต่ task เดียว
+  **2026-08-22 (`system-analyst` รอบที่ 6 · amend design เท่านั้น ไม่มีโค้ด ไม่มี schema change): ✅ ปิด A8 และ ✅ ปิด LP-8/A5 แถว pacing** — เจ้าของโปรเจกต์ตอบตรงในแชทวันนี้ทั้งสองข้อ · **A8**: "สิทธิ์การมองเห็น" กับ "สิทธิ์แก้" เป็น **คนละแกน** ตั้งแยกต่อ section ได้ · **บาง section ซ่อนจาก role ไปเลยได้ ไม่ใช่แค่ read-only** ส่วน section ที่ไม่อ่อนไหว (pacing/เสียง) เห็นได้ทุก role → เขียนเป็น contract ใหม่ **SP-15** (`SettingsSectionAccess` = `visibleToRoles` + `editableByRoles` แยกกัน · registry เดียว `sections.ts` · "ซ่อน" = ไม่ mount/ไม่ยิง `GET`/ไม่มีข้อความบอกว่ามีของที่คุณไม่เห็น · invariant `editableByRoles ⊆ visibleToRoles` และ `owner` อยู่ครบทั้งสองเสมอ · การซ่อนที่ UI ไม่ใช่การกั้นสิทธิ์ ต้องมีกฎ server คู่กันหรือประกาศว่า cosmetic · เมนู sidebar **derive** จาก registry ห้าม hardcode role · test `resolveSectionAccess` 3 roles) · **section pacing ไม่เปลี่ยนแม้แต่จุดเดียว** = เห็นทุก role (`owner`/`admin`/`cs`) แก้ได้ `owner`/`admin` ตรง LP-9/SP-4 เดิมทุกประการ · **LP-8**: ยืนยันช่วงค่าเดิม **0–60000 / 0–10000 / 0–120000 ms** ("จูนทีหลังได้") → เลิกสถานะ "ข้อเสนอที่ยังไม่ผ่านปากเจ้าของโปรเจกต์" ทั้งใน LP-8 · A5 · SP-8 · แก้ SP-4/SP-5/SP-8/SP-12 ให้ตรงกลไกใหม่ · เพิ่ม **R-15** (การซ่อน section ถูกเข้าใจผิดว่าเป็นการกั้นสิทธิ์ — ยังไม่เกิดจริงรอบนี้ เป็นของที่ `security` ต้องตรวจตอนมี section ที่สอง) · **ผลรวม: ไม่มี open question ใดค้างอยู่กับ Module P หรือหน้า `/admin/settings` (section pacing) อีกแล้ว — `project-manager` เพิ่ม task ได้เต็มที่** (ที่ยังเปิดคือของ F2 ที่พักอยู่: A2 · A3 · A4 · B3b · A6 ส่วนที่ไม่ใช่ pacing ซึ่งบล็อกเฉพาะ **section ที่สอง** ไม่บล็อกงานรอบนี้) · **ยังไม่มีโค้ดใดถูกแก้ · `plan.md` ยังไม่มี task ของหน้านี้**
+  **⚠️ ข้อขัดแย้งที่ `frontend-engineer` รายงานไว้ — ✅ คลี่คลายแล้วด้วย amend ข้างบน (ยืนยันว่าตอนนั้นทำถูกตามกฎ ไม่ใช่การข้ามงาน)**: คำสั่งที่ส่งมาขอให้เพิ่ม "section เล็กๆ" แสดง 3 ช่องกรอกค่า pacing ระดับบริษัทที่หน้า `/admin` (พร้อม read-only สำหรับ `cs`) แต่ `design.md` §LP-15 ห้ามไว้ตรงๆ คำต่อคำ ("ห้ามสร้างหน้า UI ตั้งค่าบริษัทในงานนี้ — รอบนี้หน้าจอที่แตะมีเพียงฟอร์มบทเรียน ส่วนค่าบริษัทแก้ผ่าน API ไปก่อน") และ `plan.md` §Phase 4 ก็ไม่มี task สร้างหน้า UI ตั้งค่าบริษัทเลยแม้แต่ task เดียว (ระบุชัดใน Sequencing Notes ว่า "cs ถูกปฏิเสธที่ PUT จริง...ทดสอบด้วยตาจาก UI ไม่ได้เพราะรอบนี้ยังไม่มีหน้าจอตั้งค่า") — **ได้ทำ task อื่นทั้งหมดของ Phase 4 `[frontend]` ตาม `plan.md` แล้ว แต่ข้ามการสร้างหน้า/section ตั้งค่าบริษัท** เพราะเป็นการฝ่า design contract ตรงๆ ไม่ใช่ช่องว่างที่ต้องเดา ถ้าต้องการหน้าตั้งค่าบริษัทจริง ต้องกลับไปที่ `system-analyst` เพื่อยกเลิก/แก้ LP-15 ก่อน แล้วส่งต่อ `project-manager` เพิ่ม task ให้ตรงกับ `plan.md` **2026-08-22 (`project-manager`): เพิ่ม `plan.md` §Phase 5 — Company Settings Page — Module P** ตาม `design.md` §Company Settings Page Rules **SP-1..SP-15** (ไม่มี open question ค้างแล้ว) — เปิดเป็น **phase ใหม่แยกจาก Phase 4** (ไม่ต่อท้าย เพราะ Phase 4 กำลังรอ QA FULL รอบแรกทั้งก้อน) · 17 task ทั้งหมด `[frontend]` **ไม่มี `[backend]` เลย** (endpoint LP-9 verified แล้วใน Phase 4): `section-access.ts` + `resolveSectionAccess` (SP-15), `LessonPacingSettingsSection.tsx`, `sections.ts` registry, `app/admin/settings/page.tsx`, `updateCompanyLessonPacing()` ใหม่ใน `api-client.ts`, แก้ `AdminSidebar.tsx` ให้ derive เมนูจาก registry แทน hardcode role, empty state ตาม SP-12, test ของ SP-14 + SP-15 ข้อ 10 · ติด `🔒 Security gate` · เขียนข้อห้ามชัดในหัวข้อ phase (ห้ามแตะฟอร์มบทเรียนซ้ำ/ห้ามปุ่มบันทึกรวม/ห้าม placeholder section ใหม่/ห้ามเพิ่ม section อื่นของ F2) — **พร้อมส่งให้ `frontend-engineer` หยิบไปทำได้ทันที** | **`frontend-engineer`** — หยิบ `plan.md` §Phase 5 ได้ทันที (ไม่มีอะไรบล็อก); แยกกัน งาน Phase 4 เดิมเสร็จตาม `plan.md` แล้ว รอ `qa-engineer` verify (มี regression surface ของ Phase 1 ต้องดูด้วยตาม R-12); แยกกัน `backend-engineer` แก้ `SEC-01`–`SEC-03` เมื่อมีคนหยิบ; จากนั้นรอผู้ใช้เรียก `security` re-audit (Phase 1/2 ที่แก้แล้ว + Phase 3/4/5 ที่ยังไม่เคยตรวจ, Phase 4 มี regression surface ของ Phase 1 ที่ต้องดูเป็นพิเศษ) · `qa-engineer` ต้องรัน FULL รอบใหม่ให้ Phase 1 และรอบแรกให้ Phase 4/5 ก่อน `devops` รับได้ |
+  **🔄 2026-08-22 (`project-manager`, amend รอบที่สาม): แก้ `plan.md` §Phase 4 ในที่เดิม (ไม่เปิด
+  Phase 6) ตามการกลับคำตอบ P1 (มติ N1/N2/N3)** — `system-analyst` amend `design.md` §Module P +
+  `## Lesson Pacing Resolution Rules` เสร็จแล้ว: pacing กลับเป็น "ค่ากลางระดับบริษัทล้วน ไม่มี
+  override ต่อบทเรียน" (ตรงข้ามกับที่ implement ไปแล้วใน Phase 4 เดิม) พร้อม migration ใหม่
+  `RemoveLessonConfigPacingOverrides` (DropColumn 3 คอลัมน์จาก `LessonConfig`, ห้าม `UPDATE`
+  กู้ค่าเดิม, ต้อง deploy พร้อมโค้ดที่เลิกอ่านคอลัมน์นั้นเสมอ — R-16/R-17) · เขียน task ของ Phase 4
+  ใหม่ทั้งชุดให้ตรงตาราง 3 กลุ่มใน `design.md`: งานที่ "ยังถูกต้อง ไม่ต้องทำซ้ำ" (DM-P1 บน `Company`,
+  regression ของ Phase 1 สองจุด, endpoint `GET`/`PUT` ของ LP-9, unit test LP-14.2/14.3,
+  `LearnerLessonConfig` ใน `domain.ts`, `use-tutor-session.ts` fallback — ทำเครื่องหมายไว้ในแต่ละ
+  task แต่ยังเป็น `[ ]` ทั้งหมด ไม่ติ๊ก `[x]` เอง) กับงานที่ "ต้องถอด/แก้ย้อนหลัง" (migration ใหม่,
+  ลบ 3 property จาก `LessonConfig` entity, ลบ `ILessonPacingResolver` แล้วอ่าน `company.Default*Ms`
+  ตรงจุดประกอบ ViewModel, ลบ 3 ฟิลด์จาก DTO/ViewModel, ลบ assign ปะปนใน `SaveAsync`, ลบ test เก่า
+  ของ resolver สองชั้น + `SaveAsync` null พร้อม test ใหม่ตาม LP-14 ข้อ 1, ลบช่องกรอก pacing +
+  `getCompanyLessonPacing()` ออกจากฟอร์มบทเรียนสองหน้า, ลบ test placeholder/empty-vs-zero เดิม) ·
+  **Phase 5 (Company Settings Page) ไม่แก้เลยแม้แต่ task เดียว** เพราะ `design.md` ยืนยันว่า
+  SP-1..SP-15 ทั้งชุดไม่กระทบจาก N1/N2/N3 · หนี้ข้ามโมดูล D-3 ยังไม่ปิด (คำตอบเปลี่ยนเป็น "ลบสามฟิลด์
+  ออกจาก `knowledge-base/design.md` §DM-2" แทน "แก้เป็น nullable") บันทึกไว้ใน Sequencing Notes
+  ไม่ใช่ task ของ phase นี้ — **Phase 4 (แก้ทิศทางใหม่) พร้อมส่งให้ `backend-engineer`/
+  `frontend-engineer` หยิบไปทำได้ทันที, Phase 5 ยังพร้อมส่งเหมือนเดิมไม่เปลี่ยน** ทั้งคู่ยังไม่เคย
+  ผ่าน QA สักรอบ — `qa-engineer` ต้องถือรอบแรกของทั้งสอง phase เป็น FULL เสมอ (R-17)
+  **2026-08-22 (`backend-engineer`): `plan.md` §Phase 4 `[backend]` งาน "ต้องถอด/แก้ย้อนหลัง"
+  ทุก task เสร็จแล้ว รอ QA** — migration ใหม่ `RemoveLessonConfigPacingOverrides` (ใบแยกจาก
+  `AddCompanyLessonPacingDefaults` เดิม ไม่แก้ใบเก่า) `DropColumn` 3 คอลัมน์ `IntroWaitMs`/
+  `BreathPauseMs`/`FinalQuestionWaitMs` ออกจาก `LessonConfig` ไม่มี `UPDATE` กู้ค่าเดิมใดๆ
+  ตาม N2 พร้อมคอมเมนต์อธิบายมติ N1/N2/N3 และชี้ไปที่ `design.md` §DM-P2 · `Down()` สร้างคอลัมน์
+  คืนเป็น `int NULL` เท่านั้น ไม่เดาค่ากลับ พร้อมคอมเมนต์ว่ากู้ได้แค่รูปร่างไม่ใช่ข้อมูล ·
+  **applied จริงกับ container `supportroom-pg` พอร์ต 5432** (คนละตัวกับ `supportroom-local-postgres-1`
+  ที่ map พอร์ต 55432 — ยืนยันด้วย `.env` ที่ชี้ `Port=5432` ก่อน apply) ตรวจ `\d "LessonConfig"`
+  แล้วไม่มี 3 คอลัมน์นี้อีกต่อไป · `dotnet ef migrations has-pending-model-changes` clean ·
+  ลบ `ILessonPacingResolver`/`LessonPacingResolver` ทั้ง interface/implementation + DI registration
+  ออกจาก `ServiceConfiguration.cs`, `LessonConfig` entity ลบ 3 property, `LessonConfigDto`/
+  `LessonConfigViewModel` ลบ 3 ฟิลด์, `SaveAsync` เลิก assign pacing ทั้งหกบรรทัด (สร้าง+แก้),
+  `GetTeachingContentByLinkAsync` อ่าน `company.DefaultIntroWaitMs/DefaultBreathPauseMs/
+  DefaultFinalQuestionWaitMs` ตรงๆ (จุดเดียวในระบบ ไม่มี merge/resolver คั่นแล้ว) ·
+  ลบ `LessonPacingResolverTests.cs` และ test `SaveAsync_WithNullPacing...` เดิม, แก้ทุก test ที่ seed
+  `LessonConfig`/`LessonConfigDto` ด้วย 3 ฟิลด์เดิม (8 ไฟล์) ให้ compile ผ่าน, เพิ่ม test ใหม่
+  `GetTeachingContentByLink_ReturnsPacingFromCompany_NotFromTheLesson` (ค่าทดสอบ 1234/222/3333
+  ไม่ใช่ ServerDefaults เพื่อไม่ให้ผ่านโดยบังเอิญ) · **regression ของ Phase 1
+  (`ICompanyService.Create`/`SeedFirstCompanyIfEmpty`) และ endpoint `GET`/`PUT
+  /api/companies/{companyId}/lesson-pacing` ไม่ถูกแตะเลยตามคำสั่ง** (ยัง "ยังถูกต้อง ไม่ต้องทำซ้ำ"
+  ตาม `plan.md`) · `dotnet build SupportRoom.slnx` **0 warning/0 error** ·
+  `dotnet test --filter "Category!=Integration"` **240/240 ผ่านหมด** (207 Application + 23
+  Providers + 10 Api.IntegrationTests) · **ยืนยันสดกับแอปที่รันจริง**: restart แอปสำเร็จ,
+  `curl GET /api/lessons/by-link/{token}` คืน `introWaitMs`/`breathPauseMs`/`finalQuestionWaitMs`
+  ตรงค่าที่เพิ่ง `UPDATE "Company"` ไว้เป๊ะ (1111/222/3333) ไม่ error, restore ค่ากลับ 5000/500/5000
+  หลังทดสอบเสร็จ · **ไม่ได้ติ๊ก checkbox ใดใน `plan.md`, ไม่แก้ `design.md`/`requirement.md`, ไม่แตะ
+  `[frontend]` tasks** — `[frontend]` ของ Phase 4 รอบใหม่ (ลบช่องกรอก pacing ในฟอร์มบทเรียน/
+  `getCompanyLessonPacing()` call site/`domain.ts` type) ยังไม่ทำ ยังเป็นงานเดิมทั้งหมด — **พร้อมให้
+  `frontend-engineer` หยิบต่อ แล้วส่งทั้งคู่ให้ `qa-engineer` verify เป็น FULL รอบเดียวกัน (R-17
+  ห้ามส่งมอบครึ่งทาง)**
 | learning-session | **QA FULL-3 + manual-4/5 ✅ ครบ 53/53** — LS-QA-05 ปิดหมดแล้ว (6/6 กรณี LR-3 + R1 isolation ยืนยันด้วย SignalR connection จริง) · Phase 1–2 (A, B) ไม่ติด gate พร้อมให้ `devops` accept ได้เลย · Phase 3–6 ยังรอ `security` audit ก่อน deploy ได้ | `security` (เมื่อผู้ใช้เรียก) สำหรับ Phase 3–6 · `devops` accept Phase 1–2 ได้ทันที |
 
-## 🟡 เรื่องที่ค้างการตัดสินใจ — บันทึกไว้ 2026-08-21 (capture-only ไม่ได้เปลี่ยนสถานะ phase ใด)
+## 🟡 เรื่องที่ค้างการตัดสินใจ — บันทึกไว้ 2026-08-21 · **อัปเดต 2026-08-22: ข้อ 1 ปิดแล้ว · เปิดอยู่ = ข้อ 2 และข้อ 3 (ใหม่)**
 
 > วันที่มาจาก system context **ยังไม่ได้ให้เจ้าของโปรเจกต์ยืนยันเอง** (เซสชันที่บันทึกไม่มี
 > เครื่องมือถามผู้ใช้ และเจ้าของโปรเจกต์กำลังย้ายเครื่อง/ย้ายบัญชี) · **ไม่มีโค้ด ไม่มี checkbox
 > ไม่มีมติใดถูกเปลี่ยนในรอบนี้** — บันทึกบริบทอย่างเดียวเพื่อให้เซสชันใหม่ที่ไม่มีความจำต่อได้
 
-1. **ค่า pacing ของบทเรียน → ค่าเริ่มต้นระดับบริษัท** — `_docs/module/learning-session/requirement.md`
-   §Open Questions (หัวข้อ 2026-08-21) + `_docs/module/company-admin/requirement.md` **OQ-8** ·
-   ตรวจโค้ดจริงแล้วว่า `introWaitMs`/`breathPauseMs`/`finalQuestionWaitMs` มีผลจริง ตัดไม่ได้
-   ย้ายได้อย่างเดียว · ต้องปิดผ่าน **A5/B3/B4** ซึ่งอยู่ใน **`company-admin/design.md`**
-   (ไม่ใช่ `learning-session/design.md` ตามที่เคยเข้าใจกัน) · **ยังไม่เคยสัมภาษณ์ P1–P4**
-   → รอ `business-analyst` · แยกต่างหาก: `videoDurationMs` เป็นงานลดความรกของ UI ล้วน
-   ส่ง `frontend-engineer` ได้ตรงๆ ไม่ต้องรออะไร
+0. 🔄 **[เปิดใหม่ 2026-08-22 รอบที่สอง] ค่า pacing — เจ้าของโปรเจกต์กลับคำตอบ P1** ·
+   ข้อ 1 ด้านล่างที่เคยขีดฆ่าว่า "ปิดแล้ว" **ไม่จริงอีกต่อไปเฉพาะส่วน P1/P4** · มติใหม่ที่ยืนยันแล้ว:
+   **ตัดช่องกรอก pacing ออกจากฟอร์มบทเรียนถาวร (ไม่มี override ต่อบทเรียน) · ทิ้งค่า override เดิม
+   ของทุกบทเรียน · ลบคอลัมน์ออกจาก DB จริง** (เหตุผล: UX เดียวกันทั้งระบบ ไม่ซับซ้อนโดยใช่เหตุ) ·
+   รายละเอียดเต็มที่ `_docs/module/learning-session/requirement.md` §"🔄 กลับคำตอบ P1 เมื่อ
+   2026-08-22 (รอบที่สอง)" · **กระทบ Phase 4/5 ของ `company-admin` ที่ implement แล้วแต่ยังไม่เคย
+   ผ่าน QA** — LP-1..LP-15 (โดยเฉพาะ LP-6/LP-11/LP-12/LP-13) และ DM-P2 ต้องถูก amend +
+   migration ใหม่สำหรับลบคอลัมน์ · **ผู้รับต่อ: `system-analyst`** (แก้ `company-admin/design.md`)
+   แล้วจึง `project-manager` · ⛔ engineer ยังห้ามหยิบไปทำ
+1. ~~**ค่า pacing ของบทเรียน → ค่าเริ่มต้นระดับบริษัท**~~ — ⚠️ **ถูกกลับคำตอบบางส่วนแล้ว ดูข้อ 0
+   ด้านบนก่อนเชื่อบรรทัดนี้** · ~~✅ **ปิดแล้ว 2026-08-22 ไม่ค้างอีกต่อไป**~~
+   · `business-analyst` สัมภาษณ์เจ้าของโปรเจกต์ครบ **P1–P5** (บันทึกใน
+   `_docs/module/learning-session/requirement.md` §"🆕 บันทึกไว้เมื่อ 2026-08-21 … ✅ ตอบครบแล้ว
+   2026-08-22") และ `system-analyst` ปิด **A5 (แถว pacing) · B3a · B4** ใน
+   `_docs/module/company-admin/design.md` แล้ว → **B4 = เพิ่มคอลัมน์ `Default*Ms` แบบ `NOT NULL`
+   ลง `Company` ตรงๆ** · การสืบทอดมี **2 ชั้น** (บทเรียน nullable → บริษัท non-null) **ไม่มี env
+   fallback ตอน runtime** · งานที่เกิดขึ้นจริงคือ **Module P** พร้อม contract
+   `## Lesson Pacing Resolution Rules` (LP-1..LP-15) และ migration ใบเดียว
+   `AddCompanyLessonPacingDefaults` · **ขั้นถัดไปคือ `project-manager` วาง phase ไม่ใช่ engineer
+   หยิบไปทำเอง** · หนี้ที่ตามมาและยังไม่ปิด: **D-3** — `LessonConfig` ถูกประกาศไว้ใน
+   `knowledge-base/design.md` §DM-2 ด้วย ต้องมีรอบ `system-analyst` ของโมดูลนั้นมา amend ให้ตรงกัน
+   · แยกต่างหาก: `videoDurationMs` **ยังเป็นงาน UI ล้วนที่ไม่ถูกแตะในรอบนี้** ส่ง
+   `frontend-engineer` ได้ตรงๆ ไม่ต้องรออะไร
 2. **CR-1 ยุบ knowledge scope บทเรียน/บริษัทให้เหลือกองเดียว** —
    `_docs/module/knowledge-base/requirement.md` §Open Change Request · **ขัดกับมติข้อ 5 ใน
    `docs/HANDOFF_MASTER.md` ที่ประกาศห้ามเปลี่ยนเงียบๆ** (ใส่ตัวชี้ไว้ที่นั่นแล้ว โดยไม่แก้ตัวมติ) ·
    ต้องสัมภาษณ์เต็มรูปแบบ + `system-analyst` (Pinecone namespace, ingestion, retrieval quality)
    → **ยังไม่พร้อมส่ง engineer**
+3. **ฝั่งผู้เรียน: Responsive มือถือ/แท็บเล็ต + พิมพ์ถามแทนการพูด** — บันทึกไว้ 2026-08-22
+   (เจ้าของโปรเจกต์ยกขึ้นระหว่างคุยเรื่องอื่น ตอนเตรียมส่งสกรีนช็อตให้ทีม UX/UI **และขอให้บันทึก
+   กันลืมไว้ก่อน**) · รายละเอียดเต็ม + คำพูดต้นฉบับคำต่อคำ + ข้อเท็จจริงจากโค้ดจริง + คำถาม
+   R1–R6 / T1–T7 อยู่ที่ `_docs/module/learning-session/requirement.md` §"🆕 บันทึกไว้เมื่อ
+   2026-08-22 — ฝั่งผู้เรียน…" · **สาระ**: (1) responsive ต้องเป็นแบบ "คิดทุกการทำงาน" ไม่ใช่แค่
+   จัด CSS ให้พอดีจอ (push-to-talk / ดูสไลด์ / เลื่อนเนื้อหา บนจอสัมผัส) · (2) พิมพ์ถาม AI ต้องเป็น
+   use case เต็มรูปแบบ ไม่ใช่ปุ่มเสริม เพราะมีผู้เรียนที่ไม่สะดวกพูดออกเสียง · **ข้อเท็จจริงที่ตรวจ
+   โค้ดแล้ว**: วันนี้ถาม AI ได้ทางเสียงทางเดียวจริง (`askVoiceQuestion` บังคับมี `audioBlob`,
+   `ControlBar` มีแต่ push-to-talk) — ช่องพิมพ์ใน `ChatDrawer` เป็นแชตหาคนผ่าน SignalR
+   `SendChatMessage` ไม่เข้า pipeline ของ AI · ⛔ **ยังไม่สัมภาษณ์ ไม่มีคำตอบข้อใดถูกเดา
+   ห้าม engineer หยิบไปทำ ห้าม `system-analyst` ออกแบบทับ** → ขั้นถัดไปคือ `business-analyst`
+   สัมภาษณ์เต็มรูปแบบเมื่อเจ้าของโปรเจกต์พร้อม (เขาบอกเองว่า "ยังไม่ได้ลงดีเทลอีกนิดหน่อย")
 
 ## knowledge-base
 
@@ -836,7 +919,7 @@ credentials ใน local `.env` ยังว่าง) แล้วเรีย�
 **รับลูกค้าใหม่เข้าระบบ + ปรับระบบให้เข้ากับลูกค้าแต่ละราย** — เกิดจากการทบทวนระบบผ่าน
 UX wireframe หน้า admin แล้วเจอ 3 gap ที่ยืนยันด้วยการตรวจโค้ดจริง
 
-Docs: requirement ✅ (2026-08-21) · design ✅ (**Module A เป็น contract แล้ว · F2/Module B–C ยังพัก**) · plan ✅ (2026-08-21, 2 phase, 22/22 tasks checked — checkbox เป็นของ QA) · review ✅ (QA TARGETED-1) · security ⚠️ (SECURITY-1, SEC-01–03 remediation implemented; re-audit pending)
+Docs: requirement ✅ (2026-08-21) · design ✅ (**Module A + Module P เป็น contract แล้ว · Module B/C ที่เหลือยังพัก** — amend 2026-08-22) · plan ✅ (2026-08-21, 2 phase, 22/22 tasks checked — checkbox เป็นของ QA) · review ✅ (QA TARGETED-1) · security ⚠️ (SECURITY-1, SEC-01–03 remediation implemented; re-audit pending)
 
 - Phase 1 — implemented ✅ · verified ✅ (TARGETED, 15/15; ต้อง FULL ก่อน `devops`) · security ⚠️ (SEC-01–03 remediation implemented; re-audit pending) · deployed ⬜
 - Phase 2 — implemented ✅ · verified ✅ (FULL, 7/7) · security ⚠️ (SEC-01–03 remediation implemented; re-audit pending) · deployed ⬜
@@ -941,10 +1024,131 @@ finding เอง; QA คงเดิม: Phase 1 15/15 TARGETED (ต้อง F
 **Blocked on**: ผู้ใช้เรียก `security` re-audit เพื่อตรวจและปิด/เปิด SEC-01–SEC-03; หลัง security
 ผ่าน Phase 1 ยังต้อง QA FULL ก่อนส่ง `devops` เพราะผลล่าสุดเป็น TARGETED
 
-**F2 / Module B–C ยังพักไว้**: คำถาม A2–A6/B3/B4 ยังเปิดอยู่แต่ **ไม่บล็อก Module A** ·
+**เส้นทางที่สองที่เปิดขึ้นใหม่ 2026-08-22 (ขนานกัน ไม่ติดกับ SEC-01–03)**: **Module P** design
+เป็น contract แล้ว → **`project-manager` วาง phase ใหม่** (ไม่ใช่ส่ง engineer ตรง เพราะเป็นงาน
+หลายชั้น: migration + backend + 2 endpoint + frontend 2 หน้า + tests และแตะโค้ด Phase 1 ที่ QA
+ผ่านไปแล้ว — R-12) · phase ใหม่ต้องติด `🔒 Security gate`
+
+**🆕 Module P · Lesson Pacing Defaults — design ปิดแล้ว 2026-08-22 · ยังไม่มี phase**
+
+ค่า `introWaitMs`/`breathPauseMs`/`finalQuestionWaitMs` ย้ายเป็น "ค่าเริ่มต้นระดับบริษัท +
+บทเรียน override ได้" · **มติ B4 = คอลัมน์บน `Company` ตรงๆ ไม่มีตารางใหม่** — กฎ null สองแบบ
+ในตารางเดียวแสดงออกด้วยชนิดของคอลัมน์ (pacing `NOT NULL` · ค่าอื่นของ F2 nullable) ไม่มี flag พิเศษ
+
+- **schema change จริง 2 จุด**: `Company` +3 คอลัมน์ `Default*Ms` (additive + backfill) ·
+  `LessonConfig` 3 คอลัมน์เป็น `int?` (**ขยายชนิด — ข้อมูลปลอดภัย แต่ breaking กับ contract ของ
+  DTO/ViewModel/`domain.ts`** ดู R-10) · migration ใบเดียว `AddCompanyLessonPacingDefaults`
+- **contract ที่ engineer ต้องอ่านเต็มก่อนลงมือ**: `## Lesson Pacing Resolution Rules`
+  (LP-1..LP-15) — resolve จุดเดียว · **`0` ไม่ใช่ `null`** · endpoint+สิทธิ์ (`cs` อ่านได้ เขียนไม่ได้)
+  · ต้องแก้ค่า default ที่เพี้ยนสองจุดในรอบเดียวกัน (P2)
+- **ติด 🔒 Security gate** ด้วยเหตุผลของตัวเอง (endpoint แรกที่ให้ `admin` เขียนลง `Company`
+  โดย `companyId` มาจาก path parameter)
+- **หนี้ที่ยังไม่ปิด — D-3**: `LessonConfig` ถูกประกาศไว้ใน `knowledge-base/design.md` §DM-2 ด้วย
+  ต้องมีรอบ `system-analyst` ของโมดูล `knowledge-base` มา amend ให้ตรงกัน ไม่งั้นรอบ QA ของโมดูลนั้น
+  จะเห็นเป็น drift
+- **ตัวเลขที่ยังไม่ผ่านปากเจ้าของโปรเจกต์**: ช่วงค่าที่รับได้ของ pacing (LP-8: 0–60000 / 0–10000 /
+  0–120000 ms) เป็นข้อเสนอของ `system-analyst` — แก้ทีหลังราคาถูก (validation ล้วน ไม่ใช่ชนิดคอลัมน์)
+
+**F2 / Module B (ลิงก์หมดอายุ / TTS / แบรนด์) + Module C ยังพักไว้**: คำถาม **A2 · A3 · A4 · A6 ·
+B3b** ยังเปิดอยู่แต่ **ไม่บล็อก Module A และไม่บล็อก Module P** · **รูปร่าง schema ไม่ต้องคิดใหม่แล้ว**
+(B4 ปิดแล้ว) แต่ **ห้าม implement คอลัมน์เหล่านั้นล่วงหน้า** (R-4 + CP-15 + LP-15) ·
 trigger ที่จะปลุก = scb (หรือลูกค้ารายอื่น) ขอแบรนด์/เสียง/อายุลิงก์เป็นของตัวเอง ·
 วันปลุกต้อง re-run STATE: ANALYZE ของส่วนนั้นใหม่ตามกฎ deferred module
 
-**F2 / Module B ยังพักไว้**: คำถาม A2–A6/B4 ไม่ต้องตอบรอบนี้ · trigger ที่จะปลุก = scb (หรือ
-ลูกค้ารายอื่น) ขอแบรนด์/เสียง/อายุลิงก์เป็นของตัวเอง · วันปลุกต้อง re-run STATE: ANALYZE
-ของส่วนนั้นใหม่ตามกฎ deferred module
+**อัปเดต 2026-08-22 (`frontend-engineer`): Phase 5 — Company Settings Page implemented ✅ พร้อม
+QA** (Phase 4 backend `[backend]`/`[frontend]` ฟอร์มบทเรียน ยังคงรอ QA FULL แยกต่างหากตามเดิม
+ไม่ถูกแตะในรอบนี้) — งานทั้งหมดเป็น `[frontend]` ตาม `design.md` §Company Settings Page Rules
+(SP-1..SP-15) ครบ 17 task ใน `plan.md` §Phase 5 (checkbox ยังเป็น `[ ]` ทั้งหมดตาม convention —
+รอ `qa-engineer` ติ๊ก):
+
+- ไฟล์ใหม่: `frontend/src/components/admin/settings/section-access.ts` (`SettingsSectionAccess`
+  + `resolveSectionAccess`, SP-15 ข้อ 1/3), `lesson-pacing-fields.ts` (parse+validate ช่วง LP-8
+  เป็น pure function, SP-8/SP-14), `LessonPacingSettingsSection.tsx` (โหลด/เซฟ/validate/ตัดสิน
+  สิทธิ์ของตัวเองครบ SP-2, ประกาศ `LESSON_PACING_SECTION_ACCESS` ตาม SP-15 ข้อ 2), `sections.ts`
+  (registry กลาง SP-15 ข้อ 4), `frontend/src/app/admin/settings/page.tsx` (ประกอบอย่างเดียว, empty
+  state สองเคสตาม SP-12, ไม่มี `Tabs`/ปุ่มบันทึกรวมตาม SP-1/SP-2)
+- แก้ `api-client.ts` เพิ่ม `updateCompanyLessonPacing()` (payload ตรง `UpdateCompanyLessonPacingDto`
+  จริงที่อ่านจากไฟล์ backend แล้ว ไม่ได้เดา) และ `AdminSidebar.tsx` — ย้าย gate ของกลุ่ม "ตั้งค่า"
+  ลงระดับรายการ: "ผู้ใช้งาน" ยัง `!== "cs"` เหมือนเดิม, "ตั้งค่าบริษัท" ใหม่ derive จาก
+  `sections.ts` registry ผ่าน `resolveSectionAccess` (ไม่ hardcode role ตาม SP-5/SP-15 ข้อ 7) —
+  ผลลัพธ์ปัจจุบันคือแสดงทุก role รวม `cs` ตามที่ LP-9 ตั้งใจ
+- test ใหม่: `section-access.test.ts` (3 role + 1 เคส `visibleToRoles` ไม่มี role → `canEdit=false`,
+  SP-15 ข้อ 10) และ `lesson-pacing-fields.test.ts` (`0` ผ่าน · ค่าสูงสุดผ่าน · สูงสุด+1 ถูกปฏิเสธ ·
+  ช่องว่างถูกปฏิเสธไม่กลายเป็น `0`, SP-14) — ทั้งสองไฟล์เขียนเป็น literal/pure function แยกจาก
+  React component โดยตั้งใจ (import `.tsx` ตรงเข้า Vitest ชนกับ `tsconfig.json` ที่ตั้ง
+  `jsx: "preserve"` ให้ Next.js ใช้ — Vitest esbuild parse ไม่ได้ ไม่ใช่บั๊กของโค้ด)
+- ไม่แตะ `admin/lessons/[slug]/page.tsx`/`admin/lessons/new/page.tsx` เลยตามข้อห้าม SP-13/
+  Sequencing Notes · ไม่แตะ backend แม้แต่บรรทัดเดียว · ไม่มี section อื่นของ F2 เพิ่ม
+- Verify (Node 22): `typecheck` ✅ · `lint` ✅ · `test` ✅ (60/60 ผ่านทั้งหมด รวม 8 test ใหม่) ·
+  `build` ✅ (route `/admin/settings` compiled)
+- **ยังไม่ผ่าน `qa-engineer`/`security`** — Phase 5 ติด `🔒 Security gate` ของ Module P
+  เหมือนเดิม ต้องเรียก `security` เองด้วยชื่อก่อน deploy ตามกฎ (จุดที่ต้องยิง `PUT` ตรงด้วย JWT
+  ของ `cs` เพื่อยืนยัน 403 จริง ไม่ใช่แค่เชื่อว่าปุ่มหาย ตามที่ `plan.md` เตือนไว้)
+
+**⚠️ อัปเดต 2026-08-22 (`business-analyst`, รอบที่สองของวัน): Phase 4/5 มี requirement เปลี่ยน
+ก่อนได้ QA** — เจ้าของโปรเจกต์กลับคำตอบ P1 ของค่า pacing: **ไม่มี override ต่อบทเรียนอีกต่อไป
+(ตัดช่องออกจากฟอร์มบทเรียนถาวร) · ทิ้งค่า override เดิมทั้งหมด · ลบคอลัมน์ออกจาก DB จริง** ·
+บันทึกที่ `_docs/module/learning-session/requirement.md` §"🔄 กลับคำตอบ P1 เมื่อ 2026-08-22
+(รอบที่สอง)" · **อย่าเพิ่งส่ง Phase 4/5 เข้า QA ตามสัญญาเดิม** — LP-1..LP-15 (โดยเฉพาะ
+LP-6/LP-11/LP-12/LP-13 เรื่อง override + empty-vs-zero) และ DM-P2 ใน `company-admin/design.md`
+ต้องถูก `system-analyst` amend ก่อน แล้วจึง `project-manager` จัดลำดับการถอดโค้ดส่วนที่เกินออก
+
+**✅ อัปเดต 2026-08-22 (`system-analyst`, รอบที่ 7): `company-admin/design.md` amend เสร็จแล้ว
+ตรงกับ N1/N2/N3** — `## Lesson Pacing Resolution Rules` เหลือโมเดลสืบทอดชั้นเดียว (อ่านค่าจาก
+`Company` ตรงๆ, ตัด LP-6/LP-11/LP-12/LP-13 เดิมทิ้ง) · **DM-P2 กลับทิศทางเป็นครั้งที่สอง**:
+ไม่มีคอลัมน์ pacing ใน `LessonConfig` เลย (ไม่ใช่ nullable อีกต่อไป) · เพิ่ม migration ใบใหม่
+**`RemoveLessonConfigPacingOverrides`** (`DropColumn` สามคอลัมน์) เข้า Migration Plan พร้อม
+ข้อบังคับ "ห้ามมี `UPDATE` กู้ค่าเดิมก่อนลบ" (ขัด N2 ตรงๆ) และ "ต้อง deploy ติดกับโค้ดที่เลิกอ่าน
+คอลัมน์นี้เสมอ ไม่งั้น query `LessonConfig` ทั้งตารางพัง ไม่ใช่แค่ฟีเจอร์ pacing" · เพิ่ม **R-16**
+(data loss ที่ตั้งใจ ยอมรับแล้วพร้อม 3 เงื่อนไข — comment เจตนาใน migration, `devops` backup
+`LessonConfig` ก่อนรัน, คำตอบลูกค้าคือตั้งค่ากลางใหม่ไม่ใช่กู้ค่าเดิม) และ **R-17** (Phase 4/5
+implement ครบแล้วแต่ยังไม่ผ่าน QA — ความเสี่ยงจริงคือถอด "ครึ่งทาง"; `qa-engineer` ต้องถือรอบแรก
+เป็น FULL เสมอ) · §Modules แบ่งงานเป็น "ยังถูกต้องไม่ต้องทำซ้ำ" (`Company` +3 คอลัมน์, endpoint
+LP-9, หน้า `/admin/settings`+registry) กับ "ต้องถอด/แก้ย้อนหลัง" (migration ใหม่, entity/DTO/
+ViewModel/`domain.ts` ตัดสามฟิลด์, ฟอร์มบทเรียนถอดสามช่อง, ชะตากรรมของ `ILessonPacingResolver`
+ให้ PM/engineer ตัดสินเอง) ให้ `project-manager` ใช้ตั้ง task ตรงๆ ไม่ต้องเดา
+
+**D-3 เปลี่ยนคำตอบเป็นรอบที่สอง (ยังไม่ปิด)**: จาก "amend `knowledge-base/design.md` §DM-2 ให้
+เป็น nullable" เป็น **"ลบสามฟิลด์ pacing ออกจาก DM-2 ไปเลย"** — ต้องสั่งรอบ `system-analyst`
+แยกต่างหากให้โฟลเดอร์ `knowledge-base` เพราะ `conventions.md` §1 ห้ามเขียนนอกโฟลเดอร์ที่ resolve ไว้
+
+**ขั้นต่อไป**: ส่ง **`project-manager`** จัดลำดับงานแก้ Phase 4/5 (แก้ในเฟสเดิมหรือเปิดใหม่ทับ
+ให้ PM ตัดสินเอง) ตาม 3 กลุ่มงานที่ `design.md` §Modules เตรียมไว้ให้แล้ว — ⛔ ยังไม่เรียก
+`qa-engineer`/`security` กับ Phase 4/5 จนกว่าโค้ดจะแก้ตรงกับ design ใหม่ก่อน
+
+**✅ อัปเดต 2026-08-22 (`backend-engineer` + `frontend-engineer`): Phase 4 "ต้องถอด/แก้ย้อนหลัง"
+ตาม `plan.md` §Phase 4 รอบที่ 7 เสร็จครบทั้งก้อน (backend + frontend) — พร้อม `qa-engineer` FULL**
+
+- **[backend]** (รายงานจาก `backend-engineer`): migration ใหม่ `RemoveLessonConfigPacingOverrides`
+  (`DropColumn` สามคอลัมน์ pacing ออกจาก `LessonConfig`, แยกไฟล์จาก `AddCompanyLessonPacingDefaults`
+  เดิมตามข้อห้าม) applied กับ local Postgres จริงแล้ว · ลบ `IntroWaitMs`/`BreathPauseMs`/
+  `FinalQuestionWaitMs` ออกจาก `LessonConfig` entity/`LessonConfigDto`/`LessonConfigViewModel` ครบ
+  (ยืนยันแล้วจากการอ่านไฟล์จริงทั้งสองไฟล์ก่อนแก้ frontend — ไม่มีสามฟิลด์นี้เหลือ) · ลบ
+  `ILessonPacingResolver`/`LessonPacingResolver` ทิ้งทั้งคู่ · `GetTeachingContentByLinkAsync` อ่าน
+  `Company.Default*Ms` ตรงๆ ไม่มี merge · `SaveAsync` ไม่แตะค่า pacing เลย
+- **[frontend]** (`frontend-engineer`, รอบนี้): `frontend/src/types/domain.ts` — ลบ 3 ฟิลด์ pacing
+  ออกจาก `LessonConfig` type ให้ตรง `LessonConfigViewModel` จริง (`LearnerLessonConfig` ไม่แตะ ยัง
+  ประกาศ `number` ตรงๆ เหมือนเดิมตาม task ที่ทำเครื่องหมาย "ยังถูกต้อง") · `admin/lessons/[slug]/page.tsx`
+  — ถอด Card "จังหวะเวลา (ทั้งบทเรียน)" ทั้ง 3 ช่องกรอก + state/handler ที่เกี่ยวข้องออกทั้งหมด, เลิก
+  เรียก `getCompanyLessonPacing()`/`useAdminSession()` จากหน้านี้ (ฟังก์ชันใน `api-client.ts` ยังอยู่
+  ให้ Phase 5 ใช้ต่อ ไม่ได้ลบ) · `admin/lessons/new/page.tsx` — ถอด 3 คีย์ pacing ออกจาก
+  `emptyForm`/`LessonConfigInput` payload ทั้งหมด (ไม่ใช่ `null` อีกต่อไป) · `use-tutor-session.ts`
+  ไม่แตะตามคำสั่ง (fallback ถูกต้องอยู่แล้วจากรอบก่อน) · ไม่พบ unit test เดิมของฟอร์มบทเรียนที่ทดสอบ
+  placeholder/empty-vs-zero ของช่อง pacing ในโค้ดจริง (ไม่มีไฟล์ `.test.*` ใต้ `admin/lessons/`) —
+  จึงไม่มีอะไรให้ลบในส่วนนี้
+- Verify (Node 22, ยืนยันจริงทั้ง 4 คำสั่ง): `typecheck` ✅ · `lint` ✅ · `test` ✅ (60/60 ผ่านทั้งหมด
+  ไม่มี regression) · `build` ✅ (ทุก route รวม `/admin/lessons/[slug]`, `/admin/lessons/new` compile
+  สำเร็จ)
+- **ยังไม่ผ่าน `qa-engineer`/`security`** — ตาม R-17 รอบแรกของ Phase 4 **ต้องเป็น FULL เสมอ ไม่มี
+  TARGETED** เพราะ contract เปลี่ยนทิศระหว่างทาง (ครอบคลุม regression surface ของ Phase 1 —
+  `ICompanyService.Create`/`SeedFirstCompanyIfEmpty` — ตาม R-12 ด้วย) · ไม่ได้แก้ `plan.md` checkbox
+  ใดๆ (สิทธิ์ของ `qa-engineer` เท่านั้น) ไม่ได้แก้ `design.md`/`requirement.md`
+- **ขั้นต่อไป**: เรียก `qa-engineer` FULL รอบแรกของ Phase 4 (ครอบทั้ง backend+frontend+regression
+  surface Phase 1) — ยังไม่เรียก `security` จนกว่า QA จะผ่านก่อน
+
+**✅ อัปเดต 2026-08-22 (`project-manager`, แก้ตาม QA ภายนอกที่ผู้ใช้แจ้ง)**: `plan.md` §Phase 5 —
+แก้ text ของ task "เขียนคำอธิบายบนจอ section จังหวะการสอน" ที่ยังอ้างอิงโมเดล per-lesson override
+เดิม (ตกหล่นตอน amend รอบที่ 7) ให้ตรง `design.md` LP-7/SP-10 ฉบับปัจจุบัน (ค่ามีผลกับทุกบทเรียนของ
+บริษัท ไม่ใช่แค่บทที่ปล่อยว่าง) — แก้เฉพาะ task text + Change Log ไม่แตะ checkbox/`design.md`/
+`requirement.md` · **ขั้นต่อไป**: ส่ง `frontend-engineer` แก้ component จริง
+(`LessonPacingSettingsSection.tsx`) ให้ข้อความบนจอตรงกับ task ที่แก้แล้ว

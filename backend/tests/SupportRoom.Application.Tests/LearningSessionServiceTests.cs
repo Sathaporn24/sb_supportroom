@@ -50,9 +50,6 @@ public class LearningSessionServiceTests
             Title = "บทเรียน",
             SlidesSourceUrl = "",
             ContentSourceType = LessonContentSourceType.GoogleSlides,
-            IntroWaitMs = 5000,
-            BreathPauseMs = 500,
-            FinalQuestionWaitMs = 5000,
             SlideConfigs = [],
             IsActive = true,
         });

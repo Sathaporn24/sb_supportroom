@@ -42,9 +42,6 @@ public class KnowledgeNamespaceResolverTests
             Title = "เข้าสู่ระบบ",
             SlidesSourceUrl = "",
             ContentSourceType = LessonContentSourceType.GoogleSlides,
-            IntroWaitMs = 0,
-            BreathPauseMs = 0,
-            FinalQuestionWaitMs = 0,
             SlideConfigs = [],
             IsActive = true,
         });

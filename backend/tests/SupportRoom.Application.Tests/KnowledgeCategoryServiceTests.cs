@@ -103,9 +103,6 @@ public class KnowledgeCategoryServiceTests
             Title = "บทเรียน",
             SlidesSourceUrl = "",
             ContentSourceType = "google_slides",
-            IntroWaitMs = 0,
-            BreathPauseMs = 0,
-            FinalQuestionWaitMs = 0,
             SlideConfigs = [],
             IsActive = true,
         });

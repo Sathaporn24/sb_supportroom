@@ -36,4 +36,15 @@ public sealed class Company : IEntityMaster<string>
     public string? DeleteBy { get; set; }
     public bool IsDelete { get; set; }
     public DateTime? DeletedAt { get; set; }
+
+    /// <summary>Default lesson pacing for every lesson in this company (Module P). Must never be
+    /// null (LP-1/LP-2/P5) - set from ServerDefaults.GetLessonTimingDefaults() at the two places a
+    /// Company row is created (ICompanyService.Create / SeedFirstCompanyIfEmpty) and never
+    /// anywhere else. This is the last layer of the pacing resolve chain - there is no further
+    /// fallback to environment variables at read time, unlike the settings Module B will add
+    /// later, where null means "inherit". Do not add a query filter alongside these fields - see
+    /// the class-level note above; that constraint predates Module P and still applies.</summary>
+    public required int DefaultIntroWaitMs { get; set; }
+    public required int DefaultBreathPauseMs { get; set; }
+    public required int DefaultFinalQuestionWaitMs { get; set; }
 }

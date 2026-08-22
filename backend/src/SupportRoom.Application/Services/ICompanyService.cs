@@ -24,6 +24,14 @@ public interface ICompanyService
     CompanyViewModel Create(CreateCompanyDto input);
     CompanyViewModel Update(string id, UpdateCompanyDto input);
 
+    /// <summary>LP-9 - owner (any company) or that company's own admin/cs may read; cs reads
+    /// because the pacing section on /admin/settings declares visibleToRoles including cs
+    /// (read-only, editableByRoles excludes cs) - see SP-4/SP-15.</summary>
+    CompanyLessonPacingViewModel GetLessonPacing(string companyId);
+
+    /// <summary>LP-9 - owner or that company's own admin may write; cs is rejected explicitly.</summary>
+    CompanyLessonPacingViewModel UpdateLessonPacing(string companyId, UpdateCompanyLessonPacingDto input);
+
     /// <summary>Creates the very first company (School Bright by default; see CompanyEnv) when the
     /// registry is completely empty, mirroring IAuthService.SeedFirstOwnerIfEmpty. Called once at
     /// startup - see SeedFirstCompanyHostedService. Unlike Create, this makes no AdminUser: the
@@ -102,6 +110,11 @@ public sealed class CompanyService(
         }
 
         var createdAt = DateTime.UtcNow;
+        // LP-2/LP-1 - this and SeedFirstCompanyIfEmpty are the ONLY two places allowed to call
+        // ServerDefaults.GetLessonTimingDefaults(); every other consumer reads pacing straight
+        // from the Company row (no resolver layer). CreateCompanyDto has no pacing field on
+        // purpose (LP-2) - the value here can never come from the request.
+        var pacingDefaults = ServerDefaults.GetLessonTimingDefaults();
         var company = new Company
         {
             Id = id,
@@ -109,6 +122,9 @@ public sealed class CompanyService(
             IsActive = true,
             CreateBy = currentUser.UserId,
             CreateDate = createdAt,
+            DefaultIntroWaitMs = pacingDefaults.IntroWaitMs,
+            DefaultBreathPauseMs = pacingDefaults.BreathPauseMs,
+            DefaultFinalQuestionWaitMs = pacingDefaults.FinalQuestionWaitMs,
         };
         var adminUser = new AdminUser
         {
@@ -169,12 +185,18 @@ public sealed class CompanyService(
         }
 
         var seed = CompanyEnv.GetFirstCompanySeed();
+        // LP-2/LP-1 - see the matching comment in Create(): this is the second (and last) of the
+        // exactly two places allowed to call ServerDefaults.GetLessonTimingDefaults().
+        var pacingDefaults = ServerDefaults.GetLessonTimingDefaults();
         var company = new Company
         {
             Id = seed.Id,
             Name = seed.Name,
             IsActive = true,
             CreateDate = DateTime.UtcNow,
+            DefaultIntroWaitMs = pacingDefaults.IntroWaitMs,
+            DefaultBreathPauseMs = pacingDefaults.BreathPauseMs,
+            DefaultFinalQuestionWaitMs = pacingDefaults.FinalQuestionWaitMs,
         };
 
         _companies.Add(company);
@@ -183,6 +205,45 @@ public sealed class CompanyService(
 
         Logger.LogWarning("Seeded first company {CompanyId} ({CompanyName})", company.Id, company.Name);
     }
+
+    public CompanyLessonPacingViewModel GetLessonPacing(string companyId)
+    {
+        guard.EnsureCanAccessCompany(companyId);
+        var company = _companies.Get(companyId) ?? throw GeneralException.NotFound("บริษัท");
+        return ToLessonPacingViewModel(company);
+    }
+
+    public CompanyLessonPacingViewModel UpdateLessonPacing(string companyId, UpdateCompanyLessonPacingDto input)
+    {
+        guard.EnsureCanAccessCompany(companyId);
+        // LP-9 - cs can read (GetLessonPacing) but must not write. EnsureCanAccessCompany alone
+        // would let cs through since it only checks "own company", not "which role"; the explicit
+        // reject here is the only thing standing between a cs account and this endpoint.
+        if (currentUser.Role == AdminRole.Cs)
+        {
+            throw GeneralException.Forbidden("cs ไม่มีสิทธิ์แก้ไขค่านี้");
+        }
+
+        var company = _companies.Get(companyId) ?? throw GeneralException.NotFound("บริษัท");
+
+        company.DefaultIntroWaitMs = input.IntroWaitMs;
+        company.DefaultBreathPauseMs = input.BreathPauseMs;
+        company.DefaultFinalQuestionWaitMs = input.FinalQuestionWaitMs;
+        company.UpdateBy = currentUser.UserId;
+        company.UpdateDate = DateTime.UtcNow;
+
+        _companies.Update(company);
+        UnitOfWork.Commit();
+
+        return ToLessonPacingViewModel(company);
+    }
+
+    private static CompanyLessonPacingViewModel ToLessonPacingViewModel(Company company) => new()
+    {
+        IntroWaitMs = company.DefaultIntroWaitMs,
+        BreathPauseMs = company.DefaultBreathPauseMs,
+        FinalQuestionWaitMs = company.DefaultFinalQuestionWaitMs,
+    };
 
     private static CompanyViewModel ToViewModel(Company company) => new()
     {

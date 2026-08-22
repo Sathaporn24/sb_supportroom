@@ -43,15 +43,6 @@ public sealed class LessonConfigDto
     /// <summary>Required when ContentSourceType is "pdf" - the DocumentResource holding the PDF.</summary>
     public string? PdfDocumentResourceId { get; init; }
 
-    /// <summary>A negative value used to save without error and then broke the intro-wait UX at
-    /// runtime: the tutor engine's setTimeout(ms) clamps a negative delay to ~0, so the teacher's
-    /// "wait for ready" window would disappear entirely instead of throwing here.</summary>
-    [Required, Range(0, int.MaxValue)]
-    public required int IntroWaitMs { get; init; }
-    [Required, Range(0, int.MaxValue)]
-    public required int BreathPauseMs { get; init; }
-    [Required, Range(0, int.MaxValue)]
-    public required int FinalQuestionWaitMs { get; init; }
     [Required]
     public required List<SlideConfigDto> SlideConfigs { get; init; }
     [Required]

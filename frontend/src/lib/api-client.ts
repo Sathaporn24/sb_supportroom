@@ -8,6 +8,7 @@ import type {
   ChangePasswordInput,
   ChatMessage,
   Company,
+  CompanyLessonPacing,
   CreateCompanyInput,
   CreateAdminUserInput,
   CreateKnowledgeCategoryInput,
@@ -571,6 +572,26 @@ export function updateCompany(id: string, input: { name: string; isActive: boole
     method: "PUT",
     headers: jsonHeaders,
     body: JSON.stringify(input),
+  });
+}
+
+/** LP-9 - used only by the `/admin/settings` page (company-level pacing has no lesson-level
+ * counterpart to feed). Response is the plain CompanyLessonPacingViewModel, not wrapped in
+ * `{ company: ... }` like the other endpoints. */
+export function getCompanyLessonPacing(companyId: string): Promise<CompanyLessonPacing> {
+  return request(apiUrl(`/api/companies/${encodeURIComponent(companyId)}/lesson-pacing`));
+}
+
+/** LP-9 - all three fields required, no partial update (UpdateCompanyLessonPacingDto). Rejected
+ * with 403 for `cs` server-side (SP-4/SP-15). */
+export function updateCompanyLessonPacing(
+  companyId: string,
+  payload: CompanyLessonPacing,
+): Promise<CompanyLessonPacing> {
+  return request(apiUrl(`/api/companies/${encodeURIComponent(companyId)}/lesson-pacing`), {
+    method: "PUT",
+    headers: jsonHeaders,
+    body: JSON.stringify(payload),
   });
 }
 

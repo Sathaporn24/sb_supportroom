@@ -35,3 +35,23 @@ public sealed class UpdateCompanyDto
 
     public required bool IsActive { get; init; }
 }
+
+/// <summary>
+/// Input for PUT /api/companies/{companyId}/lesson-pacing (LP-9) - separate from
+/// UpdateCompanyDto/PUT /api/companies/{id} on purpose, because that endpoint is owner-only
+/// (CP-14) and this one must let a company's own admin edit its own pacing too. All three fields
+/// are required NOT NULL ints - Company is the last layer of the pacing resolve chain (LP-1),
+/// so there is no "unset" state to represent here, and a partial/null payload is rejected rather
+/// than treated as "leave unchanged".
+/// </summary>
+public sealed class UpdateCompanyLessonPacingDto
+{
+    [Required, Range(0, 60_000, ErrorMessage = "introWaitMs ต้องอยู่ระหว่าง 0-60000 มิลลิวินาที")]
+    public required int IntroWaitMs { get; init; }
+
+    [Required, Range(0, 10_000, ErrorMessage = "breathPauseMs ต้องอยู่ระหว่าง 0-10000 มิลลิวินาที")]
+    public required int BreathPauseMs { get; init; }
+
+    [Required, Range(0, 120_000, ErrorMessage = "finalQuestionWaitMs ต้องอยู่ระหว่าง 0-120000 มิลลิวินาที")]
+    public required int FinalQuestionWaitMs { get; init; }
+}

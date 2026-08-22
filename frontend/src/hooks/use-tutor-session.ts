@@ -43,7 +43,7 @@ export function useTutorSession(link: PublicTrainingLink, learningSession: Learn
   const ctxRef = useRef<TutorContext>({
     slides: [],
     introWaitMs: 5_000,
-    breathPauseMs: 1_000,
+    breathPauseMs: 500,
     finalQuestionWaitMs: 5_000,
     resumeSlideIndex: learningSession.lastSlideIndex ?? 0,
   });

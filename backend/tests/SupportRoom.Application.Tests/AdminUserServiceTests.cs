@@ -44,6 +44,9 @@ public class AdminUserServiceTests
         Name = id,
         IsActive = true,
         CreateDate = DateTime.UtcNow,
+        DefaultIntroWaitMs = 5000,
+        DefaultBreathPauseMs = 500,
+        DefaultFinalQuestionWaitMs = 5000,
     };
 
     private AdminUser SeedUser(string id, string role, string? companyId, bool isActive = true)

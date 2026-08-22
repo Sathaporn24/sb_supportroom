@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using SupportRoom.Providers.Data.Data;
@@ -11,9 +12,11 @@ using SupportRoom.Providers.Data.Data;
 namespace SupportRoom.Providers.Data.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260822074306_AddCompanyLessonPacingDefaults")]
+    partial class AddCompanyLessonPacingDefaults
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -712,6 +715,9 @@ namespace SupportRoom.Providers.Data.Migrations
                     b.Property<string>("Id")
                         .HasColumnType("text");
 
+                    b.Property<int?>("BreathPauseMs")
+                        .HasColumnType("integer");
+
                     b.Property<string>("CategoryId")
                         .IsRequired()
                         .HasColumnType("text");
@@ -738,6 +744,12 @@ namespace SupportRoom.Providers.Data.Migrations
 
                     b.Property<string>("Description")
                         .HasColumnType("text");
+
+                    b.Property<int?>("FinalQuestionWaitMs")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("IntroWaitMs")
+                        .HasColumnType("integer");
 
                     b.Property<bool>("IsActive")
                         .HasColumnType("boolean");
