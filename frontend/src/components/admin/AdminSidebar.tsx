@@ -10,6 +10,7 @@ import {
   LinkIcon,
   MessageCircleQuestionIcon,
   NotebookTextIcon,
+  SettingsIcon,
   UsersIcon,
 } from "lucide-react";
 import {
@@ -27,6 +28,8 @@ import { Badge } from "@/components/ui/badge";
 import { AdminLink } from "@/components/admin/AdminLink";
 import { useAdminSession } from "@/components/admin/AdminSessionProvider";
 import { useAdminReviewCounts } from "@/hooks/use-admin-review-counts";
+import { resolveSectionAccess } from "@/components/admin/settings/section-access";
+import { SETTINGS_SECTIONS } from "@/components/admin/settings/sections";
 
 function isActivePath(pathname: string, href: string): boolean {
   return pathname === href || pathname.startsWith(`${href}/`);
@@ -38,6 +41,13 @@ export function AdminSidebar() {
   const { queueCount, conflictCount } = useAdminReviewCounts();
 
   const trainingLinksActive = pathname === "/admin" || isActivePath(pathname, "/admin/links");
+
+  // SP-5/SP-15 ข้อ 7 - แสดงรายการ "ตั้งค่าบริษัท" เมื่อ role นี้เห็นอย่างน้อยหนึ่ง section จริง
+  // (derive จาก registry เดียวกับที่หน้า /admin/settings ใช้กรอง) ไม่ hardcode รายชื่อ role ที่นี่
+  // เพราะวันที่มี section ที่ซ่อนจาก role หนึ่ง เมนูนี้ต้องตามไปเปลี่ยนเองโดยไม่ต้องแก้ไฟล์นี้อีก
+  const canSeeCompanySettings =
+    user?.role != null &&
+    SETTINGS_SECTIONS.some((section) => resolveSectionAccess(section.access, user.role).visible);
 
   return (
     <Sidebar collapsible="icon">
@@ -167,22 +177,37 @@ export function AdminSidebar() {
           </SidebarGroup>
         )}
 
-        {user?.role !== "cs" && (
+        {(user?.role !== "cs" || canSeeCompanySettings) && (
           <SidebarGroup>
             <SidebarGroupLabel>ตั้งค่า</SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
-                <SidebarMenuItem>
-                  <SidebarMenuButton
-                    isActive={isActivePath(pathname, "/admin/users")}
-                    render={
-                      <AdminLink href="/admin/users">
-                        <UsersIcon />
-                        <span>ผู้ใช้งาน</span>
-                      </AdminLink>
-                    }
-                  />
-                </SidebarMenuItem>
+                {user?.role !== "cs" && (
+                  <SidebarMenuItem>
+                    <SidebarMenuButton
+                      isActive={isActivePath(pathname, "/admin/users")}
+                      render={
+                        <AdminLink href="/admin/users">
+                          <UsersIcon />
+                          <span>ผู้ใช้งาน</span>
+                        </AdminLink>
+                      }
+                    />
+                  </SidebarMenuItem>
+                )}
+                {canSeeCompanySettings && (
+                  <SidebarMenuItem>
+                    <SidebarMenuButton
+                      isActive={isActivePath(pathname, "/admin/settings")}
+                      render={
+                        <AdminLink href="/admin/settings">
+                          <SettingsIcon />
+                          <span>ตั้งค่าบริษัท</span>
+                        </AdminLink>
+                      }
+                    />
+                  </SidebarMenuItem>
+                )}
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>

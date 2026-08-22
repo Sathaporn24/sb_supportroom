@@ -81,6 +81,33 @@ public class CompanyServiceTests
             _passwordHasher.VerifyHashedPassword(admin, admin.PasswordHash!, "temporary-password"));
     }
 
+    /// <summary>LP-14.2 - both entry points that create a Company row must set pacing from
+    /// ServerDefaults, never leave it at a language default (0) and never read it from the
+    /// request (CreateCompanyDto has no pacing field at all).</summary>
+    [Fact]
+    public void Create_SetsCompanyPacingFromServerDefaults()
+    {
+        var result = _service.Create(CreateInput());
+
+        var company = _companies.Items.Single(x => x.Id == result.Id);
+        Assert.Equal(5000, company.DefaultIntroWaitMs);
+        Assert.Equal(500, company.DefaultBreathPauseMs);
+        Assert.Equal(5000, company.DefaultFinalQuestionWaitMs);
+    }
+
+    /// <summary>LP-14.2 - the other entry point (SeedFirstCompanyIfEmpty), same requirement.</summary>
+    [Fact]
+    public void SeedFirstCompanyIfEmpty_SetsCompanyPacingFromServerDefaults()
+    {
+        _service.SeedFirstCompanyIfEmpty();
+
+        var company = _companies.Items.Single();
+        Assert.Equal(5000, company.DefaultIntroWaitMs);
+        Assert.Equal(500, company.DefaultBreathPauseMs);
+        Assert.Equal(5000, company.DefaultFinalQuestionWaitMs);
+        Assert.Equal(1, _unitOfWork.CommitCount);
+    }
+
     [Fact]
     public void Create_WithAnActiveDuplicateSlug_ReturnsTheActiveDuplicateMessage()
     {
@@ -192,6 +219,122 @@ public class CompanyServiceTests
         Assert.Equal(0, _unitOfWork.CommitCount);
     }
 
+    /// <summary>LP-14.3 - cs may read the pacing section (SP-4/SP-15's visibleToRoles includes
+    /// cs) but must be rejected on write.</summary>
+    [Fact]
+    public void UpdateLessonPacing_AsCs_IsForbidden()
+    {
+        var company = SeedCompany(TestFixtures.CompanyId, isActive: true);
+        var service = CreateServiceAs(AdminRole.Cs, TestFixtures.CompanyId);
+
+        var error = Assert.Throws<HttpStatusCodeException>(
+            () => service.UpdateLessonPacing(TestFixtures.CompanyId, ValidPacingInput()));
+
+        Assert.Equal(403, (int)error.StatusCode);
+        Assert.Equal(5000, company.DefaultIntroWaitMs);
+    }
+
+    [Fact]
+    public void GetLessonPacing_AsCs_IsAllowed()
+    {
+        SeedCompany(TestFixtures.CompanyId, isActive: true);
+        var service = CreateServiceAs(AdminRole.Cs, TestFixtures.CompanyId);
+
+        var result = service.GetLessonPacing(TestFixtures.CompanyId);
+
+        Assert.Equal(5000, result.IntroWaitMs);
+        Assert.Equal(500, result.BreathPauseMs);
+        Assert.Equal(5000, result.FinalQuestionWaitMs);
+    }
+
+    [Fact]
+    public void UpdateLessonPacing_AsAdminOfOwnCompany_Succeeds()
+    {
+        var company = SeedCompany(TestFixtures.CompanyId, isActive: true);
+        var service = CreateServiceAs(AdminRole.Admin, TestFixtures.CompanyId);
+
+        var result = service.UpdateLessonPacing(TestFixtures.CompanyId, ValidPacingInput());
+
+        Assert.Equal(1000, result.IntroWaitMs);
+        Assert.Equal(200, result.BreathPauseMs);
+        Assert.Equal(9000, result.FinalQuestionWaitMs);
+        Assert.Equal(1000, company.DefaultIntroWaitMs);
+    }
+
+    [Fact]
+    public void UpdateLessonPacing_ForAnotherCompany_IsForbiddenForAdmin()
+    {
+        SeedCompany(TestFixtures.OtherCompanyId, isActive: true);
+        var service = CreateServiceAs(AdminRole.Admin, TestFixtures.CompanyId);
+
+        var error = Assert.Throws<HttpStatusCodeException>(
+            () => service.UpdateLessonPacing(TestFixtures.OtherCompanyId, ValidPacingInput()));
+
+        Assert.Equal(403, (int)error.StatusCode);
+    }
+
+    [Fact]
+    public void GetLessonPacing_ForUnknownCompany_ReturnsNotFound()
+    {
+        var service = CreateServiceAs(AdminRole.Owner, companyId: null);
+
+        var error = Assert.Throws<HttpStatusCodeException>(
+            () => service.GetLessonPacing("no-such-company"));
+
+        Assert.Equal(404, (int)error.StatusCode);
+    }
+
+    private CompanyService CreateServiceAs(string role, string? companyId)
+    {
+        var user = new CurrentUser();
+        user.Resolve("user-" + role, role, companyId);
+        var serviceProvider = new FakeServiceProvider().Register<ICurrentUser>(user);
+        var categoryService = new KnowledgeCategoryService(
+            _unitOfWork,
+            serviceProvider,
+            NullLogger<IKnowledgeCategoryService>.Instance);
+        return new CompanyService(
+            _unitOfWork,
+            serviceProvider,
+            NullLogger<ICompanyService>.Instance,
+            user,
+            new AuthorizationGuard(user),
+            _passwordHasher,
+            categoryService);
+    }
+
+    private static UpdateCompanyLessonPacingDto ValidPacingInput() => new()
+    {
+        IntroWaitMs = 1000,
+        BreathPauseMs = 200,
+        FinalQuestionWaitMs = 9000,
+    };
+
+    /// <summary>LP-14.3/LP-8 - out-of-range values on the company-level DTO must be rejected by
+    /// data annotations (the same mechanism ASP.NET Core's model binder runs before the
+    /// controller action is even invoked). Company is the last layer of the resolve chain
+    /// (LP-1), so there is no "unset" state a null could legitimately represent here.</summary>
+    [Theory]
+    [InlineData(60_001, 200, 9000)]
+    [InlineData(1000, 10_001, 9000)]
+    [InlineData(1000, 200, 120_001)]
+    [InlineData(-1, 200, 9000)]
+    public void UpdateCompanyLessonPacingDto_RejectsOutOfRangeValues(int introWaitMs, int breathPauseMs, int finalQuestionWaitMs)
+    {
+        var dto = new UpdateCompanyLessonPacingDto
+        {
+            IntroWaitMs = introWaitMs,
+            BreathPauseMs = breathPauseMs,
+            FinalQuestionWaitMs = finalQuestionWaitMs,
+        };
+
+        var results = new List<System.ComponentModel.DataAnnotations.ValidationResult>();
+        var isValid = System.ComponentModel.DataAnnotations.Validator.TryValidateObject(
+            dto, new System.ComponentModel.DataAnnotations.ValidationContext(dto), results, validateAllProperties: true);
+
+        Assert.False(isValid);
+    }
+
     private Company SeedCompany(string id, bool isActive, string name = "Existing Company")
     {
         var company = new Company
@@ -199,6 +342,9 @@ public class CompanyServiceTests
             Id = id,
             Name = name,
             IsActive = isActive,
+            DefaultIntroWaitMs = 5000,
+            DefaultBreathPauseMs = 500,
+            DefaultFinalQuestionWaitMs = 5000,
         };
         _companies.Items.Add(company);
         return company;

@@ -22,6 +22,8 @@ public class LessonConfigServiceTests
     private readonly FakeDocumentResourceRepository _documents = new();
     private readonly FakeKnowledgeCategoryRepository _categories = new();
     private readonly FakeLessonSlideNarrationRepository _narrations = new();
+    private readonly FakeCompanyRepository _companies = new();
+    private readonly FakeTrainingLinkRepository _links = new();
     private readonly FakeKnowledgeIndexingService _knowledge = new();
     private readonly FakeUnitOfWork _unitOfWork = new();
     private readonly LocalDocumentStorageProvider _storage = new(NullLogger<LocalDocumentStorageProvider>.Instance);
@@ -37,6 +39,9 @@ public class LessonConfigServiceTests
         _unitOfWork.Register<IDocumentResourceRepository>(_documents);
         _unitOfWork.Register<IKnowledgeCategoryRepository>(_categories);
         _unitOfWork.Register<ILessonSlideNarrationRepository>(_narrations);
+        _unitOfWork.Register<ICompanyRepository>(_companies);
+        _unitOfWork.Register<ITrainingLinkRepository>(_links);
+        _unitOfWork.Register<ILearningSessionRepository>(new FakeLearningSessionRepository());
         _categories.Items.Add(new KnowledgeCategory
         {
             Id = "kbcat-child",
@@ -48,9 +53,13 @@ public class LessonConfigServiceTests
             IsSystemDefault = false,
         });
 
+        var serviceProvider = new FakeServiceProvider();
+        serviceProvider.Register<ITrainingLinkService>(
+            new TrainingLinkService(_unitOfWork, serviceProvider, NullLogger<ITrainingLinkService>.Instance));
+
         _service = new LessonConfigService(
             _unitOfWork,
-            new FakeServiceProvider(),
+            serviceProvider,
             NullLogger<ILessonConfigService>.Instance,
             new GoogleSlidesProvider(NullLogger<GoogleSlidesProvider>.Instance),
             _knowledge,
@@ -74,9 +83,6 @@ public class LessonConfigServiceTests
         SlidesEmbedUrl = null,
         ContentSourceType = contentSourceType,
         PdfDocumentResourceId = pdfDocumentResourceId,
-        IntroWaitMs = 5000,
-        BreathPauseMs = 500,
-        FinalQuestionWaitMs = 5000,
         SlideConfigs = [],
         IsActive = isActive,
     };
@@ -218,6 +224,46 @@ public class LessonConfigServiceTests
         Assert.NotEmpty(content.Slides);                       // real deck has 5 slides
         Assert.Equal("google-ok", content.Lesson.Slug);
         Assert.All(content.Slides, s => Assert.False(string.IsNullOrWhiteSpace(s.SlideObjectId)));
+    }
+
+    // ---- GetTeachingContentByLinkAsync (LP-1/LP-4) ------------------------
+
+    /// <summary>LP-1/LP-4/LP-14.1 (2026-08-22 rewrite) - pacing has no per-lesson override anymore;
+    /// this is the ONE place it's read, straight off Company.Default*Ms with no merge/resolver in
+    /// between. The three constants below are deliberately not 5000/500/5000 (ServerDefaults) so
+    /// this test can't pass by coincidence - it only passes if the values genuinely came from this
+    /// specific Company row.</summary>
+    [Fact]
+    public async Task GetTeachingContentByLink_ReturnsPacingFromCompany_NotFromTheLesson()
+    {
+        var doc = await SeedRealPdfBytesAsync("doc-link-1");
+        await _service.SaveAsync(NewDto(
+            slug: "linked-lesson", contentSourceType: LessonContentSourceType.Pdf, pdfDocumentResourceId: doc.Id));
+        var lesson = _lessons.Items.Single(l => l.Slug == "linked-lesson");
+        _companies.Items.Add(new Company
+        {
+            Id = TestFixtures.CompanyId,
+            Name = "Test Company",
+            IsActive = true,
+            DefaultIntroWaitMs = 1234,
+            DefaultBreathPauseMs = 222,
+            DefaultFinalQuestionWaitMs = 3333,
+        });
+        _links.Items.Add(new TrainingLink
+        {
+            Id = "link-1",
+            CompanyId = TestFixtures.CompanyId,
+            Token = "tok-1",
+            LessonId = lesson.Id,
+            LessonSlug = lesson.Slug,
+            ExpiresAt = DateTime.UtcNow.AddHours(1),
+        });
+
+        var content = await _service.GetTeachingContentByLinkAsync("tok-1");
+
+        Assert.Equal(1234, content.Lesson.IntroWaitMs);
+        Assert.Equal(222, content.Lesson.BreathPauseMs);
+        Assert.Equal(3333, content.Lesson.FinalQuestionWaitMs);
     }
 
     // ---- RenderPdfPageAsync guards (bug fix regression) -------------------

@@ -108,9 +108,6 @@ public class DocumentResourceServiceTests
             SlidesSourceUrl = "",
             ContentSourceType = LessonContentSourceType.Pdf,
             PdfDocumentResourceId = pdfDocumentResourceId,
-            IntroWaitMs = 5000,
-            BreathPauseMs = 500,
-            FinalQuestionWaitMs = 5000,
             SlideConfigs = [],
             IsActive = true,
         });

@@ -28,26 +28,29 @@ export type LessonConfig = {
   contentSourceType: ContentSourceType;
   /** Set only when contentSourceType is "pdf" - the DocumentResource holding the PDF. */
   pdfDocumentResourceId?: string;
-  introWaitMs: number;
-  breathPauseMs: number;
-  finalQuestionWaitMs: number;
   slideConfigs: SlideConfig[];
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
 };
 
-/** Anonymous lesson payload: excludes source URLs, provider ids and document ids. */
-export type LearnerLessonConfig = Pick<
-  LessonConfig,
-  | "slug"
-  | "title"
-  | "description"
-  | "contentSourceType"
-  | "introWaitMs"
-  | "breathPauseMs"
-  | "finalQuestionWaitMs"
->;
+/** Anonymous lesson payload: excludes source URLs, provider ids and document ids. Pacing fields
+ * are declared directly as `number` (not `Pick<LessonConfig, ...>`) because they come straight
+ * from the owning `Company`'s pacing settings (LP-1/LP-7) - lessons have no pacing values of
+ * their own, so the learner side must never see `null` here. */
+export type LearnerLessonConfig = Pick<LessonConfig, "slug" | "title" | "description" | "contentSourceType"> & {
+  introWaitMs: number;
+  breathPauseMs: number;
+  finalQuestionWaitMs: number;
+};
+
+/** Mirrors CompanyLessonPacingViewModel - GET/PUT /api/companies/{companyId}/lesson-pacing.
+ * Always NOT NULL: the company layer never has an "unset" state (LP-1). */
+export type CompanyLessonPacing = {
+  introWaitMs: number;
+  breathPauseMs: number;
+  finalQuestionWaitMs: number;
+};
 
 // presentationId is always derived server-side from slidesSourceUrl - CS never sets it directly.
 export type LessonConfigInput = Omit<LessonConfig, "id" | "createdAt" | "updatedAt" | "presentationId">;

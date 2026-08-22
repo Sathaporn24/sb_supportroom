@@ -34,4 +34,16 @@ public sealed class CompanyController : ControllerBase
     [HttpPut("{id}")]
     public ActionResult Update([FromRoute] string id, [FromBody] UpdateCompanyDto input)
         => Ok(new { company = _service.Update(id, input) });
+
+    /// <summary>LP-9 - separate from PUT /api/companies/{id}, which is owner-only (CP-14).
+    /// Owner reads any company; admin/cs read only their own (cs included on purpose - the
+    /// pacing section on /admin/settings declares visibleToRoles including cs, see SP-4/SP-15).</summary>
+    [HttpGet("{companyId}/lesson-pacing")]
+    public ActionResult GetLessonPacing([FromRoute] string companyId)
+        => Ok(_service.GetLessonPacing(companyId));
+
+    /// <summary>LP-9 - owner or that company's own admin only; cs is rejected inside the service.</summary>
+    [HttpPut("{companyId}/lesson-pacing")]
+    public ActionResult UpdateLessonPacing([FromRoute] string companyId, [FromBody] UpdateCompanyLessonPacingDto input)
+        => Ok(_service.UpdateLessonPacing(companyId, input));
 }

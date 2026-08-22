@@ -41,6 +41,7 @@ public class LessonSlideNarrationServiceTests
         _unitOfWork.Register<IKnowledgeCategoryRepository>(_categories);
         _unitOfWork.Register<ILessonSlideNarrationRepository>(_narrations);
         _unitOfWork.Register<IBackgroundJobRepository>(_jobs);
+        _unitOfWork.Register<ICompanyRepository>(new FakeCompanyRepository());
 
         var resolver = new LessonSlideNarrationResolver(_unitOfWork);
         _lessonConfigService = new LessonConfigService(
@@ -91,9 +92,6 @@ public class LessonSlideNarrationServiceTests
             SlidesSourceUrl = "",
             ContentSourceType = LessonContentSourceType.Pdf,
             PdfDocumentResourceId = documentId,
-            IntroWaitMs = 0,
-            BreathPauseMs = 0,
-            FinalQuestionWaitMs = 0,
             SlideConfigs = [],
             IsActive = true,
         };
@@ -113,9 +111,6 @@ public class LessonSlideNarrationServiceTests
             SlidesSourceUrl = "https://docs.google.com/presentation/d/abc/edit",
             ContentSourceType = LessonContentSourceType.GoogleSlides,
             PresentationId = "abc",
-            IntroWaitMs = 0,
-            BreathPauseMs = 0,
-            FinalQuestionWaitMs = 0,
             SlideConfigs = [],
             IsActive = true,
         };

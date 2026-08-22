@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { MicIcon, MicOffIcon, VideoIcon, VideoOffIcon } from "lucide-react";
 import * as api from "@/lib/api-client";
 import { getLearnerName, getOrCreateLearnerKey, grantRoomEntry, peekLearnerKey, setLearnerName } from "@/utils/learner-key";
 import { isValidLearnerName, LEARNER_NAME_MAX_LENGTH } from "@/utils/learner-name";
@@ -11,17 +10,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Progress } from "@/components/ui/progress";
 import { Spinner } from "@/components/ui/spinner";
 import { LoadingBlock } from "@/components/shared/LoadingBlock";
 import type { LearningResumeState } from "@/types/domain";
-
-const errorMessages: Record<string, string> = {
-  denied: "ไม่ได้รับอนุญาตให้เข้าถึงกล้องหรือไมโครโฟน กรุณาอนุญาตการใช้งานจากเบราว์เซอร์แล้วลองใหม่อีกครั้งค่ะ",
-  "not-found": "ไม่พบกล้องหรือไมโครโฟนในอุปกรณ์นี้ค่ะ",
-  unsupported: "เบราว์เซอร์นี้ไม่รองรับการใช้งานกล้องหรือไมโครโฟนค่ะ",
-  unknown: "เกิดข้อผิดพลาดในการเข้าถึงกล้องหรือไมโครโฟน กรุณาลองใหม่อีกครั้งค่ะ",
-};
 
 /**
  * The join screen is the only place that can enforce "ask before continuing someone's lesson".
@@ -187,65 +178,8 @@ export default function JoinPage() {
             </div>
           ) : (
             <>
-              <div className="flex aspect-video items-center justify-center overflow-hidden rounded-xl border bg-muted">
-                {media.requesting ? (
-                  <div className="flex flex-col items-center gap-2 text-muted-foreground">
-                    <Spinner className="size-6" />
-                    <p className="text-xs">กำลังขอสิทธิ์เข้าถึงกล้อง/ไมโครโฟน...</p>
-                  </div>
-                ) : media.cameraOn && media.stream ? (
-                  <video
-                    autoPlay
-                    muted
-                    playsInline
-                    className="h-full w-full object-cover"
-                    ref={(el) => {
-                      if (el) el.srcObject = media.stream;
-                    }}
-                  />
-                ) : (
-                  <VideoOffIcon className="size-10 text-muted-foreground" />
-                )}
-              </div>
-
-              {media.error && <p className="text-sm text-destructive">{errorMessages[media.error]}</p>}
-
-              <div className="flex items-center gap-3">
-                <Button
-                  variant={media.micOn ? "outline" : "destructive"}
-                  size="icon-lg"
-                  className="rounded-full"
-                  title={media.micOn ? "ปิดไมค์" : "เปิดไมค์"}
-                  aria-label={media.micOn ? "ปิดไมค์" : "เปิดไมค์"}
-                  onClick={() => {
-                    if (!media.stream) {
-                      void media.requestMedia(media.cameraOn, true);
-                    } else {
-                      media.toggleMic();
-                    }
-                  }}
-                >
-                  {media.micOn ? <MicIcon /> : <MicOffIcon />}
-                </Button>
-                <Button
-                  variant={media.cameraOn ? "outline" : "destructive"}
-                  size="icon-lg"
-                  className="rounded-full"
-                  title={media.cameraOn ? "ปิดกล้อง" : "เปิดกล้อง"}
-                  aria-label={media.cameraOn ? "ปิดกล้อง" : "เปิดกล้อง"}
-                  onClick={() => void media.toggleCamera()}
-                >
-                  {media.cameraOn ? <VideoIcon /> : <VideoOffIcon />}
-                </Button>
-                {media.micOn && media.stream && (
-                  <Progress
-                    value={Math.round(media.micLevel * 100)}
-                    aria-label="ระดับเสียงไมโครโฟน"
-                    className="flex-1"
-                  />
-                )}
-              </div>
-
+              {/* No camera/mic preview here on purpose - the room only ever uses Push-to-Talk to
+                  capture a question, so a video-call-style device check has nothing to check. */}
               <NameForm
                 name={name}
                 onNameChange={setName}

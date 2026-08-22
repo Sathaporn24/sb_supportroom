@@ -84,6 +84,7 @@ public sealed class LessonConfigService(
     private readonly IDocumentResourceRepository _documentResourceRepository = unitOfWork.GetRepository<IDocumentResourceRepository>();
     private readonly IKnowledgeCategoryRepository _knowledgeCategoryRepository = unitOfWork.GetRepository<IKnowledgeCategoryRepository>();
     private readonly ILessonSlideNarrationRepository _narrationRepository = unitOfWork.GetRepository<ILessonSlideNarrationRepository>();
+    private readonly ICompanyRepository _companyRepository = unitOfWork.GetRepository<ICompanyRepository>();
 
     public IReadOnlyList<LessonConfigViewModel> GetAll()
         => _repository.GetAll().ToList().Adapt<List<LessonConfigViewModel>>();
@@ -158,9 +159,6 @@ public sealed class LessonConfigService(
                 SlidesEmbedUrl = input.SlidesEmbedUrl,
                 ContentSourceType = input.ContentSourceType,
                 PdfDocumentResourceId = input.PdfDocumentResourceId,
-                IntroWaitMs = input.IntroWaitMs,
-                BreathPauseMs = input.BreathPauseMs,
-                FinalQuestionWaitMs = input.FinalQuestionWaitMs,
                 SlideConfigs = slideConfigs,
                 IsActive = input.IsActive,
                 CreateBy = CurrentUserId,
@@ -183,9 +181,6 @@ public sealed class LessonConfigService(
             existing.SlidesEmbedUrl = input.SlidesEmbedUrl;
             existing.ContentSourceType = input.ContentSourceType;
             existing.PdfDocumentResourceId = input.PdfDocumentResourceId;
-            existing.IntroWaitMs = input.IntroWaitMs;
-            existing.BreathPauseMs = input.BreathPauseMs;
-            existing.FinalQuestionWaitMs = input.FinalQuestionWaitMs;
             existing.SlideConfigs = slideConfigs;
             existing.IsActive = input.IsActive;
             existing.UpdateBy = CurrentUserId;
@@ -314,6 +309,12 @@ public sealed class LessonConfigService(
         var link = ServiceProvider.GetRequiredService<ITrainingLinkService>().GetEntityByToken(token);
         var content = await GetTeachingContentBySlugAsync(link.LessonSlug);
 
+        // LP-1/LP-4 - pacing is a company-level default with no per-lesson override anymore
+        // (N1/N2/N3, 2026-08-22) - read straight off Company.Default*Ms. This is the one place in
+        // the system this is read; ICompanyService.Create/SeedFirstCompanyIfEmpty are the only
+        // places it is written (LP-2).
+        var company = _companyRepository.Get(link.CompanyId) ?? throw GeneralException.NotFound("บริษัท");
+
         var slides = content.Slides.Select(slide => new TeachingSlideViewModel
         {
             SlideObjectId = slide.SlideObjectId,
@@ -331,9 +332,9 @@ public sealed class LessonConfigService(
                 Title = content.Lesson.Title,
                 Description = content.Lesson.Description,
                 ContentSourceType = content.Lesson.ContentSourceType,
-                IntroWaitMs = content.Lesson.IntroWaitMs,
-                BreathPauseMs = content.Lesson.BreathPauseMs,
-                FinalQuestionWaitMs = content.Lesson.FinalQuestionWaitMs,
+                IntroWaitMs = company.DefaultIntroWaitMs,
+                BreathPauseMs = company.DefaultBreathPauseMs,
+                FinalQuestionWaitMs = company.DefaultFinalQuestionWaitMs,
             },
             EmbedUrl = content.EmbedUrl,
             Slides = slides,

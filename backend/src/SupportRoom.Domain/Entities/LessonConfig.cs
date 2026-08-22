@@ -50,9 +50,6 @@ public sealed class LessonConfig : IEntityMaster<string>, ICompanyScoped
     /// <summary>Set only when ContentSourceType is "pdf" - points at the DocumentResource holding the PDF.</summary>
     public string? PdfDocumentResourceId { get; set; }
 
-    public required int IntroWaitMs { get; set; }
-    public required int BreathPauseMs { get; set; }
-    public required int FinalQuestionWaitMs { get; set; }
     public required List<SlideConfig> SlideConfigs { get; set; }
     public required bool IsActive { get; set; }
 }

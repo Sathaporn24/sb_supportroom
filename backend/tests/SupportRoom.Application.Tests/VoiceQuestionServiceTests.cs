@@ -50,7 +50,8 @@ public class VoiceQuestionServiceTests
             .Register<IDocumentResourceRepository>(new FakeDocumentResourceRepository())
             .Register<ILessonSlideNarrationRepository>(new FakeLessonSlideNarrationRepository())
             .Register<ISessionQuestionRepository>(_questions)
-            .Register<IKnowledgeCategoryRepository>(new FakeKnowledgeCategoryRepository());
+            .Register<IKnowledgeCategoryRepository>(new FakeKnowledgeCategoryRepository())
+            .Register<ICompanyRepository>(new FakeCompanyRepository());
         var namespaceResolver = new KnowledgeNamespaceResolver(uow);
 
         var lessonService = new LessonConfigService(
@@ -84,9 +85,6 @@ public class VoiceQuestionServiceTests
             SlidesSourceUrl = "",
             PresentationId = GooglePresentationId,
             ContentSourceType = LessonContentSourceType.GoogleSlides,
-            IntroWaitMs = 5000,
-            BreathPauseMs = 500,
-            FinalQuestionWaitMs = 5000,
             SlideConfigs = [],
             IsActive = true,
         });

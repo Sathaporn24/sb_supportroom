@@ -24,9 +24,6 @@ const emptyForm: LessonConfigInput = {
   slidesEmbedUrl: null,
   contentSourceType: "google_slides",
   pdfDocumentResourceId: undefined,
-  introWaitMs: 3000,
-  breathPauseMs: 800,
-  finalQuestionWaitMs: 5000,
   slideConfigs: [],
   isActive: false,
 };

@@ -19,9 +19,7 @@ public sealed class LessonConfigViewModel
     public string? SlidesEmbedUrl { get; init; }
     public required string ContentSourceType { get; init; }
     public string? PdfDocumentResourceId { get; init; }
-    public required int IntroWaitMs { get; init; }
-    public required int BreathPauseMs { get; init; }
-    public required int FinalQuestionWaitMs { get; init; }
+
     public required IReadOnlyList<SlideConfigViewModel> SlideConfigs { get; init; }
     public required bool IsActive { get; init; }
     public required string CreatedAt { get; init; }

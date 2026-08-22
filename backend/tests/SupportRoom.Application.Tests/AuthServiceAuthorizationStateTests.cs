@@ -90,6 +90,9 @@ public sealed class AuthServiceAuthorizationStateTests
         Name = id,
         IsActive = isActive,
         CreateDate = DateTime.UtcNow,
+        DefaultIntroWaitMs = 5000,
+        DefaultBreathPauseMs = 500,
+        DefaultFinalQuestionWaitMs = 5000,
     });
 
     private void SeedUser(string role = AdminRole.Admin, string? companyId = "company-a", bool isActive = true)
