@@ -48,10 +48,12 @@
 **เรื่องอื่นที่ค้างคาอยู่ ไม่เกี่ยวกับ QA รอบนี้โดยตรง แต่ห้ามลืม**:
 1. **`company-admin`**: SECURITY-1 (SEC-01–03 ของโมดูลนั้น) แก้โค้ดไปแล้วตั้งแต่ก่อนหน้านี้มาก
    แต่ยังไม่เคยผ่าน `security` formal re-audit — เป็นตัวบล็อกที่ค้างมานานที่สุดในโปรเจกต์นี้
-2. **`knowledge-base`**: หนี้ D-3 — `knowledge-base/design.md` §DM-2 ยังพูดถึงฟิลด์ pacing ของ
-   `LessonConfig` ที่ถูกลบออกจากระบบไปแล้วจริง (ตอน company-admin ทำ Module P) ต้องมีรอบ
-   `system-analyst` แยกเข้าโฟลเดอร์ `knowledge-base` มา amend ให้ตรง ไม่งั้น QA รอบหน้าของโมดูลนั้น
-   จะเห็นเป็น drift ผิดๆ
+2. ~~**`knowledge-base`**: หนี้ D-3 — `knowledge-base/design.md` §DM-2 ยังพูดถึงฟิลด์ pacing ของ
+   `LessonConfig` ที่ถูกลบออกจากระบบไปแล้วจริง (ตอน company-admin ทำ Module P)~~ ✅ **ปิดแล้ว
+   2026-08-25 (`system-analyst` amend เฉพาะโฟลเดอร์ `knowledge-base`)** — ลบการอ้างถึง
+   `IntroWaitMs`/`BreathPauseMs`/`FinalQuestionWaitMs` ออกจาก DM-2 และตาราง "เรื่องที่ตรวจสอบ
+   ครบแล้วในรอบนี้" · เอกสารอย่างเดียว ไม่มี migration/โค้ด/checkbox ใดถูกแตะ · QA รอบหน้าของ
+   โมดูลนี้จะไม่เห็นสามคอลัมน์นี้เป็น drift อีก
 3. **Figma revamp**: ผู้ใช้แจ้งว่าทีม UX/UI ทำการ revamp หน้าตาทั้งระบบใหม่ทั้งหมด (ไม่ใช่ปรับเล็กๆ)
    จะส่งลิงก์ Figma มาให้ดูทีหลัง — ตกลงแผนไว้คร่าวๆ แล้วว่า: (1) ขอดูภาพรวมทั้งไฟล์ก่อน ทำตาราง
    เทียบกับแผนผังหน้าจอเดิม ([artifact ที่ทำไว้](https://claude.ai/code/artifact/ba1f3945-fae2-4240-b41b-f7293e05efa9))
@@ -1242,9 +1244,11 @@ finding เอง; QA คงเดิม: Phase 1 15/15 TARGETED (ต้อง F
   · ต้องแก้ค่า default ที่เพี้ยนสองจุดในรอบเดียวกัน (P2)
 - **ติด 🔒 Security gate** ด้วยเหตุผลของตัวเอง (endpoint แรกที่ให้ `admin` เขียนลง `Company`
   โดย `companyId` มาจาก path parameter)
-- **หนี้ที่ยังไม่ปิด — D-3**: `LessonConfig` ถูกประกาศไว้ใน `knowledge-base/design.md` §DM-2 ด้วย
-  ต้องมีรอบ `system-analyst` ของโมดูล `knowledge-base` มา amend ให้ตรงกัน ไม่งั้นรอบ QA ของโมดูลนั้น
-  จะเห็นเป็น drift
+- ~~**หนี้ที่ยังไม่ปิด — D-3**: `LessonConfig` ถูกประกาศไว้ใน `knowledge-base/design.md` §DM-2 ด้วย
+  ต้องมีรอบ `system-analyst` ของโมดูล `knowledge-base` มา amend ให้ตรงกัน~~ ✅ **ปิดแล้ว
+  2026-08-25** — `system-analyst` รอบแยกของโฟลเดอร์ `knowledge-base` ลบสามฟิลด์ออกจาก DM-2 แล้ว
+  (ตามคำตอบรอบสองของ D-3: "ลบทิ้ง" ไม่ใช่ "แก้เป็น nullable") · ดู `## Change Log` รายการ
+  2026-08-25 ของ `_docs/module/knowledge-base/design.md`
 - **ตัวเลขที่ยังไม่ผ่านปากเจ้าของโปรเจกต์**: ช่วงค่าที่รับได้ของ pacing (LP-8: 0–60000 / 0–10000 /
   0–120000 ms) เป็นข้อเสนอของ `system-analyst` — แก้ทีหลังราคาถูก (validation ล้วน ไม่ใช่ชนิดคอลัมน์)
 
