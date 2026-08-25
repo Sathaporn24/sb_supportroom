@@ -170,7 +170,20 @@ public sealed class KnowledgeCategory : IEntityMaster<string>, ICompanyScoped
 
 เพิ่มฟิลด์เดียว ที่เหลือคงเดิมทั้งหมด (`Slug` · `Title` · `Description` · `SlidesSourceUrl` ·
 `PresentationId` · `SlidesEmbedUrl` · `ContentSourceType` · `PdfDocumentResourceId` ·
-`IntroWaitMs` · `BreathPauseMs` · `FinalQuestionWaitMs` · `SlideConfigs` · `IsActive`)
+`SlideConfigs` · `IsActive`)
+
+> **แก้เอกสาร 2026-08-25 — ปิดหนี้ D-3 (ไม่ใช่การเปลี่ยนการตัดสินใจใหม่)**
+> รายการข้างบนนี้เคยนับ `IntroWaitMs` · `BreathPauseMs` · `FinalQuestionWaitMs` เป็นฟิลด์ของ
+> `LessonConfig` ด้วย — **สามคอลัมน์นั้นถูกลบออกจากตารางจริงไปแล้ว** โดย migration
+> `20260822143217_RemoveLessonConfigPacingOverrides` ตามมติ **Module P (N1/N2/N3)** ของโมดูล
+> `company-admin` ที่เจ้าของโปรเจกต์เคาะเมื่อ 2026-08-22: จังหวะการสอนเป็น **ค่ากลางระดับบริษัท
+> อย่างเดียว ไม่มี override ต่อบทเรียน** · ค่ากลางอยู่ที่ `Company.DefaultIntroWaitMs` /
+> `Company.DefaultBreathPauseMs` / `Company.DefaultFinalQuestionWaitMs` (`int` non-null)
+> ซึ่ง **เป็นของโมดูล `company-admin` — เอกสารฉบับนี้อ้างถึงเพื่อบอกที่อยู่เท่านั้น ไม่ออกแบบทับ**
+> (`.claude/shared/conventions.md` §7 เรื่อง cross-module ownership)
+> **ผลกระทบต่อ `knowledge-base` = ไม่มี**: ไม่มี R1–R6, contract ชุดใดหรือ Module A–G ข้อไหน
+> อ่านหรือเขียนสามฟิลด์นี้ — เดิมถูกจัดไว้ในกลุ่ม "ไม่แตะ" อยู่แล้ว การแก้รอบนี้จึงเป็นการลบ
+> การอ้างถึงของที่ไม่มีอยู่จริงออก ไม่ใช่การเปลี่ยน scope
 
 ```csharp
     /// <summary>R1.1 - บทเรียนต้องมีหมวดเสมอ หนึ่งหมวดเท่านั้น
@@ -1132,7 +1145,8 @@ G วางไว้ท้ายสุดเพราะขึ้นกับ A/
 | `DocumentResource.LessonId` | **ทำเลย** — ถูกแทนที่ด้วย `ScopeType`/`ScopeId` (DM-3, MG-A4/MG-A5) |
 | `DocumentResource.IndexingStatus`/`IndexedChunkCount` | **ทำเลย** — คงไว้ เพิ่ม `FailureReason` ข้างๆ (DI-5) |
 | `DocumentResource` audit fields ที่เป็น `init` | **ทำเลย** — ต้องเปลี่ยนเป็น `set` ไม่งั้น soft delete compile ไม่ผ่าน (DM-3) |
-| `LessonConfig.SlideConfigs` (owned JSON) · `PresentationId` · `SlidesEmbedUrl` · `IntroWaitMs`/`BreathPauseMs`/`FinalQuestionWaitMs` · `IsActive` | **ไม่แตะ** — ไม่เกี่ยวกับ R1–R6 |
+| `LessonConfig.SlideConfigs` (owned JSON) · `PresentationId` · `SlidesEmbedUrl` · `IsActive` | **ไม่แตะ** — ไม่เกี่ยวกับ R1–R6 |
+| ~~`LessonConfig.IntroWaitMs`/`BreathPauseMs`/`FinalQuestionWaitMs`~~ | **ไม่มีอยู่ในระบบแล้ว** — ถูก drop ทั้งสามคอลัมน์โดย `20260822143217_RemoveLessonConfigPacingOverrides` (มติ Module P N1/N2/N3 ของ `company-admin`, 2026-08-22) · ค่ากลางย้ายไป `Company.Default*Ms` ซึ่งเป็นของโมดูลนั้น — **นอก scope ของเอกสารนี้** (แก้ 2026-08-25, D-3 · ดูกล่องหมายเหตุที่ DM-2) |
 | `LessonConfig.PdfDocumentResourceId` | **ไม่แตะ** — คนละความหมายกับ `ScopeType` (DM-3) แต่เป็น trigger ของ NR-3 |
 | `SessionQuestion.ReviewResult`/`ReviewNote`/`ReviewedAt` | **ทำเลย (อ่านอย่างเดียว)** — เป็น input แหล่งที่ 2 ของคิว (QQ-1) ไม่แก้ shape |
 | `SessionQuestion.SessionId` (ชื่อจริงในโค้ด) | **ไม่แตะ** — ยึดตามโค้ดจริง drift กับ `learning-session/design.md` เป็นของ module นั้น (R-10) |
@@ -1197,3 +1211,19 @@ G วางไว้ท้ายสุดเพราะขึ้นกับ A/
   ที่ `POST /api/documents` และ `GET /api/documents` (`lessonSlug` → `scopeType`/`scopeId`) ซึ่งมี
   caller 3 จุดใน repo นี้และไม่มี client ภายนอก — เจ้าของโปรเจกต์เลือกทางนี้เอง (Q-B) แทนการคง
   สองช่องทางไว้คู่กัน · **final Data Model ไม่เปลี่ยนแม้แต่ฟิลด์เดียว Phase 1–6 ไม่ต้องแก้ย้อนหลัง**
+- 2026-08-25 — **amend เฉพาะเอกสาร: ปิดหนี้ D-3 (doc drift จาก Module P ของ `company-admin`)** ·
+  DM-2 และตาราง "เรื่องที่ตรวจสอบครบแล้วในรอบนี้" ยังนับ `LessonConfig.IntroWaitMs` /
+  `BreathPauseMs` / `FinalQuestionWaitMs` เป็นฟิลด์ที่มีอยู่จริง แต่ทั้งสามถูก drop ไปแล้วโดย
+  migration `20260822143217_RemoveLessonConfigPacingOverrides` (ตามมติ Module P N1/N2/N3 ที่
+  เจ้าของโปรเจกต์เคาะเมื่อ 2026-08-22: จังหวะการสอนเป็นค่ากลางระดับบริษัทอย่างเดียว ไม่มี override
+  ต่อบทเรียน) · ตรวจกับของจริงแล้วทั้ง 3 จุด: `SupportRoom.Domain/Entities/LessonConfig.cs`
+  ไม่มีสามฟิลด์นี้แล้ว · `ApplicationDbContext.OnModelCreating` บล็อก `LessonConfig` เหลือ
+  `HasKey` + `(CompanyId, Slug) IsUnique` + `HasIndex(CategoryId)` + `OwnsMany(SlideConfigs).ToJson()`
+  + query filter ตรงตาม DM-2 เดิมทุกบรรทัด · ค่ากลางอยู่ที่ `Company.DefaultIntroWaitMs`/
+  `DefaultBreathPauseMs`/`DefaultFinalQuestionWaitMs` (`int` non-null) **ซึ่งเป็นของโมดูล
+  `company-admin` — เอกสารนี้อ้างถึงอย่างเดียว ไม่ประกาศเป็นของตัวเอง** · **ไม่มีการเปลี่ยน
+  การตัดสินใจ ไม่มี migration ใหม่ ไม่มีผลต่อ R1–R6 / contract ชุดใด / Module A–G ข้อใด** —
+  สามฟิลด์นี้ถูกจัดเป็น "ไม่แตะ" มาตั้งแต่รอบแรก จึงไม่มี feasibility หรือ risk ข้อไหนที่ตั้งอยู่บน
+  สมมติฐาน per-lesson pacing · ผลที่ได้คือ QA รอบหน้าของโมดูลนี้จะไม่รายงานสามคอลัมน์นี้เป็น drift
+  ผิดๆ อีก · **ไม่แตะเอกสารของโมดูลอื่นแม้แต่ไฟล์เดียว** (`company-admin/design.md` บันทึกมติของ
+  ตัวเองครบถูกต้องอยู่แล้ว)

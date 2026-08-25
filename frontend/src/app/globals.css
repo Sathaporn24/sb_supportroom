@@ -10,12 +10,13 @@
 }
 
 :root {
-  /* Figma's page shell (node 4001:23153) is #fafafa, not pure white - and its content
-     panels/cards sit on #e3e3e8 (the "gray/gray-200" wrapper behind the lessons tree, node
-     4001:23178) - the two are meant to read as visibly different layers, not both white. */
-  --background: oklch(0.9851 0 89.876);
+  /* Page shell background, updated 2026-08-25 to the Figma redesign's exact #fcfcfc (previously
+     #fafafa) - still deliberately not pure white so cards below still read as a layer on top. */
+  --background: oklch(0.9911 0 0);
   --foreground: oklch(0.145 0 0);
-  --card: oklch(0.9173 0.0067 286.266);
+  /* Cards are plain white in the Figma redesign, updated 2026-08-25 (previously a gray/purple-
+     tinted oklch(0.9173 0.0067 286.266)) - matches --popover, which was already pure white. */
+  --card: oklch(1 0 0);
   --card-foreground: oklch(0.145 0 0);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.145 0 0);
