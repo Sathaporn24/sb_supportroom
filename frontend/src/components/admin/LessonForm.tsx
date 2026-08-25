@@ -8,7 +8,6 @@ import { ApiClientError } from "@/lib/api-client";
 import type { ContentSourceType, KnowledgeCategory, LessonConfig, LessonConfigInput, SlideConfig } from "@/types/domain";
 import { AdminLink } from "@/components/admin/AdminLink";
 import { CategoryMovePreviewDialog } from "@/components/admin/CategoryMovePreviewDialog";
-import { DocumentUploadList } from "@/components/admin/DocumentUploadList";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -20,7 +19,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
 import { FieldError } from "@/components/ui/field";
@@ -321,6 +320,10 @@ export function LessonForm(props: LessonFormProps) {
       ...prev,
       slideConfigs: prev.slideConfigs.map((s) => (s.slideObjectId === slideObjectId ? { ...s, videoDurationMs } : s)),
     }));
+  }
+
+  function toggleSlideHasVideo(slideObjectId: string, hasVideo: boolean) {
+    updateSlideDuration(slideObjectId, hasVideo ? 0 : null);
   }
 
   const subcategories = categories
@@ -676,27 +679,6 @@ export function LessonForm(props: LessonFormProps) {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-xs tracking-wide text-muted-foreground uppercase">เอกสารประกอบ</CardTitle>
-          <p className="mt-1 text-xs text-muted-foreground">
-            เอกสารในนี้จะถูกใช้ตอบคำถามเฉพาะบทเรียนนี้เท่านั้น — ถ้าต้องการให้ใช้ได้ทุกบทเรียน ให้อัปโหลดที่{" "}
-            <AdminLink href="/admin/documents" className="text-primary hover:underline" data-testid="lesson-editor-documents-link">
-              คลังเอกสารกลาง
-            </AdminLink>{" "}
-            แทน
-          </p>
-        </CardHeader>
-        <CardContent>
-          {lesson && (
-            <DocumentUploadList
-              fixedScope={{ scopeType: "lesson", scopeId: lesson.id }}
-              primaryDocumentId={form.contentSourceType === "pdf" ? form.pdfDocumentResourceId : undefined}
-            />
-          )}
-        </CardContent>
-      </Card>
-
       <section className="flex flex-col gap-3">
         <p className="text-xs tracking-wide text-muted-foreground uppercase">
           รายการ Slide ({form.slideConfigs.length})
@@ -715,20 +697,28 @@ export function LessonForm(props: LessonFormProps) {
               <p className="text-xs font-medium text-muted-foreground">
                 Slide {index + 1} · {slide.slideObjectId}
               </p>
-              <Label htmlFor={`slide-duration-${slide.slideObjectId}`} className="font-normal">
-                ความยาววิดีโอในสไลด์นี้ (ms, ใส่ 0 ถ้าไม่มีวิดีโอ)
-                <Input
-                  id={`slide-duration-${slide.slideObjectId}`}
-                  type="number"
-                  min={0}
-                  value={slide.videoDurationMs ?? 0}
-                  onChange={(e) =>
-                    updateSlideDuration(slide.slideObjectId, Math.max(0, Number(e.target.value) || 0) || null)
-                  }
-                  className="w-32"
-                  data-testid={`lesson-editor-slide-duration-${slide.slideObjectId}`}
+              <Label className="font-normal">
+                <Checkbox
+                  checked={slide.videoDurationMs !== null}
+                  onCheckedChange={(checked) => toggleSlideHasVideo(slide.slideObjectId, checked === true)}
+                  data-testid={`lesson-editor-slide-has-video-${slide.slideObjectId}`}
                 />
+                สไลด์นี้มีวิดีโอ
               </Label>
+              {slide.videoDurationMs !== null && (
+                <Label htmlFor={`slide-duration-${slide.slideObjectId}`} className="font-normal">
+                  ความยาววิดีโอ (ms)
+                  <Input
+                    id={`slide-duration-${slide.slideObjectId}`}
+                    type="number"
+                    min={0}
+                    value={slide.videoDurationMs}
+                    onChange={(e) => updateSlideDuration(slide.slideObjectId, Math.max(0, Number(e.target.value) || 0))}
+                    className="w-32"
+                    data-testid={`lesson-editor-slide-duration-${slide.slideObjectId}`}
+                  />
+                </Label>
+              )}
             </CardContent>
           </Card>
         ))}
