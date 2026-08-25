@@ -156,6 +156,7 @@ export function LessonPacingSettingsSection({ companyId }: { companyId: string }
                 <Label htmlFor={`lesson-pacing-${field}`}>{FIELD_LABELS[field]}</Label>
                 <Input
                   id={`lesson-pacing-${field}`}
+                  data-testid={`lesson-pacing-${field}-input`}
                   type="number"
                   inputMode="numeric"
                   value={fields[field]}
@@ -173,7 +174,7 @@ export function LessonPacingSettingsSection({ companyId }: { companyId: string }
 
       {canEdit && fields && !loading && !loadError && (
         <CardFooter>
-          <Button onClick={() => void handleSave()} disabled={saving}>
+          <Button data-testid="lesson-pacing-save-button" onClick={() => void handleSave()} disabled={saving}>
             {saving && <Spinner className="size-4" data-icon="inline-start" />}
             บันทึก
           </Button>

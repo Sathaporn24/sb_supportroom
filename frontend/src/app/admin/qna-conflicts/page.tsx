@@ -49,9 +49,9 @@ export default function QnaConflictsPage() {
   }
 
   return (
-    <main className="mx-auto flex max-w-3xl flex-col gap-6 p-6">
+    <main className="flex w-full flex-col gap-6 p-6">
       <div>
-        <h1 className="text-xl font-semibold">ธงขัดแย้ง Q&amp;A กับเอกสาร</h1>
+        <h1 className="text-xl font-semibold text-primary">ธงขัดแย้ง Q&amp;A กับเอกสาร</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           เกิดเมื่อ AI พบว่า Q&amp;A ที่หยิบมาขัดกับเอกสาร/สไลด์ — AI ตอบตามเอกสารไปแล้ว แถวนี้มีไว้ให้ไปแก้เอกสารต้นเหตุ
           ไม่ใช่การแจ้งว่า Q&amp;A ผิด
@@ -72,7 +72,7 @@ export default function QnaConflictsPage() {
       ) : (
         <div className="flex flex-col gap-3">
           {conflicts.map((conflict) => (
-            <Card key={conflict.id} size="sm">
+            <Card key={conflict.id} size="sm" data-testid={`qna-conflict-row-${conflict.id}`}>
               <CardContent className="flex flex-col gap-2">
                 <p className="text-sm">
                   ขัดกับ: <span className="font-medium">{conflict.conflictingSourceLabel}</span>
@@ -81,6 +81,7 @@ export default function QnaConflictsPage() {
                 <div className="flex items-center justify-between">
                   <p className="text-xs text-muted-foreground">{formatDateTimeTh(conflict.createdAt)}</p>
                   <Button
+                    data-testid={`qna-conflicts-row-${conflict.id}-resolve-button`}
                     variant="secondary"
                     size="sm"
                     onClick={() => handleResolve(conflict.id)}

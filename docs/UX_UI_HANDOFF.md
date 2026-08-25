@@ -15,8 +15,8 @@
 
 | Persona | Scope | งานหลัก |
 |---|---|---|
-| Learner / recipient | ลิงก์และ session ของ browser ตนเอง | join, เรียน, ถามเสียง, chat, recap |
-| CS | บริษัทตนเอง | บทเรียน, เอกสาร, ลิงก์, ติดตาม session, chat, review |
+| Learner / recipient | ลิงก์และ session ของ browser ตนเอง | join, เรียน, ถามเสียง/ถามพิมพ์ผ่าน Ask-AI drawer, recap |
+| CS | บริษัทตนเอง | บทเรียน, เอกสาร, ลิงก์, ติดตาม session, review คำถาม |
 | Company admin | บริษัทตนเอง | ทุกอย่างของ CS + จัดการผู้ใช้บริษัทตนเอง |
 | Owner | ทุกบริษัท | ทุกอย่าง + switch/company management + system provider settings |
 
@@ -32,7 +32,7 @@
 | `/admin/documents` | CS/Admin/Owner | global knowledge documents | drag/upload, pending/indexed/failed, unsupported/oversize, delete confirm/error |
 | `/admin/links/new` | CS/Admin/Owner | เลือกบทเรียนและสร้างลิงก์ | search/no result, inactive lesson, form validation, success/copy |
 | `/admin/links/[token]` | CS/Admin/Owner | รายละเอียดลิงก์ + ผู้เข้าเรียน | empty, active/expired, in progress/stalled/ended, long list |
-| `/admin/learning-sessions/[id]` | CS/Admin/Owner | live summary/chat/answer review | live/reconnecting, no questions, not_found, reviewed/unreviewed, save error |
+| `/admin/learning-sessions/[id]` | CS/Admin/Owner | live summary/question feed/answer review | live/reconnecting, no questions, not_found, reviewed/unreviewed, save error |
 | `/admin/users` | Admin/Owner | เพิ่ม/ปิด/เปลี่ยน role | no company, no permission, empty, last-admin guard, duplicate email, busy/error |
 | `/join/[token]` | Learner | prejoin, name, camera/mic | loading, permission ask/denied/no device, invalid/expired, joining error |
 | `/room/[token]` | Learner | tutor room | preparing, ready, narrating, wait, recording, processing, answering, paused, mic error, TTS degrade, reconnect, fatal |
@@ -65,7 +65,7 @@
 - AI อาจย้อนแสดง related slide ชั่วคราวระหว่างตอบ
 - TTS พังแล้วบทเรียนเดินต่อแบบเงียบ เป็น degradation ที่ต้องสื่อสารโดยไม่ทำ session จบ
 - กล้องเป็น local preview ไม่ได้ส่งให้ agent; UI ต้องไม่สื่อว่ามี video call กับมนุษย์จริง
-- Chat และ voice question เป็นคนละ log แม้แสดงใน drawer เดียวกัน
+- Voice question และ typed question ต่างกันแค่ source แต่เป็น SessionQuestion เดียวกัน แสดงรวมใน drawer เดียวกัน (ไม่มีฟีเจอร์แชตแยกต่างหาก)
 
 ## Deliverables ที่ขอจาก UX/UI
 

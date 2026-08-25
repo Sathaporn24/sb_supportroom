@@ -137,7 +137,7 @@ public sealed class TrainingLinkService(IUnitOfWork unitOfWork, IServiceProvider
     /// second credential half (LearnerKey) as well.
     ///
     /// Resolving ICompanyContext from the row found here is what scopes every FOLLOWING query in
-    /// the request (lesson, learning sessions, questions, chat, documents) to the right company.
+    /// the request (lesson, learning sessions, questions, documents) to the right company.
     /// Skip this step and those queries run against whatever company the middleware guessed
     /// instead - which is exactly the cross-company read this design exists to prevent.
     /// </summary>

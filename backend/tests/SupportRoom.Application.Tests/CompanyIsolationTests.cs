@@ -94,9 +94,6 @@ public class CompanyIsolationTests : IDisposable
         _db.LessonConfig.AddRange(Lesson(CompanyA, "shared-slug"), Lesson(CompanyB, "shared-slug"));
         _db.TrainingLink.AddRange(Link(CompanyA, "token-a"), Link(CompanyB, "token-b"));
         _db.LearningSession.AddRange(Learning(CompanyA, "token-a"), Learning(CompanyB, "token-b"));
-        _db.ChatMessage.AddRange(
-            new ChatMessage { Id = "chat-a", CompanyId = CompanyA, SessionId = "learning-token-a", SenderRole = ChatSenderRole.Agent, Text = "ของบริษัท A", CreateDate = DateTime.UtcNow },
-            new ChatMessage { Id = "chat-b", CompanyId = CompanyB, SessionId = "learning-token-b", SenderRole = ChatSenderRole.Agent, Text = "ของบริษัท B", CreateDate = DateTime.UtcNow });
         _db.SaveChanges();
     }
 
@@ -136,7 +133,6 @@ public class CompanyIsolationTests : IDisposable
         Assert.Equal([CompanyA], _db.LessonConfig.Select(x => x.CompanyId).Distinct().ToList());
         Assert.Equal([CompanyA], _db.TrainingLink.Select(x => x.CompanyId).Distinct().ToList());
         Assert.Equal([CompanyA], _db.LearningSession.Select(x => x.CompanyId).Distinct().ToList());
-        Assert.Equal([CompanyA], _db.ChatMessage.Select(x => x.CompanyId).Distinct().ToList());
     }
 
     [Fact]
@@ -149,7 +145,6 @@ public class CompanyIsolationTests : IDisposable
         _companyContext.Resolve(CompanyA);
 
         Assert.Null(_db.LessonConfig.FirstOrDefault(x => x.Id == $"lesson-{CompanyB}-shared-slug"));
-        Assert.Null(_db.ChatMessage.FirstOrDefault(x => x.Id == "chat-b"));
         Assert.Null(_db.TrainingLink.FirstOrDefault(x => x.Id == "link-token-b"));
         Assert.Null(_db.LearningSession.FirstOrDefault(x => x.Id == "learning-token-b"));
     }
@@ -181,7 +176,6 @@ public class CompanyIsolationTests : IDisposable
         Assert.Empty(_db.LessonConfig.ToList());
         Assert.Empty(_db.TrainingLink.ToList());
         Assert.Empty(_db.LearningSession.ToList());
-        Assert.Empty(_db.ChatMessage.ToList());
     }
 
     [Fact]

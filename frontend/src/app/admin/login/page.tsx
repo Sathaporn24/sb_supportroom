@@ -53,6 +53,7 @@ export default function LoginPage() {
                 required
                 autoComplete="username"
                 autoFocus
+                data-testid="login-email-input"
               />
             </div>
             <div className="flex flex-col gap-2">
@@ -64,6 +65,7 @@ export default function LoginPage() {
                 onChange={(event) => setPassword(event.target.value)}
                 required
                 autoComplete="current-password"
+                data-testid="login-password-input"
               />
             </div>
             {error && (
@@ -71,7 +73,7 @@ export default function LoginPage() {
                 <AlertDescription>{error}</AlertDescription>
               </Alert>
             )}
-            <Button type="submit" disabled={submitting} className="mt-2">
+            <Button type="submit" disabled={submitting} className="mt-2" data-testid="login-submit-button">
               {submitting ? (
                 <>
                   <Spinner data-icon="inline-start" />

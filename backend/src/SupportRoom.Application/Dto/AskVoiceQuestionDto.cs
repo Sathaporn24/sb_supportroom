@@ -20,7 +20,4 @@ public sealed class AskVoiceQuestionDto
 
     public required int DurationMs { get; init; }
     public string? CurrentSlideObjectId { get; init; }
-
-    /// <summary>"readiness" answers the start prompt; "question" (default) is a normal lesson question.</summary>
-    public string Expecting { get; init; } = "question";
 }

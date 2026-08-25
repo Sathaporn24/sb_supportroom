@@ -70,7 +70,7 @@ export function DeletedDocumentsList() {
             </TableHeader>
             <TableBody>
               {documents.map((doc) => (
-                <TableRow key={doc.id}>
+                <TableRow key={doc.id} data-testid={`deleted-document-row-${doc.id}`}>
                   <TableCell className="px-4 py-3">{doc.fileName}</TableCell>
                   <TableCell className="px-4 py-3 text-muted-foreground">{formatDateTimeTh(doc.createdAt)}</TableCell>
                   <TableCell className="px-4 py-3">
@@ -82,6 +82,7 @@ export function DeletedDocumentsList() {
                   </TableCell>
                   <TableCell className="px-4 py-3">
                     <Button
+                      data-testid={`deleted-document-row-${doc.id}-restore-button`}
                       variant="secondary"
                       size="sm"
                       onClick={() => handleRestore(doc.id)}

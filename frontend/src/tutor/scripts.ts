@@ -6,10 +6,12 @@ export function introScript(): string {
   return "สวัสดีค่ะ วันนี้จะพาไปเรียนรู้การใช้งานระบบทีละขั้นตอนนะคะ พร้อมเริ่มหรือยังคะ?";
 }
 
-// Spoken back when the recipient answers the readiness prompt out loud instead of clicking
-// the start button - without a reply, talking to the room feels like it went nowhere.
-export const readyConfirmScript = "ดีค่ะ งั้นเราเริ่มกันเลยนะคะ";
-export const notReadyScript = "ได้ค่ะ ไม่ต้องรีบนะคะ พร้อมเมื่อไหร่กดปุ่มพูดแล้วบอกได้เลยค่ะ";
+// Spoken after "ยังไม่พร้อม" (TQ-18/U1) - the recipient presses one of the two readiness
+// buttons; the start button says "พร้อมแล้ว เริ่มเรียนเลย" and needs no separate spoken
+// acknowledgement (it already reads as a confirmation). This one still needs a reply, or
+// pressing "ยังไม่พร้อม" feels like it went nowhere - and the wording has to name the button
+// the recipient actually sees, not something they can no longer do (talking or typing).
+export const notReadyScript = "ได้ค่ะ ไม่ต้องรีบนะคะ พร้อมเมื่อไหร่กดปุ่มพร้อมแล้วได้เลยค่ะ";
 
 export const finalQuestionScript = "วันนี้เราเรียนครบทุกขั้นตอนแล้วค่ะ มีคำถามเพิ่มเติมไหมคะ?";
 

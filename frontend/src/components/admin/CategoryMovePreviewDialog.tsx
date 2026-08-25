@@ -68,7 +68,7 @@ export function CategoryMovePreviewDialog({
 
   return (
     <Dialog open={open} onOpenChange={(next) => !next && onCancel()}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-md" data-testid="category-move-preview-dialog">
         <DialogHeader>
           <DialogTitle>ย้ายบทเรียนไปหมวด &quot;{targetCategoryName}&quot;</DialogTitle>
         </DialogHeader>
@@ -108,10 +108,19 @@ export function CategoryMovePreviewDialog({
           {error && <p className="text-xs text-destructive">{error}</p>}
 
           <div className="flex justify-end gap-2">
-            <Button variant="ghost" onClick={onCancel} disabled={moving}>
+            <Button
+              variant="ghost"
+              onClick={onCancel}
+              disabled={moving}
+              data-testid="category-move-preview-cancel-button"
+            >
               ยกเลิก
             </Button>
-            <Button onClick={handleConfirm} disabled={!preview || moving}>
+            <Button
+              onClick={handleConfirm}
+              disabled={!preview || moving}
+              data-testid="category-move-preview-confirm-button"
+            >
               {moving ? (
                 <>
                   <Spinner data-icon="inline-start" />

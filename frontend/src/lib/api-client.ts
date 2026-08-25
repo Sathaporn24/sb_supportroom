@@ -6,7 +6,6 @@ import type {
   AdminUser,
   CategoryMovePreview,
   ChangePasswordInput,
-  ChatMessage,
   Company,
   CompanyLessonPacing,
   CreateCompanyInput,
@@ -130,6 +129,23 @@ async function request<T>(input: string, init?: RequestInit, authenticate = true
  * Their tenant and identity are resolved exclusively from (link token, learnerKey). */
 function publicRequest<T>(path: string, init?: RequestInit): Promise<T> {
   return request(backendUrl(path), init, false);
+}
+
+// A voice question can involve transcription, retrieval, and answer generation, so its healthy
+// round-trip is longer than an ordinary REST call. It must still have one user-facing ceiling:
+// without this safety net a stalled upstream connection leaves the tutor in processing-question
+// indefinitely, repeating waiting fillers and never reaching QUESTION_FAILED.
+const QUESTION_REQUEST_TIMEOUT_MS = 45_000;
+
+async function publicQuestionRequest<T>(path: string, init: RequestInit): Promise<T> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), QUESTION_REQUEST_TIMEOUT_MS);
+
+  try {
+    return await publicRequest(path, { ...init, signal: controller.signal });
+  } finally {
+    clearTimeout(timeoutId);
+  }
 }
 
 const jsonHeaders = { "Content-Type": "application/json" };
@@ -381,7 +397,7 @@ export function getLearningSummaryById(learningSessionId: string): Promise<{ sum
   return request(apiUrl(`/api/learning-sessions/${encodeURIComponent(learningSessionId)}/summary/by-id`));
 }
 
-// --- Questions and chat ---------------------------------------------------------------------
+// --- Questions ---------------------------------------------------------------------------------
 
 export function listOwnQuestions(
   token: string,
@@ -409,20 +425,6 @@ export function reviewSessionQuestion(
     headers: jsonHeaders,
     body: JSON.stringify(input),
   });
-}
-
-export function getOwnChatMessages(token: string, learnerKey: string): Promise<{ messages: ChatMessage[] }> {
-  return publicRequest(
-    `/api/chat-messages?token=${encodeURIComponent(token)}&learnerKey=${encodeURIComponent(learnerKey)}`,
-  );
-}
-
-export function getChatMessagesByLearningSession(
-  learningSessionId: string,
-): Promise<{ messages: ChatMessage[] }> {
-  return request(
-    apiUrl(`/api/chat-messages/by-learning-session/${encodeURIComponent(learningSessionId)}`),
-  );
 }
 
 /** `rate` is an SSML percentage ("-45%") for utterances that shouldn't run at lesson pace. */
@@ -454,21 +456,33 @@ export function askVoiceQuestion(input: {
   learnerKey: string;
   currentSlideObjectId?: string;
   durationMs: number;
-  /** "readiness" answers the start prompt; omitted means a normal lesson question. */
-  expecting?: "question" | "readiness";
 }): Promise<VoiceQuestionResult> {
   const formData = new FormData();
   formData.append("audio", input.audioBlob, "question.webm");
   formData.append("token", input.token);
   formData.append("learnerKey", input.learnerKey);
   formData.append("durationMs", String(input.durationMs));
-  if (input.expecting) {
-    formData.append("expecting", input.expecting);
-  }
   if (input.currentSlideObjectId) {
     formData.append("currentSlideObjectId", input.currentSlideObjectId);
   }
-  return publicRequest("/api/voice-question", { method: "POST", body: formData });
+  return publicQuestionRequest("/api/voice-question", { method: "POST", body: formData });
+}
+
+/** TQ-13 - the typed-question equivalent of askVoiceQuestion. Separate JSON POST rather than a
+ * shared function: the two channels have nothing in common at the transport layer (multipart
+ * audio upload vs a plain JSON body), same reasoning as TextQuestionController being a separate
+ * controller from VoiceQuestionController on the backend. */
+export function askTextQuestion(input: {
+  token: string;
+  learnerKey: string;
+  text: string;
+  currentSlideObjectId?: string;
+}): Promise<VoiceQuestionResult> {
+  return publicQuestionRequest("/api/text-question", {
+    method: "POST",
+    headers: jsonHeaders,
+    body: JSON.stringify(input),
+  });
 }
 
 export function resetDemoData(): Promise<{ status: string }> {

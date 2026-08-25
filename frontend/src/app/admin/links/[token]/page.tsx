@@ -20,7 +20,7 @@ const STAT_FIELD_COUNT = 6;
  * jump once the link and its sessions arrive. */
 function TrainingLinkDetailSkeleton() {
   return (
-    <main className="mx-auto flex max-w-3xl flex-col gap-6 p-6">
+    <main className="flex w-full flex-col gap-6 p-6">
       <div className="flex flex-col gap-2">
         <Skeleton className="h-3 w-24" />
         <Skeleton className="h-6 w-56" />
@@ -95,12 +95,16 @@ export default function TrainingLinkDetailPage() {
   }
 
   return (
-    <main className="mx-auto flex max-w-3xl flex-col gap-6 p-6">
+    <main className="flex w-full flex-col gap-6 p-6">
       <div>
-        <AdminLink href="/admin" className="text-xs text-muted-foreground hover:text-foreground">
+        <AdminLink
+          href="/admin"
+          className="text-xs text-muted-foreground hover:text-foreground"
+          data-testid="link-detail-back-to-admin-link"
+        >
           ← กลับหน้า Admin
         </AdminLink>
-        <h1 className="mt-1 text-xl font-semibold">{lessonTitle}</h1>
+        <h1 className="mt-1 text-xl font-semibold text-primary">{lessonTitle}</h1>
         <p className="text-sm text-muted-foreground">{link.recipientOrgName || "ไม่ระบุหน่วยงาน"}</p>
       </div>
 
@@ -156,7 +160,7 @@ export default function TrainingLinkDetailPage() {
               </TableHeader>
               <TableBody>
                 {sessions.map((session) => (
-                  <TableRow key={session.id}>
+                  <TableRow key={session.id} data-testid={`link-detail-session-row-${session.id}`}>
                     <TableCell className="px-4 py-3 font-medium">{session.recipientName}</TableCell>
                     <TableCell className="px-4 py-3">{formatDateTimeTh(session.startedAt)}</TableCell>
                     <TableCell className="px-4 py-3">{formatProgress(session)}</TableCell>
@@ -174,6 +178,7 @@ export default function TrainingLinkDetailPage() {
                       <AdminLink
                         href={`/admin/learning-sessions/${session.id}`}
                         className={buttonVariants({ variant: "outline", size: "sm" })}
+                        data-testid={`link-detail-session-row-${session.id}-view-summary-link`}
                       >
                         ดูสรุป
                       </AdminLink>

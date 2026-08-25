@@ -26,8 +26,8 @@ public class SessionQuestionServiceTests
             .Register<ITrainingLinkRepository>(_links)
             .Register<ILearningSessionRepository>(_learningSessions)
             .Register<ILessonConfigRepository>(new FakeLessonConfigRepository());
-        // Real services for the same reason as ChatMessageServiceTests: resolving the link by
-        // token is what resolves the company, so it should not be stubbed away.
+        // Real services because resolving the link by token is what resolves the company, so it
+        // should not be stubbed away.
         var serviceProvider = new FakeServiceProvider();
         serviceProvider.Register<ITrainingLinkService>(
             new TrainingLinkService(_unitOfWork, serviceProvider, NullLogger<ITrainingLinkService>.Instance));
@@ -67,7 +67,7 @@ public class SessionQuestionServiceTests
     public void Create_ThrowsNotFound_WhenLearningSessionMissing()
     {
         var ex = Assert.Throws<HttpStatusCodeException>(
-            () => _service.Create("ghost", new CreateSessionQuestionDto { AnswerStatus = AnswerStatus.Answered }));
+            () => _service.Create("ghost", new CreateSessionQuestionDto { AnswerStatus = AnswerStatus.Answered, Source = QuestionSource.Voice }));
         Assert.Equal(404, (int)ex.StatusCode);
     }
 
@@ -82,6 +82,7 @@ public class SessionQuestionServiceTests
             Transcript = "ถามอะไรสักอย่าง",
             Answer = "ตอบ",
             AnswerStatus = AnswerStatus.Answered,
+            Source = QuestionSource.Voice,
         });
 
         Assert.Equal(AnswerStatus.Answered, vm.AnswerStatus);
@@ -96,9 +97,9 @@ public class SessionQuestionServiceTests
     {
         Seed("learning-1", "key-1");
         Seed("learning-2", "key-2");
-        _questions.Items.Add(new SessionQuestion { Id = "q-late", CompanyId = TestFixtures.CompanyId, SessionId = "learning-1", AnswerStatus = AnswerStatus.Answered, CreateDate = new DateTime(2026, 1, 2, 0, 0, 0, DateTimeKind.Utc) });
-        _questions.Items.Add(new SessionQuestion { Id = "q-early", CompanyId = TestFixtures.CompanyId, SessionId = "learning-1", AnswerStatus = AnswerStatus.NotFound, CreateDate = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc) });
-        _questions.Items.Add(new SessionQuestion { Id = "q-other", CompanyId = TestFixtures.CompanyId, SessionId = "learning-2", AnswerStatus = AnswerStatus.Answered, CreateDate = new DateTime(2026, 1, 3, 0, 0, 0, DateTimeKind.Utc) });
+        _questions.Items.Add(new SessionQuestion { Id = "q-late", CompanyId = TestFixtures.CompanyId, SessionId = "learning-1", AnswerStatus = AnswerStatus.Answered, Source = QuestionSource.Voice, CreateDate = new DateTime(2026, 1, 2, 0, 0, 0, DateTimeKind.Utc) });
+        _questions.Items.Add(new SessionQuestion { Id = "q-early", CompanyId = TestFixtures.CompanyId, SessionId = "learning-1", AnswerStatus = AnswerStatus.NotFound, Source = QuestionSource.Voice, CreateDate = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc) });
+        _questions.Items.Add(new SessionQuestion { Id = "q-other", CompanyId = TestFixtures.CompanyId, SessionId = "learning-2", AnswerStatus = AnswerStatus.Answered, Source = QuestionSource.Voice, CreateDate = new DateTime(2026, 1, 3, 0, 0, 0, DateTimeKind.Utc) });
 
         var list = _service.GetForLearner("tok", "key-1");
 
@@ -117,6 +118,7 @@ public class SessionQuestionServiceTests
             CompanyId = TestFixtures.CompanyId,
             SessionId = "learning-1",
             AnswerStatus = AnswerStatus.Answered,
+            Source = QuestionSource.Voice,
             CreateDate = DateTime.UtcNow,
         });
 
@@ -141,6 +143,7 @@ public class SessionQuestionServiceTests
             CompanyId = TestFixtures.CompanyId,
             SessionId = "learning-1",
             AnswerStatus = AnswerStatus.Answered,
+            Source = QuestionSource.Voice,
             CreateDate = DateTime.UtcNow,
         });
 
@@ -159,6 +162,7 @@ public class SessionQuestionServiceTests
             CompanyId = TestFixtures.CompanyId,
             SessionId = "learning-1",
             AnswerStatus = AnswerStatus.Answered,
+            Source = QuestionSource.Voice,
             ReviewResult = ReviewResult.Incorrect,
             ReviewNote = "ผลเดิม",
             ReviewedAt = DateTime.UtcNow.AddDays(-1),
@@ -188,6 +192,7 @@ public class SessionQuestionServiceTests
             CompanyId = TestFixtures.CompanyId,
             SessionId = "learning-1",
             AnswerStatus = AnswerStatus.Answered,
+            Source = QuestionSource.Voice,
             CreateDate = DateTime.UtcNow,
         });
 
@@ -210,6 +215,7 @@ public class SessionQuestionServiceTests
             CompanyId = TestFixtures.CompanyId,
             SessionId = "learning-1",
             AnswerStatus = AnswerStatus.Answered,
+            Source = QuestionSource.Voice,
             CreateDate = DateTime.UtcNow,
         });
 

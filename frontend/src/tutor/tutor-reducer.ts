@@ -1,7 +1,7 @@
 import type { SessionQuestion, TeachingSlide } from "@/types/domain";
 import type { TutorEvent } from "@/tutor/intents";
 import type { AfterSpeechAction, TutorEffect, TutorRuntime, TutorState } from "@/tutor/types";
-import { closingScript, finalQuestionScript, introScript, notReadyScript, readyConfirmScript } from "@/tutor/scripts";
+import { closingScript, finalQuestionScript, introScript, notReadyScript } from "@/tutor/scripts";
 import { QUESTION_FAILED_TEXT } from "@/config/response-texts";
 
 export type TutorContext = {
@@ -35,6 +35,7 @@ export function createInitialRuntime(): TutorRuntime {
     errorMessage: null,
     completedAllSlides: false,
     micNotice: null,
+    failedQuestionText: null,
   };
 }
 
@@ -56,14 +57,10 @@ function speak(
   };
 }
 
-// "ready" is in here so the teacher can answer the "พร้อมหรือยังคะ?" prompt out loud
-// instead of reaching for the start button.
-const PUSH_TO_TALK_STATES: TutorState[] = [
-  "ready",
-  "slide-speaking",
-  "waiting-slide-duration",
-  "final-question-window",
-];
+// TQ-24/U1 - "ready" is deliberately absent: readiness has exactly one answer path left (the
+// button pair in TQ-18), so push-to-talk (and SUBMIT_TEXT_QUESTION, which shares this list) must
+// not accept anything while the room is still waiting on that answer.
+const PUSH_TO_TALK_STATES: TutorState[] = ["slide-speaking", "waiting-slide-duration", "final-question-window"];
 const PAUSABLE_STATES: TutorState[] = ["ready", "slide-speaking", "waiting-slide-duration", "final-question-window"];
 
 function loadSlide(runtime: TutorRuntime, slideIndex: number): { runtime: TutorRuntime; effect: TutorEffect } {
@@ -81,10 +78,10 @@ function loadSlide(runtime: TutorRuntime, slideIndex: number): { runtime: TutorR
 }
 
 /**
- * The lesson's opening slide. Three different things reach it - pressing the start button, the
- * intro timing out, and answering "พร้อมแล้ว" out loud - so the resume point is resolved here
- * once instead of at each of them, which is how the first version of this shipped with two of the
- * three still hardcoded to 0.
+ * The lesson's opening slide. Two different things reach it - pressing the start button and the
+ * intro timing out - so the resume point is resolved here once instead of at each of them, which
+ * is how the first version of this shipped with one of the two still hardcoded to 0. (A third
+ * caller - answering "พร้อมแล้ว" out loud - existed before U1 removed readiness-by-voice; TQ-25.)
  *
  * Clamped because a deck can lose slides between two visits: resuming past the end would load
  * nothing at all.
@@ -121,14 +118,9 @@ function resumeAfterInterruption(
   runtime: TutorRuntime,
   ctx: TutorContext,
 ): { runtime: TutorRuntime; effect: TutorEffect } {
-  // Interrupting the readiness prompt means the lesson never started - go back to waiting
-  // for a "พร้อม" rather than dropping the teacher into slide 1 unannounced.
-  if (runtime.interruptedFrom === "ready") {
-    return {
-      runtime: { ...runtime, state: "ready", interruptedFrom: null },
-      effect: { kind: "WAIT_READY_TIMEOUT", ms: ctx.introWaitMs },
-    };
-  }
+  // TQ-24 (U1) - interruptedFrom is now only ever set by PUSH_TO_TALK_START or
+  // SUBMIT_TEXT_QUESTION, neither of which accepts state "ready" any more, so there is no
+  // "the readiness prompt got interrupted" case left to handle here.
   if (runtime.completedAllSlides) {
     return {
       runtime: { ...runtime, state: "final-question-window" },
@@ -177,8 +169,6 @@ export function tutorReducer(
           return restartCurrentSlide({ ...runtime, isAiSpeaking: false, afterSpeech: null });
         case "RESUME_AFTER_ANSWER":
           return restartCurrentSlide({ ...runtime, isAiSpeaking: false, afterSpeech: null }, true);
-        case "START_FIRST_SLIDE":
-          return startFirstSlide({ ...runtime, isAiSpeaking: false, afterSpeech: null }, ctx);
         case "AWAIT_READINESS":
           return {
             runtime: { ...runtime, state: "ready", isAiSpeaking: false, afterSpeech: null },
@@ -208,6 +198,14 @@ export function tutorReducer(
     case "START": {
       if (runtime.state !== "ready") return noEffect(runtime);
       return startFirstSlide(runtime, ctx);
+    }
+
+    case "NOT_READY": {
+      // TQ-18 (U1) - the sole remaining producer of AWAIT_READINESS, now that voice/typed
+      // replies to the readiness prompt are gone. No auto-start timer: the recipient just said
+      // they need a moment, so starting anyway a few seconds later would ignore that answer.
+      if (runtime.state !== "ready") return noEffect(runtime);
+      return speak(runtime, "answer-speaking", "AWAIT_READINESS", notReadyScript);
     }
 
     case "INTRO_TIMEOUT": {
@@ -253,6 +251,24 @@ export function tutorReducer(
       return { runtime: { ...runtime, state: "processing-question" }, effect: { kind: "STOP_RECORDING_AND_SEND" } };
     }
 
+    case "SUBMIT_TEXT_QUESTION": {
+      // TQ-14 - same allowed states as push-to-talk, minus "ready" (already absent from
+      // PUSH_TO_TALK_STATES per TQ-24/U1) and minus "push-to-talk-recording" itself: there is
+      // nothing to interrupt-and-record for a typed question.
+      if (!PUSH_TO_TALK_STATES.includes(runtime.state)) return noEffect(runtime);
+      return {
+        runtime: {
+          ...runtime,
+          interruptedFrom: runtime.state,
+          state: "processing-question",
+          isAiSpeaking: false,
+          afterSpeech: null,
+          micNotice: null,
+        },
+        effect: { kind: "SEND_TEXT_QUESTION", text: event.text },
+      };
+    }
+
     case "NO_SPEECH": {
       if (runtime.state !== "processing-question") return noEffect(runtime);
       // Nothing was said, so say nothing back - resuming quietly is the right call here.
@@ -271,24 +287,19 @@ export function tutorReducer(
     case "CLEAR_MIC_NOTICE":
       return { runtime: { ...runtime, micNotice: null }, effect: { kind: "NONE" } };
 
+    case "CLEAR_FAILED_QUESTION_TEXT":
+      return { runtime: { ...runtime, failedQuestionText: null }, effect: { kind: "NONE" } };
+
     case "QUESTION_FAILED": {
       if (runtime.state !== "processing-question") return noEffect(runtime);
       // A real failure DOES get spoken. Silently resuming looks identical to a broken
       // push-to-talk button, which is how an expired API key stayed hidden for hours.
       const afterSpeech: AfterSpeechAction = runtime.completedAllSlides ? "WAIT_FINAL_QUESTION" : "RESTART_SLIDE";
-      return speak(runtime, "answer-speaking", afterSpeech, QUESTION_FAILED_TEXT);
-    }
-
-    case "READINESS_ANSWERED": {
-      if (runtime.state !== "processing-question") return noEffect(runtime);
-      if (event.ready) {
-        return speak(runtime, "answer-speaking", "START_FIRST_SLIDE", readyConfirmScript, {
-          interruptedFrom: null,
-        });
-      }
-      // No auto-start timer on this path: the teacher just said they need a moment, so
-      // starting anyway five seconds later would ignore the answer they gave.
-      return speak(runtime, "answer-speaking", "AWAIT_READINESS", notReadyScript, { interruptedFrom: null });
+      // QA-03 - only a typed-question failure carries text worth giving back to the drawer;
+      // event.text is undefined for a failed voice question, which normalizes to null here.
+      return speak(runtime, "answer-speaking", afterSpeech, QUESTION_FAILED_TEXT, {
+        failedQuestionText: event.text ?? null,
+      });
     }
 
     case "QUESTION_ANSWERED": {
@@ -301,6 +312,7 @@ export function tutorReducer(
         answer: event.answer,
         answerStatus: event.answerStatus,
         createdAt: new Date().toISOString(),
+        source: event.source,
       };
       const afterSpeech: AfterSpeechAction = runtime.completedAllSlides
         ? "WAIT_FINAL_QUESTION"

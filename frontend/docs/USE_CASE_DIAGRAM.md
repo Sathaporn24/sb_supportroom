@@ -11,7 +11,7 @@ flowchart LR
     Join[กรอกชื่อเข้าห้อง]
     Room[เรียนผ่าน Tutor Room]
     Voice[ถามด้วย Push-to-Talk]
-    Chat[แชตสดผ่าน SignalR]
+    LiveQ[ดูคำถามสดของผู้เรียน]
     Summary[ดูสรุปการเรียนรายคน]
     Review[ตรวจคำตอบ AI ถูก/ผิด + หมายเหตุ]
     Recap[ดูคำถามของตัวเอง / เรียนอีกครั้ง]
@@ -19,15 +19,17 @@ flowchart LR
     CS --> Lesson
     CS --> Docs
     CS --> Link
-    CS --> Chat
+    CS --> LiveQ
     CS --> Summary
     CS --> Review
     Learner --> Join
     Join --> Room
     Learner --> Voice
-    Learner --> Chat
     Learner --> Recap
 ```
+
+> ฟีเจอร์แชตคุยกับ CS (ทั้งฝั่งผู้เรียนและฝั่ง CS) ถูกตัดออกทั้งฟีเจอร์ (F10-a, 2026-08-23,
+> มติ T4-a) — คำถามของผู้เรียนไปทาง Push-to-Talk เท่านั้น
 
 | Use case | Backend |
 |---|---|
@@ -37,7 +39,7 @@ flowchart LR
 | สอนและเล่นเสียง | LessonController + TtsController |
 | ถามเสียง | VoiceQuestionController + Gemini/RAG/Pinecone |
 | Knowledge documents | DocumentsController + background queue |
-| แชตสด | SessionHub + ChatMessageService |
+| คำถามสด | SessionHub (`JoinSessionAsAgent` + `ReceiveNewQuestion`) |
 | สรุปผล | LearningSessionService.GetSummary (คำนวณสด ไม่มีตาราง summary) |
 | ตรวจคำตอบ | SessionQuestionService.Review |
 

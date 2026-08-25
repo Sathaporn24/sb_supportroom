@@ -1,110 +1,348 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { PlusIcon, Trash2Icon } from "lucide-react";
 import * as api from "@/lib/api-client";
 import { ApiClientError } from "@/lib/api-client";
 import type { KnowledgeCategory } from "@/types/domain";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Spinner } from "@/components/ui/spinner";
+import { toast } from "@/components/ui/toast";
+import { cn } from "@/lib/utils";
+
+type SubcategoryRow = {
+  key: string;
+  category?: KnowledgeCategory;
+  name: string;
+};
+
+type StepState = "done" | "active" | "upcoming";
+
+function StepBadge({ stepNumber, label, state }: { stepNumber: number; label: string; state: StepState }) {
+  return (
+    <div className="flex gap-2 h-9 items-center min-w-[128px] px-2.5 py-2 rounded-md">
+      {state === "done" ? (
+        <div className="flex items-center justify-center size-6 rounded-full bg-[#e86a27] text-white text-[10px] font-bold">
+          ✓
+        </div>
+      ) : state === "active" ? (
+        <div className="flex items-center justify-center size-5 rounded-full bg-[#ffeee0] border border-[#e86a27] text-primary text-xs font-bold">
+          {stepNumber}
+        </div>
+      ) : (
+        <div className="flex items-center justify-center size-5 rounded-full bg-[#f5f3ff] border border-[#d1d1d6] text-muted-foreground text-xs font-bold">
+          {stepNumber}
+        </div>
+      )}
+      <span
+        className={cn(
+          "text-xs leading-[18px]",
+          state === "upcoming" ? "text-muted-foreground" : "text-foreground",
+        )}
+      >
+        {label}
+      </span>
+    </div>
+  );
+}
 
 type Props = {
   open: boolean;
   onClose: () => void;
-  onSaved: (category: KnowledgeCategory) => void;
-  /** Present when creating a subcategory under this parent; omit for a top-level category. */
-  parentId?: string;
-  /** Present when renaming an existing category instead of creating a new one. */
-  editing?: KnowledgeCategory | null;
+  categories: KnowledgeCategory[];
+  editingParent?: KnowledgeCategory | null;
 };
 
-/** Same dialog handles create (top-level or subcategory) and rename - TX-1..TX-3 are all
- * enforced server-side, this just surfaces the Thai error message the API returns. */
-export function CategoryFormDialog({ open, onClose, onSaved, parentId, editing }: Props) {
-  const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
-  const [sortOrder, setSortOrder] = useState("0");
+let nextTemporaryRowId = 0;
+
+function createEmptyRow(): SubcategoryRow {
+  nextTemporaryRowId += 1;
+  return { key: `new-subcategory-${nextTemporaryRowId}`, name: "" };
+}
+
+export function CategoryFormDialog({
+  open,
+  onClose,
+  categories,
+  editingParent,
+}: Props) {
+  const [step, setStep] = useState<1 | 2>(1);
+  const [parentName, setParentName] = useState("");
+  const [rows, setRows] = useState<SubcategoryRow[]>([]);
+  const [persistedParent, setPersistedParent] = useState<KnowledgeCategory | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
+  const isEditing = Boolean(editingParent);
+
   useEffect(() => {
     if (!open) return;
-    setName(editing?.name ?? "");
-    setDescription(editing?.description ?? "");
-    setSortOrder(String(editing?.sortOrder ?? 0));
+    const children = editingParent
+      ? categories
+          .filter((category) => category.level === 2 && category.parentId === editingParent.id)
+          .sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name, "th"))
+      : [];
+
+    setStep(1);
+    setParentName(editingParent?.name ?? "");
+    setPersistedParent(editingParent ?? null);
+    setRows(
+      children.length > 0
+        ? children.map((category) => ({ key: category.id, category, name: category.name }))
+        : [createEmptyRow()],
+    );
     setError(null);
     setSaving(false);
-  }, [open, editing]);
+  }, [categories, editingParent, open]);
 
-  async function handleSave() {
-    if (!name.trim()) {
-      setError("ต้องระบุชื่อหมวด");
+  function handleNext() {
+    if (!parentName.trim()) {
+      setError("ต้องระบุชื่อหมวดหมู่");
       return;
     }
     setError(null);
+    setStep(2);
+  }
+
+  function updateRow(key: string, name: string) {
+    setRows((current) => current.map((row) => (row.key === key ? { ...row, name } : row)));
+    setError(null);
+  }
+
+  async function removeRow(row: SubcategoryRow) {
+    if (!row.category) {
+      setRows((current) => {
+        const next = current.filter((item) => item.key !== row.key);
+        return next.length > 0 ? next : [createEmptyRow()];
+      });
+      return;
+    }
+
+    const confirmed = window.confirm(`ต้องการลบหมวดหมู่ย่อย "${row.category.name}" ใช่หรือไม่?`);
+    if (!confirmed) return;
+
     setSaving(true);
+    setError(null);
     try {
-      const input = {
-        name: name.trim(),
-        description: description.trim() || undefined,
-        sortOrder: Number(sortOrder) || 0,
-      };
-      const { category } = editing
-        ? await api.updateKnowledgeCategory(editing.id, input)
-        : await api.createKnowledgeCategory({ ...input, parentId });
-      onSaved(category);
-      onClose();
-    } catch (err) {
-      setError(err instanceof ApiClientError ? err.response.error.message : "บันทึกหมวดไม่สำเร็จ");
+      await api.deleteKnowledgeCategory(row.category.id);
+      setRows((current) => {
+        const next = current.filter((item) => item.key !== row.key);
+        return next.length > 0 ? next : [createEmptyRow()];
+      });
+    } catch (caught) {
+      setError(caught instanceof ApiClientError ? caught.response.error.message : "ลบหมวดหมู่ย่อยไม่สำเร็จ");
     } finally {
       setSaving(false);
     }
   }
 
-  const title = editing ? "แก้ไขหมวด" : parentId ? "เพิ่มหมวดย่อย" : "เพิ่มหมวดใหญ่";
+  async function handleConfirm() {
+    const trimmedParentName = parentName.trim();
+    if (!trimmedParentName) {
+      setStep(1);
+      setError("ต้องระบุชื่อหมวดหมู่");
+      return;
+    }
+    if (rows.some((row) => !row.name.trim())) {
+      setError("ต้องระบุชื่อหมวดหมู่ย่อยให้ครบทุกช่อง");
+      return;
+    }
+
+    setSaving(true);
+    setError(null);
+    try {
+      let parent = persistedParent;
+      if (parent) {
+        if (parent.name !== trimmedParentName) {
+          const result = await api.updateKnowledgeCategory(parent.id, {
+            name: trimmedParentName,
+            description: parent.description,
+            sortOrder: parent.sortOrder,
+          });
+          parent = result.category;
+          setPersistedParent(parent);
+        }
+      } else {
+        const nextSortOrder =
+          Math.max(0, ...categories.filter((category) => category.level === 1).map((category) => category.sortOrder)) + 1;
+        const result = await api.createKnowledgeCategory({
+          name: trimmedParentName,
+          sortOrder: nextSortOrder,
+        });
+        parent = result.category;
+        setPersistedParent(parent);
+      }
+
+      const nextRows = [...rows];
+      for (let index = 0; index < nextRows.length; index += 1) {
+        const row = nextRows[index];
+        const name = row.name.trim();
+        if (row.category) {
+          if (row.category.name !== name) {
+            const result = await api.updateKnowledgeCategory(row.category.id, {
+              name,
+              description: row.category.description,
+              sortOrder: row.category.sortOrder,
+            });
+            nextRows[index] = { ...row, category: result.category, name: result.category.name };
+            setRows([...nextRows]);
+          }
+        } else {
+          const result = await api.createKnowledgeCategory({
+            parentId: parent.id,
+            name,
+            sortOrder: index,
+          });
+          nextRows[index] = { key: result.category.id, category: result.category, name: result.category.name };
+          setRows([...nextRows]);
+        }
+      }
+
+      setRows(nextRows);
+      toast.add({ title: isEditing ? "แก้ไขหมวดหมู่สำเร็จ" : "สร้างหมวดหมู่สำเร็จ", type: "success" });
+      onClose();
+    } catch (caught) {
+      setError(caught instanceof ApiClientError ? caught.response.error.message : "บันทึกหมวดหมู่ไม่สำเร็จ");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const actionLabel = isEditing ? "แก้ไข" : "สร้าง";
+  const title = step === 1 ? `${actionLabel}หมวดหมู่หลัก` : `${actionLabel}หมวดหมู่ย่อย`;
 
   return (
-    <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
-      <DialogContent className="max-w-md">
-        <DialogHeader>
-          <DialogTitle>{title}</DialogTitle>
+    <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && !saving && onClose()}>
+      <DialogContent className="max-w-lg" data-testid="category-form-dialog">
+        <DialogHeader className="items-center">
+          <DialogTitle className="text-center text-xl font-semibold">{title}</DialogTitle>
         </DialogHeader>
-        <div className="flex flex-col gap-4">
-          {error && <p className="text-xs text-destructive">{error}</p>}
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="category-name">ชื่อหมวด</Label>
-            <Input id="category-name" value={name} onChange={(e) => setName(e.target.value)} />
-          </div>
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="category-description">คำอธิบาย (ไม่บังคับ)</Label>
-            <Input
-              id="category-description"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-            />
-          </div>
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="category-sort-order">ลำดับในเมนู (เลขน้อยขึ้นก่อน)</Label>
-            <Input
-              id="category-sort-order"
-              type="number"
-              value={sortOrder}
-              onChange={(e) => setSortOrder(e.target.value)}
-            />
-          </div>
-          <Button onClick={handleSave} disabled={saving}>
-            {saving ? (
-              <>
-                <Spinner data-icon="inline-start" />
-                กำลังบันทึก...
-              </>
-            ) : (
-              "บันทึก"
-            )}
-          </Button>
+
+        <div className="flex gap-2 items-center justify-center w-full" aria-label="ขั้นตอนจัดการหมวดหมู่">
+          <StepBadge
+            stepNumber={1}
+            label={`${actionLabel}หมวดหมู่หลัก`}
+            state={step === 1 ? "active" : "done"}
+          />
+          <StepBadge
+            stepNumber={2}
+            label={`${actionLabel}หมวดหมู่ย่อย`}
+            state={step === 2 ? "active" : "upcoming"}
+          />
         </div>
+
+        {step === 1 ? (
+          <Field data-invalid={Boolean(error)}>
+            <FieldLabel htmlFor="category-parent-name">ชื่อหมวดหมู่</FieldLabel>
+            <Input
+              id="category-parent-name"
+              value={parentName}
+              disabled={saving}
+              aria-invalid={Boolean(error)}
+              onChange={(event) => {
+                setParentName(event.target.value);
+                setError(null);
+              }}
+              data-testid="category-form-parent-name-input"
+            />
+            <FieldError>{error}</FieldError>
+          </Field>
+        ) : (
+          <>
+            <Field data-invalid={Boolean(error)}>
+              <FieldLabel htmlFor="category-parent-name">ชื่อหมวดหมู่</FieldLabel>
+              <Input
+                id="category-parent-name"
+                value={parentName}
+                disabled={saving}
+                aria-invalid={Boolean(error)}
+                onChange={(event) => {
+                  setParentName(event.target.value);
+                  setError(null);
+                }}
+              />
+            </Field>
+
+            <div className="border-t border-border" />
+
+            <FieldGroup>
+              {rows.map((row, index) => (
+                <Field key={row.key} data-invalid={!row.name.trim() && Boolean(error)}>
+                  <FieldLabel htmlFor={`subcategory-${row.key}`}>ชื่อหมวดหมู่ย่อย</FieldLabel>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      id={`subcategory-${row.key}`}
+                      value={row.name}
+                      disabled={saving}
+                      aria-invalid={!row.name.trim() && Boolean(error)}
+                      onChange={(event) => updateRow(row.key, event.target.value)}
+                      data-testid={`category-form-subcategory-row-${row.key}-input`}
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      disabled={saving}
+                      aria-label={`ลบช่องหมวดหมู่ย่อยที่ ${index + 1}`}
+                      onClick={() => void removeRow(row)}
+                      data-testid={`category-form-subcategory-row-${row.key}-delete-button`}
+                    >
+                      <Trash2Icon />
+                    </Button>
+                  </div>
+                </Field>
+              ))}
+              <Button
+                type="button"
+                variant="link"
+                className="w-fit"
+                disabled={saving}
+                onClick={() => setRows((current) => [...current, createEmptyRow()])}
+                data-testid="category-form-add-subcategory-button"
+              >
+                <PlusIcon data-icon="inline-start" />
+                เพิ่มหมวดหมู่ย่อย
+              </Button>
+              <FieldError>{error}</FieldError>
+            </FieldGroup>
+          </>
+        )}
+
+        <DialogFooter>
+          <Button
+            type="button"
+            variant="outline"
+            disabled={saving}
+            onClick={onClose}
+            data-testid="category-form-cancel-button"
+          >
+            ยกเลิก
+          </Button>
+          {step === 1 ? (
+            <Button type="button" onClick={handleNext} data-testid="category-form-next-button">
+              ถัดไป
+            </Button>
+          ) : (
+            <Button
+              type="button"
+              disabled={saving}
+              onClick={() => void handleConfirm()}
+              data-testid="category-form-confirm-button"
+            >
+              {saving && <Spinner data-icon="inline-start" />}
+              ยืนยัน
+            </Button>
+          )}
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

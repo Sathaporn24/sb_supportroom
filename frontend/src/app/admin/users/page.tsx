@@ -72,23 +72,23 @@ export default function AdminUsersPage() {
 
   if (user?.role === "cs") {
     return (
-      <main className="mx-auto flex max-w-3xl flex-col gap-6 p-6">
+      <main className="flex w-full flex-col gap-6 p-6">
         <p className="text-sm text-muted-foreground">บัญชีของคุณไม่มีสิทธิ์จัดการผู้ใช้</p>
       </main>
     );
   }
 
   return (
-    <main className="mx-auto flex max-w-3xl flex-col gap-6 p-6">
+    <main className="flex w-full flex-col gap-6 p-6">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-xl font-semibold">จัดการผู้ใช้</h1>
+          <h1 className="text-xl font-semibold text-primary">จัดการผู้ใช้</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             เพิ่ม กำหนดสิทธิ์ และปิดการใช้งานบัญชีที่เข้าระบบหลังบ้านของบริษัทนี้
           </p>
         </div>
         {companyId && (
-          <Button onClick={() => setCreateOpen(true)}>
+          <Button data-testid="admin-users-create-button" onClick={() => setCreateOpen(true)}>
             <PlusIcon data-icon="inline-start" />
             เพิ่มผู้ใช้
           </Button>
@@ -188,7 +188,7 @@ function UserRow({
   const roleOptions = [...new Set([row.role, ...assignableRoles])];
 
   return (
-    <TableRow>
+    <TableRow data-testid={`user-row-${row.id}`}>
       <TableCell className="px-4 py-3 font-medium">{row.displayName}</TableCell>
       <TableCell className="px-4 py-3 text-muted-foreground">{row.email}</TableCell>
       <TableCell className="px-4 py-3">
@@ -197,8 +197,8 @@ function UserRow({
           disabled={busy}
           onValueChange={(value) => value && void apply({ role: value as AdminRole })}
         >
-          <SelectTrigger size="sm">
-            <SelectValue />
+          <SelectTrigger data-testid={`user-row-${row.id}-role-select`} size="sm">
+            <SelectValue>{(value: AdminRole) => ROLE_LABELS[value]}</SelectValue>
           </SelectTrigger>
           <SelectContent>
             {roleOptions.map((role) => (
@@ -222,6 +222,7 @@ function UserRow({
             variant="outline"
             size="sm"
             disabled={busy}
+            data-testid={`user-row-${row.id}-toggle-active-button`}
             onClick={() => void apply({ isActive: !row.isActive })}
           >
             {row.isActive ? "ปิดบัญชี" : "เปิดบัญชี"}
@@ -289,7 +290,7 @@ function CreateUserDialog({
 
   return (
     <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
-      <DialogContent className="max-w-md">
+      <DialogContent data-testid="create-user-dialog" className="max-w-md">
         <DialogHeader>
           <DialogTitle>เพิ่มผู้ใช้</DialogTitle>
         </DialogHeader>
@@ -298,6 +299,7 @@ function CreateUserDialog({
             <Label htmlFor="new-user-email">อีเมล</Label>
             <Input
               id="new-user-email"
+              data-testid="create-user-dialog-email-input"
               type="email"
               value={email}
               onChange={(event) => setEmail(event.target.value)}
@@ -308,6 +310,7 @@ function CreateUserDialog({
             <Label htmlFor="new-user-name">ชื่อที่แสดง</Label>
             <Input
               id="new-user-name"
+              data-testid="create-user-dialog-name-input"
               value={displayName}
               onChange={(event) => setDisplayName(event.target.value)}
               required
@@ -316,8 +319,8 @@ function CreateUserDialog({
           <div className="flex flex-col gap-2">
             <Label htmlFor="new-user-role">สิทธิ์</Label>
             <Select value={role} onValueChange={(value) => value && setRole(value as AdminRole)}>
-              <SelectTrigger id="new-user-role" className="w-full">
-                <SelectValue />
+              <SelectTrigger id="new-user-role" data-testid="create-user-dialog-role-select" className="w-full">
+                <SelectValue>{(value: AdminRole) => ROLE_LABELS[value]}</SelectValue>
               </SelectTrigger>
               <SelectContent>
                 {assignableRoles.map((option) => (
@@ -332,6 +335,7 @@ function CreateUserDialog({
             <Label htmlFor="new-user-password">รหัสผ่านเริ่มต้น (อย่างน้อย 10 ตัวอักษร)</Label>
             <Input
               id="new-user-password"
+              data-testid="create-user-dialog-password-input"
               type="password"
               value={initialPassword}
               onChange={(event) => setInitialPassword(event.target.value)}
@@ -346,7 +350,7 @@ function CreateUserDialog({
               <AlertDescription>{error}</AlertDescription>
             </Alert>
           )}
-          <Button type="submit" disabled={submitting}>
+          <Button type="submit" data-testid="create-user-dialog-submit-button" disabled={submitting}>
             {submitting ? (
               <>
                 <Spinner data-icon="inline-start" />

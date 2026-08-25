@@ -39,7 +39,7 @@ public interface ILearningSessionService
     LearningSessionViewModel End(string token, EndLearningSessionDto input);
 
     /// <summary>Resolves the entity behind a (token, learnerKey) pair. The recipient-side flows
-    /// that need to attribute something to a person - a voice question, a chat message - go
+    /// that need to attribute something to a person - a voice question, a typed question - go
     /// through here rather than accepting a session id from the caller.</summary>
     LearningSession GetEntityByLearnerKey(string token, string learnerKey);
 

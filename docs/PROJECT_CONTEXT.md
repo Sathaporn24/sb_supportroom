@@ -29,8 +29,8 @@ SupportRoom AI คือ **ห้องเรียนสาธิตแบบ�
 
 | บทบาท | ใช้หน้าไหน | ทำอะไร |
 |---|---|---|
-| CS / Admin | `/admin/*` | ตั้งค่าบทเรียน, อัปโหลดเอกสาร knowledge base, สร้าง/ติดตาม session, แชตช่วยคุณครูสด |
-| คุณครู (Teacher) | `/join/[token]`, `/room/[token]` | เข้าห้องผ่านลิงก์, ฟังบทเรียน, ถามด้วยเสียง, แชต |
+| CS / Admin | `/admin/*` | ตั้งค่าบทเรียน, อัปโหลดเอกสาร knowledge base, สร้าง/ติดตาม session, ดูคำถามสดของคุณครู |
+| คุณครู (Teacher) | `/join/[token]`, `/room/[token]` | เข้าห้องผ่านลิงก์, ฟังบทเรียน, ถามด้วยเสียงหรือพิมพ์ถาม (ไม่มีฟีเจอร์แชตคุยกับคนอีกต่อไป - F10-a) |
 
 Back office มี JWT login และ 3 role (`owner`/`admin`/`cs`) ส่วนผู้เรียนไม่มีบัญชี ใช้ link token
 ร่วมกับ browser `learnerKey` ดูข้อ 13
@@ -43,19 +43,24 @@ Back office มี JWT login และ 3 role (`owner`/`admin`/`cs`) ส่ว�
 - **TrainingLink** — ลิงก์เชิญที่ CS สร้าง มี `token` สาธารณะกับ `expiresAt`
   1 ลิงก์เปิดได้หลายคน สถานะ ACTIVE/EXPIRED คำนวณจาก `expiresAt` ไม่ได้เก็บ
 - **LearningSession** — การเรียนของคน *หนึ่ง* คน ผูกกับลิงก์ผ่าน `trainingLinkId`
-  แยกคนด้วย `learnerKey` (key ที่ browser เก็บ) — `SessionQuestion.SessionId` และ
-  `ChatMessage.SessionId` ชี้มาที่ตารางนี้ ไม่ใช่ที่ลิงก์
+  แยกคนด้วย `learnerKey` (key ที่ browser เก็บ) — `SessionQuestion.SessionId`
+  ชี้มาที่ตารางนี้ ไม่ใช่ที่ลิงก์
 - ~~**TrainingSession**~~ — เดิมคือ "1 ลิงก์ = 1 การเรียน" แยกออกเป็นสองตารางข้างบนแล้ว (TD-013)
   ปัจจุบัน `LearningSession` มี `IN_PROGRESS → ENDED`; ส่วน `TrainingLink` มี ACTIVE/EXPIRED แบบคำนวณสด
-- **SessionQuestion** — บันทึกคำถาม Push-to-Talk หนึ่งครั้ง พร้อม `answerStatus`
-  (`answered` / `not_found` / `out_of_scope` / `no_speech` / `transcription_failed`)
-  จงใจไม่ใช้ boolean เพื่อให้ CS รู้ว่า *ทำไม* ถึงตอบไม่ได้
+- **SessionQuestion** — บันทึกคำถามหนึ่งครั้ง ไม่ว่าจะพูด (Push-to-Talk) หรือพิมพ์ (F10, 2026-08-23)
+  พร้อม `answerStatus` (`answered` / `not_found` / `out_of_scope` / `no_speech` /
+  `transcription_failed`) จงใจไม่ใช้ boolean เพื่อให้ CS รู้ว่า *ทำไม* ถึงตอบไม่ได้ · `source`
+  (`voice` / `text`) บอกว่าเข้ามาทางไหน เพราะ "ตอบผิด" ของเสียงมีสาเหตุที่สี่ที่ข้อความไม่มี
+  (ถอดเสียงผิด) — แถวเก่าก่อนคอลัมน์นี้ backfill เป็น `voice` เพราะพิมพ์ถามยังไม่มีอยู่จริงตอนนั้น
 - ~~**SessionSummary**~~ — ลบทิ้งแล้ว (TD-013) สรุปคำนวณสดจาก `LearningSession` + `SessionQuestion`
-- **ChatMessage** — ช่องข้อความสำรอง แยกจาก voice Q&A เก็บลง DB เพื่อให้คนเข้ากลางคันเห็นย้อนหลัง
+- ~~**ChatMessage**~~ — ฟีเจอร์แชตคุยกับ CS ระหว่างเรียนถูกตัดออกทั้งฟีเจอร์ (F10-a, 2026-08-23)
+  ตารางถูก `DropTable` พร้อมข้อมูลเดิม (breaking + data loss ที่ตั้งใจ) — ผู้เรียนพิมพ์ถาม AI ได้
+  ผ่าน `SessionQuestion.source = "text"` แทน ไม่มีทางคุยกับคนอีกต่อไป
 - **DocumentResource** — ไฟล์ที่ CS อัปโหลด (`LessonId` เป็น null ได้ = เอกสาร global)
 
 กฎที่ฝังอยู่ในโค้ดและควรรู้:
-- คำถาม readiness ("พร้อมหรือยัง") **ไม่ถูกบันทึก** เป็น SessionQuestion — ไม่ใช่คำถามที่ CS ต้องรีวิว
+- คำถาม readiness ("พร้อมหรือยัง") **ไม่มีอยู่ในระบบแล้ว** — มติ U1 (2026-08-23) ถอดการตอบด้วยเสียง
+  ออกทั้งชุด เหลือทางเดียวคือกดปุ่ม "พร้อมแล้ว"/"ยังไม่พร้อม" ในหน้าห้องเรียน
 - เอกสารที่ถูกใช้เป็นเนื้อหาสอนหลัก (PDF ของบทเรียน) **ลบไม่ได้** จนกว่าจะเปลี่ยนแหล่งเนื้อหา
 - Re-index RAG เป็น best-effort เสมอ — index พังไม่ควรทำให้ CS บันทึกบทเรียนไม่ได้
 
@@ -147,10 +152,12 @@ Back office มี JWT login และ 3 role (`owner`/`admin`/`cs`) ส่ว�
 frontend/
   src/app/                    Next.js pages (admin, join, room, link-expired, session-ended)
   src/components/admin/       CS console UI
-  src/components/meeting/     ห้องสอน: SlidesEmbed, AiTile, TeacherTile, ControlBar, ChatDrawer
+  src/components/meeting/     ห้องสอน: SlidesEmbed, AiTile, ParticipantTile, ControlBar,
+                              AskAiDrawer, PushToTalkButton, VolumeControl
   src/components/ui/          primitives (Button, Card, Modal, ...)
   src/config/                 ข้อความตอบกลับ/filler และค่า timing default
-  src/hooks/                  use-tutor-session (effect runner), use-session-chat, use-local-media
+  src/hooks/                  use-tutor-session (effect runner), use-agent-session-questions,
+                              use-local-media
   src/lib/api-client.ts       REST client จุดเดียว
   src/tutor/                  pure state machine + types + intents + tests
   src/types/                  wire/domain types (ต้องตรงกับ ViewModel ฝั่ง .NET)
@@ -218,13 +225,13 @@ backend/tests/                Application.Tests, Providers.Tests, Api.Integratio
 
 พร้อมกันนั้น `prefetchFillers()` ทยอยสังเคราะห์เสียง "รอสักครู่นะคะ" ล่วงหน้าระหว่าง intro
 
-### 7.3 คำถามด้วยเสียง (flow ที่ซับซ้อนที่สุด)
+### 7.3 คำถามด้วยเสียงหรือพิมพ์ (flow ที่ซับซ้อนที่สุด)
 
 ```
 กดค้างปุ่มพูด → PUSH_TO_TALK_START  → START_RECORDING (จำ interruptedFrom ไว้)
 ปล่อยปุ่ม      → PUSH_TO_TALK_END    → STOP_RECORDING_AND_SEND
                  ├─ playProcessingFiller() เริ่มเล่นเสียงคั่นเป็นขั้น ๆ ทันที
-                 └─ POST /api/voice-question (multipart: audio, lessonSlug, sessionId, expecting)
+                 └─ POST /api/voice-question (multipart: audio, token, learnerKey, currentSlideObjectId?)
                      → VoiceQuestionService.AskAsync()
                         ├─ ILessonConfigService.GetTeachingContentBySlugAsync()  ← รองรับทั้ง Slides และ PDF
                         └─ RagVoiceQuestionProvider.TranscribeAndAnswerAsync()
@@ -232,12 +239,18 @@ backend/tests/                Application.Tests, Providers.Tests, Api.Integratio
                            (2) embed transcript → Pinecone query 2 namespace พร้อมกัน
                                (lessonSlug + "kb-global") → merge top-K → กรองด้วย RAG_MIN_SCORE
                            (3) Gemini หรือ OpenAI-compatible: ตอบจาก context ที่ retrieve ได้
-                        ├─ readiness → return เลย (ไม่บันทึก)
-                        ├─ บันทึก SessionQuestion
+                        ├─ บันทึก SessionQuestion (Source = "voice")
                         └─ IRealtimeNotifier.NotifyNewQuestionAsync() → SignalR "ReceiveNewQuestion"
                  → QUESTION_ANSWERED → SPEAK(answer, withFoundLead) + แสดงสไลด์ที่อ้างอิง
                  → TTS_ENDED → RESUME_AFTER_ANSWER → กลับไปสไลด์เดิมพร้อมประโยคเชื่อม
 ```
+
+พิมพ์ถามในหน้าต่าง Ask AI (F10) เดิน flow เดียวกันจาก `AskAsync`/`RagVoiceQuestionProvider` ทุก
+ขั้นตอน ต่างแค่: (1) event คือ `SUBMIT_TEXT_QUESTION` ไม่ใช่ `PUSH_TO_TALK_START/END` และไม่ตัดบท
+พูดจนกว่าจะกดส่งจริง (T5) (2) endpoint คือ `POST /api/text-question` (JSON) ไม่ใช่ multipart
+(3) ข้าม step ถอดเสียง - ข้อความที่พิมพ์แทน transcript ตรงๆ (4) `Source = "text"` แทน `"voice"`
+(5) provider ล้มเหลวโยน error แทนบันทึกเป็น `transcription_failed` (TQ-10) ทุกอย่างหลังจากนั้น
+เหมือนกันทุกประการ รวมถึงการอ่านคำตอบออกเสียงเสมอ (T3)
 
 **สาม fallback ที่ออกแบบไว้แล้ว** และควรรักษาไว้:
 - retrieval ล้มเหลว/ยังไม่เคย index → ส่ง deck ทั้งชุดเป็น context (พฤติกรรมเหมือน provider แบบเก่า)
@@ -317,10 +330,12 @@ HTTP → [CorrelationId middleware] → [SerilogRequestLogging] → [UseExceptio
 - `LessonConfig.SlideConfigs` เป็น EF owned collection แบบ `ToJson()`
 - Index ที่มี: `TrainingLink.Token` (unique), `LearningSession.(TrainingLinkId, LearnerKey)`
   (ไม่ unique — กด "เรียนอีกครั้ง" สร้างแถวใหม่ใต้ key เดิม), `LessonConfig.Slug` (unique),
-  `SessionQuestion.SessionId`, `ChatMessage.SessionId`, `DocumentResource.LessonId`
+  `SessionQuestion.SessionId`, `DocumentResource.LessonId`
 - Migration: InitialCreate → AddSessionSummary → AddChatMessage → AddDocumentResource →
-  AddLessonPdfSource → AddCompanyId → RenameChatSenderRoles → `SplitLinkAndAddAuth`
-  ⚠️ migration ล่าสุดสร้างแล้วแต่ยังไม่ apply/verify กับ PostgreSQL จริง
+  AddLessonPdfSource → AddCompanyId → RenameChatSenderRoles → `SplitLinkAndAddAuth` → … →
+  `RemoveChatMessageAndAddQuestionSource` (2026-08-23 — `DropTable("ChatMessage")` พร้อมข้อมูลเดิม
+  + `AddColumn("SessionQuestion", "Source")`, F10/F10-a)
+  ⚠️ ยังไม่เคย apply migration ใดกับ deployment database จริง (dev/local เท่านั้น)
 
 ## 11. ER Diagram
 
@@ -332,7 +347,6 @@ erDiagram
     LESSON_CONFIG |o--o| DOCUMENT_RESOURCE : "PdfDocumentResourceId"
     TRAINING_LINK ||--o{ LEARNING_SESSION : opens
     LEARNING_SESSION ||--o{ SESSION_QUESTION : records
-    LEARNING_SESSION ||--o{ CHAT_MESSAGE : contains
 
     LESSON_CONFIG {
         string Id PK
@@ -396,13 +410,6 @@ erDiagram
         string Answer "nullable"
         string AnswerStatus "answered|not_found|out_of_scope|no_speech|transcription_failed"
     }
-    CHAT_MESSAGE {
-        string Id PK
-        string SessionId FK-logical
-        string SenderRole
-        string SenderName "nullable"
-        string Text
-    }
     DOCUMENT_RESOURCE {
         string Id PK
         string LessonId "nullable = kb-global"
@@ -452,20 +459,20 @@ erDiagram
 | PATCH | `/api/session-questions/{id}/review` | SessionQuestionService | DB | `/admin/learning-sessions/[id]` |
 | GET | `/api/session-questions?token=&learnerKey=` | SessionQuestionService | DB | learner |
 | GET | `/api/session-questions/by-learning-session/{id}` | SessionQuestionService | DB | admin |
-| GET | `/api/chat-messages?token=&learnerKey=` | ChatMessageService | DB | learner |
-| GET | `/api/chat-messages/by-learning-session/{id}` | ChatMessageService | DB | admin |
 | POST | `/api/tts` | TtsService | Edge TTS | room (ทุกประโยคที่พูด) |
 | **POST** | **`/api/voice-question`** | VoiceQuestionService | Gemini + Pinecone + OpenAI + DB + SignalR | room |
+| **POST** | **`/api/text-question`** (F10, 2026-08-23) | VoiceQuestionService | Gemini + Pinecone + OpenAI + DB + SignalR | room (`AskAiDrawer`) |
 | POST | `/api/documents` | DocumentResourceService | Storage + DB + queue | `/admin/documents` |
 | GET | `/api/documents?lessonSlug=` | DocumentResourceService | DB | admin |
 | DELETE | `/api/documents/{id}` | DocumentResourceService | Storage + DB | admin |
 | POST | `/api/admin/reset` | AdminService | DB | admin (ต้อง `ALLOW_DATA_RESET=true`) |
 | POST | `/api/admin/reindex` | AdminService | Slides + Storage + Pinecone | admin |
 
-**SignalR** `/hubs/session` — group = LearningSession id
-- Learner → Server: `JoinSession(token, learnerKey)`, `SendChatMessage(token, learnerKey, text)`; ชื่อ derive จาก session
-- Agent → Server: `JoinSessionAsAgent(learningSessionId)`, `SendChatMessageAsAgent(learningSessionId, text)`; ชื่อ derive จาก JWT
-- Server → Client: `ReceiveChatMessage`, `ReceiveNewQuestion`
+**SignalR** `/hubs/session` — group = LearningSession id · ผู้เรียนไม่ join group เลย
+(F10-a ตัดแชตออก จึงไม่มีเหตุผลให้ผู้เรียนต่อ SignalR อีก — `ReceiveNewQuestion` ถูก broadcast
+เข้ากลุ่มโดย CS เท่านั้นที่เป็นคน join)
+- Agent → Server: `JoinSessionAsAgent(learningSessionId)`; ชื่อ derive จาก JWT
+- Server → Client: `ReceiveNewQuestion`
 
 Endpoint ที่วิกฤตที่สุดต่อสินค้า: `POST /api/voice-question` (แตะ external service 3 ตัวใน request เดียว)
 และ `POST /api/tts` (ถูกเรียกทุกประโยคที่ AI พูด)

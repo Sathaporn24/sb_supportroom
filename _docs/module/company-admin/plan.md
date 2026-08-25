@@ -66,6 +66,16 @@ Phase 4 แต่ละอันถูกทำเครื่องหมาย
 Sequencing Notes เป็น note ไม่ใช่ task ของ phase นี้ (คำตอบที่ถูกต้องเปลี่ยนจาก "แก้เป็น nullable"
 เป็น "ลบสามฟิลด์ออกจาก DM-2")
 
+**เพิ่ม 2026-08-25 (amend รอบที่สี่): Phase 6 (backend) + Phase 7 (frontend) — Module U (F5,
+จัดการบัญชีผู้ใช้รายอื่น)** ตาม `design.md` §Modules → Module U ที่ `system-analyst` เพิ่งเปิด
+scope กลับและเขียน contract `## Admin User Management Rules` (AU-1..AU-16) เสร็จวันเดียวกัน —
+**ไม่มี schema/migration เลยแม้แต่ฟิลด์เดียว** (ทุกฟิลด์ที่ต้องใช้มีอยู่แล้วบน `AdminUser`)
+แยกเป็นสอง phase ตาม role เหมือน Phase 1/2 เพื่อความละเอียดของ checkbox แต่ **ต่างจากทุกคู่
+phase อื่นในแผนนี้ตรงที่ Phase 6/7 ต้อง deploy พร้อมกันเท่านั้น** เพราะ `Email` กลายเป็น
+required field ใหม่ในคำขอแก้ผู้ใช้ ซึ่งเป็น breaking wire-contract change ต่อหน้า `/admin/users`
+ที่ใช้งานจริงอยู่วันนี้ (R-19) — ทั้งสอง phase ติด `🔒 Security gate` ไม่มีข้อยกเว้นตามคำสั่งตรง
+ของ `design.md` (โมดูลนี้ให้คนหนึ่งแตะ credential ของอีกคนเป็นครั้งแรกของระบบ)
+
 ## Phase 1: Company Provisioning — Backend 🔒 Security gate
 
 **เหตุผลที่ติด gate** (คัดลอกจาก `design.md` §Modules → Module A ตรงตัว):
@@ -468,6 +478,155 @@ visibility/edit แยกแกน) — ทั้งสองมติเคา�
       แก้ไม่ได้) บวกหนึ่งเคสสังเคราะห์ที่ `visibleToRoles` ไม่มี role นั้น → `visible = false`
       **และ `canEdit = false`** (กัน invariant ข้อ 3 ของ SP-15 หลุดเงียบๆ ในอนาคต)
 
+## Phase 6: Admin User Management — Backend 🔒 Security gate
+
+ตาม `design.md` §Modules → Module U (F5) และ contract `## Admin User Management Rules`
+(AU-1..AU-16) ที่ `system-analyst` เพิ่งเปิด scope กลับและเขียน contract เสร็จ 2026-08-25
+**ไม่มี schema/migration ใดๆ ในทั้ง phase นี้** — ทุกฟิลด์มีอยู่บน `AdminUser` แล้ว (F5.3,
+`## Data Model` §Module U) — **ถ้าพบว่าต้องเพิ่มคอลัมน์/ตาราง = เข้าใจ contract ผิด ให้ตีกลับ
+`system-analyst` ไม่ใช่สร้างเอง** (AU-16)
+
+**⚠️ regression surface — ไม่ใช่โค้ดใหม่ล้วน**: `AdminUserService.Update`/`AdminUserDto`/
+`/admin/users` เป็น baseline ที่ผ่าน QA ไปแล้วพร้อม Module A (Phase 1/2) — Phase นี้แทรกลำดับ
+ตรวจใหม่เข้ากลาง `Update` ที่มีอยู่ `qa-engineer` ต้องถือเป็น regression surface (แนวเดียวกับ R-12
+ของ Module P) ไม่ใช่โค้ดใหม่ล้วน · **ห้ามแตะเส้นทาง `Create` เลย** (AU-4/AU-16 — peer-lockout
+ต้องไม่ถูกเรียกใน `Create`)
+
+**เหตุผลที่ติด gate** (คัดลอกจาก `design.md` §Modules → Module U → "🔒 Security gate — คำสั่งถึง
+`project-manager`" ตรงตัว — **อ่อนไหวกว่า Module A/P** เพราะเป็นครั้งแรกที่ระบบให้คนหนึ่งแตะ
+credential ของอีกคน):
+1. **auth + credential ของผู้ใช้รายอื่นโดยตรง** — ตั้ง `PasswordHash` ให้บัญชีที่ไม่ใช่ของตัวเอง
+   เป็นความสามารถที่ระบบไม่เคยมีมาก่อน
+2. **personal data** — แก้ `Email` ของคนอื่นได้อิสระ ไม่มีการยืนยัน (F5.2.3)
+3. **เพิ่มเมธอดใน `IAuthorizationGuard`** ซึ่งเป็นแนวป้องกันชั้นเดียวของ `AdminUser` (R-1/TD-014)
+4. **กฎใหม่สองข้อ (peer-lockout · ห้ามใช้กับตัวเอง) ถูกซ่อนที่ UI ด้วย** — การกดจาก UI ไม่ใช่
+   หลักฐานว่า server ปฏิเสธจริง ต้องยิง endpoint ตรงด้วย JWT ของแต่ละ role
+5. **ยังไม่มี rate limiting** (R-2) — endpoint นี้ตั้งรหัสผ่านได้แล้ว น่าสนใจกว่าเดิมสำหรับผู้โจมตี
+   ที่ได้ token ของ admin มา
+
+- [ ] [backend] ขยาย `UpdateAdminUserDto` เพิ่ม `Email` (`required string`, attribute ชุดเดียวกับ
+      `CreateAdminUserDto.Email` เป๊ะ) และ `NewPassword` (`string?`) ตาม AU-2 คำต่อคำ —
+      **ห้ามใส่ `[Required]`/`[MinLength]` บน `NewPassword`** (AU-7 เหตุผลเต็มอยู่ในหัวข้อ) ·
+      `DisplayName`/`Role`/`IsActive` เดิมไม่เปลี่ยน
+- [ ] [backend] เพิ่มเมธอดใหม่ **หนึ่งเมธอด** `void EnsureNotSameRankPeer(string targetRole)` ใน
+      `IAuthorizationGuard` (AU-4) — **add-only ห้ามแก้เมธอดเดิมสักบรรทัด**: `EnsureAuthenticated()`
+      → ถ้า `currentUser.Role == AdminRole.Owner` ผ่าน → ถ้า `currentUser.Role == targetRole` throw
+      `GeneralException.Forbidden("ไม่สามารถจัดการบัญชีที่มีสิทธิ์ระดับเดียวกับคุณได้")` → นอกนั้นผ่าน
+      — **เทียบด้วย string equality ตรงๆ ห้ามเปิด `AdminRole.RankOf` เป็น public** ·
+      **`targetRole` ต้องเป็น role _ปัจจุบัน_ ของเป้าหมายที่อ่านจาก DB (`user.Role`) ไม่ใช่
+      `input.Role`** (ผลที่ตามมาโดยตั้งใจตาม R-18/OQ-U2 — `admin` ยังเลื่อน `cs` ขึ้นเป็น `admin`
+      ได้ ห้ามเพิ่มกฎกันการเลื่อนขึ้นเป็น peer เอง) · **ห้ามเรียกเมธอดนี้ใน `Create`**
+- [ ] [backend] แก้ `AdminUserService.Update` แทรกลำดับใหม่ตาม AU-3 **ตรงตำแหน่งที่ระบุเป๊ะ ห้าม
+      สลับ**: (1-3 เดิมไม่แก้: `Get` → guard ตาม role ปัจจุบันของเป้าหมาย → `EnsureCanAssignRole`)
+      → (4 ใหม่) `EnsureNotSelf(user)` → (5 ใหม่) `guard.EnsureNotSameRankPeer(user.Role)` →
+      (6 เดิมไม่แก้) `EnsureNotRemovingLastGuardian` → (7) กฎอีเมล AU-6 → (8) กฎรหัสผ่าน AU-7/AU-9
+      → (9) เขียนค่า + `UpdateBy`/`UpdateDate` + `_users.Update(user)` → `Commit()` **ครั้งเดียว**
+      — ข้อ 4 ต้องอยู่ก่อนข้อ 5 เสมอ (เหตุผล: peer-lockout จะให้ error message ผิดถ้ายิงก่อน
+      self-check) ข้อ 7/8 ต้องอยู่หลังทุก guard เสมอ (ห้ามแตะ credential ก่อนรู้ว่ามีสิทธิ์)
+- [ ] [backend] เพิ่ม private method `EnsureNotSelf(AdminUser user)` ใน `AdminUserService` ข้าง
+      `EnsureNotRemovingLastGuardian` (AU-5) — ถ้า `currentUser.UserId == user.Id` throw
+      `GeneralException.Forbidden("ไม่สามารถใช้หน้าจัดการผู้ใช้กับบัญชีของตัวเองได้ กรุณาเปลี่ยน
+      รหัสผ่านที่หน้าเปลี่ยนรหัสผ่านของคุณเอง")` — **กฎแข็ง ไม่มีข้อยกเว้นแม้แต่ `owner`** ·
+      **ห้ามยกไปไว้ใน `IAuthorizationGuard`** (เหตุผลอยู่ที่ AU-5: การทำกับตัวเองไม่ใช่เรื่องผิด
+      โดยทั่วไป — F5.2.7 ยังอนุญาตที่ `POST /api/auth/change-password`)
+- [ ] [backend] เขียนกฎอีเมล (AU-6) ใน `Update`: `email = input.Email.Trim()` → "เปลี่ยนจริง" =
+      `!string.Equals(email, user.Email, StringComparison.OrdinalIgnoreCase)` (**เปลี่ยนแค่ตัวพิมพ์
+      ห้ามติดธง**) → ถ้าเปลี่ยนจริง `_users.GetByEmail(email)` เจอแถวที่ `Id != user.Id` → throw
+      `GeneralException.ValidationError("อีเมลนี้ถูกใช้งานแล้ว")` (**ข้อความเดียวกับ `Create` คำต่อคำ**
+      ห้ามแต่งใหม่) → เขียน `user.Email = email` **เสมอ** (แม้เปลี่ยนแค่ตัวพิมพ์) →
+      ติดธงตาม AU-8 **เฉพาะเมื่อเปลี่ยนจริง** — **ไม่ยืนยันอีเมลใหม่ ไม่ส่งลิงก์**
+- [ ] [backend] เขียนกฎรหัสผ่าน (AU-7) ใน `Update`: `string.IsNullOrWhiteSpace(input.NewPassword)`
+      → **ไม่รีเซ็ต** ข้ามทั้งบล็อกไม่ error → ไม่งั้น เช็ค `input.NewPassword.Length <
+      PasswordRules.MinLength` → throw `GeneralException.ValidationError(PasswordRules.TooShortTh)`
+      (ค่าคงที่เดิมใน `AuthDto.cs` ห้าม hardcode เลข/ข้อความใหม่) → `user.PasswordHash =
+      passwordHasher.HashPassword(user, input.NewPassword)` **ใช้ค่าดิบ ห้าม `Trim()`** →
+      ติดธงตาม AU-8
+- [ ] [backend] เขียนกฎ AU-9 (เคสบัญชีถูกล็อกถาวร): ถ้า `user.PasswordHash == null` และคำขอนี้จะติด
+      ธงตาม AU-8 (อีเมลเปลี่ยนจริงหรือรีเซ็ตรหัส) **โดยไม่ได้ตั้งรหัสผ่านมาในคำขอเดียวกัน** → throw
+      `GeneralException.ValidationError("บัญชีนี้ยังไม่มีรหัสผ่านในระบบ กรุณาตั้งรหัสผ่านชั่วคราวมา
+      พร้อมกับการแก้ไขครั้งนี้")` — ตรวจก่อนเขียนค่าใดๆ ลง entity
+- [ ] [backend] บังคับ AU-8: `user.MustChangePassword = true` เมื่อ (อีเมลเปลี่ยนจริง) หรือ
+      (รีเซ็ตรหัสสำเร็จ) เท่านั้น — **ถ้าไม่เกิดทั้งสองอย่าง ห้ามแตะฟิลด์นี้เลย ห้ามเซ็ต `false`**
+      (บัญชีที่ค้างธงอยู่แล้วต้องไม่ถูกปลดธงเพราะมีคนมาแก้ role/สถานะให้)
+- [ ] [backend] ขยาย log line เดิมที่ `IAdminUserService.cs:132-134` เพิ่มได้เฉพาะ **boolean**
+      `passwordReset={bool}` `emailChanged={bool}` — **ห้าม log ค่าอีเมลใหม่และห้าม log รหัสผ่าน
+      ทุกกรณี** (แนวเดียวกับ CP-10/CP-11)
+- [ ] [backend] ยืนยันว่า `Commit()` ยังเป็นครั้งเดียวที่ท้ายสุดของ `Update` (AU-10) — อีเมลซ้ำต้อง
+      ทำให้ **ไม่มีอะไรถูกบันทึกเลย รวมถึงรหัสผ่านใหม่** แนวเดียวกับ CP-6 · ยืนยันว่า
+      `EnsureNotRemovingLastGuardian` และ branch "แถวเสีย `CompanyId` ว่าง" ยังทำงานเหมือนเดิม
+      ทุกประการ ไม่ถูกแก้ (AU-11)
+- [ ] [backend] `api-client.ts`/`types/domain.ts` — เตรียม type ฝั่ง TypeScript ให้ตรง DTO ใหม่
+      (`email: string` required, `newPassword?: string`) ตาม `CLAUDE.md` §Architecture Rules ข้อ 7
+      — **task นี้เป็นสะพานให้ Phase 7 ใช้ต่อ ไม่ใช่งาน UI** (ไฟล์ที่ frontend engineer แก้จริงคือ
+      `page.tsx`/โมดัลใหม่ใน Phase 7)
+- [ ] [backend] unit test — AU-15 ข้อ 1: `admin` → `admin` คนอื่นบริษัทเดียวกัน = **Forbidden**
+- [ ] [backend] unit test — AU-15 ข้อ 2: `owner` → `owner` คนอื่น = **ผ่าน** (ข้อยกเว้น F5.2.1)
+- [ ] [backend] unit test — AU-15 ข้อ 3: ผู้เรียก → บัญชีตัวเอง = **Forbidden** ทั้งกรณี `owner`
+      และ `admin`
+- [ ] [backend] unit test — AU-15 ข้อ 4: เปลี่ยนอีเมลอย่างเดียว → `MustChangePassword == true`
+- [ ] [backend] unit test — AU-15 ข้อ 5: รีเซ็ตรหัสอย่างเดียว → `MustChangePassword == true` และ
+      `PasswordHash` เปลี่ยนค่า
+- [ ] [backend] unit test — AU-15 ข้อ 6: แก้แค่ `role`/`IsActive` → `MustChangePassword` ไม่ถูกแตะ
+      (ทดสอบทั้งกรณีธงเดิม `false` และธงเดิม `true`)
+- [ ] [backend] unit test — AU-15 ข้อ 7: อีเมลเปลี่ยนเฉพาะตัวพิมพ์ → **ไม่ติดธง**
+- [ ] [backend] unit test — AU-15 ข้อ 8: อีเมลซ้ำกับผู้ใช้อื่น → `ValidationError` และ**ไม่มีฟิลด์ใด
+      ถูกบันทึก รวมถึงรหัสผ่าน**
+- [ ] [backend] unit test — AU-15 ข้อ 9: `NewPassword` เป็น `null` และเป็นช่องว่างล้วน → ไม่รีเซ็ต
+      ไม่ error
+- [ ] [backend] unit test — AU-15 ข้อ 10: `PasswordHash == null` + เปลี่ยนอีเมลโดยไม่ตั้งรหัส →
+      `ValidationError` (AU-9)
+- [ ] [backend] unit test — AU-15 ข้อ 11 (**regression**): `EnsureNotRemovingLastGuardian` ยัง
+      ทำงานทั้งสองเคส (owner คนสุดท้าย / admin คนสุดท้ายของบริษัท) หลังแทรกลำดับใหม่เข้าไปข้างหน้า
+
+## Phase 7: Admin User Management — Frontend 🔒 Security gate
+
+ตาม `design.md` §Modules → Module U (F5), contract AU-13/AU-14 — **ต้อง deploy พร้อม Phase 6
+เท่านั้น ไม่ใช่ phase ที่ส่งมอบแยกได้อิสระแบบปกติ** (ดู Sequencing Notes/R-19) เพราะ `Email` เป็น
+`required` ใน DTO ใหม่ของ Phase 6 เป็น **breaking wire-contract change** ต่อหน้า `/admin/users`
+ที่ใช้งานจริงอยู่วันนี้
+
+**เหตุผลที่ติด gate** (เหมือน Phase 6 ทุกข้อ ตามกฎ Module U ที่ไม่มีข้อยกเว้นแม้แต่ phase ที่ทำ
+แค่ UI): โมดัลนี้เป็นตัวตัดสินว่าใครเห็นปุ่มแก้ credential ของใคร และเป็นจุดที่ผู้ใช้จริงพิมพ์
+รหัสผ่านของ**คนอื่น**ลงในฟอร์ม
+
+**⚠️ นี่คืองาน _ลบ_ เป็นหลัก ไม่ใช่งานเพิ่ม** (F5.2.6/AU-13) — ต้องลบ control เดิมออกจริง
+ห้ามซ่อนไว้เฉยๆ ห้ามปล่อยให้อยู่คู่กับโมดัลใหม่
+
+- [ ] [frontend] `frontend/src/app/admin/users/page.tsx` — **ลบ** `<Select>` เปลี่ยน role ในแถว
+      (`page.tsx:194-211`) ออกทั้งหมด (AU-13)
+- [ ] [frontend] `frontend/src/app/admin/users/page.tsx` — **ลบ** ปุ่ม "ปิดบัญชี"/"เปิดบัญชี" ในแถว
+      (`page.tsx:218-231`) ออกทั้งหมด (AU-13) — **ต้องยังมีทางปิด/เปิดบัญชีอยู่ที่อื่น**: ย้ายเข้า
+      โมดัลใหม่ตามสองงานถัดไป ไม่ใช่ลบทิ้งเฉยๆ (AU-13 ข้อ "ช่องสถานะเปิด/ปิดบัญชีต้องมี แม้ Figma
+      จะวาดแค่สามช่องแรก" — ระบบต้องไม่เหลือ 0 ทางปิดใช้งานผู้ใช้)
+- [ ] [frontend] `frontend/src/app/admin/users/page.tsx` — **ลบ** ฟังก์ชัน `UserRow.apply()` ที่ยิง
+      `updateAdminUser` แบบ partial (`page.tsx:167-184`) ออกทั้งหมด (AU-13)
+- [ ] [frontend] เพิ่มปุ่มเดียวต่อแถว **"จัดการ"** เปิดโมดัล "จัดการผู้ใช้" — แสดงเมื่อทั้งสองข้อ
+      เป็นจริงตาม AU-14: (ก) `row.id !== user.id` (AU-5) (ข) `user.role === "owner" ||
+      row.role !== user.role` (AU-4) — **นี่คือ courtesy ไม่ใช่ด่าน** ด่านจริงอยู่ที่ server
+      (Phase 6) ห้ามลดการตรวจฝั่ง server เพราะ UI ซ่อนให้แล้ว
+- [ ] [frontend] สร้างโมดัล "จัดการผู้ใช้" — ใช้แบบแผนเดียวกับ `CreateUserDialog` ในไฟล์เดียวกัน
+      (`Dialog`/`DialogContent`/`DialogHeader` + `form` + `Alert variant="destructive"` แสดง
+      ข้อความจาก server ตรงๆ) **ห้ามคิด pattern ใหม่** — ฟิลด์: **อีเมล** (prefill ค่าเดิม) ·
+      **รหัสผ่านใหม่** (ว่างไว้ = ไม่รีเซ็ต ต้องมีข้อความอธิบายใต้ช่องชัดเจน ไม่ปล่อยให้เดา) ·
+      **สิทธิ์** (`Select` จำกัดด้วย `assignableRoles` เดิม) · **สถานะเปิด/ปิดบัญชี** — **ไม่มีช่อง
+      "ชื่อที่แสดง"** ตามไฟล์ Figma (OQ-U3) → ส่ง `displayName` ค่าเดิมกลับไปไม่เปลี่ยน (ไม่ใช่
+      regression — วันนี้ก็แก้ไม่ได้จากที่ไหนอยู่แล้ว)
+- [ ] [frontend] ปุ่ม Cancel ของโมดัลนี้ — **ห้ามตั้งข้อความเอง** (OQ-15 ยังเปิดอยู่ตั้งใจ) ใช้
+      label เดียวกับปุ่ม Cancel ที่มีอยู่แล้วใน `CreateUserDialog` ไฟล์เดียวกัน (ของเดิมที่มีอยู่
+      แล้วในโค้ด ไม่ใช่ค่าที่ engineer เลือกใหม่) — ถ้า label นั้นต่างจากคำว่า "เรียนอีกครั้ง"
+      ที่ Figma เขียนไว้ ความต่างนั้นเป็นเรื่องของ OQ-15 ที่เจ้าของโปรเจกต์ต้องเช็คกับดีไซเนอร์เอง
+      ไม่ใช่สิ่งที่ต้อง "แก้ให้ตรง Figma" ในรอบนี้
+- [ ] [frontend] `frontend/src/lib/api-client.ts` — แก้ `updateAdminUser()` ให้รับ `email`
+      (บังคับ) และ `newPassword` (optional) ให้ตรง AU-2/DTO ใหม่ของ Phase 6 — เปิด DTO จริงอ่าน
+      ชื่อฟิลด์ **ห้ามเดา** ตาม `CLAUDE.md` §Architecture Rules ข้อ 7
+- [ ] [frontend] `frontend/src/types/domain.ts` — แก้ type ของ update payload ให้ตรง DTO ใหม่คู่กับ
+      task ก่อนหน้า (`email: string` required, `newPassword?: string`)
+- [ ] [frontend] ต่อปุ่มบันทึกของโมดัลเข้า `updateAdminUser()` ที่แก้แล้ว — หลังสำเร็จปิดโมดัล +
+      refetch รายการผู้ใช้ (ไม่ optimistic update) แสดง error จาก server ตรงๆ ผ่าน
+      `Alert variant="destructive"` เดิมของ `CreateUserDialog` (**ไม่เขียนข้อความ generic ทับ**)
+- [ ] [frontend] ยืนยันว่าข้อความเดิม `"บัญชีของคุณไม่มีสิทธิ์จัดการผู้ใช้"` ที่ `page.tsx:73-79`
+      สำหรับ `cs` ยังอยู่เหมือนเดิม ไม่ต้องแก้ (AU-14)
+
 ## Sequencing Notes
 
 - **Phase 2 ขึ้นกับ Phase 1 ทั้งหมด** — ทุก task ของ Phase 2 เรียก endpoint ที่ Phase 1 สร้างหรือขยาย
@@ -559,6 +718,44 @@ visibility/edit แยกแกน) — ทั้งสองมติเคา�
   ตรงด้วย JWT ของ `cs` เหมือน Phase 4 เดิม และต้องตรวจว่าการขยับ gate ใน `AdminSidebar.tsx`
   ไม่ได้เปิดเมนู "ผู้ใช้งาน" ให้ `cs` เห็นติดไปด้วย (R-14)
 
+- **Phase 6/7 (Module U) ไม่ขึ้นกับ Phase 3/4/5 เลย (D-5)** — ตรวจแล้วทีละข้อ: Module P
+  แตะ `Company` ไม่ใช่ `AdminUser`, F2 ที่ยังพัก (A2/A3/A4/A6/B3b) เป็นเรื่องค่าระดับบริษัท
+  ไม่มีข้อไหนแตะ `AdminUser`/`/admin/users` — Phase 6/7 **เริ่มได้ทันทีไม่ต้องรอ Phase 3/4/5
+  ให้ผ่าน QA/deploy ก่อน**
+- **⚠️ Phase 6 กับ Phase 7 (Module U) ต้อง deploy พร้อมกันเสมอ ห้ามปล่อยทีละ phase (R-19)** —
+  ไม่เหมือน Phase คู่อื่นในแผนนี้ (เช่น Phase 1/2 ที่ Phase 2 พึ่ง Phase 1 แต่ deploy เหลื่อมกัน
+  ได้ในทางเทคนิคถ้าจำเป็น) `Email` เป็น `required` ใน `UpdateAdminUserDto` ใหม่ของ Phase 6 คือ
+  **breaking wire-contract change** ต่อหน้า `/admin/users` ที่ใช้งานจริงอยู่วันนี้ — ถ้า deploy
+  backend (Phase 6) ก่อน frontend (Phase 7) ผู้เรียกเดิม (`UserRow.apply()`) จะยิงคำขอที่ไม่มี
+  `email` แล้วได้ 400 **ทุกการกดเปลี่ยน role/เปิด-ปิดบัญชีที่ใช้งานอยู่จริงจะพังทันที** ไม่ใช่แค่
+  ฟีเจอร์ใหม่ไม่ทำงาน · ถ้า deploy frontend ก่อน backend โมดัลใหม่จะส่งฟิลด์ที่ server ยังไม่รู้จัก
+  — `devops` ต้องไม่ปล่อยครึ่งเดียวไม่ว่าทิศทางไหน (R-19 คัดลอกจาก `design.md` ตรงตัว)
+- **เหตุผลที่ Phase 6/7 แยกเป็นสอง phase ตาม role แทนที่จะรวมเป็น phase เดียว**: `project-manager`
+  เลือกคงรูปแบบเดิมของแผนนี้ (Phase 1/2 ก็แยกตาม role) เพื่อให้ checkbox ระดับ task ยังละเอียดพอ
+  ให้ `qa-engineer` ติ๊กทีละงานและให้ engineer แต่ละฝั่งหยิบงานของตัวเองได้ตรง ๆ โดยไม่ต้องกรอง
+  task ของอีกฝั่งออกเอง — **แต่ต่างจาก Phase 1/2 ตรงที่ Phase 6/7 ไม่ใช่คู่ที่ deploy เหลื่อมกันได้**
+  บรรทัดข้างบน (R-19) จึงเขียนไว้ชัดว่าคู่นี้ deploy พร้อมกันเท่านั้น — `qa-engineer` ควรตรวจทั้งคู่
+  พร้อมกันเป็นรอบเดียวด้วยเหตุผลเดียวกัน แม้จะติ๊ก checkbox แยก phase กันตามปกติ
+- **Phase 6 แก้ `AdminUserService.Update`/`/admin/users` ซึ่งเป็น baseline ที่ผ่าน QA ไปแล้วพร้อม
+  Module A (Phase 1/2)** — `qa-engineer` ต้องถือเป็น regression surface (แนวเดียวกับ R-12 ของ
+  Module P) ไม่ใช่โค้ดใหม่ล้วน โดยเฉพาะ `EnsureNotRemovingLastGuardian` และ branch "แถวเสีย
+  `CompanyId` ว่าง" ที่ AU-3 แทรกลำดับใหม่เข้าไปข้างหน้า
+- **Phase 6/7 ต้องเรียก `security` ก่อน deploy จริง** เช่นเดียวกับทุก phase อื่นของโมดูลนี้ —
+  จุดที่ควรดูหนักที่สุดตาม `design.md` §Modules → Module U: AU-3 (ลำดับการตรวจ), AU-5 (ไม่ยกเว้น
+  `owner` จริงไหม), AU-7 (ไม่มีรหัสผ่านหลุดเข้า log/response), AU-8 (ไม่มีใครเผลอเซ็ตธงเป็น
+  `false`), AU-9, AU-6 ข้อ 7 (ข้อความอีเมลซ้ำ enumerate ข้ามบริษัทได้ — พฤติกรรมเดิมของ `Create`
+  ไม่ใช่ของใหม่ แต่ต้องอยู่ในรายงาน, R-20) — และ **`security` ควรรวมการ re-audit
+  SECURITY-1 (`MustChangePassword` bypass) เข้ารอบเดียวกัน** เพราะอยู่ในเส้นทางเดียวกับ AU-8
+  ตามที่ `design.md` ระบุไว้ตรง ๆ
+- **OQ-U1/OQ-U2/OQ-U3 ไม่บล็อก Phase 6/7 ทั้งสาม** — contract AU-1..AU-16 ตอบครบทุกเคสที่ต้องใช้
+  เขียน task ข้างบนแล้ว งานในแผนนี้เขียนตามทางเลือก "ทำน้อยที่สุด" ที่ `design.md` เคาะไว้ชั่วคราว
+  (AU-4 เทียบ role ปัจจุบันเท่านั้น · ไม่แตะ `GetByCompanyId` ให้ `owner` โผล่ในตาราง · โมดัลไม่มี
+  ช่องชื่อที่แสดง) — **ไม่มี task ใดในสอง phase นี้ปิดทางขยายในอนาคตถ้าคำตอบเปลี่ยน**: ถ้า OQ-U2
+  ตอบว่าต้องกัน "เลื่อนขึ้นเป็น peer" ด้วย ก็เป็นการ amend `EnsureNotSameRankPeer`/`Create` เพิ่ม
+  ไม่ใช่การเขียนใหม่ทั้งก้อน ถ้า OQ-U3 ตอบว่าต้องมีช่องชื่อ ก็เป็นการเพิ่ม `Input` หนึ่งช่องใน
+  โมดัลที่มีอยู่แล้ว (DTO รับ `DisplayName` อยู่แล้ว ไม่ต้องแก้ backend) — ทั้งสามข้อจึงเป็นงาน
+  ขยายในรอบหน้า ไม่ใช่งานรื้อ
+
 ## Unresolved Open Questions
 
 ไม่มีข้อไหนบล็อก Phase 1/2 — A1/B1/B2/N1/N2 เคาะครบแล้วในเชิง contract (CP-*/CH-*) ที่ใช้เขียน task
@@ -569,6 +766,14 @@ A2 (โลโก้: URL หรืออัปโหลด), A3 (ช่องเ
 A5 (ขอบเขตค่า session expiry/rate/สี/ชื่อแบรนด์), A6 (`cs` เห็นหน้าตั้งค่าไหม), B3 (ค่ากลางของแบรนด์
 คืออะไร), B4 (schema ของค่าตั้งค่า — คอลัมน์บน `Company` vs ตารางใหม่) — ดูรายละเอียดที่
 `design.md` §Unresolved Open Questions
+
+**ไม่มีข้อไหนบล็อก Phase 6/7 (Module U) เช่นกัน** — `design.md` §🆕 กลุ่ม OQ-U มีสามข้อ (OQ-U1
+บัญชี `owner` ไม่มีหน้าจอให้จัดการกันเอง, OQ-U2 peer-lockout ควรกันการเลื่อนขึ้นเป็น peer ด้วยไหม,
+OQ-U3 โมดัลควรมีช่องแก้ชื่อที่แสดงไหม) ทั้งสามข้อถูก `system-analyst` ตัดสินไว้แล้วในทิศ
+"ทำน้อยที่สุด" และเขียนลง contract (AU-4/AU-12/AU-13) แล้ว — เก็บไว้เป็น open question เพื่อ
+รู้ว่ามีทางเลือกอื่นถ้าเจ้าของโปรเจกต์ตอบต่างในอนาคต ไม่ใช่เพราะบล็อกงานวันนี้ (ดู Sequencing
+Notes ท้าย Phase 6/7 สำหรับผลกระทบถ้าคำตอบเปลี่ยน) · ส่วน OQ-15 (ข้อความปุ่ม Cancel) ก็ไม่บล็อก
+เช่นกัน — เป็นแค่ label เดียวที่ frontend-engineer ห้ามตั้งเอง (ดู task ของ Phase 7)
 
 ## Change Log
 
@@ -641,3 +846,21 @@ A5 (ขอบเขตค่า session expiry/rate/สี/ชื่อแบร
   **Phase 5 ไม่แก้เลยแม้แต่ task เดียว** (`design.md` ยืนยัน SP-1..SP-15 ทั้งชุดไม่กระทบ) · แก้ D-3
   ใน Sequencing Notes ให้ตรงคำตอบใหม่ ("ลบสามฟิลด์ออกจาก DM-2" แทน "แก้เป็น nullable") ·
   อัปเดต Plan Summary อธิบายเหตุผลที่เลือกแก้ในที่เดิม
+- 2026-08-25 — เพิ่ม **Phase 6: Admin User Management — Backend** และ **Phase 7: Admin User
+  Management — Frontend** (`project-manager`, amend) ตาม `design.md` §Modules → Module U (F5)
+  ที่ `system-analyst` เพิ่งเปิด scope กลับและเขียน contract `## Admin User Management Rules`
+  (AU-1..AU-16) เสร็จวันเดียวกัน — **ไม่มี schema/migration ใดๆ** (F5.3, `## Data Model` §Module U
+  ยืนยันทุกฟิลด์มีอยู่แล้วบน `AdminUser`) · แยกเป็นสอง phase ตาม role เหมือน Phase 1/2 (checkbox
+  ละเอียดพอให้ engineer แต่ละฝั่งหยิบงานตรงๆ) **แต่ต่างจาก Phase 1/2 ตรงที่ทั้งคู่ต้อง deploy
+  พร้อมกันเท่านั้น ห้ามปล่อยทีละ phase** — เขียนไว้ชัดใน Sequencing Notes (R-19: `Email` เป็น
+  `required` ใน DTO ใหม่ = breaking wire-contract change ต่อหน้า `/admin/users` ที่ใช้งานจริงอยู่
+  วันนี้) · ทั้งสอง phase ติด `🔒 Security gate` ตามคำสั่งตรงจาก `design.md` §Modules → Module U
+  ไม่มีข้อยกเว้นแม้ Phase 7 จะเป็นงาน UI ล้วน (โมดัลเก็บ credential ของคนอื่นโดยตรง) · Phase 6
+  ทำเครื่องหมายไว้ชัดว่าแก้ `AdminUserService.Update`/`/admin/users` ซึ่งเป็น regression surface
+  ของ Module A (Phase 1/2 ที่ verified ไปแล้ว) ไม่ใช่โค้ดใหม่ล้วน (แนวเดียวกับ R-12) · Phase 7
+  ทำเครื่องหมายว่าเป็นงาน**ลบ**เป็นหลัก (ลบ `<Select>`/ปุ่มเปิด-ปิด/`UserRow.apply()` ในแถว)
+  ไม่ใช่งานเพิ่ม พร้อมย้ำว่าต้องมีทางปิด/เปิดบัญชีเหลืออยู่ในโมดัลใหม่ (AU-13, กันไม่ให้ระบบเหลือ
+  0 ทางปิดบัญชีผู้ใช้) และห้ามตั้งข้อความปุ่ม Cancel เอง (OQ-15 ยังเปิด) · unit test 11 ข้อตาม
+  AU-15 เขียนเป็น task แยกทีละข้อ (ไม่ใช่ "เขียน test ให้ครบ" แบบเหมารวม) · Sequencing Notes บันทึก
+  D-5 (ไม่ขึ้นกับ Phase 3/4/5) และย้ำว่า OQ-U1/OQ-U2/OQ-U3 ไม่บล็อกงานทั้งสอง phase — task ที่เขียน
+  ไว้เลือกทางที่ขยายได้ในอนาคตถ้าคำตอบเปลี่ยน ไม่ปิดทางไว้

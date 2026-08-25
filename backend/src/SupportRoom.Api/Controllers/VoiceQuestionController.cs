@@ -1,10 +1,12 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
+using SupportRoom.Api.Configurations;
 using SupportRoom.Application.Dto;
 using SupportRoom.Application.Exceptions;
 using SupportRoom.Application.Services;
 using SupportRoom.Domain.Configuration;
+using SupportRoom.Infrastructure.ErrorHandling;
 
 namespace SupportRoom.Api.Controllers;
 
@@ -22,7 +24,6 @@ public sealed class VoiceQuestionRequest
 
     public string? CurrentSlideObjectId { get; init; }
     public string? DurationMs { get; init; }
-    public string? Expecting { get; init; }
 }
 
 [ApiController]
@@ -30,10 +31,12 @@ public sealed class VoiceQuestionRequest
 public sealed class VoiceQuestionController : ControllerBase
 {
     private readonly IVoiceQuestionService _service;
+    private readonly IQuestionRateLimiter _rateLimiter;
 
-    public VoiceQuestionController(IServiceProvider serviceProvider)
+    public VoiceQuestionController(IServiceProvider serviceProvider, IQuestionRateLimiter rateLimiter)
     {
         _service = serviceProvider.GetRequiredService<IVoiceQuestionService>();
+        _rateLimiter = rateLimiter;
     }
 
     [AllowAnonymous]
@@ -44,6 +47,15 @@ public sealed class VoiceQuestionController : ControllerBase
         if (request.Audio is null || string.IsNullOrEmpty(request.Token) || string.IsNullOrEmpty(request.LearnerKey))
         {
             throw GeneralException.ValidationError("ต้องแนบไฟล์เสียง (audio), token และ learnerKey");
+        }
+
+        // SEC-02 - checked after presence validation but before the upload is buffered/decoded and
+        // before any provider call (embedding/LLM/TTS) runs.
+        if (!_rateLimiter.TryAcquire(request.Token, request.LearnerKey))
+        {
+            return StatusCode(StatusCodes.Status429TooManyRequests, ApiErrorEnvelope.Build(
+                SupportRoom.Domain.Enums.ApiErrorCode.RateLimited,
+                "ถามคำถามถี่เกินไป กรุณาลองใหม่ภายหลัง"));
         }
 
         var maxBytes = UploadLimits.MaxVoiceUploadMb * 1024 * 1024;
@@ -67,7 +79,6 @@ public sealed class VoiceQuestionController : ControllerBase
             LearnerKey = request.LearnerKey,
             DurationMs = int.TryParse(request.DurationMs, out var ms) ? ms : 0,
             CurrentSlideObjectId = request.CurrentSlideObjectId,
-            Expecting = request.Expecting == "readiness" ? "readiness" : "question",
         });
 
         return Ok(result);

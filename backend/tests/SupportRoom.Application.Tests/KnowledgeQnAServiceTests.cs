@@ -77,6 +77,7 @@ public class KnowledgeQnAServiceTests
             CompanyId = TestFixtures.CompanyId,
             SessionId = "session-1",
             AnswerStatus = answerStatus,
+            Source = QuestionSource.Voice,
             ReviewResult = reviewResult,
             CreateDate = DateTime.UtcNow,
         };
@@ -185,9 +186,9 @@ public class KnowledgeQnAServiceTests
         var q2 = SeedQuestion("q-2", AnswerStatus.NotFound);
         // Rewrite SessionId to point each question at a different session/link.
         _questions.Items.Remove(q1);
-        _questions.Items.Add(new SessionQuestion { Id = q1.Id, CompanyId = q1.CompanyId, SessionId = "session-1", AnswerStatus = q1.AnswerStatus, CreateDate = q1.CreateDate });
+        _questions.Items.Add(new SessionQuestion { Id = q1.Id, CompanyId = q1.CompanyId, SessionId = "session-1", AnswerStatus = q1.AnswerStatus, Source = QuestionSource.Voice, CreateDate = q1.CreateDate });
         _questions.Items.Remove(q2);
-        _questions.Items.Add(new SessionQuestion { Id = q2.Id, CompanyId = q2.CompanyId, SessionId = "session-2", AnswerStatus = q2.AnswerStatus, CreateDate = q2.CreateDate });
+        _questions.Items.Add(new SessionQuestion { Id = q2.Id, CompanyId = q2.CompanyId, SessionId = "session-2", AnswerStatus = q2.AnswerStatus, Source = QuestionSource.Voice, CreateDate = q2.CreateDate });
 
         var queue = _service.GetQueue();
 

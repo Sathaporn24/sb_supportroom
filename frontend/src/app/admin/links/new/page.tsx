@@ -42,12 +42,16 @@ export default function NewTrainingLinkPage() {
   }
 
   return (
-    <main className="mx-auto flex max-w-4xl flex-col gap-6 p-6">
+    <main className="flex w-full flex-col gap-6 p-6">
       <div>
-        <AdminLink href="/admin" className="text-xs text-muted-foreground hover:text-foreground">
+        <AdminLink
+          href="/admin"
+          className="text-xs text-muted-foreground hover:text-foreground"
+          data-testid="links-new-back-to-admin-link"
+        >
           ← กลับหน้า Admin
         </AdminLink>
-        <h1 className="mt-1 text-xl font-semibold">สร้างลิงก์การเรียน</h1>
+        <h1 className="mt-1 text-xl font-semibold text-primary">สร้างลิงก์การเรียน</h1>
         <p className="mt-1 text-sm text-muted-foreground">เลือกสื่อการสอนที่ต้องการสร้างลิงก์ห้องเรียนให้ผู้ใช้</p>
       </div>
 
@@ -57,6 +61,7 @@ export default function NewTrainingLinkPage() {
         placeholder="ค้นหาสื่อการสอน..."
         aria-label="ค้นหาสื่อการสอน"
         className="h-10"
+        data-testid="links-new-search-input"
       />
 
       {error && <p className="text-sm text-destructive">{error}</p>}
@@ -76,7 +81,7 @@ export default function NewTrainingLinkPage() {
             </TableHeader>
             <TableBody>
               {filtered.map((lesson, index) => (
-                <TableRow key={lesson.id}>
+                <TableRow key={lesson.id} data-testid={`links-new-lesson-row-${lesson.id}`}>
                   <TableCell className="px-4 py-3 text-muted-foreground">{index + 1}</TableCell>
                   <TableCell className="px-4 py-3 font-medium">{lesson.title}</TableCell>
                   <TableCell className="px-4 py-3">
@@ -89,6 +94,7 @@ export default function NewTrainingLinkPage() {
                       onClick={() => openModalFor(lesson)}
                       disabled={!lesson.isActive}
                       variant={lesson.isActive ? "default" : "ghost"}
+                      data-testid={`links-new-lesson-row-${lesson.id}-create-button`}
                     >
                       สร้างลิงก์การเรียน
                     </Button>

@@ -1,6 +1,8 @@
-# Gemini and Voice Question Integration
+# Gemini and Voice/Text Question Integration
 
-Gemini ทำหน้าที่ audio transcription ทุก voice mode และทำ answer/embedding ในบาง mode
+Gemini ทำหน้าที่ audio transcription ทุก voice mode และทำ answer/embedding ในบาง mode ·
+`IVoiceQuestionProvider.AnswerTextAsync` (F10/TQ-7..TQ-9) ใช้ provider เดียวกันสำหรับคำถามที่พิมพ์
+โดยข้าม step ถอดเสียง - ข้อความที่พิมพ์เข้ามาแทน transcript ตรงๆ
 
 ## Modes
 
@@ -21,12 +23,13 @@ Provider คืน:
   "transcript": "...",
   "answer": "...",
   "answerStatus": "answered | not_found | out_of_scope | no_speech | transcription_failed",
-  "relatedSlideObjectId": "...",
-  "readiness": "ready | not_ready"
+  "relatedSlideObjectId": "..."
 }
 ```
 
-Readiness request ใช้ prompt สั้นและไม่ persist เป็น `SessionQuestion`
+⚠️ **มติ U1 (2026-08-23)**: ไม่มี `readiness` เหลืออยู่ในสัญญานี้อีกต่อไป (ทั้งเสียงและพิมพ์) -
+`no_speech`/`transcription_failed` เป็นไปไม่ได้เลยบนเส้นทางพิมพ์เพราะไม่มีเสียงให้ถอด และข้อความว่าง
+ถูกปัดตั้งแต่ก่อนเรียก provider (TQ-3/TQ-10)
 
 ## Grounding Rules
 
@@ -46,5 +49,6 @@ Readiness request ใช้ prompt สั้นและไม่ persist เป
 
 ## Verification
 
-ทดสอบ readiness, answered, not-found, out-of-scope, no-speech, malformed JSON, provider 429/5xx,
-retrieval outage และ related-slide mapping โดยไม่ log transcript/prompt เต็ม
+ทดสอบ answered, not-found, out-of-scope, no-speech (เสียงเท่านั้น), malformed JSON, provider
+429/5xx, retrieval outage และ related-slide mapping สำหรับทั้งเส้นทางเสียงและพิมพ์
+โดยไม่ log transcript/prompt เต็ม

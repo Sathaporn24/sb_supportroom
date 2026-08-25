@@ -41,7 +41,6 @@ public static class ServiceConfiguration
         services.AddScoped<ITtsService, TtsService>();
         services.AddScoped<IVoiceQuestionService, VoiceQuestionService>();
         services.AddScoped<IAdminService, AdminService>();
-        services.AddScoped<IChatMessageService, ChatMessageService>();
         services.AddScoped<IRealtimeNotifier, SignalRRealtimeNotifier>();
         services.AddScoped<IKnowledgeIndexingService, KnowledgeIndexingService>();
         services.AddScoped<IDocumentResourceService, DocumentResourceService>();

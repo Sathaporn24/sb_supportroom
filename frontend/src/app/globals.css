@@ -10,15 +10,18 @@
 }
 
 :root {
-  --background: oklch(1 0 0);
+  /* Figma's page shell (node 4001:23153) is #fafafa, not pure white - and its content
+     panels/cards sit on #e3e3e8 (the "gray/gray-200" wrapper behind the lessons tree, node
+     4001:23178) - the two are meant to read as visibly different layers, not both white. */
+  --background: oklch(0.9851 0 89.876);
   --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
+  --card: oklch(0.9173 0.0067 286.266);
   --card-foreground: oklch(0.145 0 0);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.145 0 0);
-  /* Brand orange (School Bright). The one deliberate deviation from the Nova
-     neutral defaults - swap these two lines to go fully neutral. */
-  --primary: oklch(0.646 0.222 41.116);
+  /* Brand orange (School Bright), tuned 2026-08-25 to match the Figma redesign's
+     button/heading orange exactly (#f97316) - previously a darker/redder shade. */
+  --primary: oklch(0.705 0.213 47.604);
   --primary-foreground: oklch(0.985 0 0);
   --secondary: oklch(0.97 0 0);
   --secondary-foreground: oklch(0.205 0 0);
@@ -40,10 +43,21 @@
   --sidebar-foreground: oklch(0.145 0 0);
   --sidebar-primary: oklch(0.205 0 0);
   --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
+  /* Figma's active sidebar item is a solid brand-orange pill (#e86a27), not a
+     neutral highlight - this is also reused for hover, matching the mock's
+     single accent treatment for "you're on/about to go to this page". */
+  --sidebar-accent: oklch(0.668 0.174 44.647);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
+  /* Figma-only accents below - not part of the original Nova palette, added
+     2026-08-25 to match specific components the redesign color-codes:
+     the lessons-tree subcategory band/table header, and one blue CTA. */
+  --tree-subcategory: oklch(0.908 0.067 68.256);
+  --tree-subcategory-foreground: oklch(0.145 0 0);
+  --tree-header: oklch(0.965 0.025 69.443);
+  --info: oklch(0.507 0.178 257.519);
+  --info-foreground: oklch(0.985 0 0);
 }
 
 .dark {
@@ -75,10 +89,15 @@
   --sidebar-foreground: oklch(0.985 0 0);
   --sidebar-primary: oklch(0.488 0.243 264.376);
   --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
+  --sidebar-accent: oklch(0.668 0.174 44.647);
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.556 0 0);
+  --tree-subcategory: oklch(0.35 0.06 55);
+  --tree-subcategory-foreground: oklch(0.985 0 0);
+  --tree-header: oklch(0.269 0.02 55);
+  --info: oklch(0.6 0.16 257.519);
+  --info-foreground: oklch(0.985 0 0);
 }
 
 /* Must stay at top level: nesting this inside @layer base stops the dark-mode
@@ -115,6 +134,11 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
+  --color-tree-subcategory: var(--tree-subcategory);
+  --color-tree-subcategory-foreground: var(--tree-subcategory-foreground);
+  --color-tree-header: var(--tree-header);
+  --color-info: var(--info);
+  --color-info-foreground: var(--info-foreground);
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -135,5 +159,13 @@
   }
   html {
     @apply font-sans;
+  }
+  /* Native <button> defaults to an arrow cursor in every browser, not a pointer - this covers
+     every clickable control site-wide (shadcn Button, Base UI primitives that render a real
+     <button>, role="button" elements) in one place instead of adding cursor-pointer per
+     component. Disabled controls opt back out so they still read as non-interactive. */
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]) {
+    cursor: pointer;
   }
 }

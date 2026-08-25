@@ -6,5 +6,4 @@ public sealed class VoiceAnswerViewModel
     public string Answer { get; init; } = "";
     public required string AnswerStatus { get; init; }
     public string? RelatedSlideObjectId { get; init; }
-    public string? Readiness { get; init; }
 }

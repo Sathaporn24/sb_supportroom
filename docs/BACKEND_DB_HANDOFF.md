@@ -22,7 +22,7 @@ authorization หรือ `TrainingLink.Token`; ห้ามรับ company/l
 Company
  ├─ AdminUser*          (*owner มี CompanyId=null)
  ├─ LessonConfig ──< TrainingLink ──< LearningSession ──< SessionQuestion
- │       └─< DocumentResource                     └─────< ChatMessage
+ │       └─< DocumentResource
  └─ global DocumentResource (LessonId=null)
 ```
 
@@ -35,7 +35,8 @@ Company
 - ทุก business table ยกเว้น `Company`/`AdminUser` มี `CompanyId` + global query filter
 - `Company`/`AdminUser` ป้องกันด้วย `IAuthorizationGuard` เท่านั้น
 - Slug unique ต่อ company; link token และ admin email unique ทั้งระบบ
-- `SessionQuestion.SessionId`/`ChatMessage.SessionId` ชี้ `LearningSession`
+- `SessionQuestion.SessionId` ชี้ `LearningSession`; `SessionQuestion.Source` บอกว่าถามด้วยเสียง (`voice`) หรือพิมพ์ (`text`)
+- ไม่มี `ChatMessage` table อีกต่อไป (ถูกลบพร้อมข้อมูลใน migration `RemoveChatMessageAndAddQuestionSource` - Module H/F10-a รื้อฟีเจอร์แชตออกทั้งหมด แทนที่ด้วยคำถาม-ตอบผ่าน `SessionQuestion` เพียงเส้นเดียว)
 - ไม่มี `SessionSummary` table; คำนวณสด
 - vectors ไม่มี DB pointer และไฟล์ bytes อยู่นอก DB
 - soft-delete fields มีแต่ไม่มี behavior; delete ปัจจุบันเป็น hard delete
@@ -45,7 +46,7 @@ Company
 | Surface | Credential/scope | ตัวอย่าง |
 |---|---|---|
 | Back office REST | JWT + `?company=` + guard | lessons list/save, documents, links, review, users |
-| Learner REST | link token + learnerKey | join/progress/end/summary, voice, TTS, chat history |
+| Learner REST | link token + learnerKey | join/progress/end/summary, voice question, text question, TTS |
 | Public link metadata | link token | title/status ก่อน join |
 | Agent SignalR | JWT + company query + learningSessionId | join/send as agent |
 | Learner SignalR | link token + learnerKey | join/send as recipient |
@@ -63,8 +64,8 @@ Migration generate แล้ว แต่ยังไม่มีหลักฐ
 1. สำรอง DB และบันทึก row counts ของตารางเดิม
 2. รัน generated SQL review โดยเฉพาะ rename/backfill legacy session IDs
 3. Apply บน staging Postgres version เดียวกับ production
-4. ตรวจ unique/index/query filter/data isolation และ legacy questions/chat mapping
-5. Smoke login owner/admin/cs + 2 companies + link/join/reconnect/PDF/RAG/chat/review
+4. ตรวจ unique/index/query filter/data isolation และ legacy questions mapping (ไม่มี chat table อีกต่อไป)
+5. Smoke login owner/admin/cs + 2 companies + link/join/reconnect/PDF/RAG/text-question/voice-question/review
 6. ทดสอบ rollback จาก backup; migration Down อย่างเดียวไม่ใช่ backup strategy
 
 ## Backend backlog แบ่งงานได้

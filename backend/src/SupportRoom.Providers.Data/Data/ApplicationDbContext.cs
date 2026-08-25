@@ -31,7 +31,6 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     public DbSet<LearningSession> LearningSession => Set<LearningSession>();
     public DbSet<SessionQuestion> SessionQuestion => Set<SessionQuestion>();
     public DbSet<LessonConfig> LessonConfig => Set<LessonConfig>();
-    public DbSet<ChatMessage> ChatMessage => Set<ChatMessage>();
     public DbSet<DocumentResource> DocumentResource => Set<DocumentResource>();
     public DbSet<KnowledgeCategory> KnowledgeCategory => Set<KnowledgeCategory>();
     public DbSet<BackgroundJob> BackgroundJob => Set<BackgroundJob>();
@@ -110,14 +109,6 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             entity.HasIndex(x => new { x.CompanyId, x.Slug }).IsUnique();
             entity.HasIndex(x => x.CategoryId);
             entity.OwnsMany(x => x.SlideConfigs, owned => owned.ToJson());
-            entity.HasQueryFilter(x => x.CompanyId == companyContext.CompanyId);
-        });
-
-        builder.Entity<ChatMessage>(entity =>
-        {
-            entity.HasKey(x => x.Id);
-            entity.HasIndex(x => x.SessionId);
-            entity.HasIndex(x => x.CompanyId);
             entity.HasQueryFilter(x => x.CompanyId == companyContext.CompanyId);
         });
 

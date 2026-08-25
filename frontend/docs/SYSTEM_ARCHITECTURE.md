@@ -7,7 +7,7 @@
 ```text
 Next.js Browser UI
   ├─ REST: frontend/src/lib/api-client.ts
-  └─ SignalR: frontend/src/hooks/use-session-chat.ts
+  └─ SignalR (CS-side only): frontend/src/hooks/use-agent-session-questions.ts
                 ↓
 ASP.NET Core API (.NET 10)
   ├─ Controllers / SessionHub
@@ -43,7 +43,8 @@ Next.js ทำหน้าที่ UI เท่านั้น ไม่มี 
 ## Frontend Boundaries
 
 - REST calls รวมที่ `frontend/src/lib/api-client.ts`
-- SignalR connection อยู่ใน `frontend/src/hooks/use-session-chat.ts`
+- SignalR connection (คำถามสดฝั่ง CS เท่านั้น — ผู้เรียนไม่มี live connection เหลือแล้วหลัง
+  ตัดฟีเจอร์แชต F10-a) อยู่ใน `frontend/src/hooks/use-agent-session-questions.ts`
 - Browser media/TTS orchestration อยู่ใน hooks
 - `frontend/src/tutor/` เป็น pure reducer ไม่รู้จัก fetch, SignalR, MediaRecorder หรือ provider SDK
 - Wire types อยู่ใน `frontend/src/types/` และต้องตรงกับ backend ViewModels
@@ -65,7 +66,7 @@ PostgreSQL เป็น dependency บังคับและไม่มี `D
 ## Data Ownership
 
 - PostgreSQL เก็บ metadata/config/history: company, admin user, lesson, link, learning session,
-  question, chat และ document metadata; summary คำนวณสด ไม่มีตาราง summary
+  question และ document metadata; summary คำนวณสด ไม่มีตาราง summary
 - Google Slides หรือ PDF storage เป็น source of truth ของ teaching content
 - Pinecone เก็บ embeddings/chunks แยกจาก PostgreSQL โดยใช้ `{companyId}:{lessonSlug}` หรือ
   `{companyId}:kb-global` เป็น namespace

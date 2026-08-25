@@ -36,8 +36,8 @@
 
 | Persona | Scope | งานหลัก |
 |---|---|---|
-| ผู้เรียน | link + session ของ browser ตนเอง | join, เรียน, ถามเสียง, chat, ดูสรุปของตน |
-| CS | บริษัทตนเอง | บทเรียน, เอกสาร, ลิงก์, session, chat, review |
+| ผู้เรียน | link + session ของ browser ตนเอง | join, เรียน, ถามเสียง/ถามพิมพ์ผ่าน Ask-AI drawer, ดูสรุปของตน |
+| CS | บริษัทตนเอง | บทเรียน, เอกสาร, ลิงก์, session, review คำถาม |
 | Company admin | บริษัทตนเอง | ทุกอย่างของ CS + จัดการผู้ใช้บริษัทตนเอง |
 | Owner | ทุกบริษัท | ทุกอย่าง + company management + system settings ในอนาคต |
 
@@ -167,10 +167,10 @@ Future / design exploration
 ├──────────────────────────────────────┴───────────────────┤
 │ mic notice / degraded / reconnect                        │
 ├──────────────────────────────────────────────────────────┤
-│ [ไมค์] [กล้อง] [กดค้างเพื่อพูด] [เสียง AI] [แชต] [จบ]  │
+│ [ไมค์] [กล้อง] [กดค้างเพื่อพูด] [เสียง AI] [ถาม-ตอบกับ AI] [จบ] │
 └──────────────────────────────────────────────────────────┘
                          ┌─────────────────────────────┐
-                         │ Chat + Q&A drawer           │
+                         │ Ask-AI drawer               │
                          │ history / input / send      │
                          └─────────────────────────────┘
 ```
@@ -184,7 +184,7 @@ Future / design exploration
 - ผู้เรียน interrupt narration เพื่อถาม แล้วระบบกลับจุดเดิม
 - ระหว่างตอบอาจแสดง related slide ชั่วคราว ต้องบอกว่าหลังตอบจะกลับสไลด์เดิม
 - TTS พังต้องแจ้ง degraded state แต่ไม่บังคับจบ session
-- chat และ voice question เป็นคนละข้อมูล แม้อาจรวมใน drawer
+- voice question และ typed question ต่างกันแค่ source แต่เป็น SessionQuestion เดียวกัน แสดงรวมใน Ask-AI drawer
 - กดจบต้องมี confirm ที่บอกผลของการจบก่อนเรียนครบ
 
 **Responsive:**
@@ -366,9 +366,9 @@ Future / design exploration
 │ ← ผู้เรียน · บทเรียน · เวลา · progress/status           │
 │ คำถามทั้งหมด N · ตอบไม่ได้ N · ยังไม่ตรวจ N             │
 ├─────────────────────────────────┬───────────────────────┤
-│ Review queue                    │ Live chat             │
-│ Q transcript                    │ message history       │
-│ AI answer · answer status       │ [message________][ส่ง]│
+│ Review queue                    │ Live question feed    │
+│ Q transcript                    │ realtime new questions│
+│ AI answer · answer status       │ (ReceiveNewQuestion)  │
 │ related slide                   │                       │
 │ ( ) ถูก  ( ) ผิด               │ connection status     │
 │ หมายเหตุ [___________________]  │                       │

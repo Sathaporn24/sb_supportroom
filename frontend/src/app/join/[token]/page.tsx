@@ -90,7 +90,7 @@ export default function JoinPage() {
 
   if (state === "loading") {
     return (
-      <main className="flex min-h-screen items-center justify-center p-6">
+      <main className="flex min-h-[100dvh] items-center justify-center p-6">
         <LoadingBlock label="กำลังโหลดข้อมูลห้องเรียน..." />
       </main>
     );
@@ -102,7 +102,7 @@ export default function JoinPage() {
   const { link, lessonTitle, resumable, lastEnded, linkExpired } = state;
 
   return (
-    <main className="flex min-h-screen items-center justify-center p-6">
+    <main className="flex min-h-[100dvh] items-center justify-center p-6">
       <Card className="w-full max-w-lg">
         <CardContent className="flex flex-col gap-5">
           <div>
@@ -122,7 +122,7 @@ export default function JoinPage() {
                 </p>
               </div>
 
-              <Button className="w-full" onClick={enterRoom}>
+              <Button className="h-11 w-full" data-testid="join-confirm-resume-button" onClick={enterRoom}>
                 ใช่ เรียนต่อจากเดิม
               </Button>
 
@@ -130,7 +130,8 @@ export default function JoinPage() {
                   key - the previous run is never touched, closed, or renamed. */}
               <Button
                 variant="outline"
-                className="w-full"
+                className="h-11 w-full"
+                data-testid="join-confirm-restart-button"
                 disabled={linkExpired}
                 onClick={() => {
                   // Cleared on purpose: this is a different person, and prefilling the previous
@@ -156,7 +157,8 @@ export default function JoinPage() {
 
               <Button
                 variant="outline"
-                className="w-full"
+                className="h-11 w-full"
+                data-testid="join-view-last-summary-button"
                 onClick={() => router.push(`/session-ended/${params.token}`)}
               >
                 ดูสรุปการเรียนรอบที่แล้ว
@@ -222,6 +224,7 @@ function NameForm({
         <Label htmlFor="learner-name">ชื่อของคุณ</Label>
         <Input
           id="learner-name"
+          data-testid="join-name-input"
           type="text"
           value={name}
           maxLength={LEARNER_NAME_MAX_LENGTH}
@@ -239,7 +242,12 @@ function NameForm({
 
       {joinError && <p className="text-sm text-destructive">{joinError}</p>}
 
-      <Button className="w-full" disabled={!canJoin} onClick={() => void onSubmit()}>
+      <Button
+        className="h-11 w-full"
+        data-testid="join-submit-button"
+        disabled={!canJoin}
+        onClick={() => void onSubmit()}
+      >
         {joining ? (
           <>
             <Spinner data-icon="inline-start" />

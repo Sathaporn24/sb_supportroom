@@ -51,18 +51,38 @@ public static class PdfSlidesRenderer
     /// they carry no trailing space in the source PDF.</summary>
     private static readonly char[] BulletMarkers = ['●', '○', '■', '□', '▪', '-', '*'];
 
-    public static SlidesLessonContent BuildContent(Stream pdfStream, string documentId, string title)
+    /// <summary>
+    /// A first-page "line" longer than this is almost certainly wrapped body prose picked up by
+    /// ContentOrderTextExtractor, not a heading - using it as a title would just swap one
+    /// meaningless title for another.
+    /// </summary>
+    private const int MaxHeadingCandidateLength = 120;
+
+    /// <summary>
+    /// Tries, in order, the PDF's own metadata title, then a heading-shaped first line of page 1,
+    /// before giving up and using <paramref name="fallbackTitle"/> (the uploaded filename) - most
+    /// PDFs exported from Slides/Word/PowerPoint carry a real title in the doc metadata, and the
+    /// handful that don't usually still put the actual heading as the first line of the deck.
+    /// </summary>
+    public static SlidesLessonContent BuildContent(Stream pdfStream, string documentId, string fallbackTitle)
     {
         using var pdf = PdfDocument.Open(pdfStream);
         var slides = new List<ResolvedSlide>();
+        string? headingCandidate = null;
 
         foreach (var page in pdf.GetPages())
         {
+            var cleanedText = GetCleanedPageText(page);
+            if (page.Number == 1)
+            {
+                headingCandidate = ExtractHeadingCandidate(cleanedText);
+            }
+
             slides.Add(new ResolvedSlide
             {
                 SlideObjectId = $"pdf-page-{page.Number}",
                 Index = page.Number - 1,
-                SpeakerNotes = BuildNarration(page),
+                SpeakerNotes = JoinLinesForNarration(cleanedText),
                 // The public page endpoint also needs the training-link token to recover company
                 // context. LessonConfigService replaces this provider-local marker at the API
                 // boundary; persisting or guessing a token down in this provider would violate
@@ -74,7 +94,7 @@ public static class PdfSlidesRenderer
         return new SlidesLessonContent
         {
             PresentationId = documentId,
-            Title = title,
+            Title = ResolveTitle(pdf.Information?.Title, headingCandidate, fallbackTitle),
             EmbedUrl = "",
             Slides = slides,
             SyncedAt = DateTime.UtcNow.ToString("O"),
@@ -82,28 +102,33 @@ public static class PdfSlidesRenderer
     }
 
     /// <summary>
-    /// page.Text (used here until this fix) concatenates letters in raw content-stream order
-    /// with no regard for layout, so a title textbox added last in the file lands stuck onto the
-    /// end of the previous bullet's sentence with zero separator. ContentOrderTextExtractor
-    /// groups that same raw text into lines using the glyphs' actual positions, which is enough
-    /// for TTS purposes even though it doesn't fully re-derive human "reading order" for a slide
-    /// whose text boxes were arranged very unconventionally.
+    /// page.Text concatenates letters in raw content-stream order with no regard for layout, so a
+    /// title textbox added last in the file lands stuck onto the end of the previous bullet's
+    /// sentence with zero separator. ContentOrderTextExtractor groups that same raw text into
+    /// lines using the glyphs' actual positions, which is enough for TTS purposes even though it
+    /// doesn't fully re-derive human "reading order" for a slide whose text boxes were arranged
+    /// very unconventionally. Also used as the source for the page-1 title heuristic in
+    /// BuildContent, so it lives on its own rather than folded into JoinLinesForNarration.
     /// </summary>
-    private static string BuildNarration(UglyToad.PdfPig.Content.Page page)
-        => JoinLinesForNarration(FixThaiPuaGlyphs(ContentOrderTextExtractor.GetText(page, true)));
+    private static string GetCleanedPageText(UglyToad.PdfPig.Content.Page page)
+        => FixThaiPuaGlyphs(ContentOrderTextExtractor.GetText(page, true));
+
+    /// <summary>Strips a line's surrounding whitespace and any leading bullet marker glyph -
+    /// shared between narration joining and the title-heuristic line scan so both agree on what
+    /// counts as "the same line" once cleaned.</summary>
+    private static string CleanLine(string rawLine) => rawLine.Trim().TrimStart(BulletMarkers).Trim();
 
     /// <summary>
     /// Each line is one bullet/paragraph on the slide - joined with a full stop so TTS pauses
-    /// between unrelated points instead of reading them as one run-on sentence. Public (rather
-    /// than the pure-string half of BuildNarration staying private) so it's unit-testable
-    /// without needing a real PdfPig Page/PDF fixture.
+    /// between unrelated points instead of reading them as one run-on sentence. Public so it's
+    /// unit-testable without needing a real PdfPig Page/PDF fixture.
     /// </summary>
     public static string JoinLinesForNarration(string contentOrderedText)
     {
         var sb = new StringBuilder();
         foreach (var rawLine in contentOrderedText.Replace("\r\n", "\n").Split('\n'))
         {
-            var line = rawLine.Trim().TrimStart(BulletMarkers).Trim();
+            var line = CleanLine(rawLine);
             if (line.Length == 0)
             {
                 continue;
@@ -119,6 +144,45 @@ public static class PdfSlidesRenderer
             }
         }
         return sb.ToString();
+    }
+
+    /// <summary>
+    /// Picks out the first non-empty cleaned line of page 1 as a candidate slide-deck title, e.g.
+    /// a title textbox rendered as its own line above the body content. Returns null (rather than
+    /// falling through to a later line) when that first line is clearly body prose rather than a
+    /// heading - a long wrapped sentence is not a better guess than the filename fallback. Public
+    /// so it's unit-testable without a real PdfPig Page/PDF fixture.
+    /// </summary>
+    public static string? ExtractHeadingCandidate(string contentOrderedText)
+    {
+        foreach (var rawLine in contentOrderedText.Replace("\r\n", "\n").Split('\n'))
+        {
+            var line = CleanLine(rawLine);
+            if (line.Length == 0)
+            {
+                continue;
+            }
+            return line.Length <= MaxHeadingCandidateLength ? line : null;
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// The three-source title fallback described on BuildContent, factored out as a pure function
+    /// of already-extracted strings so it's unit-testable without a real PdfDocument/PdfPig
+    /// fixture (PDF metadata Title itself can only be exercised against a real PDF).
+    /// </summary>
+    public static string ResolveTitle(string? metadataTitle, string? headingCandidate, string fallbackTitle)
+    {
+        if (!string.IsNullOrWhiteSpace(metadataTitle))
+        {
+            return metadataTitle.Trim();
+        }
+        if (!string.IsNullOrWhiteSpace(headingCandidate))
+        {
+            return headingCandidate.Trim();
+        }
+        return fallbackTitle;
     }
 
     /// <summary>Public for the same reason as JoinLinesForNarration - unit-testable without a

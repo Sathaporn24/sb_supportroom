@@ -1,6 +1,9 @@
+import { XIcon } from "lucide-react";
 import type { TeachingSlide } from "@/types/domain";
 import { getApiBaseUrl } from "@/lib/api-client";
 import { LoadingBlock } from "@/components/shared/LoadingBlock";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 type Props = {
   embedUrl: string;
@@ -11,7 +14,40 @@ type Props = {
   isReference?: boolean;
   /** Slide number (1-based) the lesson will resume on once the answer finishes. */
   resumeSlideNumber?: number;
+  /** RS-6 - in-app fullscreen state, owned by the room page (not the Fullscreen API - Safari on
+   * iPhone doesn't support requestFullscreen() on anything but <video>). */
+  fullscreen?: boolean;
+  onToggleFullscreen?: () => void;
 };
+
+/** RS-6 - the close button plus "tap anywhere to close" backdrop shared by both content
+ * branches below. The close button sits above the backdrop (z-20 vs z-0) so it still wins the
+ * tap in the corner where the two overlap. */
+function FullscreenCloseOverlay({ onClose, dim }: { onClose: () => void; dim: boolean }) {
+  return (
+    <>
+      <button
+        type="button"
+        onClick={onClose}
+        aria-label="ปิดมุมมองเต็มจอ"
+        data-testid="room-slide-fullscreen-backdrop-button"
+        className={cn("absolute inset-0 z-0", dim && "bg-black")}
+      />
+      <Button
+        type="button"
+        variant="secondary"
+        size="icon-lg"
+        onClick={onClose}
+        aria-label="ปิดมุมมองเต็มจอ"
+        title="ปิดมุมมองเต็มจอ"
+        data-testid="room-slide-fullscreen-close-button"
+        className="absolute right-3 top-3 z-20 size-11 rounded-full"
+      >
+        <XIcon />
+      </Button>
+    </>
+  );
+}
 
 // Two content sources render differently: a PDF-sourced lesson gets a plain per-page <img>
 // (see the early return below); a Google-Slides-sourced lesson uses the published/embed URL's
@@ -25,6 +61,8 @@ export function SlidesEmbed({
   loading,
   isReference,
   resumeSlideNumber,
+  fullscreen = false,
+  onToggleFullscreen,
 }: Props) {
   if (loading && !currentSlide) {
     return (
@@ -34,17 +72,43 @@ export function SlidesEmbed({
     );
   }
 
+  // The wrapper is the only thing that changes shape between regular and fullscreen - neither
+  // the iframe/img nor its `key` is unmounted or recreated, so entering/leaving fullscreen never
+  // reloads the slide or loses playback position.
+  const wrapperClassName = cn(
+    "relative h-full min-h-[280px] w-full overflow-hidden rounded-xl border bg-white",
+    fullscreen && "fixed inset-0 z-50 h-[100dvh] min-h-0 w-screen rounded-none border-none",
+  );
+
   // PDF-sourced lessons have no embed iframe - the resolved slide carries its own per-page
   // image URL instead (populated by PdfSlidesRenderer on the backend). Check this before the
   // Mock-mode fallback below, since a PDF lesson legitimately has no embedUrl at all.
   if (currentSlide?.slideUrl) {
     const imageSrc = `${getApiBaseUrl()}${currentSlide.slideUrl}`;
     return (
-      <div className="relative flex h-full min-h-[280px] w-full items-center justify-center overflow-hidden rounded-xl border bg-white">
+      <div className={cn(wrapperClassName, "flex items-center justify-center")}>
+        {fullscreen ? (
+          <FullscreenCloseOverlay onClose={() => onToggleFullscreen?.()} dim />
+        ) : (
+          onToggleFullscreen && (
+            <button
+              type="button"
+              onClick={onToggleFullscreen}
+              aria-label="ขยายสไลด์เต็มจอ"
+              data-testid="room-slide-fullscreen-toggle-button"
+              className="absolute inset-0 z-10 cursor-zoom-in bg-transparent"
+            />
+          )
+        )}
         {/* eslint-disable-next-line @next/next/no-img-element -- backend-rendered PNG, not a next/image-optimizable static asset */}
-        <img key={imageSrc} src={imageSrc} alt={`สไลด์ ${currentSlide.index + 1}`} className="max-h-full max-w-full object-contain" />
-        {isReference && (
-          <div className="pointer-events-none absolute left-3 top-3 rounded-full bg-black/70 px-3 py-1 text-xs text-white shadow">
+        <img
+          key={imageSrc}
+          src={imageSrc}
+          alt={`สไลด์ ${currentSlide.index + 1}`}
+          className={cn("pointer-events-none relative z-10 max-h-full max-w-full object-contain")}
+        />
+        {isReference && !fullscreen && (
+          <div className="pointer-events-none absolute left-3 top-3 z-20 rounded-full bg-black/70 px-3 py-1 text-xs text-white shadow">
             ย้อนกลับมาที่สไลด์ {currentSlide.index + 1} เพื่อตอบคำถาม
             {resumeSlideNumber ? ` · เดี๋ยวกลับไปต่อที่สไลด์ ${resumeSlideNumber}` : ""}
           </div>
@@ -73,9 +137,11 @@ export function SlidesEmbed({
   // fits a passive "shared screen" that only the tutor engine should drive. There is no
   // official flag to turn the toolbar off, so it's clipped by rendering the iframe taller
   // than its visible box (overflow-hidden crops the extra height off the bottom) and a
-  // transparent overlay on top eats every click before it reaches the iframe.
+  // transparent overlay on top eats every click before it reaches the iframe. RS-6 reuses this
+  // same overlay as the expand/close hit target - the iframe is cross-origin and cannot be
+  // given a click handler directly.
   return (
-    <div className="relative h-full min-h-[280px] w-full overflow-hidden rounded-xl border bg-white">
+    <div className={wrapperClassName}>
       <iframe
         key={src}
         src={src}
@@ -86,9 +152,20 @@ export function SlidesEmbed({
         allow="autoplay"
         tabIndex={-1}
       />
-      <div className="absolute inset-0" aria-hidden="true" />
-      {isReference && (
-        <div className="pointer-events-none absolute left-3 top-3 rounded-full bg-black/70 px-3 py-1 text-xs text-white shadow">
+      {fullscreen ? (
+        <FullscreenCloseOverlay onClose={() => onToggleFullscreen?.()} dim={false} />
+      ) : (
+        <button
+          type="button"
+          onClick={onToggleFullscreen}
+          aria-label="ขยายสไลด์เต็มจอ"
+          data-testid="room-slide-fullscreen-toggle-button"
+          disabled={!onToggleFullscreen}
+          className="absolute inset-0 z-10 disabled:cursor-default"
+        />
+      )}
+      {isReference && !fullscreen && (
+        <div className="pointer-events-none absolute left-3 top-3 z-20 rounded-full bg-black/70 px-3 py-1 text-xs text-white shadow">
           ย้อนกลับมาที่สไลด์ {currentSlide.index + 1} เพื่อตอบคำถาม
           {resumeSlideNumber ? ` · เดี๋ยวกลับไปต่อที่สไลด์ ${resumeSlideNumber}` : ""}
         </div>

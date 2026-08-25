@@ -11,9 +11,9 @@
     {
       "name": "sb-supportroom-api",
       "runtimeExecutable": "dotnet",
-      "runtimeArgs": ["run", "--project", "src/SupportRoom.Api"],
+      "runtimeArgs": ["run", "--project", "src/SupportRoom.Api", "--urls", "http://localhost:5080"],
       "cwd": "backend",
-      "port": 5138
+      "port": 5080
     }
   ]
 }

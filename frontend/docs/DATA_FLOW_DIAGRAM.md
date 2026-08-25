@@ -4,7 +4,7 @@
 flowchart LR
     Browser[Next.js Browser UI]
     Rest[api-client.ts]
-    Realtime[use-session-chat.ts]
+    Realtime[use-agent-session-questions.ts]
     Api[ASP.NET Core Controllers]
     Hub[SignalR SessionHub]
     App[Application Services]
@@ -20,6 +20,8 @@ flowchart LR
     Browser --> Rest --> Api --> App
     Browser --> Realtime --> Hub --> App
     App --> Db
+    %% Realtime is CS-side only (use-agent-session-questions.ts) - learners have no live
+    %% connection left since chat was removed (F10-a); questions go via Rest above.
     App --> Slides
     App --> Files --> Parser --> Embed --> Pine
     App --> Pine --> Answer

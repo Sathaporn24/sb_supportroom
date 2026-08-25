@@ -48,7 +48,7 @@ export default function ChangePasswordPage() {
   }
 
   return (
-    <main className="mx-auto flex max-w-sm flex-col gap-6 p-6">
+    <main className="flex w-full flex-col gap-6 p-6">
       <Card>
         <CardHeader>
           <CardTitle className="text-xl">เปลี่ยนรหัสผ่าน</CardTitle>
@@ -70,6 +70,7 @@ export default function ChangePasswordPage() {
                 required
                 autoComplete="current-password"
                 autoFocus
+                data-testid="change-password-current-input"
               />
             </div>
             <div className="flex flex-col gap-2">
@@ -82,6 +83,7 @@ export default function ChangePasswordPage() {
                 required
                 minLength={10}
                 autoComplete="new-password"
+                data-testid="change-password-new-input"
               />
             </div>
             <div className="flex flex-col gap-2">
@@ -93,6 +95,7 @@ export default function ChangePasswordPage() {
                 onChange={(event) => setConfirmPassword(event.target.value)}
                 required
                 autoComplete="new-password"
+                data-testid="change-password-confirm-input"
               />
             </div>
             {error && (
@@ -100,7 +103,7 @@ export default function ChangePasswordPage() {
                 <AlertDescription>{error}</AlertDescription>
               </Alert>
             )}
-            <Button type="submit" disabled={submitting} className="mt-2">
+            <Button type="submit" disabled={submitting} className="mt-2" data-testid="change-password-submit-button">
               {submitting ? (
                 <>
                   <Spinner data-icon="inline-start" />

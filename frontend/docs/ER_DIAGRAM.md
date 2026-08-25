@@ -12,7 +12,6 @@ erDiagram
     LESSON_CONFIG ||--o{ DOCUMENT_RESOURCE : attaches
     TRAINING_LINK ||--o{ LEARNING_SESSION : "opened by many people"
     LEARNING_SESSION ||--o{ SESSION_QUESTION : records
-    LEARNING_SESSION ||--o{ CHAT_MESSAGE : contains
 ```
 
 - `LessonConfig` — metadata และ timing; `SlideConfigs` เป็น owned JSON collection
@@ -20,11 +19,13 @@ erDiagram
   **1 ลิงก์เปิดได้หลายคน** สถานะ ACTIVE/EXPIRED คำนวณจาก `ExpiresAt` ไม่ได้เก็บ
 - `LearningSession` — การเรียนของคนหนึ่งคน แยกคนด้วย `LearnerKey` ที่ browser เก็บ
 - `SessionQuestion` — transcript/answer/status จาก Push-to-Talk + ผลรีวิวของ CS
-- `ChatMessage` — typed chat history
 - `DocumentResource` — metadata/storage pointer/indexing status
 
-`SessionQuestion.SessionId` และ `ChatMessage.SessionId` ชี้ที่ `LearningSession` ไม่ใช่ที่ลิงก์ —
-คำถามและแชตเป็นของคนที่ถาม ไม่ใช่ของลิงก์ที่เขาเดินเข้ามา
+`SessionQuestion.SessionId` ชี้ที่ `LearningSession` ไม่ใช่ที่ลิงก์ —
+คำถามเป็นของคนที่ถาม ไม่ใช่ของลิงก์ที่เขาเดินเข้ามา
+
+~~`ChatMessage`~~ ถูกลบทิ้ง (F10-a, 2026-08-23) — ฟีเจอร์แชตคุยกับ CS ถูกตัดออกทั้งฟีเจอร์
+ทั้งฝั่งผู้เรียนและฝั่ง CS ตามมติ T4-a
 
 ~~`SessionSummary`~~ ถูกลบทิ้ง (TD-013) — สรุปคำนวณสดตอนอ่าน
 

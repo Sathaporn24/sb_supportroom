@@ -12,7 +12,6 @@ erDiagram
     LESSON_CONFIG ||--o{ DOCUMENT_RESOURCE : attaches
     TRAINING_LINK ||--o{ LEARNING_SESSION : "opened by many people"
     LEARNING_SESSION ||--o{ SESSION_QUESTION : records
-    LEARNING_SESSION ||--o{ CHAT_MESSAGE : contains
 
     COMPANY {
         string Id PK "slug เช่น scb - โผล่ใน URL ?company="
@@ -74,19 +73,11 @@ erDiagram
         string Transcript "nullable"
         string Answer "nullable"
         string AnswerStatus
+        string Source "voice|text (F10/U2, 2026-08-23)"
         string ReviewResult "nullable: correct|incorrect"
         string ReviewNote "nullable, free text"
         datetime ReviewedAt "nullable"
     }
-
-    CHAT_MESSAGE {
-        string Id PK
-        string SessionId "→ LEARNING_SESSION.Id
-        string SenderRole
-        string SenderName "nullable"
-        string Text
-    }
-
 
     DOCUMENT_RESOURCE {
         string Id PK
@@ -150,11 +141,12 @@ flowchart TD
     Learning --> Room[ห้องเรียน 1:1]
     Room --> Progress["อัปเดตสไลด์ล่าสุด + LastActivityAt<br/>PATCH .../progress"]
     Progress --> Learning
-    Room --> Voice[Voice question]
+    Room --> Voice["Voice question<br/>POST /voice-question"]
+    Room --> Text["Text question (F10)<br/>POST /text-question"]
     Voice --> Question[(SessionQuestion)]
+    Text --> Question
     Voice --> Live[SignalR broadcast ต่อ LearningSession]
-    Room --> Chat[(ChatMessage)]
-    Chat --> Live
+    Text --> Live
     Room --> End["จบการเรียน<br/>PATCH .../end"]
     End --> Learning
     Question --> Review["CS ทำเครื่องหมายถูก/ผิด + หมายเหตุ<br/>PATCH /session-questions/id/review"]
@@ -196,6 +188,15 @@ Queue ปัจจุบันไม่ durable; restart ก่อนประ�
 
 Full-context `VOICE_QUESTION_PROVIDER=gemini` ข้ามขั้น embedding/query และส่ง lesson context
 ให้ Gemini โดยตรง
+
+### Text Question Workflow (F10, 2026-08-23)
+
+`POST /api/text-question` ใช้ pipeline เดียวกับ Voice RAG Workflow ตั้งแต่ขั้นที่ 2 เป็นต้นไป
+(ไม่มีขั้นถอดเสียง เพราะข้อความมาจากผู้เรียนพิมพ์เข้ามาโดยตรง) ผ่าน `IVoiceQuestionService`/
+`IVoiceQuestionProvider` ตัวเดียวกับเสียง — บันทึกลง `SessionQuestion` แถวเดียวกัน เพียงแต่
+`Source = "text"` แทน `"voice"` ล้มเหลวแล้วโยน error แทนบันทึก `transcription_failed` (ต่างจาก
+เสียงซึ่งบันทึกสถานะนั้นได้เพราะมีความหมาย) · มติ **U1** (วันเดียวกัน) ถอด "readiness" (การตอบ
+"พร้อมหรือยัง" ด้วยเสียง) ออกจากระบบทั้งชุด — ปุ่มกดเป็นทางเดียวที่เหลือให้ตอบพร้อม/ไม่พร้อม
 
 ## Schema Changes
 

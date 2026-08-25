@@ -77,6 +77,7 @@ builder.Services.AddEntityFrameworkConfiguration(builder.Configuration);
 builder.Services.AddServiceConfiguration();
 builder.Services.AddBackOfficeAuthentication();
 builder.Services.AddLoginRateLimiting();
+builder.Services.AddSingleton<IQuestionRateLimiter, QuestionRateLimiter>();
 builder.Services.AddSignalR();
 MapsterConfig.Apply();
 
@@ -188,8 +189,8 @@ static bool IsSensitiveLearnerPath(PathString path)
     => path.StartsWithSegments("/api/training-links")
        || path.StartsWithSegments("/api/learning-sessions")
        || path.StartsWithSegments("/api/session-questions")
-       || path.StartsWithSegments("/api/chat-messages")
        || path.StartsWithSegments("/api/voice-question")
+       || path.StartsWithSegments("/api/text-question")
        || path.StartsWithSegments("/api/lessons/by-link")
        || path.StartsWithSegments("/api/lessons/pdf-pages")
        || path.StartsWithSegments("/hubs/session");

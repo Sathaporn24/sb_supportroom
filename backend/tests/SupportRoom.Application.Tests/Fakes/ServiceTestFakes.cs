@@ -350,21 +350,6 @@ internal sealed class FakeSessionQuestionRepository : ISessionQuestionRepository
         => Items.AsQueryable().Where(x => x.AnswerStatus == AnswerStatus.NotFound || x.ReviewResult == ReviewResult.Incorrect);
 }
 
-internal sealed class FakeChatMessageRepository : IChatMessageRepository
-{
-    public readonly List<ChatMessage> Items = [];
-
-    public IQueryable<ChatMessage> GetAll() => Items.AsQueryable();
-    public IQueryable<ChatMessage> FindBy(Expression<Func<ChatMessage, bool>> predicate) => Items.AsQueryable().Where(predicate);
-    public ChatMessage? Get(string id) => Items.FirstOrDefault(x => x.Id == id);
-    public Task<ChatMessage?> GetAsync(string id) => Task.FromResult(Get(id));
-    public void Add(ChatMessage entity) => Items.Add(entity);
-    public void Update(ChatMessage entity) { }
-    public void Delete(ChatMessage entity) => Items.Remove(entity);
-
-    public IQueryable<ChatMessage> GetBySessionId(string sessionId) => Items.AsQueryable().Where(x => x.SessionId == sessionId);
-}
-
 /// <summary>Records what would have been indexed without touching Gemini/Pinecone - the real
 /// service is best-effort and never throws, so the fake mirrors that.</summary>
 internal sealed class FakeKnowledgeIndexingService : IKnowledgeIndexingService
@@ -415,24 +400,15 @@ internal sealed class FakeSlidesProvider : ISlidesProvider
 internal sealed class FakeRealtimeNotifier : IRealtimeNotifier
 {
     public int NewQuestionCount { get; private set; }
-    public int ChatMessageCount { get; private set; }
     /// <summary>The group key broadcasts go to. Now a LEARNING SESSION id, not a link token -
     /// tests assert on this because a token-keyed group would fan one learner's questions out to
     /// everyone else holding the same link.</summary>
     public string? LastQuestionTarget { get; private set; }
-    public string? LastChatTarget { get; private set; }
 
     public Task NotifyNewQuestionAsync(string learningSessionId, SessionQuestionViewModel question)
     {
         NewQuestionCount++;
         LastQuestionTarget = learningSessionId;
-        return Task.CompletedTask;
-    }
-
-    public Task NotifyChatMessageAsync(string learningSessionId, ChatMessageViewModel message)
-    {
-        ChatMessageCount++;
-        LastChatTarget = learningSessionId;
         return Task.CompletedTask;
     }
 }

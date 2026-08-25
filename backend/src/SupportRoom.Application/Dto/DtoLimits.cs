@@ -1,12 +1,22 @@
 namespace SupportRoom.Application.Dto;
 
 /// <summary>Shared [StringLength]/[MaxLength] bounds - kept in one place so a change to one
-/// caller's limit doesn't silently drift from another's identical-looking literal.</summary>
-internal static class DtoLimits
+/// caller's limit doesn't silently drift from another's identical-looking literal. Public (not
+/// internal) because TextQuestionController validates QuestionTextMaxLength itself (TQ-3), which
+/// lives in the Api project - a separate assembly from this one.</summary>
+public static class DtoLimits
 {
-    /// <summary>Chat message text and TTS input text share this ceiling today; split them out
-    /// into their own constants if either input's requirements diverge.</summary>
+    /// <summary>TTS input text ceiling. Used to share this with chat message text, but chat was
+    /// removed entirely (F10-a) - kept as its own constant rather than reused for
+    /// QuestionTextMaxLength below, since the two inputs' requirements can diverge independently
+    /// now that nothing ties them together.</summary>
     public const int MaxTextLength = 2000;
+
+    /// <summary>AskTextQuestionDto.Text (F10/TQ-3) - a typed lesson question. Coincidentally the
+    /// same number as MaxTextLength today, but a separate constant on purpose: reusing MaxTextLength
+    /// would silently couple this input's limit to TTS's, which answers a completely different
+    /// question ("how much text can Edge TTS synthesize in one page").</summary>
+    public const int QuestionTextMaxLength = 2000;
 
     /// <summary>A display label typed on the join screen, not an identity. The learning-session
     /// contract limits it to 80 characters after trimming.</summary>

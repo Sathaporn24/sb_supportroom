@@ -33,13 +33,24 @@ public sealed class VoiceQuestionInput
     /// <summary>This company's shared standalone-document namespace (KnowledgeNamespaces.ForGlobal).
     /// Queried on every question alongside LessonNamespace.</summary>
     public required string GlobalNamespace { get; init; }
+}
 
-    /// <summary>
-    /// "readiness" is the reply to the "พร้อมหรือยังคะ?" prompt - a yes/no, not a question. It
-    /// skips the speaker-notes grounding entirely, which also makes it markedly faster than a
-    /// full question round-trip.
-    /// </summary>
-    public string Expecting { get; init; } = "question";
+/// <summary>
+/// F10/TQ-7 - the typed-question equivalent of VoiceQuestionInput. QuestionText stands in for the
+/// transcript a voice question would otherwise produce from step 1 (transcription) - everything
+/// downstream of "we now have question text" is identical between the two channels. No Audio,
+/// MimeType or DurationMs: those describe a voice recording, which this input never has.
+/// </summary>
+public sealed class TextQuestionInput
+{
+    /// <summary>The learner's typed question (trimmed). Used as the retrieval query and placed
+    /// directly into the answer prompt exactly as a voice transcript would be.</summary>
+    public required string QuestionText { get; init; }
+    public required IReadOnlyList<VoiceQuestionSlideContext> LessonSlides { get; init; }
+    public string? CurrentSlideObjectId { get; init; }
+    public required string LessonNamespace { get; init; }
+    public required string CategoryNamespace { get; init; }
+    public required string GlobalNamespace { get; init; }
 }
 
 /// <summary>KS-9 - the model's own report that a Q&A it was shown conflicted with the
@@ -60,9 +71,6 @@ public sealed class VoiceQuestionResult
     public required string AnswerStatus { get; init; }
     public string? RelatedSlideObjectId { get; init; }
 
-    /// <summary>Only set when Expecting == "readiness": did the teacher say they're ready to start?</summary>
-    public string? Readiness { get; init; }
-
     /// <summary>KS-9 - null on every path except RagVoiceQuestionProvider's retrieval-grounded
     /// answer step, which is the only place Q&A content ever reaches the model.</summary>
     public VoiceQuestionConflictResult? Conflict { get; init; }
@@ -71,4 +79,9 @@ public sealed class VoiceQuestionResult
 public interface IVoiceQuestionProvider
 {
     Task<VoiceQuestionResult> TranscribeAndAnswerAsync(VoiceQuestionInput input);
+
+    /// <summary>F10/TQ-1 - text-in-text-out counterpart to TranscribeAndAnswerAsync, sharing the
+    /// exact same grounding/answer pipeline behind the same contract, so switching
+    /// VOICE_QUESTION_PROVIDER never leaves typed questions unsupported.</summary>
+    Task<VoiceQuestionResult> AnswerTextAsync(TextQuestionInput input);
 }

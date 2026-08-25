@@ -6,8 +6,7 @@ namespace SupportRoom.Domain.Entities;
 /// An invite link CS hands out - NOT one person's run through the lesson. One link is opened by
 /// many people and each of them gets their own LearningSession row (see CORE_FEATURE_SPEC §1).
 /// This entity was called TrainingSession until the two were split apart; the word "session" now
-/// belongs exclusively to LearningSession, which is what SessionQuestion.SessionId and
-/// ChatMessage.SessionId point at.
+/// belongs exclusively to LearningSession, which is what SessionQuestion.SessionId points at.
 ///
 /// EF Core entity (see .claude/skills/dotnet-layered-backend/SKILL.md). Timestamps are real
 /// DateTime columns here - the ISO-8601 string wire format the frontend expects is restored

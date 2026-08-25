@@ -7,8 +7,8 @@ namespace SupportRoom.Domain.Entities;
 /// is handed to a whole department and each person who opens it learns 1:1 (a classroom, not a
 /// meeting room), so progress belongs here and never on the link.
 ///
-/// This is what "session" means everywhere else in the codebase: SessionQuestion.SessionId and
-/// ChatMessage.SessionId point at this table, not at TrainingLink.
+/// This is what "session" means everywhere else in the codebase: SessionQuestion.SessionId points
+/// at this table, not at TrainingLink.
 /// </summary>
 public sealed class LearningSession : IEntityMaster<string>, ICompanyScoped
 {

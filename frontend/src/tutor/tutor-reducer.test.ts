@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { createInitialRuntime, tutorReducer, type TutorContext } from "@/tutor/tutor-reducer";
 import type { TeachingSlide } from "@/types/domain";
 import { QUESTION_FAILED_TEXT } from "@/config/response-texts";
-import { notReadyScript, readyConfirmScript } from "@/tutor/scripts";
+import { notReadyScript } from "@/tutor/scripts";
 
 const slides: TeachingSlide[] = [
   { slideObjectId: "s1", index: 0, speakerNotes: "Slide one", videoDurationMs: 0 },
@@ -123,9 +123,19 @@ describe("tutorReducer: Push-to-Talk", () => {
     expect(started.runtime.state).toBe("push-to-talk-recording");
     expect(started.effect).toEqual({ kind: "START_RECORDING" });
 
-    const ready = createInitialRuntime();
-    const rejected = tutorReducer(ready, { type: "PUSH_TO_TALK_START" }, ctx);
+    const idle = createInitialRuntime();
+    const rejected = tutorReducer(idle, { type: "PUSH_TO_TALK_START" }, ctx);
     expect(rejected.runtime.state).toBe("idle");
+    expect(rejected.effect).toEqual({ kind: "NONE" });
+  });
+
+  // TQ-21/U1 - new case: "ready" used to be in PUSH_TO_TALK_STATES so the recipient could answer
+  // the readiness prompt out loud. U1 removed that path entirely, so pressing push-to-talk while
+  // still on the readiness prompt must now do nothing at all.
+  it("does nothing on PUSH_TO_TALK_START from the ready prompt", () => {
+    const ready = toReady();
+    const rejected = tutorReducer(ready, { type: "PUSH_TO_TALK_START" }, ctx);
+    expect(rejected.runtime.state).toBe("ready");
     expect(rejected.effect).toEqual({ kind: "NONE" });
   });
 
@@ -138,55 +148,78 @@ describe("tutorReducer: Push-to-Talk", () => {
   });
 });
 
-describe("tutorReducer: answering the readiness prompt by voice", () => {
-  function toReady() {
-    let r = createInitialRuntime();
-    r = tutorReducer(r, { type: "JOIN" }, ctx).runtime;
-    r = tutorReducer(r, { type: "LESSON_LOADED" }, ctx).runtime;
-    return tutorReducer(r, { type: "TTS_ENDED", elapsedMs: 1000 }, ctx).runtime; // -> ready
-  }
+function toReady() {
+  let r = createInitialRuntime();
+  r = tutorReducer(r, { type: "JOIN" }, ctx).runtime;
+  r = tutorReducer(r, { type: "LESSON_LOADED" }, ctx).runtime;
+  return tutorReducer(r, { type: "TTS_ENDED", elapsedMs: 1000 }, ctx).runtime; // -> ready
+}
 
-  it("allows push-to-talk from the ready prompt and remembers where it came from", () => {
-    const recording = tutorReducer(toReady(), { type: "PUSH_TO_TALK_START" }, ctx);
-    expect(recording.runtime.state).toBe("push-to-talk-recording");
-    expect(recording.runtime.interruptedFrom).toBe("ready");
-  });
-
-  it('starts the deck after acknowledging a spoken "พร้อมแล้ว"', () => {
-    const recording = tutorReducer(toReady(), { type: "PUSH_TO_TALK_START" }, ctx).runtime;
-    const processing = tutorReducer(recording, { type: "PUSH_TO_TALK_END" }, ctx).runtime;
-
-    const confirmed = tutorReducer(processing, { type: "READINESS_ANSWERED", ready: true }, ctx);
-    expect(confirmed.effect).toEqual({ kind: "SPEAK", text: readyConfirmScript });
-    expect(confirmed.runtime.afterSpeech).toBe("START_FIRST_SLIDE");
-
-    // No resume bridge: this is the first slide, not a return to something interrupted.
-    const started = tutorReducer(confirmed.runtime, { type: "TTS_ENDED", elapsedMs: 1000 }, ctx);
-    expect(started.runtime.state).toBe("slide-loading");
-    expect(started.effect).toEqual({ kind: "LOAD_SLIDE", slideIndex: 0 });
-  });
-
-  it('waits with no auto-start timer after "ยังไม่พร้อม"', () => {
-    const recording = tutorReducer(toReady(), { type: "PUSH_TO_TALK_START" }, ctx).runtime;
-    const processing = tutorReducer(recording, { type: "PUSH_TO_TALK_END" }, ctx).runtime;
-
-    const declined = tutorReducer(processing, { type: "READINESS_ANSWERED", ready: false }, ctx);
+describe("tutorReducer: readiness is answered by button only (NOT_READY, U1)", () => {
+  it('speaks notReadyScript with no auto-start timer after "ยังไม่พร้อม"', () => {
+    const declined = tutorReducer(toReady(), { type: "NOT_READY" }, ctx);
+    expect(declined.runtime.state).toBe("answer-speaking");
+    expect(declined.runtime.afterSpeech).toBe("AWAIT_READINESS");
     expect(declined.effect).toEqual({ kind: "SPEAK", text: notReadyScript });
 
     // Crucially no WAIT_READY_TIMEOUT here - starting anyway 5s after being told "not yet"
-    // would override the answer the teacher just gave.
+    // would override the answer the recipient just gave.
     const waiting = tutorReducer(declined.runtime, { type: "TTS_ENDED", elapsedMs: 1000 }, ctx);
     expect(waiting.runtime.state).toBe("ready");
     expect(waiting.effect).toEqual({ kind: "NONE" });
   });
 
-  it("returns to the ready prompt, not slide 1, when the readiness reply is unusable", () => {
-    const recording = tutorReducer(toReady(), { type: "PUSH_TO_TALK_START" }, ctx).runtime;
-    const processing = tutorReducer(recording, { type: "PUSH_TO_TALK_END" }, ctx).runtime;
+  it("only accepts NOT_READY from the ready prompt", () => {
+    const speaking = toSlideSpeaking(0);
+    const rejected = tutorReducer(speaking, { type: "NOT_READY" }, ctx);
+    expect(rejected.runtime.state).toBe("slide-speaking");
+    expect(rejected.effect).toEqual({ kind: "NONE" });
+  });
+});
 
-    const resumed = tutorReducer(processing, { type: "NO_SPEECH" }, ctx);
-    expect(resumed.runtime.state).toBe("ready");
-    expect(resumed.effect).toEqual({ kind: "WAIT_READY_TIMEOUT", ms: 5000 });
+describe("tutorReducer: SUBMIT_TEXT_QUESTION (TQ-14/TQ-21)", () => {
+  it.each(["slide-speaking", "waiting-slide-duration", "final-question-window"] as const)(
+    "moves %s to processing-question and remembers where it came from",
+    (state) => {
+      let r = toSlideSpeaking(0);
+      if (state === "waiting-slide-duration") {
+        r = tutorReducer(r, { type: "TTS_ENDED", elapsedMs: 1000 }, ctx).runtime;
+      } else if (state === "final-question-window") {
+        r = toSlideSpeaking(1);
+        r = tutorReducer(r, { type: "TTS_ENDED", elapsedMs: 1000 }, ctx).runtime;
+        r = tutorReducer(r, { type: "SLIDE_DURATION_ENDED" }, ctx).runtime;
+        r = tutorReducer(r, { type: "TTS_ENDED", elapsedMs: 1000 }, ctx).runtime;
+      }
+      expect(r.state).toBe(state);
+
+      const submitted = tutorReducer(r, { type: "SUBMIT_TEXT_QUESTION", text: "คำถามทดสอบ" }, ctx);
+      expect(submitted.runtime.state).toBe("processing-question");
+      expect(submitted.runtime.interruptedFrom).toBe(state);
+      expect(submitted.effect).toEqual({ kind: "SEND_TEXT_QUESTION", text: "คำถามทดสอบ" });
+    },
+  );
+
+  it("does nothing from ready", () => {
+    const rejected = tutorReducer(toReady(), { type: "SUBMIT_TEXT_QUESTION", text: "x" }, ctx);
+    expect(rejected.runtime.state).toBe("ready");
+    expect(rejected.effect).toEqual({ kind: "NONE" });
+  });
+
+  it("does nothing from processing-question (no stacking a second question)", () => {
+    const speaking = toSlideSpeaking(0);
+    const recording = tutorReducer(speaking, { type: "PUSH_TO_TALK_START" }, ctx).runtime;
+    const processing = tutorReducer(recording, { type: "PUSH_TO_TALK_END" }, ctx).runtime;
+    const rejected = tutorReducer(processing, { type: "SUBMIT_TEXT_QUESTION", text: "x" }, ctx);
+    expect(rejected.runtime.state).toBe("processing-question");
+    expect(rejected.effect).toEqual({ kind: "NONE" });
+  });
+
+  it("does not go through push-to-talk-recording", () => {
+    const speaking = toSlideSpeaking(0);
+    const recording = tutorReducer(speaking, { type: "PUSH_TO_TALK_START" }, ctx).runtime;
+    const rejected = tutorReducer(recording, { type: "SUBMIT_TEXT_QUESTION", text: "x" }, ctx);
+    expect(rejected.runtime.state).toBe("push-to-talk-recording");
+    expect(rejected.effect).toEqual({ kind: "NONE" });
   });
 });
 
@@ -229,7 +262,7 @@ describe("tutorReducer: answered questions restart the current slide", () => {
 
     const answered = tutorReducer(
       processing,
-      { type: "QUESTION_ANSWERED", transcript: "คำถามทดสอบ", answer: "คำตอบทดสอบ", answerStatus: "answered" },
+      { type: "QUESTION_ANSWERED", transcript: "คำถามทดสอบ", answer: "คำตอบทดสอบ", answerStatus: "answered", source: "voice" },
       ctx,
     );
     expect(answered.runtime.state).toBe("answer-speaking");
@@ -257,6 +290,7 @@ describe("tutorReducer: answered questions restart the current slide", () => {
         answer: "คำตอบจากสไลด์แรก",
         answerStatus: "answered",
         relatedSlideObjectId: "s1",
+        source: "voice",
       },
       ctx,
     );
@@ -277,7 +311,7 @@ describe("tutorReducer: answered questions restart the current slide", () => {
 
     const answered = tutorReducer(
       processing,
-      { type: "QUESTION_ANSWERED", transcript: "q", answer: "a", answerStatus: "answered", relatedSlideObjectId: "s2" },
+      { type: "QUESTION_ANSWERED", transcript: "q", answer: "a", answerStatus: "answered", relatedSlideObjectId: "s2", source: "voice" },
       ctx,
     );
     expect(answered.runtime.answerSlideIndex).toBeNull();
@@ -296,6 +330,7 @@ describe("tutorReducer: answered questions restart the current slide", () => {
         answer: "a",
         answerStatus: "answered",
         relatedSlideObjectId: "does-not-exist",
+        source: "voice",
       },
       ctx,
     );
@@ -312,7 +347,7 @@ describe("tutorReducer: answered questions restart the current slide", () => {
     const processing = tutorReducer(recording, { type: "PUSH_TO_TALK_END" }, ctx).runtime;
     const answered = tutorReducer(
       processing,
-      { type: "QUESTION_ANSWERED", transcript: "q", answer: "a", answerStatus: "answered", relatedSlideObjectId: "s1" },
+      { type: "QUESTION_ANSWERED", transcript: "q", answer: "a", answerStatus: "answered", relatedSlideObjectId: "s1", source: "voice" },
       ctx,
     );
     expect(answered.runtime.answerSlideIndex).toBe(0);
@@ -330,7 +365,7 @@ describe("tutorReducer: answered questions restart the current slide", () => {
     for (const answerStatus of ["not_found", "out_of_scope"] as const) {
       const answered = tutorReducer(
         processing,
-        { type: "QUESTION_ANSWERED", transcript: "q", answer: "ไม่พบข้อมูลค่ะ", answerStatus },
+        { type: "QUESTION_ANSWERED", transcript: "q", answer: "ไม่พบข้อมูลค่ะ", answerStatus, source: "voice" },
         ctx,
       );
       // Announcing a find and then saying nothing was found contradicts itself.
@@ -348,7 +383,7 @@ describe("tutorReducer: answered questions restart the current slide", () => {
     const processing = tutorReducer(recording, { type: "PUSH_TO_TALK_END" }, ctx).runtime;
     const answered = tutorReducer(
       processing,
-      { type: "QUESTION_ANSWERED", transcript: "q", answer: "a", answerStatus: "answered" },
+      { type: "QUESTION_ANSWERED", transcript: "q", answer: "a", answerStatus: "answered", source: "voice" },
       ctx,
     );
     expect(answered.runtime.afterSpeech).toBe("WAIT_FINAL_QUESTION");

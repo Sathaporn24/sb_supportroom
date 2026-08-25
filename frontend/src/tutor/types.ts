@@ -28,8 +28,6 @@ export type AfterSpeechAction =
   | "RESTART_SLIDE"
   /** Like RESTART_SLIDE, but leads the narration with a "we're back where we left off" line. */
   | "RESUME_AFTER_ANSWER"
-  /** Teacher said they're ready - begin the deck once the acknowledgement finishes. */
-  | "START_FIRST_SLIDE"
   /** Teacher said they aren't ready yet - go back to waiting, with no auto-start timer. */
   | "AWAIT_READINESS"
   | "WAIT_FINAL_QUESTION"
@@ -66,6 +64,14 @@ export type TutorRuntime = {
    * interrupted it; this just tells the teacher why their question wasn't recorded.
    */
   micNotice: string | null;
+  /**
+   * QA-03 - the text of a typed question that failed to send (network/upstream error, not a
+   * validation failure the drawer already blocked client-side). The drawer already cleared its
+   * own `draft` state optimistically on submit (TQ-15), so this is the only place that text
+   * survives - the drawer restores it into the input once, then dispatches
+   * CLEAR_FAILED_QUESTION_TEXT to consume it, mirroring how micNotice is dismissed.
+   */
+  failedQuestionText: string | null;
 };
 
 export type TutorEffect =
@@ -84,5 +90,8 @@ export type TutorEffect =
   | { kind: "WAIT_REMAINING"; ms: number }
   | { kind: "START_RECORDING" }
   | { kind: "STOP_RECORDING_AND_SEND" }
+  /** TQ-14 - send a typed question. Carries the text itself, unlike STOP_RECORDING_AND_SEND
+   * which reads the recorded audio out of a ref the effect runner already owns. */
+  | { kind: "SEND_TEXT_QUESTION"; text: string }
   | { kind: "WAIT_FINAL_QUESTION"; ms: number }
   | { kind: "PERSIST_END"; completedAllSlides: boolean };

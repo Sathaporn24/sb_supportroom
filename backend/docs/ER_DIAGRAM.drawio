@@ -187,25 +187,6 @@
           <mxGeometry y="238" width="300" height="26" as="geometry" />
         </mxCell>
 
-        <mxCell id="chat" value="CHAT_MESSAGE" style="swimlane;fontStyle=1;align=center;startSize=30;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
-          <mxGeometry x="1060" y="736" width="300" height="188" as="geometry" />
-        </mxCell>
-        <mxCell id="chat-1" value="PK   Id : string" style="text;html=1;align=left;fontSize=12;" vertex="1" parent="chat">
-          <mxGeometry y="30" width="300" height="26" as="geometry" />
-        </mxCell>
-        <mxCell id="chat-2" value="FK   CompanyId : string" style="text;html=1;align=left;fontSize=12;" vertex="1" parent="chat">
-          <mxGeometry y="56" width="300" height="26" as="geometry" />
-        </mxCell>
-        <mxCell id="chat-3" value="FK   SessionId : string → LEARNING_SESSION.Id" style="text;html=1;align=left;fontSize=12;" vertex="1" parent="chat">
-          <mxGeometry y="82" width="300" height="26" as="geometry" />
-        </mxCell>
-        <mxCell id="chat-4" value="SenderRole : recipient|agent|system" style="text;html=1;align=left;fontSize=12;" vertex="1" parent="chat">
-          <mxGeometry y="108" width="300" height="26" as="geometry" />
-        </mxCell>
-        <mxCell id="chat-5" value="SenderName : string?  ·  Text : string" style="text;html=1;align=left;fontSize=12;" vertex="1" parent="chat">
-          <mxGeometry y="134" width="300" height="26" as="geometry" />
-        </mxCell>
-
         <mxCell id="doc" value="DOCUMENT_RESOURCE" style="swimlane;fontStyle=1;align=center;startSize=30;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
           <mxGeometry x="40" y="710" width="280" height="240" as="geometry" />
         </mxCell>
@@ -246,10 +227,6 @@
         <mxCell id="e-learning-question" value="records" style="edgeStyle=entityRelationEdgeStyle;rounded=0;html=1;endArrow=ERmany;startArrow=ERone;" edge="1" parent="1" source="learning" target="question">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e-learning-chat" value="contains" style="edgeStyle=entityRelationEdgeStyle;rounded=0;html=1;endArrow=ERmany;startArrow=ERone;" edge="1" parent="1" source="learning" target="chat">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-
       </root>
     </mxGraphModel>
   </diagram>

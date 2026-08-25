@@ -18,7 +18,6 @@ public sealed class UnitOfWork(ApplicationDbContext dbContext, IServiceProvider 
         { typeof(ILearningSessionRepository), typeof(LearningSessionRepository) },
         { typeof(ISessionQuestionRepository), typeof(SessionQuestionRepository) },
         { typeof(ILessonConfigRepository), typeof(LessonConfigRepository) },
-        { typeof(IChatMessageRepository), typeof(ChatMessageRepository) },
         { typeof(IDocumentResourceRepository), typeof(DocumentResourceRepository) },
         { typeof(IKnowledgeCategoryRepository), typeof(KnowledgeCategoryRepository) },
         { typeof(IBackgroundJobRepository), typeof(BackgroundJobRepository) },

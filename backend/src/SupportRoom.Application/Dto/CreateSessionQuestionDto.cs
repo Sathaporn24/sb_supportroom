@@ -11,4 +11,9 @@ public sealed class CreateSessionQuestionDto
     /// <summary>One of SupportRoom.Domain.Enums.AnswerStatus.</summary>
     [Required]
     public required string AnswerStatus { get; init; }
+
+    /// <summary>One of SupportRoom.Domain.Enums.QuestionSource - required, no default, so every
+    /// caller must say explicitly which channel this question came in on (U2).</summary>
+    [Required]
+    public required string Source { get; init; }
 }

@@ -87,7 +87,7 @@ export default function NewCompanyPage() {
 
   if (created) {
     return (
-      <main className="mx-auto flex max-w-2xl flex-col gap-6 p-6">
+      <main className="flex w-full flex-col gap-6 p-6">
         <Alert>
           <CheckCircle2Icon />
           <AlertTitle>สร้างบริษัทเรียบร้อยแล้ว</AlertTitle>
@@ -104,15 +104,28 @@ export default function NewCompanyPage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col gap-4">
-            <SummaryField label="บริษัท" value={`${created.name} (${created.id})`} />
-            <SummaryField label="อีเมล admin" value={created.adminEmail} />
-            <SummaryField label="รหัสผ่านเริ่มต้น" value={created.adminInitialPassword} />
+            <SummaryField testId="companies-new-created-company" label="บริษัท" value={`${created.name} (${created.id})`} />
+            <SummaryField testId="companies-new-created-admin-email" label="อีเมล admin" value={created.adminEmail} />
+            <SummaryField
+              testId="companies-new-created-admin-password"
+              label="รหัสผ่านเริ่มต้น"
+              value={created.adminInitialPassword}
+            />
           </CardContent>
           <CardFooter className="flex flex-wrap gap-2">
-            <AdminLink href="/admin/companies" className={buttonVariants()}>
+            <AdminLink
+              href="/admin/settings?tab=companies"
+              data-testid="companies-new-back-link"
+              className={buttonVariants()}
+            >
               กลับไปรายการบริษัท
             </AdminLink>
-            <Button type="button" variant="outline" onClick={resetForNextCompany}>
+            <Button
+              type="button"
+              variant="outline"
+              data-testid="companies-new-create-next-button"
+              onClick={resetForNextCompany}
+            >
               สร้างบริษัทถัดไป
             </Button>
           </CardFooter>
@@ -122,9 +135,9 @@ export default function NewCompanyPage() {
   }
 
   return (
-    <main className="mx-auto flex max-w-2xl flex-col gap-6 p-6">
+    <main className="flex w-full flex-col gap-6 p-6">
       <div>
-        <h1 className="text-xl font-semibold">สร้างบริษัทใหม่</h1>
+        <h1 className="text-xl font-semibold text-primary">สร้างบริษัทใหม่</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           สร้างบริษัท บัญชี admin คนแรก และหมวดความรู้เริ่มต้นพร้อมกันในครั้งเดียว
         </p>
@@ -141,6 +154,7 @@ export default function NewCompanyPage() {
               <Label htmlFor="company-id">รหัสบริษัท</Label>
               <Input
                 id="company-id"
+                data-testid="companies-new-id-input"
                 value={id}
                 onChange={(event) => {
                   setId(event.target.value.toLowerCase());
@@ -168,6 +182,7 @@ export default function NewCompanyPage() {
               <Label htmlFor="company-name">ชื่อบริษัท</Label>
               <Input
                 id="company-name"
+                data-testid="companies-new-name-input"
                 value={name}
                 onChange={(event) => setName(event.target.value)}
                 required
@@ -179,6 +194,7 @@ export default function NewCompanyPage() {
               <Label htmlFor="admin-email">อีเมล admin คนแรก</Label>
               <Input
                 id="admin-email"
+                data-testid="companies-new-admin-email-input"
                 type="email"
                 value={adminEmail}
                 onChange={(event) => {
@@ -200,6 +216,7 @@ export default function NewCompanyPage() {
               <Label htmlFor="admin-display-name">ชื่อที่แสดงของ admin</Label>
               <Input
                 id="admin-display-name"
+                data-testid="companies-new-admin-name-input"
                 value={adminDisplayName}
                 onChange={(event) => setAdminDisplayName(event.target.value)}
                 required
@@ -211,6 +228,7 @@ export default function NewCompanyPage() {
               <Label htmlFor="admin-initial-password">รหัสผ่านเริ่มต้น</Label>
               <Input
                 id="admin-initial-password"
+                data-testid="companies-new-admin-password-input"
                 type="password"
                 value={adminInitialPassword}
                 onChange={(event) => setAdminInitialPassword(event.target.value)}
@@ -231,7 +249,12 @@ export default function NewCompanyPage() {
           </form>
         </CardContent>
         <CardFooter className="flex flex-wrap gap-2">
-          <Button type="submit" form="create-company-form" disabled={submitting}>
+          <Button
+            type="submit"
+            form="create-company-form"
+            data-testid="companies-new-submit-button"
+            disabled={submitting}
+          >
             {submitting ? (
               <>
                 <Spinner data-icon="inline-start" />
@@ -241,7 +264,11 @@ export default function NewCompanyPage() {
               "สร้างบริษัท"
             )}
           </Button>
-          <AdminLink href="/admin/companies" className={buttonVariants({ variant: "outline" })}>
+          <AdminLink
+            href="/admin/settings?tab=companies"
+            data-testid="companies-new-cancel-link"
+            className={buttonVariants({ variant: "outline" })}
+          >
             ยกเลิก
           </AdminLink>
         </CardFooter>
@@ -250,11 +277,11 @@ export default function NewCompanyPage() {
   );
 }
 
-function SummaryField({ label, value }: { label: string; value: string }) {
+function SummaryField({ label, value, testId }: { label: string; value: string; testId: string }) {
   return (
     <div className="flex flex-col gap-2">
       <Label>{label}</Label>
-      <Input value={value} readOnly />
+      <Input data-testid={testId} value={value} readOnly />
     </div>
   );
 }

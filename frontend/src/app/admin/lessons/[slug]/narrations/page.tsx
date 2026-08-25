@@ -74,8 +74,12 @@ export default function LessonNarrationsPage() {
   // NR-9 - Google Slides has no narration override path; speaker notes are edited at the source.
   if (lesson.contentSourceType !== "pdf") {
     return (
-      <main className="mx-auto flex max-w-3xl flex-col gap-4 p-6">
-        <AdminLink href={`/admin/lessons/${encodeURIComponent(lesson.slug)}`} className="text-xs text-muted-foreground hover:text-foreground">
+      <main className="flex w-full flex-col gap-4 p-6">
+        <AdminLink
+          href={`/admin/lessons/${encodeURIComponent(lesson.slug)}`}
+          className="text-xs text-muted-foreground hover:text-foreground"
+          data-testid="lesson-narrations-back-link"
+        >
           ← กลับหน้าแก้ไขบทเรียน
         </AdminLink>
         <p className="text-sm text-muted-foreground">
@@ -103,12 +107,16 @@ export default function LessonNarrationsPage() {
   }
 
   return (
-    <main className="mx-auto flex max-w-3xl flex-col gap-6 p-6">
+    <main className="flex w-full flex-col gap-6 p-6">
       <div>
-        <AdminLink href={`/admin/lessons/${encodeURIComponent(lesson.slug)}`} className="text-xs text-muted-foreground hover:text-foreground">
+        <AdminLink
+          href={`/admin/lessons/${encodeURIComponent(lesson.slug)}`}
+          className="text-xs text-muted-foreground hover:text-foreground"
+          data-testid="lesson-narrations-back-link"
+        >
           ← กลับหน้าแก้ไขบทเรียน
         </AdminLink>
-        <h1 className="mt-1 text-xl font-semibold">บทพูดต่อหน้า: {lesson.title}</h1>
+        <h1 className="mt-1 text-xl font-semibold text-primary">บทพูดต่อหน้า: {lesson.title}</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           ค่าเริ่มต้นดึงมาจากข้อความในไฟล์ PDF โดยตรง — แก้ทับได้เฉพาะหน้าที่ต้องการ หน้าที่ไม่แตะจะใช้ข้อความจากไฟล์เสมอ
           แก้แล้วบทพูดจะมีผลกับสิ่งที่ AI ใช้ตอบคำถามด้วย (re-index อัตโนมัติ)
@@ -147,6 +155,7 @@ export default function LessonNarrationsPage() {
                     maxLength={NARRATION_MAX_LENGTH}
                     rows={4}
                     onChange={(e) => setDrafts((prev) => ({ ...prev, [slide.slideObjectId]: e.target.value }))}
+                    data-testid={`lesson-narrations-textarea-${slide.slideObjectId}`}
                   />
                   <div className="flex items-center justify-between">
                     <p className="text-xs text-muted-foreground">
@@ -156,6 +165,7 @@ export default function LessonNarrationsPage() {
                       size="sm"
                       onClick={() => handleSave(slide.slideObjectId)}
                       disabled={!changed || savingId === slide.slideObjectId}
+                      data-testid={`lesson-narrations-save-button-${slide.slideObjectId}`}
                     >
                       {savingId === slide.slideObjectId ? <Spinner /> : "บันทึก"}
                     </Button>
