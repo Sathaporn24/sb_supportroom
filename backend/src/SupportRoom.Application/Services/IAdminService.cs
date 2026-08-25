@@ -71,13 +71,6 @@ public sealed class AdminService(
             questionRepository.Delete(question);
         }
 
-        var chatRepository = UnitOfWork.GetRepository<IChatMessageRepository>();
-        var chatMessages = chatRepository.GetAll().ToList();
-        foreach (var chatMessage in chatMessages)
-        {
-            chatRepository.Delete(chatMessage);
-        }
-
         var learningSessionRepository = UnitOfWork.GetRepository<ILearningSessionRepository>();
         var learningSessions = learningSessionRepository.GetAll().ToList();
         foreach (var learningSession in learningSessions)
@@ -95,8 +88,8 @@ public sealed class AdminService(
         UnitOfWork.Commit();
 
         Logger.LogWarning(
-            "Demo data reset: deleted {LinkCount} links, {LearningSessionCount} learning sessions, {QuestionCount} questions, {ChatCount} chat messages",
-            links.Count, learningSessions.Count, questions.Count, chatMessages.Count);
+            "Demo data reset: deleted {LinkCount} links, {LearningSessionCount} learning sessions, {QuestionCount} questions",
+            links.Count, learningSessions.Count, questions.Count);
     }
 
     public async Task<ReindexResult> ReindexAllAsync()

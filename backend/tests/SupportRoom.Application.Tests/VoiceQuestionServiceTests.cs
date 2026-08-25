@@ -2,6 +2,7 @@ using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging.Abstractions;
 using SupportRoom.Application.Common;
 using SupportRoom.Application.Dto;
+using SupportRoom.Application.Exceptions;
 using SupportRoom.Application.Services;
 using SupportRoom.Application.Tests.Fakes;
 using SupportRoom.Domain.Configuration;
@@ -115,7 +116,7 @@ public class VoiceQuestionServiceTests
             _notifier, namespaceResolver);
     }
 
-    private static AskVoiceQuestionDto Ask(byte[] audio, int durationMs, string expecting = "question") => new()
+    private static AskVoiceQuestionDto Ask(byte[] audio, int durationMs) => new()
     {
         Audio = audio,
         MimeType = "audio/mpeg",
@@ -123,7 +124,6 @@ public class VoiceQuestionServiceTests
         LearnerKey = "key-1",
         DurationMs = durationMs,
         CurrentSlideObjectId = "slide-1",
-        Expecting = expecting,
     };
 
     [Fact]
@@ -159,18 +159,44 @@ public class VoiceQuestionServiceTests
     }
 
     [Fact]
-    public async Task AskAsync_UnclearReadinessReply_DefaultsToNotReady()
+    public async Task AskAsync_AskedQuestion_RecordsVoiceAsTheSource()
     {
-        // Needs genuinely valid audio - Gemini rejects structurally-invalid bytes outright
-        // (400 INVALID_ARGUMENT) rather than treating them as "unclear speech." Reusing the
-        // spoken-question fixture works precisely because its content ("what is this picture?")
-        // is real, valid speech that still isn't a yes/no reply, so the readiness prompt's own
-        // explicit fallback ("if unclear, treat as not_ready") is what's actually being exercised.
         var audio = await File.ReadAllBytesAsync(Path.Combine(AppContext.BaseDirectory, "Fixtures", "spoken-question.mp3"));
 
-        var result = await _service.AskAsync(Ask(audio, durationMs: 4000, expecting: "readiness"));
+        await _service.AskAsync(Ask(audio, durationMs: 4000));
 
-        Assert.Equal("not_ready", result.Readiness);
-        Assert.Empty(_questions.Items);             // a yes/no start reply isn't a lesson question
+        Assert.Equal(QuestionSource.Voice, _questions.Items.Single().Source);
+    }
+
+    private static AskTextQuestionDto AskText(string text) => new()
+    {
+        Token = "tok-1",
+        LearnerKey = "key-1",
+        Text = text,
+        CurrentSlideObjectId = "slide-1",
+    };
+
+    [Fact]
+    public async Task AskTextAsync_AskedQuestion_RecordsItWithTextAsTheSource()
+    {
+        var result = await _service.AskTextAsync(AskText("นี่คือรูปอะไรคะ"));
+
+        Assert.NotNull(result.Answer);
+        Assert.Single(_questions.Items);
+        Assert.Equal(QuestionSource.Text, _questions.Items.Single().Source);
+        Assert.Equal("นี่คือรูปอะไรคะ", _questions.Items.Single().Transcript); // typed text, verbatim
+        Assert.Equal(1, _notifier.NewQuestionCount);
+        Assert.Equal("learning-1", _notifier.LastQuestionTarget);
+    }
+
+    [Fact]
+    public async Task AskTextAsync_WhenSessionEnded_ThrowsTheSameMessageAsTheVoicePath()
+    {
+        _learningSessions.Items.Single().Status = SessionStatus.Ended;
+
+        var ex = await Assert.ThrowsAsync<HttpStatusCodeException>(() => _service.AskTextAsync(AskText("คำถาม")));
+
+        Assert.Equal("การเรียนนี้จบแล้ว กรุณากดเรียนอีกครั้งก่อนถามคำถามใหม่", ex.Message);
+        Assert.Empty(_questions.Items);
     }
 }

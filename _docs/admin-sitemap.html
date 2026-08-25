@@ -1,0 +1,479 @@
+<title>แผนผังหน้าแอดมิน SupportRoom</title>
+
+<style>
+:root{
+  --bg:#F4F5F7; --surface:#FFFFFF; --surface-2:#EEF0F3;
+  --ink:#1B2028; --muted:#5B6472; --line:#E2E4E9;
+  --accent:#E8590C; --accent-soft:#FDE8DC;
+  --owner:#8B5CF6; --owner-soft:#F1EBFE;
+  --admin:#2563AF; --admin-soft:#E6EEFB;
+  --cs:#0F9D6C; --cs-soft:#E4F6EF;
+  --radius:10px;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#14171C; --surface:#1B1F26; --surface-2:#20242C;
+    --ink:#EDEFF2; --muted:#9BA3B0; --line:#2A2F38;
+    --accent:#FF7A33; --accent-soft:#3A2416;
+    --owner:#B79CFB; --owner-soft:#2A2140;
+    --admin:#7CA9E8; --admin-soft:#182534;
+    --cs:#5FD3A3; --cs-soft:#122A22;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#14171C; --surface:#1B1F26; --surface-2:#20242C;
+  --ink:#EDEFF2; --muted:#9BA3B0; --line:#2A2F38;
+  --accent:#FF7A33; --accent-soft:#3A2416;
+  --owner:#B79CFB; --owner-soft:#2A2140;
+  --admin:#7CA9E8; --admin-soft:#182534;
+  --cs:#5FD3A3; --cs-soft:#122A22;
+}
+
+*{box-sizing:border-box;}
+body{
+  background:var(--bg); color:var(--ink);
+  font-family:"Sarabun","Noto Sans Thai",system-ui,sans-serif;
+  margin:0; padding:48px 24px 96px; line-height:1.6;
+}
+.wrap{max-width:1040px; margin:0 auto;}
+
+h1,h2,h3{font-family:"Kanit","Noto Sans Thai",sans-serif; text-wrap:balance; margin:0;}
+h1{font-size:clamp(28px,4vw,40px); font-weight:600; letter-spacing:-0.01em;}
+h2{font-size:22px; font-weight:600;}
+h3{font-size:16px; font-weight:600;}
+
+.lede{color:var(--muted); font-size:16px; max-width:62ch; margin-top:10px;}
+
+.eyebrow{
+  font-family:"IBM Plex Mono",monospace; font-size:11px; letter-spacing:0.12em;
+  text-transform:uppercase; color:var(--accent); font-weight:600;
+}
+
+header.top{
+  display:flex; flex-direction:column; gap:8px;
+  border-bottom:1px solid var(--line); padding-bottom:28px; margin-bottom:32px;
+}
+
+.legend{
+  display:flex; flex-wrap:wrap; gap:10px; margin-top:20px;
+}
+.pill{
+  display:inline-flex; align-items:center; gap:6px;
+  font-size:12.5px; font-weight:600; padding:5px 12px; border-radius:999px;
+  font-family:"IBM Plex Mono",monospace; letter-spacing:0.01em;
+}
+.pill.owner{background:var(--owner-soft); color:var(--owner);}
+.pill.admin{background:var(--admin-soft); color:var(--admin);}
+.pill.cs{background:var(--cs-soft); color:var(--cs);}
+.pill.new{background:var(--accent-soft); color:var(--accent);}
+
+.group{margin-top:44px;}
+.group-head{
+  display:flex; align-items:baseline; gap:12px; margin-bottom:18px;
+}
+.group-head .idx{
+  font-family:"IBM Plex Mono",monospace; color:var(--muted); font-size:13px;
+}
+
+.cards{
+  display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr));
+  gap:14px;
+}
+.card{
+  background:var(--surface); border:1px solid var(--line); border-radius:var(--radius);
+  padding:18px; display:flex; flex-direction:column; gap:10px;
+  position:relative;
+}
+.card.highlight{border-color:var(--accent); box-shadow:0 0 0 1px var(--accent) inset;}
+.card .name{font-family:"Kanit",sans-serif; font-size:16.5px; font-weight:600;}
+.card .route{
+  font-family:"IBM Plex Mono",monospace; font-size:12.5px; color:var(--muted);
+  background:var(--surface-2); padding:3px 8px; border-radius:6px; display:inline-block;
+  width:fit-content;
+}
+.card .desc{font-size:13.5px; color:var(--muted); line-height:1.55;}
+.card .roles{display:flex; gap:6px; flex-wrap:wrap;}
+.card .from{
+  font-size:12px; color:var(--muted); border-top:1px dashed var(--line);
+  padding-top:8px; margin-top:2px;
+}
+.card .from b{color:var(--ink); font-weight:600;}
+
+.flow{
+  background:var(--surface); border:1px solid var(--line); border-radius:var(--radius);
+  padding:24px 26px; margin-top:18px;
+}
+.flow h3{margin-bottom:14px;}
+.steps{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:0;}
+.steps li{
+  display:grid; grid-template-columns:28px 1fr; gap:14px; position:relative; padding-bottom:18px;
+}
+.steps li:last-child{padding-bottom:0;}
+.steps li::before{
+  content:""; position:absolute; left:13px; top:26px; bottom:0; width:1px; background:var(--line);
+}
+.steps li:last-child::before{display:none;}
+.stepno{
+  width:26px; height:26px; border-radius:50%; background:var(--accent-soft); color:var(--accent);
+  display:flex; align-items:center; justify-content:center; font-family:"IBM Plex Mono",monospace;
+  font-size:12px; font-weight:700; z-index:1;
+}
+.stepbody b{font-weight:600;}
+.stepbody .route{margin-left:6px;}
+.stepbody .note{display:block; color:var(--muted); font-size:13px; margin-top:2px;}
+
+.flows-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(320px,1fr)); gap:18px;}
+
+.callout{
+  background:var(--surface-2); border-radius:var(--radius); padding:18px 20px;
+  font-size:14px; color:var(--muted); margin-top:18px; border-left:3px solid var(--accent);
+}
+.callout b{color:var(--ink);}
+
+table{width:100%; border-collapse:collapse; margin-top:14px; font-size:13.5px;}
+th{
+  text-align:left; font-family:"IBM Plex Mono",monospace; font-size:11px; letter-spacing:0.06em;
+  text-transform:uppercase; color:var(--muted); font-weight:600; padding:8px 10px; border-bottom:1px solid var(--line);
+}
+td{padding:10px 10px; border-bottom:1px solid var(--line); vertical-align:top;}
+tr:last-child td{border-bottom:none;}
+
+.scrollbox{overflow-x:auto;}
+
+footer{margin-top:56px; padding-top:20px; border-top:1px solid var(--line); font-size:13px; color:var(--muted);}
+
+.diagram-card{
+  background:var(--surface); border:1px solid var(--line); border-radius:var(--radius);
+  padding:20px 20px 8px; margin-top:18px;
+}
+.diagram-scroll{overflow-x:auto; padding-bottom:8px;}
+.diagram-scroll .mermaid{min-width:920px;}
+.diagram-legend{
+  display:flex; flex-wrap:wrap; gap:16px; padding:14px 4px 18px; font-size:12.5px; color:var(--muted);
+}
+.diagram-legend span{display:inline-flex; align-items:center; gap:6px;}
+.swatch{width:11px; height:11px; border-radius:3px; display:inline-block;}
+</style>
+
+<div class="wrap">
+
+<header class="top">
+  <span class="eyebrow">SupportRoom AI · ฝั่งแอดมิน</span>
+  <h1>แผนผังหน้าจอ &amp; เส้นทางการใช้งาน</h1>
+  <p class="lede">
+    ไล่หน้าจอจริงทั้งหมดของฝั่งจัดการหลังบ้าน (ไม่รวมฝั่งผู้เรียน — แยกทำรอบถัดไป)
+    เพื่อให้ทีมออกแบบเห็นโครงสร้างทั้งระบบ ก่อนลงรายละเอียด UI ต่อ
+  </p>
+  <div class="legend">
+    <span class="pill owner">● OWNER — เจ้าของ</span>
+    <span class="pill admin">● ADMIN — แอดมิน</span>
+    <span class="pill cs">● CS — ทีมซัพพอร์ต</span>
+    <span class="pill new">◆ เพิ่งสร้างสัปดาห์นี้</span>
+  </div>
+</header>
+
+<section class="group" style="margin-top:8px;">
+  <div class="group-head">
+    <span class="idx">00</span>
+    <h2>ภาพรวมทั้งระบบ — เส้นทางเดียวจบ</h2>
+  </div>
+  <div class="diagram-card">
+    <div class="diagram-scroll">
+      <pre class="mermaid">
+flowchart LR
+  LOGIN["00-login\nเข้าสู่ระบบ"]:::gate
+  CPW["14b-change-password\nบังคับเปลี่ยนรหัสผ่าน\n(บัญชีใหม่เท่านั้น)"]:::gate
+  DASH["01 · 14 · 17-dashboard\nลิงก์การเรียน"]:::core
+
+  LOGIN --> CPW --> DASH
+  LOGIN -.บัญชีเดิม.-> DASH
+
+  DASH --> CAT["02-categories\nหมวดความรู้"]:::ownerAdmin
+  DASH --> LESLIST["03-lessons-list\nบทเรียน"]:::allRoles
+  DASH --> DOCS["07-documents\nคลังเอกสาร"]:::ownerAdmin
+  DASH --> QQ["08-qna-queue\nคำถามรอคำตอบ"]:::allRoles
+  DASH --> QC["09-qna-conflicts\nQ&A ขัดกับเอกสาร"]:::allRoles
+  DASH --> COMP["10-companies\nบริษัททั้งหมด"]:::ownerOnly
+  DASH --> USERS["11-users\nผู้ใช้งาน"]:::ownerAdmin
+  DASH --> SET["13-settings\nตั้งค่าบริษัท"]:::mixed
+
+  LESLIST --> NEWL["04-lesson-new\nสร้างบทเรียนใหม่"]:::allRoles
+  LESLIST --> EDITL["05-lesson-edit\nแก้ไขบทเรียน"]:::allRoles
+  EDITL --> NARR["06-lesson-narrations\nแก้บทพูดต่อหน้า PDF"]:::allRoles
+
+  USERS --> ADDU["12-users-add-dialog\nเพิ่มผู้ใช้"]:::ownerAdmin
+
+  classDef gate fill:#5B6472,stroke:#5B6472,color:#fff,font-weight:600;
+  classDef core fill:#E8590C,stroke:#E8590C,color:#fff,font-weight:600;
+  classDef ownerOnly fill:#8B5CF6,stroke:#8B5CF6,color:#fff,font-weight:600;
+  classDef ownerAdmin fill:#2563AF,stroke:#2563AF,color:#fff,font-weight:600;
+  classDef allRoles fill:#0F9D6C,stroke:#0F9D6C,color:#fff,font-weight:600;
+  classDef mixed fill:#B45309,stroke:#B45309,color:#fff,font-weight:600;
+      </pre>
+    </div>
+    <div class="diagram-legend">
+      <span><i class="swatch" style="background:#5B6472"></i>ด่านก่อนเข้าระบบ</span>
+      <span><i class="swatch" style="background:#E8590C"></i>แดชบอร์ดหลัก</span>
+      <span><i class="swatch" style="background:#0F9D6C"></i>ทุก role เข้าได้</span>
+      <span><i class="swatch" style="background:#2563AF"></i>owner + admin</span>
+      <span><i class="swatch" style="background:#8B5CF6"></i>owner เท่านั้น</span>
+      <span><i class="swatch" style="background:#B45309"></i>เห็นได้ทุก role แต่แก้ได้เฉพาะ owner/admin</span>
+    </div>
+  </div>
+  <p class="callout" style="margin-top:14px;">
+    อ่านจากซ้ายไปขวา: <b>เข้าสู่ระบบ → (บัญชีใหม่โดนกันไปเปลี่ยนรหัสผ่านก่อน) → แดชบอร์ด</b>
+    แล้วแตกออก 8 ทางตามเมนูซ้าย สีของกล่องบอกว่า role ไหนเข้าได้ — ตรงกับสีในตารางสิทธิ์ท้ายหน้า
+  </p>
+</section>
+
+<section class="group">
+  <div class="group-head">
+    <span class="idx">01</span>
+    <h2>ภาพรวม</h2>
+  </div>
+  <div class="cards">
+    <div class="card">
+      <div class="name">ลิงก์การเรียน (แดชบอร์ด)</div>
+      <div class="route">/admin</div>
+      <div class="desc">หน้าแรกหลัง login — รายการลิงก์ที่แจกให้ผู้เรียน สถานะ (ใช้งานอยู่/หมดอายุ) ภาพรวมการเรียน และปุ่มลัดสร้างบทเรียน/ลิงก์</div>
+      <div class="roles"><span class="pill owner">OWNER</span><span class="pill admin">ADMIN</span><span class="pill cs">CS</span></div>
+      <div class="from">เข้าทันทีหลัง <b>เข้าสู่ระบบ</b> สำเร็จ</div>
+    </div>
+  </div>
+</section>
+
+<section class="group">
+  <div class="group-head">
+    <span class="idx">02</span>
+    <h2>เนื้อหาการสอน</h2>
+  </div>
+  <div class="cards">
+    <div class="card">
+      <div class="name">หมวดความรู้</div>
+      <div class="route">/admin/categories</div>
+      <div class="desc">จัดหมวดใหญ่/หมวดย่อย 2 ชั้น ใช้จัดกลุ่มบทเรียน เอกสาร และคำถาม-คำตอบ ทุกบริษัทมีหมวด "ยังไม่จัดหมวด" ติดมาด้วยเสมอ แก้/ลบไม่ได้</div>
+      <div class="roles"><span class="pill owner">OWNER</span><span class="pill admin">ADMIN</span></div>
+      <div class="from">เมนูซ้าย <b>หมวดความรู้</b></div>
+    </div>
+    <div class="card">
+      <div class="name">บทเรียน (รายการ)</div>
+      <div class="route">/admin/lessons</div>
+      <div class="desc">ตารางบทเรียนทั้งหมด ชื่อ / slug / สถานะพร้อมใช้งาน พร้อมปุ่มแก้ไขต่อแถว</div>
+      <div class="roles"><span class="pill owner">OWNER</span><span class="pill admin">ADMIN</span><span class="pill cs">CS</span></div>
+      <div class="from">เมนูซ้าย <b>บทเรียน</b></div>
+    </div>
+    <div class="card highlight">
+      <div class="name">สร้างบทเรียนใหม่</div>
+      <div class="route">/admin/lessons/new</div>
+      <div class="desc">ตั้ง slug / ชื่อ / หมวด / แหล่งเนื้อหา (Google Slides หรือ PDF) ก่อนเปิดใช้งานจริง — ช่องจังหวะพูดเริ่มว่างเปล่าแล้ว (แก้สัปดาห์นี้)</div>
+      <div class="roles"><span class="pill owner">OWNER</span><span class="pill admin">ADMIN</span><span class="pill cs">CS</span></div>
+      <div class="from">ปุ่ม <b>+ เพิ่มบทเรียน</b> จากแดชบอร์ดหรือหน้ารายการบทเรียน</div>
+    </div>
+    <div class="card highlight">
+      <div class="name">แก้ไขบทเรียน</div>
+      <div class="route">/admin/lessons/[slug]</div>
+      <div class="desc">แก้ข้อมูลพื้นฐาน + จังหวะเวลาทั้งบทเรียน (3 ช่อง — ว่างได้แล้ว แปลว่าใช้ค่ากลางของบริษัท) + ตั้งเวลาวิดีโอต่อสไลด์</div>
+      <div class="roles"><span class="pill owner">OWNER</span><span class="pill admin">ADMIN</span><span class="pill cs">CS</span></div>
+      <div class="from">ปุ่ม <b>แก้ไข</b> จากรายการบทเรียน</div>
+    </div>
+    <div class="card">
+      <div class="name">แก้บทพูดต่อหน้า (PDF)</div>
+      <div class="route">/admin/lessons/[slug]/narrations</div>
+      <div class="desc">เฉพาะบทเรียนที่ใช้ไฟล์ PDF — แก้ข้อความที่ AI จะพูดทีละหน้า มี badge "แก้ไขแล้ว" และเตือนถ้าไฟล์ดูเหมือนสแกน</div>
+      <div class="roles"><span class="pill owner">OWNER</span><span class="pill admin">ADMIN</span><span class="pill cs">CS</span></div>
+      <div class="from">ลิงก์ในหน้า <b>แก้ไขบทเรียน</b> (เฉพาะบทที่เป็น PDF)</div>
+    </div>
+    <div class="card">
+      <div class="name">คลังเอกสาร</div>
+      <div class="route">/admin/documents</div>
+      <div class="desc">อัปโหลดเอกสารอ้างอิงให้ AI ใช้ตอบ — เลือกได้ว่าผูกกับบทเรียนเดียวหรือใช้ร่วมทั้งบริษัท มีแท็บดูเอกสารที่ถูกลบ</div>
+      <div class="roles"><span class="pill owner">OWNER</span><span class="pill admin">ADMIN</span></div>
+      <div class="from">เมนูซ้าย <b>คลังเอกสาร</b></div>
+    </div>
+    <div class="card">
+      <div class="name">ดูข้อความที่แปลงได้ (เอกสาร)</div>
+      <div class="route">/admin/documents/[id]/chunks</div>
+      <div class="desc">ตรวจว่าระบบอ่านไฟล์ที่อัปโหลดออกมาถูกต้องไหม ไฮไลต์ส่วนที่ตัวอักษรน่าสงสัย</div>
+      <div class="roles"><span class="pill owner">OWNER</span><span class="pill admin">ADMIN</span></div>
+      <div class="from">ลิงก์ต่อแถวใน <b>คลังเอกสาร</b></div>
+    </div>
+  </div>
+</section>
+
+<section class="group">
+  <div class="group-head">
+    <span class="idx">03</span>
+    <h2>ตรวจสอบคำถาม</h2>
+  </div>
+  <div class="cards">
+    <div class="card">
+      <div class="name">คำถามรอคำตอบ</div>
+      <div class="route">/admin/qna-queue</div>
+      <div class="desc">รวมคำถามที่ AI ตอบไม่ได้ (not_found) และคำถามที่ CS ตรวจแล้วว่า AI ตอบผิด — เลือกได้หลายข้อ กดเขียนคำตอบพร้อมกัน</div>
+      <div class="roles"><span class="pill owner">OWNER</span><span class="pill admin">ADMIN</span><span class="pill cs">CS</span></div>
+      <div class="from">เมนูซ้าย หรือ badge ตัวเลขบนแดชบอร์ด</div>
+    </div>
+    <div class="card">
+      <div class="name">Q&amp;A ขัดกับเอกสาร</div>
+      <div class="route">/admin/qna-conflicts</div>
+      <div class="desc">ธงเตือนอัตโนมัติเมื่อคำตอบที่ CS เขียนไว้ขัดกับเนื้อหาเอกสาร/สไลด์ต้นทาง — ให้ CS ไปแก้เอกสารต้นทาง แล้วกดปิดธงเอง</div>
+      <div class="roles"><span class="pill owner">OWNER</span><span class="pill admin">ADMIN</span><span class="pill cs">CS</span></div>
+      <div class="from">เมนูซ้าย หรือ badge ตัวเลขบนแดชบอร์ด</div>
+    </div>
+  </div>
+</section>
+
+<section class="group">
+  <div class="group-head">
+    <span class="idx">04</span>
+    <h2>จัดการระบบ</h2>
+  </div>
+  <div class="cards">
+    <div class="card">
+      <div class="name">บริษัททั้งหมด</div>
+      <div class="route">/admin/companies</div>
+      <div class="desc">รายชื่อลูกค้าทุกราย เปิด/ปิดใช้งานได้ สร้างบริษัทใหม่พร้อมแอดมินคนแรกในฟอร์มเดียว</div>
+      <div class="roles"><span class="pill owner">OWNER เท่านั้น</span></div>
+      <div class="from">เมนูซ้าย <b>บริษัททั้งหมด</b> (ซ่อนจาก admin/cs)</div>
+    </div>
+    <div class="card">
+      <div class="name">ตัวสลับบริษัท</div>
+      <div class="route">?company=…</div>
+      <div class="desc">มุมขวาบนของทุกหน้า — เฉพาะ owner เห็น เพราะดูแลได้หลายบริษัทพร้อมกัน (admin/cs ผูกกับบริษัทเดียวตายตัว)</div>
+      <div class="roles"><span class="pill owner">OWNER เท่านั้น</span></div>
+      <div class="from">แถบบนสุด ทุกหน้า</div>
+    </div>
+  </div>
+</section>
+
+<section class="group">
+  <div class="group-head">
+    <span class="idx">05</span>
+    <h2>ตั้งค่า</h2>
+  </div>
+  <div class="cards">
+    <div class="card">
+      <div class="name">ผู้ใช้งาน</div>
+      <div class="route">/admin/users</div>
+      <div class="desc">เพิ่ม/ปิดบัญชีแอดมิน-CS ของบริษัทนี้ ตั้งสิทธิ์ตอนสร้าง — บัญชีใหม่ต้องเปลี่ยนรหัสผ่านก่อนใช้งานจริงเสมอ</div>
+      <div class="roles"><span class="pill owner">OWNER</span><span class="pill admin">ADMIN</span></div>
+      <div class="from">เมนูซ้าย <b>ผู้ใช้งาน</b></div>
+    </div>
+    <div class="card highlight">
+      <div class="name">ตั้งค่าบริษัท</div>
+      <div class="route">/admin/settings</div>
+      <div class="desc">หน้าใหม่ ออกแบบให้ขยายได้ — ตอนนี้มีแค่ "จังหวะการสอน" (3 ค่ากลางระดับบริษัท) แต่ละหัวข้อกำหนดสิทธิ์ดู/แก้ของตัวเองแยกกัน ไม่ผูกกับหัวข้ออื่น</div>
+      <div class="roles"><span class="pill owner">OWNER แก้ได้</span><span class="pill admin">ADMIN แก้ได้</span><span class="pill cs">CS ดูอย่างเดียว</span></div>
+      <div class="from">เมนูซ้าย <b>ตั้งค่าบริษัท</b></div>
+    </div>
+    <div class="card">
+      <div class="name">เปลี่ยนรหัสผ่าน (บังคับ)</div>
+      <div class="route">/admin/change-password</div>
+      <div class="desc">บัญชีที่เพิ่งสร้างใหม่จะถูกดักมาหน้านี้ก่อนเสมอ ใช้งานหน้าอื่นไม่ได้จนกว่าจะเปลี่ยนรหัสผ่านสำเร็จ</div>
+      <div class="roles"><span class="pill owner">OWNER</span><span class="pill admin">ADMIN</span><span class="pill cs">CS</span></div>
+      <div class="from">บังคับ redirect หลัง <b>เข้าสู่ระบบ</b> ครั้งแรก</div>
+    </div>
+  </div>
+</section>
+
+<section class="group">
+  <div class="group-head">
+    <span class="idx">—</span>
+    <h2>ก่อนเข้าระบบ</h2>
+  </div>
+  <div class="cards">
+    <div class="card">
+      <div class="name">เข้าสู่ระบบ</div>
+      <div class="route">/admin/login</div>
+      <div class="desc">อีเมล + รหัสผ่าน — จุดเริ่มต้นเดียวของทุก role ไม่มีการสมัครเองได้ (owner ตั้งบัญชีให้เท่านั้น)</div>
+      <div class="roles"><span class="pill owner">OWNER</span><span class="pill admin">ADMIN</span><span class="pill cs">CS</span></div>
+      <div class="from">พิมพ์ URL ตรง หรือ token หมดอายุ redirect กลับมา</div>
+    </div>
+  </div>
+</section>
+
+<section class="group">
+  <div class="group-head">
+    <span class="idx">06</span>
+    <h2>เส้นทางหลักที่ทีมออกแบบควรไล่ตาม</h2>
+  </div>
+
+  <div class="flows-grid">
+    <div class="flow">
+      <h3>รับลูกค้าใหม่เข้าระบบ</h3>
+      <ol class="steps">
+        <li><span class="stepno">1</span><div class="stepbody"><b>เข้าสู่ระบบ</b><span class="route">/admin/login</span><span class="note">ด้วยบัญชี owner ของ School Bright</span></div></li>
+        <li><span class="stepno">2</span><div class="stepbody"><b>บริษัททั้งหมด → สร้างบริษัทใหม่</b><span class="route">/admin/companies</span><span class="note">กรอกชื่อบริษัท + แอดมินคนแรกในฟอร์มเดียว — ระบบสร้างหมวดความรู้เริ่มต้นให้อัตโนมัติ</span></div></li>
+        <li><span class="stepno">3</span><div class="stepbody"><b>สลับไปบริษัทใหม่</b><span class="route">?company=…</span><span class="note">ผ่านตัวสลับมุมขวาบน</span></div></li>
+        <li><span class="stepno">4</span><div class="stepbody"><b>สร้างบทเรียนแรก</b><span class="route">/admin/lessons/new</span></div></li>
+      </ol>
+    </div>
+
+    <div class="flow">
+      <h3>ตั้งค่าจังหวะการสอนใหม่ (งานสัปดาห์นี้)</h3>
+      <ol class="steps">
+        <li><span class="stepno">1</span><div class="stepbody"><b>ตั้งค่าบริษัท</b><span class="route">/admin/settings</span><span class="note">owner/admin แก้ค่ากลาง 3 ช่องของทั้งบริษัท</span></div></li>
+        <li><span class="stepno">2</span><div class="stepbody"><b>แก้ไขบทเรียน</b><span class="route">/admin/lessons/[slug]</span><span class="note">ปล่อยว่างไว้ = ใช้ค่ากลาง, ใส่เลข = override เฉพาะบทนี้</span></div></li>
+        <li><span class="stepno">3</span><div class="stepbody"><b>CS เปิดหน้าเดียวกัน</b><span class="route">/admin/settings</span><span class="note">เห็นค่ากลางได้ แต่แก้ไม่ได้ — ช่องเป็นสีเทาทึบ</span></div></li>
+      </ol>
+    </div>
+
+    <div class="flow">
+      <h3>CS แก้คำถามที่ AI ตอบไม่ได้</h3>
+      <ol class="steps">
+        <li><span class="stepno">1</span><div class="stepbody"><b>คำถามรอคำตอบ</b><span class="route">/admin/qna-queue</span><span class="note">badge ตัวเลขบนแดชบอร์ดพาเข้ามาตรงนี้</span></div></li>
+        <li><span class="stepno">2</span><div class="stepbody"><b>เลือกคำถาม + เขียนคำตอบ</b><span class="note">เลือกหมวด/บทเรียนที่คำตอบนี้ใช้ได้ ก่อนบันทึก</span></div></li>
+        <li><span class="stepno">3</span><div class="stepbody"><b>ระบบเช็คอัตโนมัติ</b><span class="note">ถ้าคำตอบขัดกับเอกสารเดิม จะโผล่ที่ <b>Q&amp;A ขัดกับเอกสาร</b> ให้ CS ตามไปแก้ต่อ</span></div></li>
+      </ol>
+    </div>
+
+    <div class="flow">
+      <h3>เพิ่มพนักงานใหม่</h3>
+      <ol class="steps">
+        <li><span class="stepno">1</span><div class="stepbody"><b>ผู้ใช้งาน → เพิ่มผู้ใช้</b><span class="route">/admin/users</span><span class="note">owner/admin กรอกอีเมล + สิทธิ์ (admin/cs) + รหัสผ่านตั้งต้น</span></div></li>
+        <li><span class="stepno">2</span><div class="stepbody"><b>พนักงานใหม่ login ครั้งแรก</b><span class="route">/admin/login</span></div></li>
+        <li><span class="stepno">3</span><div class="stepbody"><b>ถูกบังคับเปลี่ยนรหัสผ่าน</b><span class="route">/admin/change-password</span><span class="note">เข้าหน้าอื่นไม่ได้จนกว่าจะเปลี่ยนสำเร็จ</span></div></li>
+      </ol>
+    </div>
+  </div>
+
+  <div class="callout">
+    <b>สิ่งที่ยังไม่มีในระบบวันนี้ (คุยกันไว้แล้ว รอคิว):</b> ฝั่งผู้เรียน (กดลิงก์ → เข้าห้องเรียน → ฟัง AI สอน → ถามด้วยเสียง)
+    ยังไม่รวมในรอบนี้ — รอบถัดไปจะเพิ่มเรื่อง responsive มือถือ/แท็บเล็ต และช่องทางพิมพ์ถามแทนพูด เข้าไปพร้อมกัน
+  </div>
+</section>
+
+<section class="group">
+  <div class="group-head">
+    <span class="idx">07</span>
+    <h2>ตารางสรุปเทียบสิทธิ์เข้าถึง</h2>
+  </div>
+  <div class="scrollbox">
+  <table>
+    <thead>
+      <tr><th>หน้า</th><th>Route</th><th>Owner</th><th>Admin</th><th>CS</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>ลิงก์การเรียน</td><td class="route" style="display:table-cell">/admin</td><td>ดู/แก้</td><td>ดู/แก้</td><td>ดู/แก้</td></tr>
+      <tr><td>หมวดความรู้</td><td class="route" style="display:table-cell">/admin/categories</td><td>ดู/แก้</td><td>ดู/แก้</td><td>—</td></tr>
+      <tr><td>บทเรียน</td><td class="route" style="display:table-cell">/admin/lessons</td><td>ดู/แก้</td><td>ดู/แก้</td><td>ดู/แก้</td></tr>
+      <tr><td>คลังเอกสาร</td><td class="route" style="display:table-cell">/admin/documents</td><td>ดู/แก้</td><td>ดู/แก้</td><td>—</td></tr>
+      <tr><td>คำถามรอคำตอบ</td><td class="route" style="display:table-cell">/admin/qna-queue</td><td>ดู/แก้</td><td>ดู/แก้</td><td>ดู/แก้</td></tr>
+      <tr><td>Q&amp;A ขัดกับเอกสาร</td><td class="route" style="display:table-cell">/admin/qna-conflicts</td><td>ดู/แก้</td><td>ดู/แก้</td><td>ดู/แก้</td></tr>
+      <tr><td>บริษัททั้งหมด</td><td class="route" style="display:table-cell">/admin/companies</td><td>ดู/แก้</td><td>—</td><td>—</td></tr>
+      <tr><td>ผู้ใช้งาน</td><td class="route" style="display:table-cell">/admin/users</td><td>ดู/แก้</td><td>ดู/แก้</td><td>—</td></tr>
+      <tr><td>ตั้งค่าบริษัท — จังหวะการสอน</td><td class="route" style="display:table-cell">/admin/settings</td><td>ดู/แก้</td><td>ดู/แก้</td><td>ดูอย่างเดียว</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p class="callout" style="margin-top:14px;">
+    <b>ออกแบบให้ขยายได้:</b> หัวข้อ "จังหวะการสอน" ใน <span class="route" style="display:inline">/admin/settings</span> เป็นหัวข้อแรกของกล่องตั้งค่าที่จะทยอยเพิ่ม
+    (อายุลิงก์ / เสียง+ความเร็วพูด / แบรนด์) — แต่ละหัวข้อกำหนด "ใครเห็น" และ "ใครแก้" แยกกันเองได้ ไม่ผูกเป็นชุดเดียว
+  </p>
+</section>
+
+<footer>
+  ไล่หน้าจอจริงจากแอปที่รันอยู่บนเครื่อง local (บัญชีทดสอบ: owner@local.test, admin@local.test, cs@local.test) — 2026-08-22
+</footer>
+
+</div>

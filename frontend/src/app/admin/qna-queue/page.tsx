@@ -55,16 +55,20 @@ export default function QnaQueuePage() {
   const selectedItems = (queue ?? []).filter((item) => selectedIds.has(item.id));
 
   return (
-    <main className="mx-auto flex max-w-4xl flex-col gap-6 p-6">
+    <main className="flex w-full flex-col gap-6 p-6">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-xl font-semibold">คิวคำถามที่ยังไม่มีคำตอบ</h1>
+          <h1 className="text-xl font-semibold text-primary">คิวคำถามที่ยังไม่มีคำตอบ</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             รวมคำถามที่ AI ตอบไม่ได้ (not_found) และคำถามที่ CS ตรวจแล้วพบว่า AI ตอบผิด ข้ามทุกการเรียนและทุกบทเรียน —
             เลือกคำถามที่ตอบด้วยคำตอบเดียวกันได้พร้อมกัน
           </p>
         </div>
-        <Button onClick={() => setDialogOpen(true)} disabled={selectedIds.size === 0}>
+        <Button
+          data-testid="qna-queue-answer-button"
+          onClick={() => setDialogOpen(true)}
+          disabled={selectedIds.size === 0}
+        >
           เขียนคำตอบ ({selectedIds.size})
         </Button>
       </div>
@@ -94,9 +98,10 @@ export default function QnaQueuePage() {
             </TableHeader>
             <TableBody>
               {queue.map((item) => (
-                <TableRow key={item.id}>
+                <TableRow key={item.id} data-testid={`qna-queue-row-${item.id}`}>
                   <TableCell className="px-4 py-3">
                     <Checkbox
+                      data-testid={`qna-queue-row-${item.id}-checkbox`}
                       checked={selectedIds.has(item.id)}
                       onCheckedChange={(checked) => toggleSelected(item.id, checked === true)}
                     />

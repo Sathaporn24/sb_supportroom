@@ -42,21 +42,27 @@ export function VolumeControl({ volume, onChange }: Props) {
           <Button
             variant="outline"
             size="icon-lg"
-            className="rounded-full"
+            className="size-11 rounded-full"
             title={`เสียง AI (${percent}%)`}
             aria-label={`เสียง AI (${percent}%)`}
+            data-testid="room-volume-trigger-button"
           />
         }
       >
         <Icon />
       </PopoverTrigger>
-      <PopoverContent side="top" className="w-52 flex-row items-center gap-3" aria-label="ปรับระดับเสียง AI">
+      <PopoverContent
+        side="top"
+        className="w-52 max-w-[calc(100vw-2rem)] flex-row items-center gap-3"
+        aria-label="ปรับระดับเสียง AI"
+      >
         <Button
           variant="ghost"
           size="icon-sm"
           onClick={toggleMute}
           aria-label={muted ? "เปิดเสียง AI" : "ปิดเสียง AI"}
           title={muted ? "เปิดเสียง AI" : "ปิดเสียง AI"}
+          data-testid="room-volume-mute-button"
         >
           <Icon />
         </Button>
@@ -66,6 +72,7 @@ export function VolumeControl({ volume, onChange }: Props) {
           max={100}
           onValueChange={(value) => onChange((Array.isArray(value) ? value[0] : value) / 100)}
           aria-label="ระดับเสียง AI"
+          data-testid="room-volume-slider"
           className="flex-1"
         />
         <span className="w-9 shrink-0 text-right text-xs tabular-nums text-muted-foreground">{percent}%</span>

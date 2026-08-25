@@ -566,6 +566,7 @@ public class LearningSessionServiceTests
         SessionId = learningSessionId,
         Transcript = transcript,
         AnswerStatus = answerStatus,
+        Source = QuestionSource.Voice,
         CreateDate = DateTime.UtcNow,
     };
 }

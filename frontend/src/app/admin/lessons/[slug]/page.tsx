@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AdminLink } from "@/components/admin/AdminLink";
 import { useParams } from "next/navigation";
+import { XIcon } from "lucide-react";
 import * as api from "@/lib/api-client";
 import { ApiClientError } from "@/lib/api-client";
 import type { ContentSourceType, KnowledgeCategory, LessonConfig, SlideConfig } from "@/types/domain";
@@ -56,6 +57,8 @@ export default function LessonEditorPage() {
   const [syncedAt, setSyncedAt] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
   const [pdfUploading, setPdfUploading] = useState(false);
+  const [pdfFileName, setPdfFileName] = useState<string | null>(null);
+  const pdfInputRef = useRef<HTMLInputElement>(null);
   const [saving, setSaving] = useState(false);
   const [savedAt, setSavedAt] = useState<string | null>(null);
   const [notFound, setNotFound] = useState(false);
@@ -183,12 +186,26 @@ export default function LessonEditorPage() {
         pdfDocumentResourceId: document.id,
         slideConfigs: nextSlideConfigs,
       });
+      setPdfFileName(document.fileName);
       setSyncedAt(content.syncedAt);
       setSyncStatus(`อัปโหลดสำเร็จ พบ ${content.slides.length} หน้า`);
     } catch (err) {
       setSyncStatus(err instanceof ApiClientError ? err.response.error.message : "อัปโหลด PDF ไม่สำเร็จ");
     } finally {
       setPdfUploading(false);
+    }
+  }
+
+  function handleClearPdf() {
+    if (!form) return;
+    setForm({
+      ...form,
+      pdfDocumentResourceId: undefined,
+      slideConfigs: [],
+    });
+    setPdfFileName(null);
+    if (pdfInputRef.current) {
+      pdfInputRef.current.value = "";
     }
   }
 
@@ -204,6 +221,7 @@ export default function LessonEditorPage() {
         : { pdfDocumentResourceId: undefined }),
       slideConfigs: [],
     });
+    setPdfFileName(null);
     setSyncStatus(null);
     setSyncedAt(null);
   }
@@ -283,21 +301,25 @@ export default function LessonEditorPage() {
   const selectedCategoryName = subcategories.find((c) => c.id === form.categoryId)?.name ?? "";
 
   return (
-    <main className="mx-auto flex max-w-3xl flex-col gap-6 p-6">
+    <main className="flex w-full flex-col gap-6 p-6">
       <div className="flex items-center justify-between">
         <div>
-          <AdminLink href="/admin/lessons" className="text-xs text-muted-foreground hover:text-foreground">
+          <AdminLink
+            href="/admin/lessons"
+            className="text-xs text-muted-foreground hover:text-foreground"
+            data-testid="lesson-editor-back-link"
+          >
             ← กลับรายการบทเรียน
           </AdminLink>
-          <h1 className="mt-1 text-xl font-semibold">แก้ไขบทเรียน: {form.title}</h1>
+          <h1 className="mt-1 text-xl font-semibold text-primary">แก้ไขบทเรียน: {form.title}</h1>
         </div>
         <div className="flex items-center gap-2">
           {form.contentSourceType === "google_slides" && (
-            <Button variant="ghost" onClick={handleSync} disabled={syncing}>
+            <Button variant="ghost" onClick={handleSync} disabled={syncing} data-testid="lesson-editor-sync-button-top">
               {syncButtonContent}
             </Button>
           )}
-          <Button onClick={handleSave} disabled={saving}>
+          <Button onClick={handleSave} disabled={saving} data-testid="lesson-editor-save-button-top">
             {saveButtonContent}
           </Button>
         </div>
@@ -321,6 +343,7 @@ export default function LessonEditorPage() {
               id="lesson-title"
               value={form.title}
               onChange={(e) => setForm({ ...form, title: e.target.value })}
+              data-testid="lesson-editor-title-input"
             />
           </div>
 
@@ -330,8 +353,13 @@ export default function LessonEditorPage() {
               value={form.categoryId}
               onValueChange={(value) => value && setForm({ ...form, categoryId: value })}
             >
-              <SelectTrigger id="lesson-category" className="w-full">
-                <SelectValue placeholder="เลือกหมวด" />
+              <SelectTrigger id="lesson-category" className="w-full" data-testid="lesson-editor-category-select">
+                <SelectValue placeholder="เลือกหมวด">
+                  {(value: string) => {
+                    const sub = subcategories.find((c) => c.id === value);
+                    return sub ? `${parentsById.get(sub.parentId ?? "")?.name ?? "?"} › ${sub.name}` : "เลือกหมวด";
+                  }}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 {subcategories.map((sub) => (
@@ -354,11 +382,11 @@ export default function LessonEditorPage() {
               className="flex flex-row gap-4"
             >
               <Label className="font-normal">
-                <RadioGroupItem value="google_slides" />
+                <RadioGroupItem value="google_slides" data-testid="lesson-editor-source-google-radio" />
                 Google Slides
               </Label>
               <Label className="font-normal">
-                <RadioGroupItem value="pdf" />
+                <RadioGroupItem value="pdf" data-testid="lesson-editor-source-pdf-radio" />
                 PDF
               </Label>
             </RadioGroup>
@@ -373,6 +401,7 @@ export default function LessonEditorPage() {
                   value={form.slidesSourceUrl}
                   onChange={(e) => setForm({ ...form, slidesSourceUrl: e.target.value })}
                   placeholder="https://docs.google.com/presentation/d/xxxxx/edit"
+                  data-testid="lesson-editor-slides-url-input"
                 />
               </div>
               <div className="flex flex-col gap-2">
@@ -383,24 +412,43 @@ export default function LessonEditorPage() {
                   id="slides-embed-url"
                   value={form.slidesEmbedUrl ?? ""}
                   onChange={(e) => setForm({ ...form, slidesEmbedUrl: e.target.value || null })}
+                  data-testid="lesson-editor-slides-embed-input"
                 />
               </div>
             </>
           ) : (
             <div className="flex flex-col gap-2">
               <Label htmlFor="pdf-file">ไฟล์ PDF ({form.slideConfigs.length} หน้าที่อ่านได้แล้ว)</Label>
-              <Input
-                id="pdf-file"
-                type="file"
-                accept="application/pdf"
-                disabled={pdfUploading}
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (file) void handlePdfFileSelected(file);
-                  e.target.value = "";
-                }}
-                className="h-auto py-1.5"
-              />
+              {pdfFileName ? (
+                <div className="flex h-8 w-full min-w-0 items-center justify-between gap-2 rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm">
+                  <span className="truncate">{pdfFileName}</span>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-xs"
+                    aria-label="ล้างไฟล์ที่แนบ"
+                    onClick={handleClearPdf}
+                    data-testid="lesson-editor-pdf-clear-button"
+                  >
+                    <XIcon />
+                  </Button>
+                </div>
+              ) : (
+                <Input
+                  id="pdf-file"
+                  ref={pdfInputRef}
+                  type="file"
+                  accept="application/pdf"
+                  disabled={pdfUploading}
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) void handlePdfFileSelected(file);
+                    e.target.value = "";
+                  }}
+                  className="h-auto py-1.5"
+                  data-testid="lesson-editor-pdf-file-input"
+                />
+              )}
               <p className="text-xs text-muted-foreground">
                 อัปโหลดไฟล์ใหม่เพื่อแทนที่ไฟล์เดิม — แต่ละหน้าจะกลายเป็น 1 Slide
                 โดยใช้ข้อความในหน้านั้นเป็นบทพูดของ AI โดยตรง
@@ -410,6 +458,7 @@ export default function LessonEditorPage() {
                 <AdminLink
                   href={`/admin/lessons/${encodeURIComponent(lesson.slug)}/narrations`}
                   className="text-xs text-primary hover:underline"
+                  data-testid="lesson-editor-narrations-link"
                 >
                   แก้บทพูดต่อหน้า →
                 </AdminLink>
@@ -421,6 +470,7 @@ export default function LessonEditorPage() {
             <Checkbox
               checked={form.isActive}
               onCheckedChange={(checked) => setForm({ ...form, isActive: checked === true })}
+              data-testid="lesson-editor-active-checkbox"
             />
             เปิดใช้งานบทเรียนนี้ (พร้อมให้สร้างลิงก์การสอน)
           </Label>
@@ -436,7 +486,7 @@ export default function LessonEditorPage() {
           <CardTitle className="text-xs tracking-wide text-muted-foreground uppercase">เอกสารประกอบ</CardTitle>
           <p className="mt-1 text-xs text-muted-foreground">
             เอกสารในนี้จะถูกใช้ตอบคำถามเฉพาะบทเรียนนี้เท่านั้น — ถ้าต้องการให้ใช้ได้ทุกบทเรียน ให้อัปโหลดที่{" "}
-            <AdminLink href="/admin/documents" className="text-primary hover:underline">
+            <AdminLink href="/admin/documents" className="text-primary hover:underline" data-testid="lesson-editor-documents-link">
               คลังเอกสารกลาง
             </AdminLink>{" "}
             แทน
@@ -481,6 +531,7 @@ export default function LessonEditorPage() {
                     updateSlideDuration(slide.slideObjectId, Math.max(0, Number(e.target.value) || 0) || null)
                   }
                   className="w-32"
+                  data-testid={`lesson-editor-slide-duration-${slide.slideObjectId}`}
                 />
               </Label>
             </CardContent>
@@ -490,11 +541,11 @@ export default function LessonEditorPage() {
 
       <div className="flex justify-end gap-2">
         {form.contentSourceType === "google_slides" && (
-          <Button variant="ghost" onClick={handleSync} disabled={syncing}>
+          <Button variant="ghost" onClick={handleSync} disabled={syncing} data-testid="lesson-editor-sync-button-bottom">
             {syncButtonContent}
           </Button>
         )}
-        <Button onClick={handleSave} disabled={saving}>
+        <Button onClick={handleSave} disabled={saving} data-testid="lesson-editor-save-button-bottom">
           {saveButtonContent}
         </Button>
       </div>
@@ -512,7 +563,7 @@ export default function LessonEditorPage() {
       )}
 
       <AlertDialog open={pendingPdfReplace !== null} onOpenChange={(next) => !next && setPendingPdfReplace(null)}>
-        <AlertDialogContent>
+        <AlertDialogContent data-testid="lesson-editor-pdf-replace-dialog">
           <AlertDialogHeader>
             <AlertDialogTitle>แทนที่ไฟล์ PDF เดิม?</AlertDialogTitle>
             <AlertDialogDescription>
@@ -521,8 +572,13 @@ export default function LessonEditorPage() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>ยกเลิก</AlertDialogCancel>
-            <AlertDialogAction onClick={() => void handlePdfReplaceConfirmed()}>ยืนยันแทนที่</AlertDialogAction>
+            <AlertDialogCancel data-testid="lesson-editor-pdf-replace-cancel-button">ยกเลิก</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => void handlePdfReplaceConfirmed()}
+              data-testid="lesson-editor-pdf-replace-confirm-button"
+            >
+              ยืนยันแทนที่
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

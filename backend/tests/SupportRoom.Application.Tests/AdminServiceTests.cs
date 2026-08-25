@@ -17,7 +17,6 @@ public class AdminServiceTests
     private readonly FakeTrainingLinkRepository _links = new();
     private readonly FakeLearningSessionRepository _learningSessions = new();
     private readonly FakeSessionQuestionRepository _questions = new();
-    private readonly FakeChatMessageRepository _chatMessages = new();
     private readonly FakeUnitOfWork _unitOfWork = new();
     private readonly AdminService _service;
 
@@ -26,8 +25,7 @@ public class AdminServiceTests
         _unitOfWork
             .Register<ITrainingLinkRepository>(_links)
             .Register<ILearningSessionRepository>(_learningSessions)
-            .Register<ISessionQuestionRepository>(_questions)
-            .Register<IChatMessageRepository>(_chatMessages);
+            .Register<ISessionQuestionRepository>(_questions);
         _service = new AdminService(
             _unitOfWork,
             new FakeServiceProvider(),
@@ -59,7 +57,7 @@ public class AdminServiceTests
         });
 
     [Fact]
-    public void ResetDemoData_DeletesLinksSessionsQuestionsAndChat_WhenEnabled()
+    public void ResetDemoData_DeletesLinksSessionsAndQuestions_WhenEnabled()
         => WithResetFlag("true", () =>
         {
             _links.Items.Add(new TrainingLink { Id = "link-1", CompanyId = TestFixtures.CompanyId, Token = "t1", LessonId = "l", LessonSlug = "a", ExpiresAt = DateTime.UtcNow });
@@ -74,15 +72,13 @@ public class AdminServiceTests
                 StartedAt = DateTime.UtcNow,
                 LastActivityAt = DateTime.UtcNow,
             });
-            _questions.Items.Add(new SessionQuestion { Id = "q1", CompanyId = TestFixtures.CompanyId, SessionId = "learning-1", AnswerStatus = AnswerStatus.Answered });
-            _chatMessages.Items.Add(new ChatMessage { Id = "c1", CompanyId = TestFixtures.CompanyId, SessionId = "learning-1", SenderRole = ChatSenderRole.Recipient, Text = "hi" });
+            _questions.Items.Add(new SessionQuestion { Id = "q1", CompanyId = TestFixtures.CompanyId, SessionId = "learning-1", AnswerStatus = AnswerStatus.Answered, Source = QuestionSource.Voice });
 
             _service.ResetDemoData();
 
             Assert.Empty(_links.Items);
             Assert.Empty(_learningSessions.Items);
             Assert.Empty(_questions.Items);
-            Assert.Empty(_chatMessages.Items);
             Assert.Equal(1, _unitOfWork.CommitCount);
         });
 }

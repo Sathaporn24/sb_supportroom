@@ -112,7 +112,7 @@ export type TeachingSlide = ResolvedSlide & {
 // A link and one person's run through it are two different things (CORE_FEATURE_SPEC §1).
 // CS creates a TrainingLink and sends it to a whole department; each person who opens it gets
 // their own LearningSession. "Session" means the latter everywhere - SessionQuestion.sessionId
-// and ChatMessage.sessionId both point at a LearningSession.
+// points at a LearningSession.
 
 /** Computed from expiresAt server-side, never stored. */
 export type LinkStatus = "ACTIVE" | "EXPIRED";
@@ -225,6 +225,10 @@ export type AnswerStatus = "answered" | "not_found" | "out_of_scope" | "no_speec
  * fixed in three different places (CORE_FEATURE_SPEC §2.7). */
 export type ReviewResult = "correct" | "incorrect";
 
+/** U2 (2026-08-23) - which channel produced the question. Every SessionQuestion row has one,
+ * with no default: the voice path sends "voice", the typed path sends "text". */
+export type QuestionSource = "voice" | "text";
+
 export type SessionQuestion = {
   id: string;
   /** A LearningSession id - the question belongs to the person who asked it. */
@@ -234,16 +238,19 @@ export type SessionQuestion = {
   answer?: string;
   answerStatus: AnswerStatus;
   createdAt: string;
+  source: QuestionSource;
   /** CS-facing only. The learner's own recap never renders these. */
   reviewResult?: ReviewResult | null;
   reviewNote?: string | null;
   reviewedAt?: string | null;
 };
 
-/** Public learner shape: answer-review metadata belongs to the back office only. */
+/** Public learner shape: answer-review metadata and the CS-facing `source` label belong to the
+ * back office only (SessionQuestionViewModel.Source is not on LearnerSessionQuestionViewModel -
+ * the learner already knows how they asked, per RR-5). */
 export type LearnerSessionQuestion = Omit<
   SessionQuestion,
-  "reviewResult" | "reviewNote" | "reviewedAt"
+  "reviewResult" | "reviewNote" | "reviewedAt" | "source"
 >;
 
 export type CreateSessionQuestionInput = Omit<
@@ -256,14 +263,15 @@ export type ReviewSessionQuestionInput = {
   reviewNote?: string;
 };
 
-/** Response shape for POST /api/voice-question. */
+/** Response shape for POST /api/voice-question and POST /api/text-question (TQ-2 - both
+ * endpoints share VoiceAnswerViewModel so the frontend has one result handler regardless of
+ * which channel asked). U1 (2026-08-23) removed readiness entirely - the only way to answer the
+ * readiness prompt is the button pair in TQ-18, not a spoken or typed reply. */
 export type VoiceQuestionResult = {
   transcript: string;
   answer: string;
   answerStatus: AnswerStatus;
   relatedSlideObjectId?: string;
-  /** Only set when expecting === "readiness": did the teacher say they're ready to start? */
-  readiness?: "ready" | "not_ready";
 };
 
 /**
@@ -285,22 +293,6 @@ export type SessionSummary = {
 /** Public learner recap: no internal follow-up list and no CS review metadata. */
 export type LearnerSessionSummary = Omit<SessionSummary, "questions" | "unansweredPoints"> & {
   questions: LearnerSessionQuestion[];
-};
-
-/** A typed chat message - separate from SessionQuestion (Push-to-Talk log), sent live over SignalR. */
-// "recipient" is whoever opened the join link; "agent" is the company's own support staff.
-// Deliberately not "teacher"/"cs" - those are School Bright's words, and this product is used
-// by other companies whose users are not teachers.
-export type ChatSenderRole = "recipient" | "agent" | "system";
-
-export type ChatMessage = {
-  id: string;
-  /** A LearningSession id. */
-  sessionId: string;
-  senderRole: ChatSenderRole;
-  senderName?: string;
-  text: string;
-  createdAt: string;
 };
 
 /**

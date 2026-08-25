@@ -19,6 +19,13 @@ namespace SupportRoom.Application.Services;
 public interface IVoiceQuestionService
 {
     Task<VoiceAnswerViewModel> AskAsync(AskVoiceQuestionDto input);
+
+    /// <summary>F10 - the typed-question counterpart to AskAsync, sharing the same core:
+    /// resolve session/company (IC-1) -> reject if Ended -> resolve lesson content -> answer via the
+    /// provider -> record + broadcast (TQ-4). "Equivalent to voice 100%" (T1) means this must never
+    /// diverge from AskAsync's orchestration except at the one point (transcription) that a typed
+    /// question skips by construction.</summary>
+    Task<VoiceAnswerViewModel> AskTextAsync(AskTextQuestionDto input);
 }
 
 /// <summary>
@@ -34,37 +41,45 @@ public sealed class VoiceQuestionService(
     IKnowledgeNamespaceResolver knowledgeNamespaceResolver)
     : ServiceBase<IVoiceQuestionService>(unitOfWork, serviceProvider, logger), IVoiceQuestionService
 {
-    public async Task<VoiceAnswerViewModel> AskAsync(AskVoiceQuestionDto input)
+    private sealed record ResolvedContext(LearningSession Session, TrainingLink Link, LessonTeachingContentViewModel Content);
+
+    /// <summary>TQ-4 step 1-3, shared by both AskAsync and AskTextAsync: resolving the link from its
+    /// token FIRST is what makes this request company-scoped (it sets ICompanyContext, so the lesson
+    /// lookup below can only ever see this company's lessons). The learner key then picks WHICH
+    /// person on that link is asking - the token stopped identifying a person once one link started
+    /// serving a whole department.</summary>
+    private async Task<ResolvedContext> ResolveContextAsync(string token, string learnerKey)
     {
-        // Resolving the link from its token FIRST is what makes this request company-scoped:
-        // it sets ICompanyContext, so the lesson lookup below can only ever see this company's
-        // lessons. The lesson slug used to come straight from the caller alongside a separate
-        // sessionId, with nothing checking the two belonged together - harmless while every slug
-        // was globally unique, but a cross-company read the moment slugs are per-company.
-        //
-        // The learner key then picks WHICH person on that link is asking - the token stopped
-        // identifying a person once one link started serving a whole department.
         var learningSessionService = ServiceProvider.GetRequiredService<ILearningSessionService>();
-        var session = learningSessionService.GetEntityByLearnerKey(input.Token, input.LearnerKey);
+        var session = learningSessionService.GetEntityByLearnerKey(token, learnerKey);
         if (session.Status == SessionStatus.Ended)
         {
             throw GeneralException.ValidationError("การเรียนนี้จบแล้ว กรุณากดเรียนอีกครั้งก่อนถามคำถามใหม่");
         }
-        var link = ServiceProvider.GetRequiredService<ITrainingLinkService>().GetEntityByToken(input.Token);
+        var link = ServiceProvider.GetRequiredService<ITrainingLinkService>().GetEntityByToken(token);
 
-        // Resolve slides through the single content-source-agnostic path so voice questions work
-        // for BOTH Google-Slides and PDF lessons - this used to require lesson.PresentationId and
-        // call the Slides provider directly, which 404'd every PDF-sourced lesson.
+        // Resolve slides through the single content-source-agnostic path so questions work for
+        // BOTH Google-Slides and PDF lessons - this used to require lesson.PresentationId and call
+        // the Slides provider directly, which 404'd every PDF-sourced lesson.
         var lessonService = ServiceProvider.GetRequiredService<ILessonConfigService>();
-        LessonTeachingContentViewModel content;
-        try
-        {
-            content = await lessonService.GetTeachingContentBySlugAsync(link.LessonSlug);
-        }
-        catch (HttpStatusCodeException)
-        {
-            throw;
-        }
+        var content = await lessonService.GetTeachingContentBySlugAsync(link.LessonSlug);
+
+        return new ResolvedContext(session, link, content);
+    }
+
+    /// <summary>Namespaces are built here, from the company the session token resolved to - never
+    /// inside the provider (KS-1). Vectors live outside PostgreSQL, so the query filter cannot
+    /// protect them; the namespace key is the only isolation the knowledge store has.</summary>
+    private (string LessonNamespace, string CategoryNamespace, string GlobalNamespace) ResolveNamespaces(TrainingLink link, LessonTeachingContentViewModel content)
+        => (
+            KnowledgeNamespaces.For(CurrentCompanyId, link.LessonSlug),
+            knowledgeNamespaceResolver.Resolve(CurrentCompanyId, KnowledgeScopeType.Category, content.Lesson.CategoryId),
+            KnowledgeNamespaces.ForGlobal(CurrentCompanyId));
+
+    public async Task<VoiceAnswerViewModel> AskAsync(AskVoiceQuestionDto input)
+    {
+        var context = await ResolveContextAsync(input.Token, input.LearnerKey);
+        var (lessonNamespace, categoryNamespace, globalNamespace) = ResolveNamespaces(context.Link, context.Content);
 
         try
         {
@@ -73,50 +88,22 @@ public sealed class VoiceQuestionService(
                 Audio = input.Audio,
                 MimeType = input.MimeType,
                 DurationMs = input.DurationMs,
-                LessonSlides = content.Slides.Select(s => new VoiceQuestionSlideContext { SlideObjectId = s.SlideObjectId, SpeakerNotes = s.SpeakerNotes }).ToList(),
+                LessonSlides = context.Content.Slides.Select(s => new VoiceQuestionSlideContext { SlideObjectId = s.SlideObjectId, SpeakerNotes = s.SpeakerNotes }).ToList(),
                 CurrentSlideObjectId = input.CurrentSlideObjectId,
-                Expecting = input.Expecting,
-                // Built here, from the company the session token resolved to - never inside the
-                // provider. Vectors live outside PostgreSQL, so the query filter cannot protect
-                // them; the namespace key is the only isolation the knowledge store has.
-                LessonNamespace = KnowledgeNamespaces.For(CurrentCompanyId, link.LessonSlug),
-                // CategoryNamespace comes from the lesson's own CategoryId through the single KS-1
-                // resolver (not built by hand here) - every lesson has a real category (or the
-                // system-default "ยังไม่จัดหมวด" leaf) since Phase 1, so this always resolves.
-                CategoryNamespace = knowledgeNamespaceResolver.Resolve(CurrentCompanyId, KnowledgeScopeType.Category, content.Lesson.CategoryId),
-                GlobalNamespace = KnowledgeNamespaces.ForGlobal(CurrentCompanyId),
+                LessonNamespace = lessonNamespace,
+                CategoryNamespace = categoryNamespace,
+                GlobalNamespace = globalNamespace,
             });
 
-            // A yes/no about starting isn't a question the CS team needs to review.
-            if (result.Readiness is not null)
+            // Never log Transcript/Answer - only the outcome.
+            Logger.LogInformation("Voice question answered: session={SessionId} status={AnswerStatus}", context.Session.Id, result.AnswerStatus);
+
+            if (result.AnswerStatus == AnswerStatus.NoSpeech)
             {
-                Logger.LogInformation("Readiness check: session={SessionId} readiness={Readiness}", session.Id, result.Readiness);
                 return result.Adapt<VoiceAnswerViewModel>();
             }
 
-            // Never log Transcript/Answer - only the outcome.
-            Logger.LogInformation("Voice question answered: session={SessionId} status={AnswerStatus}", session.Id, result.AnswerStatus);
-
-            if (result.AnswerStatus != AnswerStatus.NoSpeech)
-            {
-                var questionService = ServiceProvider.GetRequiredService<ISessionQuestionService>();
-                var question = questionService.Create(session.Id, new CreateSessionQuestionDto
-                {
-                    SlideObjectId = result.RelatedSlideObjectId ?? input.CurrentSlideObjectId,
-                    Transcript = string.IsNullOrEmpty(result.Transcript) ? null : result.Transcript,
-                    Answer = string.IsNullOrEmpty(result.Answer) ? null : result.Answer,
-                    AnswerStatus = result.AnswerStatus,
-                });
-
-                await realtimeNotifier.NotifyNewQuestionAsync(session.Id, question);
-
-                if (result.Conflict is not null)
-                {
-                    TryRecordConflict(question.Id, result.Conflict);
-                }
-            }
-
-            return result.Adapt<VoiceAnswerViewModel>();
+            return await RecordAndBroadcastAsync(context.Session, result, input.CurrentSlideObjectId, QuestionSource.Voice);
         }
         catch (HttpStatusCodeException)
         {
@@ -126,6 +113,68 @@ public sealed class VoiceQuestionService(
         {
             throw GeneralException.UpstreamError(ex.Message);
         }
+    }
+
+    public async Task<VoiceAnswerViewModel> AskTextAsync(AskTextQuestionDto input)
+    {
+        var context = await ResolveContextAsync(input.Token, input.LearnerKey);
+        var (lessonNamespace, categoryNamespace, globalNamespace) = ResolveNamespaces(context.Link, context.Content);
+
+        try
+        {
+            var result = await voiceQuestionProvider.AnswerTextAsync(new TextQuestionInput
+            {
+                QuestionText = input.Text,
+                LessonSlides = context.Content.Slides.Select(s => new VoiceQuestionSlideContext { SlideObjectId = s.SlideObjectId, SpeakerNotes = s.SpeakerNotes }).ToList(),
+                CurrentSlideObjectId = input.CurrentSlideObjectId,
+                LessonNamespace = lessonNamespace,
+                CategoryNamespace = categoryNamespace,
+                GlobalNamespace = globalNamespace,
+            });
+
+            // TQ-12 - never log the question text itself, only the outcome.
+            Logger.LogInformation("Text question answered: session={SessionId} status={AnswerStatus}", context.Session.Id, result.AnswerStatus);
+
+            return await RecordAndBroadcastAsync(context.Session, result, input.CurrentSlideObjectId, QuestionSource.Text);
+        }
+        catch (HttpStatusCodeException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            // TQ-10 - the provider throws rather than returning transcription_failed for a typed
+            // question, so this catch-all never runs for that case; anything else that lands here
+            // (upstream outage, malformed JSON) must also never write a SessionQuestion row - there
+            // is nothing at this point to write yet, unlike the voice path's NoSpeech short-circuit.
+            throw GeneralException.UpstreamError(ex.Message);
+        }
+    }
+
+    /// <summary>TQ-5/TQ-6 - the part that must be "identical in every particular" (T2) once a
+    /// question has an answer, regardless of which channel produced it: one SessionQuestion row,
+    /// tagged with the channel it came from, broadcast to the same group, with the same
+    /// Q&amp;A-conflict handling.</summary>
+    private async Task<VoiceAnswerViewModel> RecordAndBroadcastAsync(LearningSession session, VoiceQuestionResult result, string? currentSlideObjectId, string source)
+    {
+        var questionService = ServiceProvider.GetRequiredService<ISessionQuestionService>();
+        var question = questionService.Create(session.Id, new CreateSessionQuestionDto
+        {
+            SlideObjectId = result.RelatedSlideObjectId ?? currentSlideObjectId,
+            Transcript = string.IsNullOrEmpty(result.Transcript) ? null : result.Transcript,
+            Answer = string.IsNullOrEmpty(result.Answer) ? null : result.Answer,
+            AnswerStatus = result.AnswerStatus,
+            Source = source,
+        });
+
+        await realtimeNotifier.NotifyNewQuestionAsync(session.Id, question);
+
+        if (result.Conflict is not null)
+        {
+            TryRecordConflict(question.Id, result.Conflict);
+        }
+
+        return result.Adapt<VoiceAnswerViewModel>();
     }
 
     /// <summary>KS-9/KS-10 - the model can hallucinate a qnaId, so this is validated against

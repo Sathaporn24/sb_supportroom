@@ -8,7 +8,7 @@ Backend หลักคือ ASP.NET Core .NET 10 ใน `backend/`; Next.js Ro
 ### Implemented
 
 - REST controllers สำหรับ lessons, slides, sessions, questions, TTS, documents และ admin
-- SignalR `SessionHub` สำหรับ live chat/questions
+- SignalR `SessionHub` สำหรับ live question events (`ReceiveNewQuestion`) - ไม่มีฟีเจอร์แชต
 - PostgreSQL repositories + EF Core migrations
 - Google Slides + PDF teaching sources
 - Edge TTS พร้อม chunking ข้อความยาว

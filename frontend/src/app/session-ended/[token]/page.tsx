@@ -11,9 +11,10 @@ import { LoadingBlock } from "@/components/shared/LoadingBlock";
 import type { LearnerSessionQuestion } from "@/types/domain";
 
 // No link back to /admin here - this page is reached by anyone holding a public, unauthenticated
-// link, and /admin has no auth of its own (see CLAUDE.md). Linking to it from a public-facing
-// page handed every learner a one-click path into the full CS dashboard (every session's learner
-// name/organization, chat transcripts, and the "Reset Demo Data" button).
+// link. /admin has JWT auth + RBAC now, but this page still has no reason to advertise it to
+// every learner: a link here would still hand out the dashboard's URL to a public-facing
+// audience, one login prompt away from every session's learner name/organization, question
+// transcripts, and the "Reset Demo Data" button.
 export default function SessionEndedPage() {
   const params = useParams<{ token: string }>();
   const router = useRouter();
@@ -43,7 +44,7 @@ export default function SessionEndedPage() {
 
   if (questions === null) {
     return (
-      <main className="flex min-h-screen items-center justify-center p-6">
+      <main className="flex min-h-[100dvh] items-center justify-center p-6">
         <LoadingBlock label="กำลังโหลดสรุปการเรียน..." />
       </main>
     );
@@ -54,7 +55,7 @@ export default function SessionEndedPage() {
   const answered = questions.filter((q) => q.answerStatus !== "no_speech");
 
   return (
-    <main className="flex min-h-screen items-start justify-center p-6">
+    <main className="flex min-h-[100dvh] items-start justify-center p-6">
       <Card className="w-full max-w-2xl">
         <CardContent className="flex flex-col gap-5">
           <div className="text-center">
@@ -79,7 +80,11 @@ export default function SessionEndedPage() {
             </div>
           )}
 
-          <Button className="w-full" onClick={() => router.push(`/join/${params.token}`)}>
+          <Button
+            className="h-11 w-full"
+            data-testid="session-ended-restart-button"
+            onClick={() => router.push(`/join/${params.token}`)}
+          >
             เรียนอีกครั้ง
           </Button>
         </CardContent>

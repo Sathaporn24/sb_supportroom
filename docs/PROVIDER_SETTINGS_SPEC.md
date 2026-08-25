@@ -59,7 +59,8 @@ Create/Edit Draft
 
 - เปลี่ยน embedding model/dimensions/vector store → สร้าง index version ใหม่และ reindex ก่อน switch
 - เปลี่ยน answer model/prompt → รัน regression eval; ไม่จำเป็นต้อง reindex หาก embedding ไม่เปลี่ยน
-- เปลี่ยน STT → ทดสอบ audio formats/Thai/readiness intent
+- เปลี่ยน STT → ทดสอบ audio formats/Thai transcription accuracy (readiness ไม่ผ่าน STT อีกต่อไป
+  ตั้งแต่มติ U1 2026-08-23 - ตอบได้ทางเดียวคือกดปุ่มในหน้าห้อง)
 - เปลี่ยน TTS → voice preview, output format, max text, rate/streaming/fallback
 - เปลี่ยน endpoint/key อย่างเดียว → connection test + canary; key เก่าอยู่ช่วง rollback สั้นตาม policy
 - ห้ามเปิด config ที่ test ไม่ผ่าน หรือมี required secret ขาด

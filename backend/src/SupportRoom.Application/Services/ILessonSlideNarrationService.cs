@@ -98,7 +98,7 @@ public sealed class LessonSlideNarrationService(
         var baseSlide = baseContent.Slides.FirstOrDefault(s => s.SlideObjectId == slideObjectId)
             ?? throw GeneralException.NotFound("หน้าเอกสาร");
 
-        var trimmed = (narrationText ?? "").Trim();
+        var trimmed = SanitizeNarrationText(narrationText).Trim();
         var prefill = baseSlide.SpeakerNotes.Trim();
         var existing = _narrationRepository.GetOne(lessonId, slideObjectId);
         var changed = false;
@@ -169,6 +169,21 @@ public sealed class LessonSlideNarrationService(
         {
             throw GeneralException.ConfigError("บทเรียนนี้ยังไม่ได้อัปโหลดไฟล์ PDF");
         }
+    }
+
+    /// <summary>PostgreSQL text columns reject any NUL byte outright (22021), even inside otherwise
+    /// valid UTF-8 - and PDF-extracted SpeakerNotes can carry NUL/control-char artifacts from the
+    /// source document's binary content. Strip NUL plus other C0 control chars (keeping \n/\t,
+    /// which are legitimate in multi-line spoken narration) so a save can never crash on this
+    /// regardless of whether the garbage came from the extractor or from a CS paste.</summary>
+    private static string SanitizeNarrationText(string? narrationText)
+    {
+        if (string.IsNullOrEmpty(narrationText))
+        {
+            return "";
+        }
+
+        return string.Concat(narrationText.Where(c => c >= ' ' || c is '\n' or '\t'));
     }
 
     private void EnqueueLessonIndexJob(string lessonId, IReadOnlyList<string> slideObjectIds)

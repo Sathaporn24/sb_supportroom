@@ -1,6 +1,4 @@
 using System.Diagnostics;
-using System.Text;
-using System.Text.RegularExpressions;
 using EdgeTTS.DotNet;
 using EdgeTTS.DotNet.Models;
 using Microsoft.Extensions.Logging;
@@ -12,7 +10,7 @@ namespace SupportRoom.Providers.Tts;
 /// Real Microsoft Edge Read-Aloud integration - no API key needed. Mirrors src/providers/tts/
 /// edge-tts-provider.ts (same default voice/rate).
 /// </summary>
-public sealed partial class EdgeTtsProvider(ILogger<EdgeTtsProvider> logger) : ITtsProvider
+public sealed class EdgeTtsProvider(ILogger<EdgeTtsProvider> logger) : ITtsProvider
 {
     // The WebSocket to Microsoft's Edge Read-Aloud service occasionally drops mid-stream
     // ("WebSocket receive error", observed live hanging 36s before failing with no cap) - unlike
@@ -35,7 +33,7 @@ public sealed partial class EdgeTtsProvider(ILogger<EdgeTtsProvider> logger) : I
 
     public async Task<TtsResult> SynthesizeAsync(TtsInput input)
     {
-        var chunks = SplitIntoChunks(input.Text);
+        var chunks = TextChunker.SplitIntoChunks(input.Text, MaxChunkChars);
         if (chunks.Count <= 1)
         {
             return await SynthesizeChunkWithRetryAsync(input, input.Text);
@@ -135,99 +133,4 @@ public sealed partial class EdgeTtsProvider(ILogger<EdgeTtsProvider> logger) : I
         }
         return new TtsResult { Audio = buffer.ToArray(), MimeType = "audio/mpeg" };
     }
-
-    /// <summary>
-    /// Splits narration into chunks no longer than <see cref="MaxChunkChars"/>, breaking at
-    /// sentence-ish boundaries (newlines, . ! ? and Thai's "ๆ") first, then packing the pieces.
-    /// Thai marks phrase/sentence breaks with spaces, so a space is a safe fallback split point;
-    /// a run with neither punctuation nor spaces is hard-cut so no single request stays long.
-    /// </summary>
-    private static List<string> SplitIntoChunks(string text)
-    {
-        var chunks = new List<string>();
-        if (string.IsNullOrWhiteSpace(text))
-        {
-            return chunks;
-        }
-
-        var pieces = SentenceBoundary().Split(text.Trim());
-        var current = new StringBuilder();
-
-        void Flush()
-        {
-            if (current.Length > 0)
-            {
-                chunks.Add(current.ToString().Trim());
-                current.Clear();
-            }
-        }
-
-        foreach (var raw in pieces)
-        {
-            var piece = raw.Trim();
-            if (piece.Length == 0)
-            {
-                continue;
-            }
-
-            if (piece.Length > MaxChunkChars)
-            {
-                Flush();
-                foreach (var seg in HardSplit(piece))
-                {
-                    chunks.Add(seg);
-                }
-                continue;
-            }
-
-            if (current.Length + piece.Length + 1 > MaxChunkChars)
-            {
-                Flush();
-            }
-            if (current.Length > 0)
-            {
-                current.Append(' ');
-            }
-            current.Append(piece);
-        }
-
-        Flush();
-        return chunks;
-    }
-
-    private static IEnumerable<string> HardSplit(string s)
-    {
-        var sb = new StringBuilder();
-        foreach (var word in s.Split(' ', StringSplitOptions.RemoveEmptyEntries))
-        {
-            var w = word;
-            while (w.Length > MaxChunkChars)
-            {
-                if (sb.Length > 0)
-                {
-                    yield return sb.ToString();
-                    sb.Clear();
-                }
-                yield return w[..MaxChunkChars];
-                w = w[MaxChunkChars..];
-            }
-            if (sb.Length > 0 && sb.Length + w.Length + 1 > MaxChunkChars)
-            {
-                yield return sb.ToString();
-                sb.Clear();
-            }
-            if (sb.Length > 0)
-            {
-                sb.Append(' ');
-            }
-            sb.Append(w);
-        }
-        if (sb.Length > 0)
-        {
-            yield return sb.ToString();
-        }
-    }
-
-    [GeneratedRegex(@"(?<=[\.\!\?\n]|ๆ)\s+")]
-    private static partial Regex SentenceBoundary();
 }

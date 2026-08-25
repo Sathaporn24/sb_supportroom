@@ -61,11 +61,13 @@ function CompanyOrCategoryScopeFields({
   scopeId,
   categories,
   onChange,
+  testidPrefix,
 }: {
   scopeType: "company" | "category";
   scopeId: string | undefined;
   categories: KnowledgeCategory[];
   onChange: (next: DocumentScope) => void;
+  testidPrefix: string;
 }) {
   const subcategories = categories
     .filter((c) => c.level === 2)
@@ -80,11 +82,11 @@ function CompanyOrCategoryScopeFields({
         className="flex flex-row gap-4"
       >
         <Label className="font-normal">
-          <RadioGroupItem value="company" />
+          <RadioGroupItem value="company" data-testid={`${testidPrefix}-company-radio`} />
           ทั้งบริษัท
         </Label>
         <Label className="font-normal">
-          <RadioGroupItem value="category" />
+          <RadioGroupItem value="category" data-testid={`${testidPrefix}-category-radio`} />
           เฉพาะหมวด
         </Label>
       </RadioGroup>
@@ -93,8 +95,13 @@ function CompanyOrCategoryScopeFields({
           value={scopeId ?? ""}
           onValueChange={(value) => value && onChange({ scopeType: "category", scopeId: value })}
         >
-          <SelectTrigger className="w-full">
-            <SelectValue placeholder="เลือกหมวด" />
+          <SelectTrigger className="w-full" data-testid={`${testidPrefix}-category-select`}>
+            <SelectValue placeholder="เลือกหมวด">
+              {(value: string) => {
+                const sub = subcategories.find((c) => c.id === value);
+                return sub ? `${parentsById.get(sub.parentId ?? "")?.name ?? "?"} › ${sub.name}` : "เลือกหมวด";
+              }}
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
             {subcategories.map((sub) => (
@@ -251,8 +258,16 @@ export function DocumentUploadList({ fixedScope, primaryDocumentId }: Props) {
                 setFilterScope(value === "company" ? { scopeType: "company" } : { scopeType: "category", scopeId: value });
               }}
             >
-              <SelectTrigger className="w-64">
-                <SelectValue placeholder="เลือกขอบเขต" />
+              <SelectTrigger className="w-64" data-testid="documents-filter-scope-select">
+                <SelectValue placeholder="เลือกขอบเขต">
+                  {(value: string) => {
+                    if (value === "company") return "ทั้งบริษัท";
+                    const sub = filterSubcategories.find((c) => c.id === value);
+                    return sub
+                      ? `${filterParentsById.get(sub.parentId ?? "")?.name ?? "?"} › ${sub.name}`
+                      : "เลือกขอบเขต";
+                  }}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="company">ทั้งบริษัท</SelectItem>
@@ -279,6 +294,7 @@ export function DocumentUploadList({ fixedScope, primaryDocumentId }: Props) {
                 scopeId={uploadScope.scopeId}
                 categories={categories}
                 onChange={setUploadScope}
+                testidPrefix="documents-upload-scope"
               />
             </div>
           )}
@@ -288,8 +304,14 @@ export function DocumentUploadList({ fixedScope, primaryDocumentId }: Props) {
             accept=".pptx,.pdf,.docx,.xlsx"
             className="hidden"
             onChange={handleFileSelected}
+            data-testid="documents-upload-file-input"
           />
-          <Button variant="secondary" onClick={() => inputRef.current?.click()} disabled={uploading || !canUpload}>
+          <Button
+            data-testid="documents-upload-button"
+            variant="secondary"
+            onClick={() => inputRef.current?.click()}
+            disabled={uploading || !canUpload}
+          >
             {uploading ? (
               <>
                 <Spinner data-icon="inline-start" />
@@ -328,7 +350,7 @@ export function DocumentUploadList({ fixedScope, primaryDocumentId }: Props) {
             </TableHeader>
             <TableBody>
               {documents.map((doc) => (
-                <TableRow key={doc.id}>
+                <TableRow key={doc.id} data-testid={`document-row-${doc.id}`}>
                   <TableCell className="px-4 py-3">
                     {doc.fileName}
                     {doc.id === primaryDocumentId && (
@@ -366,15 +388,27 @@ export function DocumentUploadList({ fixedScope, primaryDocumentId }: Props) {
                       <AdminLink
                         href={`/admin/documents/${encodeURIComponent(doc.id)}/chunks?fileName=${encodeURIComponent(doc.fileName)}`}
                         className="text-xs text-primary hover:underline"
+                        data-testid={`document-row-${doc.id}-chunks-link`}
                       >
                         ดูข้อความที่แปลงได้
                       </AdminLink>
                       {libraryMode && (
-                        <Button variant="ghost" size="sm" onClick={() => openMoveDialog(doc)}>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => openMoveDialog(doc)}
+                          data-testid={`document-row-${doc.id}-move-button`}
+                        >
                           ย้ายขอบเขต
                         </Button>
                       )}
-                      <Button variant="ghost" size="sm" onClick={() => handleDelete(doc.id)} disabled={deletingId === doc.id}>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleDelete(doc.id)}
+                        disabled={deletingId === doc.id}
+                        data-testid={`document-row-${doc.id}-delete-button`}
+                      >
                         {deletingId === doc.id ? <Spinner /> : "ลบ"}
                       </Button>
                     </div>
@@ -387,7 +421,7 @@ export function DocumentUploadList({ fixedScope, primaryDocumentId }: Props) {
       )}
 
       <Dialog open={movingDoc !== null} onOpenChange={(next) => !next && setMovingDoc(null)}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md" data-testid="document-move-dialog">
           <DialogHeader>
             <DialogTitle>ย้ายขอบเขต — {movingDoc?.fileName}</DialogTitle>
           </DialogHeader>
@@ -397,13 +431,23 @@ export function DocumentUploadList({ fixedScope, primaryDocumentId }: Props) {
               scopeId={moveScope.scopeId}
               categories={categories}
               onChange={setMoveScope}
+              testidPrefix="document-move-scope"
             />
             {moveError && <p className="text-xs text-destructive">{moveError}</p>}
             <div className="flex justify-end gap-2">
-              <Button variant="ghost" onClick={() => setMovingDoc(null)} disabled={moving}>
+              <Button
+                variant="ghost"
+                onClick={() => setMovingDoc(null)}
+                disabled={moving}
+                data-testid="document-move-cancel-button"
+              >
                 ยกเลิก
               </Button>
-              <Button onClick={handleMoveConfirm} disabled={!canConfirmMove || moving}>
+              <Button
+                onClick={handleMoveConfirm}
+                disabled={!canConfirmMove || moving}
+                data-testid="document-move-confirm-button"
+              >
                 {moving ? (
                   <>
                     <Spinner data-icon="inline-start" />

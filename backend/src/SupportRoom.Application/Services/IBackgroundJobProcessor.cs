@@ -229,6 +229,7 @@ public sealed class BackgroundJobProcessor(
             var seqNo = 1;
             foreach (var chunk in extracted.Where(c => !string.IsNullOrWhiteSpace(c.Text)))
             {
+                var text = StripNulBytes(chunk.Text);
                 chunkRepository.Add(new DocumentChunk
                 {
                     Id = IdGenerator.GenerateId("chunk"),
@@ -239,9 +240,9 @@ public sealed class BackgroundJobProcessor(
                     VectorId = $"{documentId}-{chunk.ChunkId}",
                     NamespaceKey = namespaceKey,
                     SeqNo = seqNo++,
-                    Text = chunk.Text,
-                    CharCount = chunk.Text.Length,
-                    HasSuspectCharacters = DocumentChunkTextAnalyzer.HasSuspectCharacters(chunk.Text),
+                    Text = text,
+                    CharCount = text.Length,
+                    HasSuspectCharacters = DocumentChunkTextAnalyzer.HasSuspectCharacters(text),
                 });
             }
 
@@ -497,4 +498,12 @@ public sealed class BackgroundJobProcessor(
 
     private static string Truncate(string value, int maxLength)
         => value.Length <= maxLength ? value : value[..maxLength];
+
+    /// <summary>PostgreSQL text columns reject any NUL byte outright (22021), and PDF-extracted
+    /// chunk text can carry NUL-byte artifacts from the source document's binary content. Strip
+    /// only the NUL byte here - unlike ILessonSlideNarrationService.SanitizeNarrationText, other
+    /// control characters must stay untouched because DocumentChunkTextAnalyzer.HasSuspectCharacters
+    /// relies on them to flag suspect content for a human to review, not to be silently rewritten.</summary>
+    private static string StripNulBytes(string text)
+        => text.IndexOf('\0') < 0 ? text : text.Replace("\0", "");
 }

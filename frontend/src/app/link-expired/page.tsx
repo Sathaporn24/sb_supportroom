@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 // unauthenticated page, and /admin has no auth of its own.
 export default function LinkExpiredPage() {
   return (
-    <main className="flex min-h-screen items-center justify-center p-6">
+    <main className="flex min-h-[100dvh] items-center justify-center p-6">
       <Card className="max-w-md text-center">
         <CardHeader>
           <CardTitle className="text-xl">ลิงก์นี้หมดอายุหรือไม่สามารถใช้งานได้</CardTitle>

@@ -35,7 +35,7 @@ OpenAI-compatible สำหรับ RAG, Pinecone สำหรับ vector, lo
 - RAG ที่ query สอง namespace พร้อมกัน (บทเรียน + `kb-global`) merge แล้วกรองด้วย score threshold
 - Push-to-Talk พร้อมเสียงคั่นระหว่างรอที่ prefetch ไว้ล่วงหน้าและไต่ระดับตามเวลารอ
 - แสดงสไลด์ที่คำตอบอ้างอิงระหว่างพูด แล้วกลับสไลด์เดิมพร้อมประโยคเชื่อม
-- แชตสดสองทางผ่าน SignalR พร้อม history hydration
+- คำถามสดของคุณครู (เสียงหรือพิมพ์) ผ่าน SignalR พร้อม history hydration (ไม่มีฟีเจอร์แชตคุยกับคนอีกต่อไป - F10-a)
 - สรุป session + รายการที่ตอบไม่ได้
 - Re-index ทั้งระบบด้วย endpoint เดียว
 - Error envelope และ correlation id ที่ทำให้ grep log ครั้งเดียวเห็นทั้ง request
@@ -119,7 +119,7 @@ retry 2 ครั้ง, timeout 12 วินาที, คอมเมนต์
 
 | ตัวเลือก | ประเมิน |
 |---|---|
-| **SignalR (ปัจจุบัน)** | `Recommended` — เหมาะกับ chat + question broadcast ซึ่งเป็นทั้งหมดที่ต้องการวันนี้ |
+| **SignalR (ปัจจุบัน)** | `Recommended` — เหมาะกับ live question broadcast (`ReceiveNewQuestion`) ซึ่งเป็นทั้งหมดที่ต้องการวันนี้ |
 | **SignalR + Redis backplane** | `Only if needed` — จำเป็นเมื่อ scale เกิน 1 instance เท่านั้น เพิ่มทีหลังได้ ไม่ต้องแก้โค้ด business |
 | **Azure SignalR Service** | `Potential` — ถ้าไปทาง Azure อยู่แล้ว (จาก Azure Speech) จะได้ scale-out แบบ managed |
 | **WebRTC / LiveKit / Daily / Agora** | `Not suitable currently` — ห้องนี้ *ดูเหมือน* video call แต่ไม่มีการส่งสื่อ peer-to-peer จริง กล้องคุณครูเป็น local preview ล้วน การเอา WebRTC เข้ามาคือความซับซ้อนที่ไม่มีความต้องการรองรับ |

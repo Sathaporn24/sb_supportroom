@@ -46,7 +46,8 @@ sequenceDiagram
     FE->>API: POST /api/tts (intro)
     API->>TTS: synthesize
     TTS-->>FE: audio
-    FE->>FE: readiness by click, timeout or voice
+    FE->>FE: readiness by button click only ("พร้อมแล้ว" or "ยังไม่พร้อม") - U1 (2026-08-23)
+    Note over FE: ไม่มี auto-start timeout อีกต่อไปหลัง "ยังไม่พร้อม"; INTRO_TIMEOUT ยังมีผลถ้าไม่กด
     loop each slide
         FE->>API: POST /api/tts (speaker notes)
         API-->>FE: audio
@@ -87,6 +88,11 @@ sequenceDiagram
     FE->>FE: resume original slide
 ```
 
+Typed questions (`POST /api/text-question`, F10) follow the same diagram from `API->>Vector`
+onward - the recipient's typed text stands in for the transcript, so there is no
+`API->>Gemini: transcribe audio` step and no `durationMs`. Both paths write the same
+`SessionQuestion` shape, differing only in `Source` (`"voice"` vs `"text"`).
+
 ## Document Upload
 
 ```mermaid
@@ -109,18 +115,16 @@ sequenceDiagram
     Queue->>DB: indexed or failed
 ```
 
-## SignalR Chat
+## SignalR — CS Live Questions
+
+ฟีเจอร์แชตคุยกับ CS (ทั้งฝั่งผู้เรียนและฝั่ง CS) ถูกตัดออกทั้งฟีเจอร์ (F10-a, 2026-08-23, มติ
+T4-a) — ผู้เรียนไม่มี client invoke ใดเหลือแล้วบน `/hubs/session` และไม่ต้อง join group ใดเพื่อให้
+CS ได้ยิน (ดู "Push-to-Talk RAG" ด้านบนสำหรับ `ReceiveNewQuestion` broadcast)
 
 ```mermaid
 sequenceDiagram
-    participant Teacher
-    participant Hub as /hubs/session
-    participant DB
     participant CS
-    Teacher->>Hub: JoinSession(token, learnerKey)
+    participant Hub as /hubs/session
     CS->>Hub: JoinSessionAsAgent(learningSessionId) + JWT
-    Teacher->>Hub: SendChatMessage(token, learnerKey, text)
-    Hub->>DB: persist
-    Hub-->>Teacher: ReceiveChatMessage
-    Hub-->>CS: ReceiveChatMessage
+    Hub-->>CS: ReceiveNewQuestion (ตามที่เกิดขึ้นระหว่างเรียน)
 ```

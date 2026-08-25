@@ -94,7 +94,7 @@ export function KnowledgeQnAAnswerDialog({ open, items, onClose, onSaved }: Prop
 
   return (
     <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-w-lg" data-testid="qna-answer-dialog">
         <DialogHeader>
           <DialogTitle>เขียนคำตอบ ({items.length} คำถามที่เลือก)</DialogTitle>
         </DialogHeader>
@@ -103,6 +103,7 @@ export function KnowledgeQnAAnswerDialog({ open, items, onClose, onSaved }: Prop
             <Label htmlFor="qna-question">คำถาม (แก้ให้เป็นคำถามทั่วไปได้)</Label>
             <Textarea
               id="qna-question"
+              data-testid="qna-answer-question-input"
               value={question}
               maxLength={QUESTION_MAX_LENGTH}
               rows={2}
@@ -114,6 +115,7 @@ export function KnowledgeQnAAnswerDialog({ open, items, onClose, onSaved }: Prop
             <Label htmlFor="qna-answer">คำตอบที่ถูก</Label>
             <Textarea
               id="qna-answer"
+              data-testid="qna-answer-answer-input"
               value={answer}
               maxLength={ANSWER_MAX_LENGTH}
               rows={4}
@@ -129,22 +131,31 @@ export function KnowledgeQnAAnswerDialog({ open, items, onClose, onSaved }: Prop
               className="flex flex-row gap-4"
             >
               <Label className="font-normal">
-                <RadioGroupItem value="lesson" disabled={!primaryItem?.lessonId} />
+                <RadioGroupItem
+                  value="lesson"
+                  disabled={!primaryItem?.lessonId}
+                  data-testid="qna-answer-scope-lesson-radio"
+                />
                 เฉพาะบทเรียนนี้
               </Label>
               <Label className="font-normal">
-                <RadioGroupItem value="category" />
+                <RadioGroupItem value="category" data-testid="qna-answer-scope-category-radio" />
                 ทั้งหมวด
               </Label>
               <Label className="font-normal">
-                <RadioGroupItem value="company" />
+                <RadioGroupItem value="company" data-testid="qna-answer-scope-company-radio" />
                 ทั้งบริษัท
               </Label>
             </RadioGroup>
             {scopeType === "category" && (
               <Select value={scopeId ?? ""} onValueChange={(value) => value && setScopeId(value)}>
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="เลือกหมวด" />
+                <SelectTrigger className="w-full" data-testid="qna-answer-category-select">
+                  <SelectValue placeholder="เลือกหมวด">
+                    {(value: string) => {
+                      const sub = subcategories.find((c) => c.id === value);
+                      return sub ? `${parentsById.get(sub.parentId ?? "")?.name ?? "?"} › ${sub.name}` : "เลือกหมวด";
+                    }}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {subcategories.map((sub) => (
@@ -160,10 +171,10 @@ export function KnowledgeQnAAnswerDialog({ open, items, onClose, onSaved }: Prop
           {error && <p className="text-xs text-destructive">{error}</p>}
 
           <div className="flex justify-end gap-2">
-            <Button variant="ghost" onClick={onClose} disabled={saving}>
+            <Button variant="ghost" onClick={onClose} disabled={saving} data-testid="qna-answer-cancel-button">
               ยกเลิก
             </Button>
-            <Button onClick={handleSave} disabled={!canSave || saving}>
+            <Button onClick={handleSave} disabled={!canSave || saving} data-testid="qna-answer-save-button">
               {saving ? (
                 <>
                   <Spinner data-icon="inline-start" />

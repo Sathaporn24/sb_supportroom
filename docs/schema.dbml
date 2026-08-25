@@ -205,6 +205,7 @@ Table SessionQuestion {
   Transcript text [null]
   Answer text [null]
   AnswerStatus text [not null, note: '"answered" | "not_found" | "out_of_scope" | "no_speech" | "transcription_failed"']
+  Source text [not null, note: '"voice" | "text" (F10/U2, เพิ่ม 2026-08-23) — พูดถามหรือพิมพ์ถาม; NOT NULL เสมอ แถวเดิมก่อนมตินี้ backfill เป็น "voice" เพราะพิมพ์ถามยังไม่มีอยู่จริงตอนนั้น']
   ReviewResult text [null, note: '"correct" | "incorrect" — null = CS ยังไม่ตรวจ']
   ReviewNote text [null, note: 'free text ไม่ใช่ enum: "ตอบผิด" มี 3 สาเหตุที่แก้คนละทาง (ไม่มีเอกสาร / ค้นไม่เจอ / AI เดาเอง)']
   ReviewedAt timestamptz [null]
@@ -214,31 +215,7 @@ Table SessionQuestion {
     CompanyId [name: 'IX_SessionQuestion_CompanyId']
   }
 
-  Note: 'บันทึกคำถาม Push-to-Talk — คำถาม readiness ("พร้อมหรือยัง") ไม่ถูกบันทึกที่นี่. ผู้เรียนไม่เห็นคอลัมน์ Review* — เป็นข้อมูลภายในของ CS'
-}
-
-Table ChatMessage {
-  Id text [pk]
-  CompanyId text [not null]
-  CreateBy text [null]
-  CreateDate timestamptz [not null]
-  UpdateBy text [null]
-  UpdateDate timestamptz [null]
-  DeleteBy text [null]
-  IsDelete boolean [not null]
-  DeletedAt timestamptz [null]
-
-  SessionId text [not null, note: '→ LearningSession.Id (ไม่ใช่ลิงก์)']
-  SenderRole text [not null, note: '"recipient" | "agent" | "system"']
-  SenderName text [null]
-  Text text [not null]
-
-  Indexes {
-    SessionId [name: 'IX_ChatMessage_SessionId']
-    CompanyId [name: 'IX_ChatMessage_CompanyId']
-  }
-
-  Note: 'ช่องข้อความสำรอง แยกจาก SessionQuestion — เก็บไว้ให้คนเข้ากลางคันเห็นย้อนหลัง'
+  Note: 'บันทึกคำถาม Push-to-Talk และคำถามที่พิมพ์ (F10) — คำถาม readiness ("พร้อมหรือยัง") ไม่มีอยู่ในระบบแล้วตั้งแต่มติ U1 (2026-08-23, ถอด readiness-by-voice ทิ้งทั้งชุด). ผู้เรียนไม่เห็นคอลัมน์ Review*/Source — เป็นข้อมูลภายในของ CS'
 }
 
 Table DocumentResource {
@@ -276,7 +253,6 @@ Ref: LessonConfig.CompanyId > Company.Id
 Ref: TrainingLink.CompanyId > Company.Id
 Ref: LearningSession.CompanyId > Company.Id
 Ref: SessionQuestion.CompanyId > Company.Id
-Ref: ChatMessage.CompanyId > Company.Id
 Ref: DocumentResource.CompanyId > Company.Id
 
 Ref: TrainingLink.LessonId > LessonConfig.Id
@@ -284,7 +260,6 @@ Ref: DocumentResource.LessonId > LessonConfig.Id
 Ref: LessonConfig.PdfDocumentResourceId > DocumentResource.Id
 Ref: LearningSession.TrainingLinkId > TrainingLink.Id
 Ref: SessionQuestion.SessionId > LearningSession.Id
-Ref: ChatMessage.SessionId > LearningSession.Id
 
 TableGroup identity {
   Company
@@ -303,7 +278,6 @@ TableGroup invite {
 TableGroup session_runtime {
   LearningSession
   SessionQuestion
-  ChatMessage
 }
 
 // ──────────────────────────────────────────────────────────────

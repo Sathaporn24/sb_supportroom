@@ -198,9 +198,12 @@ export function useTutorSession(link: PublicTrainingLink, learningSession: Learn
    * start the instant the button is released. Synthesizing on demand would cost ~1s of the
    * very silence this exists to cover.
    *
-   * Sequential rather than parallel (15 simultaneous TTS calls is a good way to get rate
-   * limited), and each blob is usable the moment it lands - a question asked early just
-   * draws from a smaller pool instead of waiting for the whole set.
+   * A couple of jobs in flight at once rather than one-at-a-time: ElevenLabs' slower
+   * per-call latency (v3 is the only Thai-capable model, and it's not a fast one) made a
+   * strictly sequential queue take tens of seconds. Capped at 2 concurrent to stay under the
+   * Starter-tier 3-concurrent-request ceiling with a slot to spare, and each blob is usable
+   * the moment it lands - a question asked early just draws from a smaller pool instead of
+   * waiting for the whole set.
    */
   async function prefetchFillers() {
     // A random subset per session, so repeat sessions don't open with the same line.
@@ -218,12 +221,19 @@ export function useTutorSession(link: PublicTrainingLink, learningSession: Learn
     });
 
     // In need-order, so a question asked early still finds the opening line and stage 1
-    // ready even if the later rungs haven't landed yet.
-    for (const { text, rate, push } of jobs) {
-      const blob = await api.synthesizeSpeech(text, link.token, learnerKey, rate).catch(() => null);
-      if (!mountedRef.current) return;
-      if (blob) push(blob);
+    // ready even if the later rungs haven't landed yet - each worker pulls the next job off
+    // the front of the queue, so earlier jobs still land first on average.
+    const PREFETCH_CONCURRENCY = 2;
+    let nextJobIndex = 0;
+    async function worker() {
+      while (nextJobIndex < jobs.length) {
+        const job = jobs[nextJobIndex++];
+        const blob = await api.synthesizeSpeech(job.text, link.token, learnerKey, job.rate).catch(() => null);
+        if (!mountedRef.current) return;
+        if (blob) job.push(blob);
+      }
     }
+    await Promise.all(Array.from({ length: Math.min(PREFETCH_CONCURRENCY, jobs.length) }, worker));
   }
 
   /**
@@ -341,10 +351,6 @@ export function useTutorSession(link: PublicTrainingLink, learningSession: Learn
       return;
     }
 
-    // Answering "พร้อมหรือยังคะ?" is a yes/no, not a lesson question - the provider skips
-    // the deck grounding for it, so it comes back much faster.
-    const expecting = runtimeRef.current.interruptedFrom === "ready" ? "readiness" : "question";
-
     playProcessingFiller();
 
     try {
@@ -355,15 +361,9 @@ export function useTutorSession(link: PublicTrainingLink, learningSession: Learn
         learnerKey,
         currentSlideObjectId: currentSlide?.slideObjectId,
         durationMs,
-        expecting,
       });
 
       if (!mountedRef.current) return;
-
-      if (result.readiness) {
-        dispatch({ type: "READINESS_ANSWERED", ready: result.readiness === "ready" });
-        return;
-      }
 
       if (result.answerStatus === "no_speech" || result.answerStatus === "transcription_failed") {
         dispatch({ type: "NO_SPEECH" });
@@ -376,10 +376,46 @@ export function useTutorSession(link: PublicTrainingLink, learningSession: Learn
         answer: result.answer,
         answerStatus: result.answerStatus,
         relatedSlideObjectId: result.relatedSlideObjectId,
+        source: "voice",
       });
     } catch {
       if (mountedRef.current) {
         dispatch({ type: "QUESTION_FAILED" });
+      }
+    }
+  }
+
+  /**
+   * TQ-16 - the typed-question equivalent of stopRecordingAndSend() from the point a question
+   * text already exists. Unlike the voice path, a transport/provider failure here must NOT come
+   * back as a recorded row (TQ-10) - the backend throws instead of returning
+   * "transcription_failed", so the only two outcomes on this path are a real answer or
+   * QUESTION_FAILED, never NO_SPEECH.
+   */
+  async function sendTextQuestion(text: string) {
+    playProcessingFiller();
+    try {
+      const currentSlide = slidesRef.current[runtimeRef.current.currentSlideIndex];
+      const result = await api.askTextQuestion({
+        token: link.token,
+        learnerKey,
+        text,
+        currentSlideObjectId: currentSlide?.slideObjectId,
+      });
+      if (!mountedRef.current) return;
+      dispatch({
+        type: "QUESTION_ANSWERED",
+        transcript: result.transcript,
+        answer: result.answer,
+        answerStatus: result.answerStatus,
+        relatedSlideObjectId: result.relatedSlideObjectId,
+        source: "text",
+      });
+    } catch {
+      if (mountedRef.current) {
+        // QA-03 - carries the text back so the drawer can restore it into the input instead of
+        // silently discarding what the teacher typed.
+        dispatch({ type: "QUESTION_FAILED", text });
       }
     }
   }
@@ -475,6 +511,9 @@ export function useTutorSession(link: PublicTrainingLink, learningSession: Learn
         break;
       case "STOP_RECORDING_AND_SEND":
         void stopRecordingAndSend();
+        break;
+      case "SEND_TEXT_QUESTION":
+        void sendTextQuestion(effect.text);
         break;
       case "WAIT_FINAL_QUESTION":
         timerRef.current = setTimeout(() => dispatch({ type: "FINAL_QUESTION_TIMEOUT" }), effect.ms);

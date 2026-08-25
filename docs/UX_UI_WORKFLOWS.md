@@ -19,10 +19,10 @@ flowchart TD
     G --> H["AI เตรียมบทเรียน"]
     H --> I["พร้อมเริ่ม"]
     I --> J["บรรยาย slide"]
-    J --> K{"ผู้เรียนถาม/แชต/จบ?"}
+    J --> K{"ผู้เรียนถามเสียง/พิมพ์ถาม/จบ?"}
     K -- "ถามเสียง" --> L["PTT → STT/RAG → คำตอบ"]
     L --> J
-    K -- "แชต" --> M["ส่งข้อความ + history"]
+    K -- "พิมพ์ถาม" --> M["ส่งคำถามพิมพ์ (text-question) + history"]
     M --> J
     K -- "จบ/ครบ" --> N["End session"]
     N --> O["/session-ended/{token}"]
@@ -56,7 +56,7 @@ flowchart TD
 
 **กติกา:** link expiry ป้องกันการเริ่มใหม่ แต่ไม่ไล่ผู้เรียนที่เริ่มทันเวลาออกกลางคัน
 
-## WF03 — Voice question และ grounded answer (`AS-IS`)
+## WF03 — Voice/typed question และ grounded answer (`AS-IS`, updated 2026-08-23 for F10/U1)
 
 ```mermaid
 sequenceDiagram
@@ -68,30 +68,38 @@ sequenceDiagram
     participant AI as Answer model
     participant DB as SessionQuestion
 
-    L->>UI: กด PTT ค้าง
-    UI-->>L: recording state
-    L->>UI: ปล่อยปุ่ม
-    UI->>API: audio + token + learnerKey
-    API->>STT: ถอดเสียง/จำแนก readiness
-    alt ไม่มีเสียงหรือถอดเสียงพัง
-        API-->>UI: no_speech / transcription_failed
-    else readiness intent
-        API-->>UI: ready/not-ready (ไม่บันทึกเป็นคำถาม)
-    else คำถามจริง
-        API->>KB: ค้น lesson + company-global namespace
-        alt ไม่มีหลักฐานเพียงพอ
-            API->>DB: บันทึก not_found/out_of_scope
-            API-->>UI: แจ้งตรง ๆ ว่าตอบไม่ได้
-        else พบหลักฐาน
-            API->>AI: grounded context + question
-            AI-->>API: answer + related slide
-            API->>DB: บันทึก answered
-            API-->>UI: คำตอบ + reference behavior
+    alt ถามด้วยเสียง
+        L->>UI: กด PTT ค้าง
+        UI-->>L: recording state
+        L->>UI: ปล่อยปุ่ม
+        UI->>API: POST /api/voice-question (audio + token + learnerKey)
+        API->>STT: ถอดเสียง
+        opt ไม่มีเสียงหรือถอดเสียงพัง
+            API-->>UI: no_speech / transcription_failed
         end
+    else พิมพ์ถามในหน้าต่าง Ask AI
+        L->>UI: พิมพ์แล้วกดส่ง (ไม่ตัดบทพูดจนกว่าจะกดส่ง - T5)
+        UI->>API: POST /api/text-question (text + token + learnerKey)
+        Note over API: ข้ามการถอดเสียงไปเลย - ข้อความที่พิมพ์แทน transcript ตรงๆ
+    end
+    API->>KB: ค้น lesson + company-global namespace
+    alt ไม่มีหลักฐานเพียงพอ
+        API->>DB: บันทึก not_found/out_of_scope (Source = voice/text ตามเส้นทาง)
+        API-->>UI: แจ้งตรง ๆ ว่าตอบไม่ได้
+    else พบหลักฐาน
+        API->>AI: grounded context + question
+        AI-->>API: answer + related slide
+        API->>DB: บันทึก answered (Source = voice/text ตามเส้นทาง)
+        API-->>UI: คำตอบ + reference behavior (อ่านออกเสียงเสมอ ไม่ว่าจะถามทางไหน)
     end
 ```
 
-**ห้าม UX เปลี่ยน:** ผู้เรียนไม่เห็นว่าส่งข้อใดให้ CS ตรวจ; readiness question ไม่ปรากฏใน review queue
+**ห้าม UX เปลี่ยน:** ผู้เรียนไม่เห็นว่าส่งข้อใดให้ CS ตรวจ
+
+⚠️ **มติ U1 (2026-08-23)**: readiness ("พร้อมหรือยัง") **ไม่ผ่าน diagram นี้อีกต่อไป** - ตอบได้
+ทางเดียวคือกดปุ่ม "พร้อมแล้ว เริ่มเรียนเลย" / "ยังไม่พร้อม" ในหน้าห้อง ไม่เรียก
+voice-question/text-question เลย และไม่ถูกบันทึกเป็นคำถาม (เดิมมี "readiness intent" branch ในภาพนี้
+ที่ตัดออกไปแล้ว)
 
 ## WF04 — Login, first password change และ authorization (`AS-IS`)
 

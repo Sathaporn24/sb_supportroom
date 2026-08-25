@@ -6,13 +6,12 @@ import { useParams } from "next/navigation";
 import * as api from "@/lib/api-client";
 import { answerStatusLabels, reviewResultLabels } from "@/utils/session-status";
 import { formatDateTimeTh } from "@/utils/format";
-import { useAgentSessionChat } from "@/hooks/use-agent-session-chat";
+import { useAgentSessionQuestions } from "@/hooks/use-agent-session-questions";
 import type { ReviewResult, SessionQuestion, SessionSummary } from "@/types/domain";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ChatDrawer } from "@/components/meeting/ChatDrawer";
 
 const STAT_FIELD_COUNT = 4;
 const QUESTION_ROW_COUNT = 3;
@@ -21,7 +20,7 @@ const QUESTION_ROW_COUNT = 3;
  * loading state doesn't jump once the summary arrives. */
 function LearningSessionSummarySkeleton() {
   return (
-    <main className="mx-auto flex max-w-2xl flex-col gap-6 p-6">
+    <main className="flex w-full flex-col gap-6 p-6">
       <div className="flex flex-col gap-2">
         <Skeleton className="h-3 w-24" />
         <Skeleton className="h-6 w-40" />
@@ -73,10 +72,9 @@ export default function LearningSessionSummaryPage() {
   const params = useParams<{ id: string }>();
   const [summary, setSummary] = useState<SessionSummary | null | "loading">("loading");
   const [questions, setQuestions] = useState<SessionQuestion[]>([]);
-  const [chatOpen, setChatOpen] = useState(false);
 
   // Real-time so CS sees a session that is still in progress update live, not just after it ends.
-  const chat = useAgentSessionChat(params.id);
+  const { liveQuestions } = useAgentSessionQuestions(params.id);
 
   useEffect(() => {
     let active = true;
@@ -102,24 +100,25 @@ export default function LearningSessionSummaryPage() {
     return <main className="p-6 text-muted-foreground">ไม่พบการเรียนนี้ค่ะ</main>;
   }
 
-  const merged = mergeQuestions(questions, chat.liveQuestions);
+  const merged = mergeQuestions(questions, liveQuestions);
   const unresolved = merged
     .filter((q) => q.answerStatus === "not_found")
     .map((q) => q.transcript || q.answer || "")
     .filter(Boolean);
 
   return (
-    <main className="mx-auto flex max-w-2xl flex-col gap-6 p-6">
+    <main className="flex w-full flex-col gap-6 p-6">
       <div className="flex items-start justify-between">
         <div>
-          <AdminLink href="/admin" className="text-xs text-muted-foreground hover:text-foreground">
+          <AdminLink
+            href="/admin"
+            className="text-xs text-muted-foreground hover:text-foreground"
+            data-testid="session-summary-back-to-admin-link"
+          >
             ← กลับหน้า Admin
           </AdminLink>
-          <h1 className="mt-1 text-xl font-semibold">สรุปการเรียน</h1>
+          <h1 className="mt-1 text-xl font-semibold text-primary">สรุปการเรียน</h1>
         </div>
-        <Button variant="outline" onClick={() => setChatOpen((prev) => !prev)}>
-          แชท{chat.chatMessages.length > 0 ? ` (${chat.chatMessages.length})` : ""}
-        </Button>
       </div>
 
       <Card>
@@ -179,14 +178,6 @@ export default function LearningSessionSummaryPage() {
           )}
         </CardContent>
       </Card>
-
-      <ChatDrawer
-        open={chatOpen}
-        onClose={() => setChatOpen(false)}
-        questions={[]}
-        chatMessages={chat.chatMessages}
-        onSendMessage={chat.sendChatMessage}
-      />
     </main>
   );
 }
@@ -220,7 +211,7 @@ function QuestionReviewItem({
   }
 
   return (
-    <li className="rounded-lg border bg-muted p-3 text-sm">
+    <li className="rounded-lg border bg-muted p-3 text-sm" data-testid={`session-question-row-${question.id}`}>
       <p className="flex flex-wrap items-center gap-2">
         <span>{question.transcript || "(ไม่มีคำถอดเสียง)"}</span>
         <Badge variant="secondary">{answerStatusLabels[question.answerStatus]}</Badge>
@@ -242,19 +233,35 @@ function QuestionReviewItem({
         maxLength={2000}
         placeholder="หมายเหตุ (ไม่บังคับ) — เช่น ไม่มีเอกสารเรื่องนี้ / มีแต่ค้นไม่เจอ / AI เดาเอง"
         className="mt-2 w-full rounded-lg border bg-background px-3 py-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+        data-testid={`session-question-row-${question.id}-review-note-input`}
       />
 
       {error && <p className="mt-1 text-xs text-destructive">{error}</p>}
 
       <div className="mt-2 flex flex-wrap items-center gap-2">
-        <Button variant="secondary" disabled={saving !== null} onClick={() => void submit("correct")}>
+        <Button
+          variant="secondary"
+          disabled={saving !== null}
+          onClick={() => void submit("correct")}
+          data-testid={`session-question-row-${question.id}-mark-correct-button`}
+        >
           {saving === "correct" ? "กำลังบันทึก..." : "ตอบถูก"}
         </Button>
-        <Button variant="ghost" disabled={saving !== null} onClick={() => void submit("incorrect")}>
+        <Button
+          variant="ghost"
+          disabled={saving !== null}
+          onClick={() => void submit("incorrect")}
+          data-testid={`session-question-row-${question.id}-mark-incorrect-button`}
+        >
           {saving === "incorrect" ? "กำลังบันทึก..." : "ตอบผิด"}
         </Button>
         {question.reviewResult && (
-          <Button variant="outline" disabled={saving !== null} onClick={() => void submit(null)}>
+          <Button
+            variant="outline"
+            disabled={saving !== null}
+            onClick={() => void submit(null)}
+            data-testid={`session-question-row-${question.id}-clear-review-button`}
+          >
             {saving === "clear" ? "กำลังล้าง..." : "ล้างผลรีวิว"}
           </Button>
         )}

@@ -157,60 +157,6 @@ namespace SupportRoom.Providers.Data.Migrations
                     b.ToTable("BackgroundJob");
                 });
 
-            modelBuilder.Entity("SupportRoom.Domain.Entities.ChatMessage", b =>
-                {
-                    b.Property<string>("Id")
-                        .HasColumnType("text");
-
-                    b.Property<string>("CompanyId")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("CreateBy")
-                        .HasColumnType("text");
-
-                    b.Property<DateTime>("CreateDate")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("DeleteBy")
-                        .HasColumnType("text");
-
-                    b.Property<DateTime?>("DeletedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<bool>("IsDelete")
-                        .HasColumnType("boolean");
-
-                    b.Property<string>("SenderName")
-                        .HasColumnType("text");
-
-                    b.Property<string>("SenderRole")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("SessionId")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("Text")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("UpdateBy")
-                        .HasColumnType("text");
-
-                    b.Property<DateTime?>("UpdateDate")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("CompanyId");
-
-                    b.HasIndex("SessionId");
-
-                    b.ToTable("ChatMessage");
-                });
-
             modelBuilder.Entity("SupportRoom.Domain.Entities.Company", b =>
                 {
                     b.Property<string>("Id")
@@ -878,6 +824,10 @@ namespace SupportRoom.Providers.Data.Migrations
                         .HasColumnType("text");
 
                     b.Property<string>("SlideObjectId")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<string>("Transcript")

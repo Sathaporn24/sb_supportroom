@@ -48,9 +48,10 @@ public sealed class SessionQuestionService(IUnitOfWork unitOfWork, IServiceProvi
             Transcript = input.Transcript,
             Answer = input.Answer,
             AnswerStatus = input.AnswerStatus,
-            // Stays null in practice: a question is only ever written from POST /api/voice-question,
-            // which the learner calls anonymously. Kept for the same reason as ChatMessage -
-            // if that ever changes, the row records who without anyone remembering to add it.
+            Source = input.Source,
+            // Stays null in practice: a question is only ever written from an anonymous learner
+            // endpoint (POST /api/voice-question or /api/text-question). Kept anyway - if that ever
+            // changes, the row records who without anyone remembering to add it.
             CreateBy = CurrentUserId,
             CreateDate = DateTime.UtcNow,
         };

@@ -39,15 +39,14 @@ Error กลาง:
 | GET | `/api/session-questions?token=&learnerKey=` | คำถามของผู้เรียนเอง |
 | GET | `/api/session-questions/by-learning-session/{id}` | คำถามในการเรียนหนึ่ง (CS) |
 | PATCH | `/api/session-questions/{id}/review` | CS ทำเครื่องหมายถูก/ผิด + หมายเหตุ |
-| GET | `/api/chat-messages?token=&learnerKey=` | chat ของผู้เรียนเอง |
-| GET | `/api/chat-messages/by-learning-session/{id}` | chat ในการเรียนหนึ่ง (CS) |
 | POST | `/api/tts` | JSON `{ text, token, learnerKey, rate? }` → audio bytes |
-| POST | `/api/voice-question` | multipart audio question/readiness |
+| POST | `/api/voice-question` | multipart audio question |
+| POST | `/api/text-question` | JSON `{ token, learnerKey, text, currentSlideObjectId? }` - typed question, same result shape as voice (F10/TQ-2) |
 | GET | `/api/documents?scopeType=&scopeId=` | documents ตาม scope (`lesson`/`category`/`company`); ไม่ส่ง query เลย = `company` |
 | POST | `/api/documents` | upload document (multipart `file` + `scopeType` + `scopeId?`), สูงสุดตาม `MAX_DOCUMENT_UPLOAD_MB` |
 | PATCH | `/api/documents/{id}/scope` | JSON `{ scopeType, scopeId? }` — ย้ายเอกสารไป scope ใหม่ (DS-5/DS-6) |
 | DELETE | `/api/documents/{id}` | ลบ metadata/storage object |
-| POST | `/api/admin/reset` | ลบ link/learning session/question/chat เมื่ออนุญาต |
+| POST | `/api/admin/reset` | ลบ link/learning session/question เมื่ออนุญาต |
 | POST | `/api/admin/reindex` | rebuild RAG namespaces เมื่ออนุญาต |
 
 ## Key Payloads
@@ -61,22 +60,32 @@ Error กลาง:
 
 `token` บอกว่าบทเรียนไหน/บริษัทไหน · `learnerKey` บอกว่าเป็นคนไหนบนลิงก์นั้น
 ถ้าไม่มี learnerKey คำถามจะถูกบันทึกและ broadcast ผิดคน
-- `expecting=question|readiness`
 
-Response:
+Response (`VoiceAnswerViewModel` - ใช้ร่วมกับ `/api/text-question` ตัวเดียวกัน):
 
 ```json
 {
   "transcript": "...",
   "answer": "...",
   "answerStatus": "answered",
-  "relatedSlideObjectId": "...",
-  "readiness": "ready"
+  "relatedSlideObjectId": "..."
 }
 ```
 
-`answerStatus`: `answered`, `not_found`, `out_of_scope`, `no_speech`,
-`transcription_failed`; `readiness` มีเฉพาะ readiness flow
+`answerStatus`: `answered`, `not_found`, `out_of_scope`, `no_speech`, `transcription_failed`
+
+⚠️ **มติ U1 (2026-08-23)**: ไม่มี `expecting`/`readiness` อีกต่อไปทั้งฝั่ง request และ response —
+readiness ("พร้อมหรือยัง") ตอบได้ทางเดียวคือปุ่ม "พร้อมแล้ว"/"ยังไม่พร้อม" ในหน้าห้อง ไม่ผ่าน
+voice-question/text-question เลย
+
+### `POST /api/text-question`
+
+```json
+{ "token": "...", "learnerKey": "...", "text": "...", "currentSlideObjectId": "..." }
+```
+
+Response: `VoiceAnswerViewModel` เดียวกับ `/api/voice-question` ทุกฟิลด์ (TQ-2) — ไม่มี `durationMs`
+เพราะไม่มีเสียงให้วัดความยาว
 
 ### `POST /api/lessons`
 
@@ -111,21 +120,18 @@ Hub: `/hubs/session`
 **Group key = LearningSession id** ไม่ใช่ token
 
 เดิมใช้ token ซึ่งถูกต้องตอน 1 ลิงก์ = 1 คน แต่พอลิงก์เดียวเปิดกันทั้งหน่วยงาน กลุ่มที่ผูกกับ
-token จะยัดทุกคนไว้ห้องเดียวกัน แล้วส่งคำถาม/แชตของแต่ละคนไปให้ทุกคนที่ถือลิงก์เดียวกัน
+token จะยัดทุกคนไว้ห้องเดียวกัน แล้วส่งคำถามของแต่ละคนไปให้ทุกคนที่ถือลิงก์เดียวกัน
 
-Client invokes (ฝั่งผู้เรียน — server derive group key/role จาก (token, learnerKey) ไม่รับจาก client):
-
-- `JoinSession(token, learnerKey)`
-- `SendChatMessage(token, learnerKey, text)` — server ใช้ชื่อจาก LearningSession
+ผู้เรียนไม่มี client invoke ใดเหลือแล้ว (F10-a ตัดฟีเจอร์แชตออกทั้งฟีเจอร์ทั้งสองฝั่ง — คำถามของ
+ผู้เรียนไปทาง REST `/api/voice-question` ไม่ใช่ hub) — ผู้เรียนไม่ต้อง join group ใดเพื่อให้ CS
+ได้ยิน เพราะ `NotifyNewQuestionAsync` broadcast ไปที่ group ตรงอยู่แล้ว
 
 Client invokes (ฝั่ง CS — ไม่มี learnerKey จึงอ้างด้วย id ตรง ๆ):
 
 - `JoinSessionAsAgent(learningSessionId)`
-- `SendChatMessageAsAgent(learningSessionId, text)` — server ใช้ display name จาก JWT
 
 Server events:
 
-- `ReceiveChatMessage(ChatMessage)`
 - `ReceiveNewQuestion(SessionQuestion)`
 
 Agent connection ส่ง JWT ผ่าน `accessTokenFactory` และ `?company=`; agent methods ตรวจ auth

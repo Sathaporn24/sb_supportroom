@@ -9,7 +9,7 @@
 3. เพิ่ม meaningful API integration tests และ CI
 4. ~~เพิ่ม authentication/authorization สำหรับ Admin/API/SignalR~~ ทำ baseline JWT/RBAC แล้ว;
    เพิ่ม integration/security tests และ session revocation/refresh ตาม requirement
-5. เพิ่ม rate limiting สำหรับ TTS, voice, upload, reindex และ chat
+5. เพิ่ม rate limiting สำหรับ TTS, voice, upload, reindex และ session questions
 6. ~~Enforce session expiry/status ฝั่ง backend~~ ทำแล้ว; เพิ่ม regression/E2E สำหรับ reconnect หลัง expiry
 
 ## P1 — Reliability

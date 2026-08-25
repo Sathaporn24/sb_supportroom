@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/toast";
 
-export function CopyLinkButton({ url }: { url: string }) {
+export function CopyLinkButton({ url, testId }: { url: string; testId?: string }) {
   const [copied, setCopied] = useState(false);
 
   async function handleCopy() {
@@ -20,7 +20,7 @@ export function CopyLinkButton({ url }: { url: string }) {
   }
 
   return (
-    <Button variant="outline" size="sm" onClick={handleCopy}>
+    <Button variant="outline" size="sm" onClick={handleCopy} data-testid={testId ?? "copy-link-button"}>
       {copied ? "คัดลอกแล้ว" : "คัดลอกลิงก์"}
     </Button>
   );

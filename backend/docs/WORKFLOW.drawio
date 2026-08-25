@@ -70,7 +70,7 @@
         <mxCell id="dia2" value="มีสไลด์&#10;ถัดไป?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=12;" vertex="1" parent="1">
           <mxGeometry x="460" y="990" width="220" height="100" as="geometry" />
         </mxCell>
-        <mxCell id="note1" value="พิมพ์แชทสำรอง&#10;SendChatMessage ↔ ครู/CS&#10;(ขนานตลอดเวลา)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=12;dashed=1;arcSize=10;" vertex="1" parent="1">
+        <mxCell id="note1" value="พิมพ์ถาม AI (F10)&#10;POST /api/text-question&#10;(เทียบเท่าถามด้วยเสียง 100%; แชตคุยกับ CS ถูกตัดออกทั้งฟีเจอร์ 2026-08-23)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=12;dashed=1;arcSize=10;" vertex="1" parent="1">
           <mxGeometry x="460" y="1130" width="260" height="90" as="geometry" />
         </mxCell>
 

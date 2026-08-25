@@ -103,7 +103,7 @@ public sealed class LessonController : ControllerBase
         [FromBody] LessonSlideNarrationDto input)
     {
         await _narrationService.SaveAsync(id, slideObjectId, input.NarrationText);
-        return Ok();
+        return NoContent();
     }
 
     /// <summary>NR-3 - the admin UI calls this before letting CS confirm uploading a new PDF over

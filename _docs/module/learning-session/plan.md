@@ -44,10 +44,20 @@ environment จริง หรือ re-verify ตามข้อความ�
 
 ## Plan Summary
 
-6 phase ตรงกับ Module A–F ของ `design.md` เรียงตาม dependency ที่ `design.md` ระบุไว้:
-**A → (B, C) → D → (E, F)** — A ต้องเสร็จก่อนทุกอย่างเพราะเป็น data foundation, D ต้องเสร็จก่อน E
+9 phase ตรงกับ Module A–I ของ `design.md` เรียงตาม dependency ที่ `design.md` ระบุไว้:
+**A → (B, C) → D → (E, F) → (G, H) → I** — A ต้องเสร็จก่อนทุกอย่างเพราะเป็น data foundation, D ต้องเสร็จก่อน E
 และ F เพราะทั้งคู่ต้องใช้ chat/คำถามที่ผูกกับการเรียนแล้ว โปรเจกต์นี้ scaffold ไว้แล้ว (ASP.NET Core +
 Next.js อยู่ก่อนแล้ว) จึงไม่มี Phase 0 ของ `setup`
+
+**เพิ่ม 2026-08-23**: Phase 7–9 (Module G/H/I) มาจาก amendment ของ `design.md` วันเดียวกัน ครอบ
+F9 (responsive ทั้งห้องเรียน + หน้าจบ/หมดอายุ), F10 (พิมพ์ถาม AI แทนพูด) และ F10-a (รื้อฟีเจอร์แชต
+คุยกับ CS ทั้งฝั่งผู้เรียนและฝั่ง CS ทิ้งทั้งหมด) รวมถึงมติ U1 (ถอดการตอบ "พร้อมหรือยัง" ด้วยเสียงทิ้ง
+เหลือปุ่มกดอย่างเดียว) ซึ่งพาดเข้า regression surface ของ Module C/D/E ที่ QA ปิดไปแล้ว (ดู R19/R20
+ใน `design.md`) · Phase 7 (G) และ 8 (H) เป็นอิสระต่อกันและทำขนานกันได้ แต่ **ทั้งคู่ต้องเสร็จ
+สมบูรณ์ก่อน Phase 9 (I) เริ่ม** เพราะ I เรียก endpoint ของ G และเขียนทับไฟล์ที่ H รื้อ — ห้ามส่งมอบ
+G หรือ H ครึ่งทางแล้วเริ่ม I · U2 (`SessionQuestion.Source`) และ U3 (`DropTable ChatMessage`) รวมอยู่ใน
+migration ใบเดียวกัน (`RemoveChatMessageAndAddQuestionSource`) ที่ G และ H ต่างเขียนคนละส่วน — ดู
+Sequencing Notes สำหรับวิธีประสานงานไฟล์เดียวกัน · U1 ไม่มี schema change และไม่มี migration ใบที่ 4
 
 **สถานะพิเศษ**: FULL-1 ยืนยันแล้ว 30/53 tasks; งานค้างคือ migration environment (`LS-QA-01`),
 implementation/test gaps (`LS-QA-03/04/06/07`), manual verification (`LS-QA-05`) และ Security gate
@@ -176,6 +186,165 @@ branch อื่นซึ่งไม่เคยเทียบกับ RR-1..
 - [x] [frontend] ยืนยันว่า UI รีวิวถูก/ผิด + ช่องหมายเหตุใช้งานได้ครบ (บันทึก/ล้างรีวิว) และไม่มี dropdown/enum ของสาเหตุ (มติ 2026-08-11 — หมายเหตุต้องเป็นข้อความอิสระ)
 - [x] [frontend] ยืนยันว่าหน้า CS เห็น `unansweredPoints`/ผลรีวิวครบ แต่หน้าผู้เรียน (Phase 5) ไม่เห็นเลย — cross-check กับ task ของ Phase 5
 
+## Phase 7: Module G — Typed questions: backend + provider 🔒 Security gate
+
+`POST /api/text-question` + `TextQuestionController` · `AskTextQuestionDto` ·
+`IVoiceQuestionService.AskTextAsync` (แชร์ core กับ `AskAsync`) · `IVoiceQuestionProvider.AnswerTextAsync`
++ implementation ทั้ง 2 ตัว · `DtoLimits.QuestionTextMaxLength` · `SessionQuestion.Source` +
+`QuestionSource` (U2) · migration `RemoveChatMessageAndAddQuestionSource` ส่วนที่ 1 (`AddColumn Source`)
+· **ถอด readiness-by-voice ฝั่ง backend ทั้งชุดตามมติ U1 (TQ-22/TQ-23)**
+
+**Sensitive — เหตุผล gate**: endpoint anonymous ตัวใหม่ตัวแรกนับตั้งแต่ `security` ยังไม่เคย audit
+โมดูลนี้เลย (`LS-QA-08`) · รับ untrusted text จากคนไม่มี account เข้า prompt ของ LLM (prompt
+injection, R14) · ไม่มี rate limiting (R15 — บันทึกเป็น open question ให้เจ้าของโปรเจกต์ตัดสินแยก
+ไม่ใช่งานของ phase นี้) · แตะ `KnowledgeNamespaces` ที่กั้นข้อมูลข้ามบริษัทชั้นเดียวของ vector store (KS-1)
+
+**⚠️ Regression surface**: งาน U1 แก้ `POST /api/voice-question` ซึ่งเป็นของ Module C/D ที่ QA
+ปิด FULL-3 ไปแล้ว — request ตัด field `expecting`, response ตัดฟิลด์ `readiness` — **ต้อง re-verify
+เส้นทางถามด้วยเสียงทั้งเส้น ไม่ใช่ตรวจเฉพาะ endpoint ใหม่** (R19)
+
+- [ ] [backend] เพิ่ม `DtoLimits.QuestionTextMaxLength = 2000` และแก้ XML doc ของ `MaxTextLength` ให้เหลือเฉพาะ TTS (TQ-3)
+- [ ] [backend] สร้าง `Domain/Enums/QuestionSource.cs` (`static class` + `const string Voice`/`Text`) (U2, DM-3a)
+- [ ] [backend] เพิ่ม `SessionQuestion.Source` (required `string`, ไม่มี default ที่ entity level) ตาม DM-3a
+- [ ] [backend] สร้าง/ต่อ migration `RemoveChatMessageAndAddQuestionSource`: เพิ่ม `AddColumn<string>("Source","SessionQuestion", nullable:false, defaultValue:"voice")` พร้อมคอมเมนต์อธิบายว่าทำไม `"voice"` ถูกต้องย้อนหลัง 100% แล้วถอด default constraint ออกหลัง backfill (MG-R1 ข้อ 1) — **ไฟล์นี้ใช้ร่วมกับ Module H ที่เพิ่ม `DropTable("ChatMessage")` เข้าไฟล์เดียวกัน ดู Sequencing Notes**
+- [ ] [backend] สร้าง `Application/Dto/AskTextQuestionDto.cs` (`token`, `learnerKey`, `text`, `currentSlideObjectId?`)
+- [ ] [backend] สร้าง `Api/Controllers/TextQuestionController.cs` `POST /api/text-question` `[AllowAnonymous]` `Content-Type: application/json` พร้อม validation ตามลำดับ TQ-3 (ห้ามสลับลำดับ)
+- [ ] [backend] เพิ่ม `/api/text-question` ใน `IsSensitiveLearnerPath()` (`Program.cs` ~187) — coordinate กับ Module H ที่ลบ `/api/chat-messages` ออกจากรายการเดียวกันในคอมมิตเดียวกัน (TQ-2, CX-4 #12)
+- [ ] [backend] เพิ่ม `TextQuestionInput` และ `Task<VoiceQuestionResult> AnswerTextAsync(TextQuestionInput)` ใน `IVoiceQuestionProvider` — ไม่มี `Expecting`/`Audio`/`MimeType`/`DurationMs` (TQ-7)
+- [ ] [backend] เพิ่ม `IVoiceQuestionService.AskTextAsync(AskTextQuestionDto)` แชร์ core กับ `AskAsync` ตามลำดับ TQ-4: resolve `(token, learnerKey)` ก่อนแตะอย่างอื่น → ปฏิเสธถ้า `Ended` → resolve lesson content → เรียก provider พร้อม 3 namespace ที่ caller ประกอบ (KS-1) → บันทึก+broadcast ตาม TQ-5/TQ-6
+- [ ] [backend] ยืนยันว่า `Source = QuestionSource.Text` มาจาก `AskTextAsync` และ `Source = QuestionSource.Voice` มาจากเส้นทางเสียง — ไม่มี default ให้ลืมส่ง (TQ-5, U2)
+- [ ] [backend] Implement `RagVoiceQuestionProvider.AnswerTextAsync` โดยใช้ `BuildGroundingContextAsync`/`BuildAnswerPrompt`/conflict flow เดิมทุกตัว — ห้าม copy-paste เป็นเมธอดที่สอง (TQ-8)
+- [ ] [backend] Implement `GeminiVoiceQuestionProvider.AnswerTextAsync` + `BuildTextPrompt(groundingContext, questionText)` — วางคำถามผู้เรียนในบล็อกที่ระบุชัดว่าเป็น "คำถามของคุณครู" ห้ามปนกับบรรทัดกติกา ห้ามส่ง audio (TQ-9, R14)
+- [ ] [backend] ยืนยันว่า provider ล้มเหลว/parse JSON ไม่ได้ → `throw GeneralException.UpstreamError(...)` และ **ไม่เขียนแถวลง DB** (ต่างจากเส้นทางเสียงที่บันทึก `transcription_failed`) (TQ-10, R16)
+- [ ] [backend] ยืนยันว่า log ของเส้นทางพิมพ์ไม่มีข้อความคำถาม/`Transcript`/`Answer`/`token`/`learnerKey`/query string (TQ-12, CA-3)
+- [ ] [backend] อัปเดต `CreateSessionQuestionDto`/`SessionQuestionViewModel` ให้มีฟิลด์ `Source` — `LearnerQuestion`/ViewModel ฝั่งผู้เรียนไม่มี `source` (RR-5 ยังบังคับ)
+- [ ] [backend] ยืนยันว่า `PATCH /api/session-questions/{id}/review` response เพิ่ม `source` แบบ additive อ่านอย่างเดียว ไม่กระทบ path เดิม
+- [ ] [backend] ลบ `AskVoiceQuestionDto.Expecting` (`Application/Dto/AskVoiceQuestionDto.cs:24-25`) พร้อม XML doc (TQ-22)
+- [ ] [backend] ลบ `VoiceQuestionController.cs:25` `VoiceQuestionRequest.Expecting` และการ map บรรทัด ~70 (TQ-22)
+- [ ] [backend] ลบ `IVoiceQuestionProvider.cs:38-42` `VoiceQuestionInput.Expecting` และ `:63-64` `VoiceQuestionResult.Readiness` (TQ-22)
+- [ ] [backend] ลบ `Application/ViewModel/VoiceAnswerViewModel.cs:9` `Readiness` — breaking response shape ของ `POST /api/voice-question`, แก้ TS ในคอมมิตเดียวกัน (Architecture Rule 7) (TQ-22)
+- [ ] [backend] ลบ `GeminiRest.cs:64` `GeminiAnswerJson.Readiness` (TQ-22)
+- [ ] [backend] ลบ `IVoiceQuestionService.cs:78` การ map `Expecting = input.Expecting` และบล็อก early-return `if (result.Readiness is not null) {...}` บรรทัด ~90-95 (TQ-22)
+- [ ] [backend] ลบ `RagVoiceQuestionProvider.cs` `BuildReadinessPrompt()` (~51-58) และบล็อก `if (input.Expecting == "readiness") {...}` (~102-118) ทั้งก้อน — ห้ามแตะ pipeline คำถามจริง 3 step (TQ-23)
+- [ ] [backend] ลบ `GeminiVoiceQuestionProvider.cs` `BuildReadinessPrompt()` (~36-44), ตัวแปร `isReadiness` (~54) และทุก branch ที่ใช้มัน (~55-60, ~75-85) — ห้ามแตะ/ลบ `BuildPrompt`, `GeminiRest.CallAsync`, `GeminiRest.IsAnswerStatus`, guard `no_speech` (TQ-23)
+- [ ] [backend] แก้คอมเมนต์ `Domain/Entities/KnowledgeQnAConflict.cs:29` ให้ตรงว่า null มาจาก `AnswerStatus.NoSpeech` ไม่ใช่ readiness check อีกต่อไป — ห้ามแตะ logic (TQ-27)
+- [ ] [backend] `grep -ri "readiness\|expecting" backend/src` ต้องไม่เหลือผลลัพธ์ที่เป็นโค้ดจริง (เกณฑ์ปิดงาน TQ-22/TQ-23, ยกเว้น `KnowledgeQnAConflict.cs:29` ที่แก้ถ้อยคำแล้ว)
+- [ ] [backend] เขียน/แก้ `VoiceQuestionServiceTests.cs` ตาม TQ-21: `AskTextAsync` บันทึก `Transcript`=ข้อความที่พิมพ์ตรงตัว, `Source="text"`, เส้นทางเสียงยัง `Source="voice"`, session `Ended` ถูกปฏิเสธด้วยข้อความเดียวกับเส้นทางเสียง, namespace ทั้ง 3 จาก `CurrentCompanyId`, provider ล้มเหลว → โยน error และไม่มีแถวถูกเขียน · ลบเคส `AskAsync_UnclearReadinessReply_DefaultsToNotReady` (~162-173) และตัดพารามิเตอร์ `expecting` ออกจาก helper `Ask(...)` (~118/126) (TQ-21, TQ-26)
+- [ ] [backend] อัปเดตเอกสาร: `docs/schema.dbml` (เพิ่มคอลัมน์ `Source`), `backend/docs/ER_DIAGRAM_AND_WORKFLOW.md`, `docs/PROJECT_CONTEXT.md`, `docs/TECH_DECISIONS.md` (บันทึก U1/U2 เป็น TD ใหม่) ส่วนที่เกี่ยวกับ typed question + readiness removal — **ห้ามแก้ `docs/CORE_FEATURE_SPEC.md`**
+- [ ] [backend] re-verify ด้วยมือ: อัดเสียงถามจริง → ได้คำตอบ → มีแถวใหม่ใน `SessionQuestion` (`Source="voice"`) → เด้งเข้าหน้ารีวิว CS — ไม่ใช่แค่ตรวจ endpoint ใหม่ (Regression surface, R19)
+
+## Phase 8: Module H — Chat feature removal (ทั้ง stack + migration) 🔒 Security gate
+
+26 จุดตาม CX-4/CX-5 · migration `RemoveChatMessageAndAddQuestionSource` ส่วน `DropTable("ChatMessage")`
+(U3) · เอกสาร 13 ไฟล์ตาม CX-8 · test 5 ไฟล์ตาม CX-9 · **งานรื้อของเดิม ไม่ใช่งานเพิ่มของใหม่**
+
+**Sensitive — เหตุผล gate**: (1) ลบตารางจริงพร้อมข้อมูล — breaking + data loss ที่ตั้งใจ (2) แตะ
+`SessionHub` ซึ่งเป็นจุดกั้นข้อมูลข้ามผู้เรียนอันดับหนึ่งของโมดูล (IC-5/R1) — รื้อผิดที่ group key หรือ
+`JoinSessionAsAgent` ทำให้บทสนทนาไหลข้ามผู้เรียนโดยไม่มี error (3) แตะ `IsSensitiveLearnerPath` ใน
+`Program.cs` ซึ่งบังคับ CA-3 (no-store/no-referrer) — ลบผิดบรรทัดถอด header ป้องกันของ endpoint อื่นไปด้วย
+
+**Dependencies**: ไม่มี (เริ่มได้ทันที ขนานกับ Phase 7 ได้) **แต่ต้องเสร็จก่อน Phase 9 (I)** เพราะ I
+เขียน `room/[token]/page.tsx` และ drawer ทับที่เดิม
+
+- [ ] [backend] ลบ `Domain/Entities/ChatMessage.cs` ทั้งไฟล์ (DM-4, CX-4 #1)
+- [ ] [backend] ลบ `Domain/Enums/ChatSenderRole.cs` ทั้งไฟล์ (DM-6a, CX-4 #2)
+- [ ] [backend] ลบ `Application/Services/IChatMessageService.cs` ทั้งไฟล์ (CX-4 #3)
+- [ ] [backend] ลบ `Application/Dto/SendChatMessageDto.cs` ทั้งไฟล์ (CX-4 #4)
+- [ ] [backend] ลบ `Application/ViewModel/ChatMessageViewModel.cs` ทั้งไฟล์ (CX-4 #5)
+- [ ] [backend] ลบ `TypeAdapterConfig<ChatMessage, ChatMessageViewModel>` ใน `Application/Common/MapsterConfig.cs` (~57) (CX-4 #6)
+- [ ] [backend] ลบ `IRealtimeNotifier.NotifyChatMessageAsync` (`Application/Realtime/IRealtimeNotifier.cs` ~19) — เก็บ `NotifyNewQuestionAsync` ไว้ (CX-4 #7)
+- [ ] [backend] ลบ implementation ของ `NotifyChatMessageAsync` ใน `Api/Realtime/SignalRRealtimeNotifier.cs` (~15-16) (CX-4 #8)
+- [ ] [backend] ลบ `Api/Controllers/ChatMessagesController.cs` ทั้งไฟล์ — endpoint ทั้ง 2 เส้นหาย (CX-4 #9)
+- [ ] [backend] ลบ `AddScoped<IChatMessageService, ChatMessageService>()` ใน `Api/Configurations/ServiceConfiguration.cs` (~44) (CX-4 #10)
+- [ ] [backend] แก้ `Api/Hubs/SessionHub.cs`: ลบ `SendChatMessage`, `SendChatMessageAsAgent`, `JoinSession(token, learnerKey)` — เก็บ `JoinSessionAsAgent`+`EnsureAgentAuthenticated`+`EnsureLearningSessionExists` · ลบ `ResolveLearningSession`/`ResolveLearningSessionId` ที่ไม่มีคนเรียกแล้ว · แก้ XML doc หัวคลาสให้ตรงความจริงใหม่ (CX-3, CX-4 #11)
+- [ ] [backend] ลบ `/api/chat-messages` ออกจาก `IsSensitiveLearnerPath()` (`Api/Program.cs` ~191) — coordinate กับ Module G ที่เพิ่ม `/api/text-question` เข้ารายการเดียวกันในคอมมิตเดียวกัน (CX-4 #12)
+- [ ] [backend] ลบ `Providers.Data/Repository/IChatMessageRepository.cs` ทั้งไฟล์ (CX-4 #13)
+- [ ] [backend] ลบการ register `IChatMessageRepository` ใน `Providers.Data/Data/UnitOfWork/UnitOfWork.cs` (~21) — DI พังตอน runtime ไม่ใช่ตอน compile ถ้าลืม (CX-4 #14)
+- [ ] [backend] ลบ `DbSet<ChatMessage>` + บล็อก `builder.Entity<ChatMessage>` ใน `Providers.Data/Data/ApplicationDbContext.cs` (~34, ~116) (DM-7a, CX-4 #15)
+- [ ] [backend] แก้ `Application/Services/IAdminService.cs` (~74-79) `ResetDemoData` ให้เลิกลบ `ChatMessage` (ตารางไม่มีแล้ว) (CX-4 #16)
+- [ ] [backend] แก้ XML doc comment ใน `Domain/Entities/TrainingLink.cs` (~10) และ `LearningSession.cs` (~11) ที่อ้าง `ChatMessage.SessionId` ให้ตรงความจริงใหม่ (CX-4 #17)
+- [ ] [backend] ต่อ migration `RemoveChatMessageAndAddQuestionSource`: เพิ่ม `DropTable("ChatMessage")` พร้อมคอมเมนต์เจตนา (ข้อความคุยกับ CS ถูกตัดออกทั้งฟีเจอร์ตามมติ T4-a, ทิ้งข้อมูลเดิมโดยตั้งใจ ห้าม migrate/archive) และเขียน `Down()` สร้างตารางคืนเฉพาะรูปร่างไม่มีข้อมูล พร้อมคอมเมนต์บอกตรงๆ ว่ากู้ข้อมูลไม่ได้ (MG-R1, CX-4 #18) — **ไฟล์เดียวกับที่ Module G เพิ่ม `Source` ดู Sequencing Notes**
+- [ ] [backend] ลบ `backend/tests/.../ChatMessageServiceTests.cs` ทั้งไฟล์ (CX-9)
+- [ ] [backend] แก้ `CompanyIsolationTests.cs` (~97-99, 139, 152, 184) ลบ seed/assertion ของ `ChatMessage` — **ห้ามแก้ `EveryEntityIsCompanyScoped` ให้ผ่านเทียม** (tripwire, CX-9)
+- [ ] [backend] แก้ `AdminServiceTests.cs` (~20, 30, 78) ลบ fake repo + seed ของ `ChatMessage` (CX-9)
+- [ ] [backend] แก้ `Fakes/ServiceTestFakes.cs` (~353-365, ~418, ~432-434) ลบ `FakeChatMessageRepository` + `ChatMessageCount`/`NotifyChatMessageAsync` ใน fake notifier (CX-9)
+- [ ] [backend] แก้คอมเมนต์ใน `SessionQuestionServiceTests.cs` (~29) ที่อ้าง `ChatMessageServiceTests` ที่กำลังถูกลบ (CX-9)
+- [ ] [backend] `grep -ri "chatmessage\|sendchatmessage\|chat-messages"` บน `backend/src`, `backend/tests` ต้องไม่เหลือผลลัพธ์ที่เป็นโค้ดจริง (เกณฑ์ปิดงาน CX-1)
+- [ ] [backend] อัปเดตเอกสาร: `docs/schema.dbml` (ลบ `Table ChatMessage` + `Ref`), `backend/docs/ER_DIAGRAM_AND_WORKFLOW.md` (~156), `backend/docs/WORKFLOW.drawio` (~73 มีโน้ต "พิมพ์แชทสำรอง"), `docs/PROJECT_CONTEXT.md`, `docs/TECH_DECISIONS.md` (บันทึกการตัดฟีเจอร์เป็น TD ใหม่) — **ห้ามแก้ `docs/CORE_FEATURE_SPEC.md`** (CX-8)
+- [ ] [frontend] ลบ `hooks/use-session-chat.ts` ทั้งไฟล์ — ผู้เรียนไม่มีเหตุผลเหลือให้ต่อ SignalR หลังแชตหายไป (CX-3, CX-5 #19)
+- [ ] [frontend] เขียนใหม่ `hooks/use-agent-session-chat.ts` เป็น `hooks/use-agent-session-questions.ts` — เหลือเฉพาะ `JoinSessionAsAgent`+`ReceiveNewQuestion`+`liveQuestions` ตัด `chatMessages`/`sendChatMessage`/`getChatMessagesByLearningSession` — **ห้ามลบไฟล์นี้ทิ้ง**, `admin/learning-sessions/[id]/page.tsx` ยังต้องได้ `liveQuestions`/`mergeQuestions` เหมือนเดิม (CX-2, CX-5 #20)
+- [ ] [frontend] ลบ `components/meeting/ChatDrawer.tsx` ทั้งไฟล์ — แทนด้วย component ใหม่ที่ Module I สร้าง (CX-5 #21)
+- [ ] [frontend] ลบ `getOwnChatMessages`/`getChatMessagesByLearningSession` (`lib/api-client.ts` ~414-426) และ import `ChatMessage` (CX-5 #22)
+- [ ] [frontend] ลบ type `ChatMessage`/`ChatSenderRole` ใน `types/domain.ts` (~294-302) + แก้คอมเมนต์บรรทัด ~115 ที่อ้าง `ChatMessage.sessionId` (CX-5 #23)
+- [ ] [frontend] แก้ `app/room/[token]/page.tsx`: ลบ `useSessionChat`, `chat.*`, prop `chatMessages`/`onSendMessage` — การต่อ component ใหม่/`onSubmitQuestion` เป็นงานของ Module I (CX-5 #24)
+- [ ] [frontend] แก้ `components/meeting/ControlBar.tsx`: เปลี่ยนชื่อ prop `onToggleChat` และ `title`/`aria-label` เลิกใช้คำว่า "แชต" (เช่น `"ถาม-ตอบกับ AI"`) (CX-5 #25, CX-7)
+- [ ] [frontend] แก้ `app/admin/learning-sessions/[id]/page.tsx`: ลบปุ่ม "แชท" + `chat.chatMessages` + `onSendMessage` — เหลือรายการคำถามอย่างเดียว (CX-5 #26)
+- [ ] [frontend] ยืนยันด้วยมือว่าหน้า `admin/learning-sessions/[id]` ยังได้คำถามสดแบบ realtime ผ่าน `use-agent-session-questions.ts` ใหม่จริง — ไม่ใช่แค่ดูว่าไฟล์หายไปแล้ว (R13)
+- [ ] [frontend] `grep -ri "ChatDrawer\|use-session-chat\|use-agent-session-chat"` บน `frontend/src` ต้องไม่เหลือผลลัพธ์ที่เป็นโค้ดจริง (เกณฑ์ปิดงาน CX-1)
+- [ ] [frontend] อัปเดตเอกสาร: `frontend/docs/ER_DIAGRAM.md`, `frontend/docs/API_CONTRACT.md` (ลบ 2 endpoint + เพิ่ม `/api/text-question` + hub methods ที่เปลี่ยน), `frontend/docs/SYSTEM_LOGIC.md`, `frontend/docs/SEQUENCE_DIAGRAMS.md`, `frontend/docs/USE_CASE_DIAGRAM.md`, `frontend/docs/DATA_FLOW_DIAGRAM.md`, `frontend/docs/SYSTEM_ARCHITECTURE.md` (CX-8)
+
+## Phase 9: Module I — Learner responsive & single-input room UI 🔒 Security gate
+
+RS-1..RS-14 ทั้งชุด (รวม `/session-ended/[token]` + `/link-expired` ตามมติ U4 — เฉพาะ
+`min-h-[100dvh]` + hit target ห้าม redesign) · `room/layout.tsx` + `join/layout.tsx` (ใหม่) ·
+`AskAiDrawer` ใหม่ (CX-6) · reducer `SUBMIT_TEXT_QUESTION` + `NOT_READY` (TQ-14/TQ-18) · effect
+runner + `askTextQuestion` ใน api-client · ปุ่มพร้อม/ยังไม่พร้อม · matrix TQ-20 · **ถอด
+readiness-by-voice ฝั่ง frontend ทั้งชุดตามมติ U1 (TQ-24/TQ-25/TQ-26)**
+
+**Sensitive — เหตุผล gate**: เขียน `app/room/[token]/page.tsx` ใหม่ ซึ่งเป็นจุดเดียวในระบบที่บังคับ
+IC-7 ได้ (กันไม่ให้เปิด `/room` ตรงๆ แล้ว resume ของคนอื่น ผ่าน `consumeRoomEntry`/`peekLearnerKey`)
+— server แยกไม่ออกว่าผ่านหน้ายืนยันมาหรือยัง ถ้า guard นี้หายไประหว่างจัด layout ใหม่ คนที่สองบน
+เครื่องที่ใช้ร่วมกันเห็นความคืบหน้า/คำถามของคนแรกโดยไม่มี error ให้เห็น (เหตุผลเดียวกับ Module E)
+
+**Dependencies**: **Phase 7 (G) และ Phase 8 (H) ต้องเสร็จสมบูรณ์ทั้งคู่ก่อน** — I เรียก endpoint
+ของ G และเขียนทับไฟล์ที่ H รื้อ ห้ามเริ่มครึ่งทาง
+
+**⚠️ Regression surface**: งาน U1 เขียนทับพฤติกรรมของ Module E ที่ผ่าน QA FULL-3 แล้ว (หน้าจอ
+`ready` + push-to-talk + การกลับเข้าบทเรียนหลังถูกขัดจังหวะ) — ต้อง re-verify ด้วยมือทั้งชุด (R19/R20)
+
+- [ ] [frontend] สร้าง `frontend/src/app/room/layout.tsx` server component พร้อม `export const viewport: Viewport = { width: "device-width", initialScale: 1, interactiveWidget: "resizes-content" }` — ห้ามใส่ `maximumScale`/`userScalable: false` (RS-3)
+- [ ] [frontend] สร้าง `frontend/src/app/join/layout.tsx` เหมือนกัน (RS-3)
+- [ ] [frontend] `room/[token]/page.tsx`: เปลี่ยน `h-screen`(บรรทัด ~173) → `h-[100dvh]`, `md:flex-row`→`lg:flex-row`, `md:w-72 md:flex-col`→`lg:w-72 lg:flex-col`, เพิ่ม `relative` ให้ container, เพิ่ม `pb-[env(safe-area-inset-bottom)]` แถบล่าง (RS-2, RS-4)
+- [ ] [frontend] ยืนยันว่า `ControlBar` ยังเป็น sibling ของ element ที่ scroll ไม่ใช่ลูก — ห้ามย้ายเข้าไปในพื้นที่ scroll ตอนจัด layout ใหม่ (RS-4)
+- [ ] [frontend] เขียนใหม่ `PushToTalkButton.tsx` ด้วย Pointer Events (`onPointerDown`/`onPointerUp`/`onPointerCancel` แทน mouse/touch handlers ทั้งหมด), `touch-none`, `e.currentTarget.setPointerCapture(e.pointerId)`, `onContextMenu` preventDefault + `select-none` + `[-webkit-touch-callout:none]`, `pointercancel` ปล่อยการอัดเสมอ — ห้ามเปลี่ยนเป็น toggle, ห้ามแตะ `MIN_RECORDING_MS`/`MinVoiceDurationMs`, คงปุ่มสูง ≥44px (RS-5)
+- [ ] [frontend] `SlidesEmbed.tsx`: เปลี่ยน overlay `<div aria-hidden>` (~89) เป็น `<button aria-label="ขยายสไลด์เต็มจอ">` ที่กินคลิกจริง ผูก handler ที่ overlay นี้ (ห้ามผูกบน `<iframe>` — cross-origin จับ event ไม่ได้), ใช้ overlay ในแอป (`fixed inset-0 z-50`) แทน Fullscreen API, ห้าม unmount/เปลี่ยน `key` ของ iframe ตอนสลับ fullscreen, ปิดได้ด้วยปุ่มปิด + แตะพื้นหลัง (RS-6)
+- [ ] [frontend] ยืนยัน/เลือกว่าปุ่มจบ/ปุ่มพูดยังกดได้ระหว่างเปิด fullscreen หรือปิด fullscreen อัตโนมัติเมื่อ AI เริ่มพูดตอบ — เลือกแบบใดแบบหนึ่งพร้อมคอมเมนต์อธิบายเหตุผล ห้ามมีสถานะที่ผู้เรียนกดจบไม่ได้ (RS-6, R3c)
+- [ ] [frontend] `ControlBar.tsx`: จัดลำดับความสำคัญปุ่มบน compact เมื่อพื้นที่ไม่พอ (`ปุ่มพูด > ปุ่มจบ > ปุ่มเปิด drawer > ปุ่มปรับเสียง`), ทุกปุ่มขั้นต่ำ 44×44px, เผื่อ safe area (RS-9)
+- [ ] [frontend] `AiTile.tsx`/`ParticipantTile.tsx`: ย่อเป็นแถวเตี้ยแนวนอนเหนือ `ControlBar` หรือย่อเหลือ `AiTile` อย่างเดียวบน compact — ห้ามสร้าง "รายการสไลด์" ใหม่ (RS-10)
+- [ ] [frontend] `VolumeControl.tsx`: `PopoverContent w-52` ต้องไม่ล้นจอแคบ, trigger ≥44px (RS-9)
+- [ ] [frontend] `join/[token]/page.tsx`: `min-h-screen`→`min-h-[100dvh]`, ปุ่มในหน้ายืนยัน (LR-3a) ≥44px (RS-4)
+- [ ] [frontend] `session-ended/[token]/page.tsx`/`link-expired/page.tsx`: `min-h-screen`→`min-h-[100dvh]` + hit target ≥44px เท่านั้น — **ห้ามเพิ่ม component ใหม่ ห้ามจัด layout ใหม่ ห้ามเปลี่ยนข้อความ** (RS-1, RS-4, U4)
+- [ ] [frontend] ยืนยันไม่มี code path ใดตรวจ `orientation` แล้วบล็อกหน้าจอ (หน้า "กรุณาหมุนจอ", CSS `@media (orientation: portrait)` ที่ซ่อนเนื้อหา, `screen.orientation.lock()`) — ทุก interaction ทำได้ครบในแนวตั้ง (RS-11)
+- [ ] [frontend] สร้าง `components/meeting/AskAiDrawer.tsx` ใหม่ (ห้ามใช้คำว่า Chat ในชื่อไฟล์/component/prop) — compact: `fixed inset-0 h-[100dvh]` ไม่ใช่ bottom sheet, regular: `lg:absolute lg:right-4 lg:bottom-20 lg:w-80` พร้อมใส่ `relative` ให้ container ของห้อง, props `{ open, onClose, questions, onSubmitQuestion, inputEnabled, sendEnabled, disabledHint? }` (component ไม่ตัดสิน enabled เอง — มาจาก TQ-20), ยกโครง timeline/`createdAt`/`transcript`+`answer`+`answerStatusLabels`/Enter=ส่ง/คง draft จาก `ChatDrawer` เดิม, ตัด `chatMessages`/`TimelineEntry` สองชนิด/`senderLabel`/`kind:"chat"` ทุกจุด (CX-6)
+- [ ] [frontend] input ของ drawer: `sticky bottom-0` + `pb-[env(safe-area-inset-bottom)]`, เลื่อนรายการไปท้ายสุดเมื่อ input โฟกัส, `font-size` ≥16px (`text-base` ขึ้นไป ห้าม `text-sm`), ปุ่ม "ส่ง" มองเห็น/กดได้เสมอบน compact ห้ามพึ่ง Enter อย่างเดียว (RS-8)
+- [ ] [frontend] หัว drawer เปลี่ยนข้อความ "แชตสำรอง" → เช่น `"ถาม-ตอบกับผู้ช่วย AI"` — ห้ามมีข้อความใดในห้องเรียนสื่อว่าจะมีเจ้าหน้าที่มาตอบ (CX-7)
+- [ ] [frontend] เพิ่ม `askTextQuestion({ token, learnerKey, text, currentSlideObjectId? })` ใน `lib/api-client.ts` เรียกผ่าน `publicRequest` (JSON) — `askVoiceQuestion` เดิมไม่เปลี่ยน signature (TQ-13)
+- [ ] [frontend] เพิ่ม TS type `QuestionSource = "voice" | "text"` และ `SessionQuestion.source: QuestionSource` ใน `types/domain.ts` — `LearnerQuestion` ไม่มี `source` (U2 wire delta)
+- [ ] [frontend] ลบ `expecting?: "question" | "readiness"` ออกจาก input type (`lib/api-client.ts:457-458`) และ `if (input.expecting) formData.append("expecting", ...)` (`:465-466`) (TQ-26)
+- [ ] [frontend] ลบ `readiness?: "ready" | "not_ready"` + คอมเมนต์เหนือมัน (`types/domain.ts:265-266`) (TQ-26)
+- [ ] [frontend] เพิ่ม event `{ type: "SUBMIT_TEXT_QUESTION"; text: string }` ใน `tutor/intents.ts` และ effect `{ kind: "SEND_TEXT_QUESTION"; text: string }` ใน `tutor/types.ts` (TQ-14)
+- [ ] [frontend] `tutorReducer`: รับ `SUBMIT_TEXT_QUESTION` เฉพาะ `runtime.state` ∈ `["slide-speaking","waiting-slide-duration","final-question-window"]` → `{ ...runtime, interruptedFrom: runtime.state, state: "processing-question", isAiSpeaking: false, afterSpeech: null, micNotice: null }` + effect `SEND_TEXT_QUESTION` · state อื่น → `noEffect(runtime)` · ห้ามผ่าน `"push-to-talk-recording"` (TQ-14)
+- [ ] [frontend] เพิ่ม event `{ type: "NOT_READY" }` รับเฉพาะ `state === "ready"` ให้ผลเท่ากับ `READINESS_ANSWERED{ready:false}` เดิมทุกประการ (พูด `notReadyScript` แล้ว `afterSpeech: "AWAIT_READINESS"` — ไม่มี timer auto-start) — ห้ามให้ state อื่นส่ง `NOT_READY` ได้ (TQ-18)
+- [ ] [frontend] ลบ `"ready"` ออกจาก `PUSH_TO_TALK_STATES` (`tutor-reducer.ts:59-66`) พร้อมคอมเมนต์บรรทัด 59-60 ที่อธิบายพฤติกรรมเดิม — **ห้ามแตะ `PAUSABLE_STATES` (บรรทัด 67)** (TQ-24)
+- [ ] [frontend] ลบ `"ready"` ออกจาก `PUSH_TO_TALK_ENABLED_STATES` (`room/[token]/page.tsx:111-117`) พร้อมคอมเมนต์บรรทัด 111 — **ลิสต์ใบที่สอง แยกจากรายการใน reducer อย่าลบใบเดียว** (TQ-24)
+- [ ] [frontend] `room/[token]/page.tsx:195`: ลบบรรทัด `หรือกดปุ่ม "กดค้างเพื่อพูด" แล้วบอกว่าพร้อมแล้วก็ได้ค่ะ` และวางปุ่ม **"ยังไม่พร้อม"** ไว้ที่ overlay เดียวกันกับปุ่ม "พร้อมแล้ว เริ่มเรียนเลย" (บรรทัด ~192-197) (TQ-18, TQ-24)
+- [ ] [frontend] ลบ branch `if (runtime.interruptedFrom === "ready")` ใน `resumeAfterInterruption` (`tutor-reducer.ts:120-131`) — dead code เพราะไม่มี event ใดตั้ง `interruptedFrom` เป็น `"ready"` แล้ว — **type ของ `interruptedFrom` ยังเป็น `TutorState | null` ห้ามทำให้แคบลง** (TQ-24)
+- [ ] [frontend] ลบ event `READINESS_ANSWERED` (`tutor/intents.ts:36` + `tutor-reducer.ts:282-292`) (TQ-25)
+- [ ] [frontend] ลบ `AfterSpeechAction "START_FIRST_SLIDE"` (`tutor/types.ts:32`) และ case ใน `TTS_ENDED` (`tutor-reducer.ts:180-181`) — **ห้ามลบ `startFirstSlide()` (~92-95) เพราะ `START`/`INTRO_TIMEOUT` ยังเรียกอยู่** (TQ-25)
+- [ ] [frontend] **ห้ามลบ** `AfterSpeechAction "AWAIT_READINESS"` (`tutor/types.ts:34` + case `tutor-reducer.ts:182-186`) — `NOT_READY` เป็นผู้ผลิตรายเดียวที่เหลือ (TQ-25)
+- [ ] [frontend] ลบ `readyConfirmScript` (`tutor/scripts.ts:11`) — **ห้ามเพิ่มเสียงตอบรับใหม่ให้ปุ่ม `START` เพื่อ "ชดเชย"** (TQ-25)
+- [ ] [frontend] **ห้ามลบ** `notReadyScript` (`tutor/scripts.ts:12`) แต่ต้องแก้ข้อความให้ชี้ปุ่มจริง (เช่น `"ได้ค่ะ ไม่ต้องรีบนะคะ พร้อมเมื่อไหร่กดปุ่มพร้อมแล้วได้เลยค่ะ"`) และแก้คอมเมนต์บรรทัด 9-10 ที่อธิบาย "ตอบด้วยเสียง" ให้ตรงความจริงใหม่ — ถ้อยคำต้องตรงกับ label ปุ่มจริงในหน้าห้อง (TQ-25)
+- [ ] [frontend] เพิ่ม matrix ช่องพิมพ์/ปุ่มส่งตาม TQ-20 ครบทุก `runtime.state` รวม `ready` (ช่องพิมพ์ disabled + placeholder อธิบาย เช่น `"เลือกพร้อม/ยังไม่พร้อมด้านบนก่อนนะคะ"` — ห้ามซ่อนหายไปเฉยๆ) (TQ-18, TQ-20)
+- [ ] [frontend] effect runner ใน `use-tutor-session.ts` เพิ่ม `case "SEND_TEXT_QUESTION": void sendTextQuestion(effect.text);` — `sendTextQuestion` เรียก `playProcessingFiller()` → `api.askTextQuestion({ token, learnerKey, text, currentSlideObjectId })` → `answerStatus` ∈ `answered|not_found|out_of_scope` → `QUESTION_ANSWERED` · `catch` → `QUESTION_FAILED` — **ไม่มีการเช็ค `result.readiness` และไม่ map เป็น `NO_SPEECH`** (TQ-16)
+- [ ] [frontend] ยืนยันว่าช่องพิมพ์ **ไม่มี** `onFocus`/`onChange`/`onKeyDown` หรือ handler ใดที่ `sendEvent(...)` เข้า reducer และการเปิด/ปิด drawer ไม่ส่ง event เข้า reducer — การหยุดบรรยายเกิดที่ "กดส่ง" เท่านั้น (TQ-15, RS-7)
+- [ ] [frontend] ลบ `const expecting = runtimeRef.current.interruptedFrom === "ready" ? "readiness" : "question"` (`use-tutor-session.ts:346`), เลิกส่ง `expecting` เข้า `askVoiceQuestion` (`:358`), ลบบล็อก `if (result.readiness) { dispatch({ type: "READINESS_ANSWERED", ... }); }` ทั้งก้อน (`:363-364`) — ตรวจว่า `QUESTION_ANSWERED`/`QUESTION_FAILED` ยังครอบทุก path ของ `stopRecordingAndSend()` (TQ-26)
+- [ ] [frontend] เขียน/แก้ tutor reducer tests ตาม TQ-21: `SUBMIT_TEXT_QUESTION` จาก 3 state ที่อนุญาต → `processing-question`+`interruptedFrom` ถูกตั้ง · จาก `"ready"`/`"processing-question"` → ไม่เกิดอะไรเลย · `NOT_READY` จาก `"ready"` → ไม่มี `WAIT_READY_TIMEOUT` ตามมา · **`PUSH_TO_TALK_START` จาก `"ready"` → ไม่เกิดอะไรเลย** (เคสใหม่) · ลบ/เขียนใหม่ describe block `"answering the readiness prompt by voice"` (`tutor-reducer.test.ts:141-190`) เป็นเคสของ `NOT_READY` (TQ-21, TQ-26)
+- [ ] [frontend] `grep -ri "readiness\|expecting" frontend/src` ต้องไม่เหลือผลลัพธ์ที่เป็นโค้ดจริง (เกณฑ์ปิดงาน TQ-24..TQ-26)
+- [ ] [frontend] อัปเดตเอกสาร: `frontend/docs/STATE_MACHINE.md` (ลบ `READINESS_ANSWERED` ออกจากแผนภาพ เพิ่ม `SUBMIT_TEXT_QUESTION`/`NOT_READY`), `frontend/docs/API_CONTRACT.md`, `frontend/docs/SYSTEM_LOGIC.md`, `frontend/docs/SEQUENCE_DIAGRAMS.md`, `frontend/docs/GEMINI_INTEGRATION.md`, `frontend/docs/TESTING_GUIDE.md`, `docs/PROJECT_CONTEXT.md`, `docs/UX_UI_WORKFLOWS.md`, `docs/SOLUTION_ARCHITECTURE.md`, `docs/BACKEND_DB_HANDOFF.md`, `docs/PROVIDER_SETTINGS_SPEC.md` (TQ-27)
+- [ ] [frontend] ทดสอบด้วยมือบนอุปกรณ์/emulator จริงตามเกณฑ์ RS-14 ข้อ 1-7 (กดค้างไม่เลื่อนหน้า/ไม่มี context menu · ลากนิ้วออกนอกปุ่มแล้วปล่อยหยุดจริง · เห็นปุ่มจบไม่ต้องเลื่อนทั้งตอน URL bar กาง/หุบ · แตะสไลด์เต็มจอไม่รีโหลด · โฟกัสช่องพิมพ์เห็นทั้งช่อง+ปุ่มส่งไม่ซูมเข้าเอง · หมุนจอไปมาไม่มีหน้าบังคับหมุน) ทั้งบทเรียน Google Slides และ PDF — ถ้าไม่ได้ทดสอบด้วยอุปกรณ์จริง ต้องลงรายการที่ไม่ได้ทดสอบใน `## Unverified Behaviour — undeployed phases` (RS-14, R18)
+- [ ] [frontend] re-verify IC-7 ทั้งชุดด้วยมือหลังเขียน `room/[token]/page.tsx` ใหม่ (`entryGrantedRef`/`consumeRoomEntry`/`peekLearnerKey`/redirect กลับ `/join`) รวม React Strict Mode — ไม่ใช่ถือว่าผ่านแล้วจาก FULL-3 (R17)
+- [ ] [frontend] re-verify ด้วยมือ: กดปุ่มพร้อม → บทเรียนเริ่มที่สไลด์ resume ถูกจุด · กด "ยังไม่พร้อม" → พูด `notReadyScript` แล้วกลับสู่ `ready` โดยไม่มี auto-start · กดปุ่มพูดตอน `ready` → ไม่เกิดอะไรเลย · กดพูดถามกลางบทเรียนยังทำงานครบเหมือนเดิม (Regression surface, R19)
+
 ## Sequencing Notes
 
 - **ลำดับ dependency**: A → (B, C) → D → (E, F) ตามที่ `design.md` §Modules ระบุ — Phase 1 (A) ต้อง
@@ -204,13 +373,62 @@ branch อื่นซึ่งไม่เคยเทียบกับ RR-1..
   `qa-engineer` ตาม workflow ห้าม PM เปลี่ยนผล/checkbox เดิม
 - **`security` รอ functional fixes และ QA re-verify ก่อน**; Phase 3–6 ยังติด gate เต็มรูปแบบ
 
+### เพิ่ม 2026-08-23 — Phase 7 (G) / 8 (H) / 9 (I)
+
+- **ลำดับ dependency ของรอบนี้**: Phase 7 (G) และ Phase 8 (H) เป็นอิสระต่อกัน — ทำขนานกันได้ ·
+  **Phase 9 (I) ต้องรอทั้ง G และ H เสร็จสมบูรณ์ก่อนเริ่ม** เพราะ I เรียก endpoint ของ G
+  (`/api/text-question`) และเขียนทับไฟล์ที่ H รื้อ (`room/[token]/page.tsx`, drawer) — **ห้ามส่งมอบ
+  G หรือ H ครึ่งทางแล้วเริ่ม I**: ระหว่างนั้นห้องเรียนจะอยู่ในสถานะที่แชตหายแล้วแต่ยังพิมพ์ถาม AI
+  ไม่ได้ ซึ่งแย่กว่าสถานะก่อนเริ่มงาน
+- **Phase 7 และ Phase 8 เขียนไฟล์ migration เดียวกัน**: `RemoveChatMessageAndAddQuestionSource`
+  ต้องเป็นใบเดียว ห้ามแยกสองใบ (MG-R1) แต่ G เพิ่มส่วน `AddColumn Source` และ H เพิ่มส่วน
+  `DropTable ChatMessage` เข้าไฟล์เดียวกัน — **ผู้ที่เริ่มงานก่อนเป็นคน `dotnet ef migrations add`
+  สร้างไฟล์ครั้งแรก อีกฝ่ายแก้ไฟล์เดิมเพิ่มส่วนของตัวเองต่อ ห้ามสร้างไฟล์ migration คนละใบ** —
+  ต้องคุยกันระหว่างสองงานแม้จะ "ขนานกันได้" ในแง่ dependency ของโค้ด
+- **Phase 7 และ Phase 8 แก้ `Program.cs` `IsSensitiveLearnerPath()` รายการเดียวกัน**: G เพิ่ม
+  `/api/text-question` เข้ารายการ ส่วน H ลบ `/api/chat-messages` ออกจากรายการเดียวกัน (TQ-2, CX-4 #12)
+  — ต้องประสานให้ทั้งสองการแก้ไปอยู่ใน merge เดียวกันไม่ทับกันหาย
+- **`POST /api/voice-question` เป็น wire contract ที่คร่อมสองฝั่ง**: งานถอด readiness-by-voice
+  (มติ U1) ฝั่ง backend อยู่ที่ Phase 7 (TQ-22/TQ-23) ฝั่ง frontend อยู่ที่ Phase 9 (TQ-24..TQ-26) —
+  **ห้าม deploy สองก้อนนี้แยกช่วงเวลากัน** เพราะช่วงกลางคือ frontend ที่ยังส่ง `expecting` และรอ
+  `readiness` จาก backend ที่เลิกผลิตแล้ว (R19) — ต้อง deploy Phase 7 กับ Phase 9 พร้อมกันสำหรับส่วน
+  ที่แชร์ contract นี้ แม้ Phase 9 จะเริ่มทำทีหลังก็ตาม
+- **Phase 7 (G), Phase 8 (H), Phase 9 (I) ทั้งสามติด `🔒 Security gate`** ตามเหตุผลที่ระบุไว้ใน
+  หัวข้อ phase ของแต่ละอัน (คัดลอกจาก `design.md` §Modules ตรงๆ): G = endpoint anonymous ใหม่ +
+  prompt injection + ไม่มี rate limiting + แตะ `KnowledgeNamespaces` · H = `DropTable` จริงพร้อม
+  ข้อมูล + แตะ `SessionHub`/`IsSensitiveLearnerPath` ซึ่งเป็นจุดกั้นข้อมูลข้ามผู้เรียน · I = เขียน
+  `room/[token]/page.tsx` ใหม่ซึ่งเป็นจุดเดียวที่บังคับ IC-7 ได้
+- **`qa-engineer` ต้องถือรอบที่ verify Phase 7 และ Phase 9 เป็น FULL และ re-verify Module C/D/E
+  ตามรายการ Regression surface ของทั้งสอง phase** — ไม่ใช่เชื่อผล FULL-3 เดิม (R19/R20): ทดสอบ
+  ถามด้วยเสียงทั้งเส้น (Phase 7), ปุ่มพร้อม/ยังไม่พร้อมทำงานถูก + กดปุ่มพูดตอน `ready` ต้องไม่มี
+  อะไรเกิดขึ้น + IC-7 ทั้งชุด (Phase 9)
+- **RS-14 ไม่มี automated test จับได้** (R18) — ถ้า QA ไม่ทดสอบด้วยอุปกรณ์/emulator จริง ต้องลง
+  ทั้ง 7 ข้อของ RS-14 ใน `## Unverified Behaviour — undeployed phases` ให้ `devops` เอาไปให้
+  เจ้าของโปรเจกต์ดูก่อน deploy
+- **U1 ไม่มี schema change และห้ามมี migration ใบที่ 4** — ของที่ถูกถอด (`Expecting`/`Readiness`/
+  prompt/event/script) ไม่มีอะไรลงตาราง เพราะ `IVoiceQuestionService` early-return ก่อนเขียนแถวเสมอ
+
 ## Unresolved Open Questions
 
-ไม่มีคำถามธุรกิจหรือ data/wire contract ค้าง — CA-1..CA-6 ปิด `LS-QA-02` แล้ว งานที่เหลือเป็น
+ไม่มีคำถามธุรกิจหรือ data/wire contract ค้างที่บล็อก Phase 1–9 — CA-1..CA-6 ปิด `LS-QA-02` แล้ว
+และ U1–U4 เคาะครบแล้วเมื่อ 2026-08-23 · R15 (rate limiting บน `/api/text-question`) เป็น open
+question ที่บันทึกไว้ให้เจ้าของโปรเจกต์ตัดสินแยก **ไม่บล็อก Phase 7** งานที่เหลือเป็น
 implementation, environment/manual verification และ Security gate ตาม `review.md`
 
 ## Change Log
 
+- 2026-08-23 — Amend: เพิ่ม Phase 7 (Module G — typed questions backend + provider), Phase 8
+  (Module H — chat feature removal ทั้ง stack + migration), Phase 9 (Module I — learner
+  responsive + single-input room UI) จาก amendment ของ `design.md` วันเดียวกัน (F9/F10/F10-a +
+  มติ U1–U4) · ทุก task ใหม่เป็น `[ ]` ทั้งหมด ไม่แตะ checkbox เดิมของ Phase 1–6 แม้แต่บรรทัดเดียว ·
+  Phase 7/8 ทำขนานกันได้ตาม `design.md` §Risks & Dependencies แต่ทั้งคู่ต้องเสร็จก่อน Phase 9 เริ่ม ·
+  บันทึกจุดประสานงานที่ไม่ชัดจากการอ่าน `design.md` อย่างเดียว 3 จุดไว้ใน Sequencing Notes: (1) G/H
+  เขียน migration `RemoveChatMessageAndAddQuestionSource` ไฟล์เดียวกันคนละส่วน (2) G/H แก้
+  `IsSensitiveLearnerPath()` รายการเดียวกันคนละบรรทัด (3) readiness-by-voice removal คร่อม
+  wire contract ระหว่าง Phase 7 (backend) และ Phase 9 (frontend) ต้อง deploy พร้อมกัน · ติด
+  `🔒 Security gate` ทั้ง Phase 7/8/9 ตามเหตุผลใน `design.md` §Modules G/H/I · เพิ่มงาน re-verify
+  Module C/D/E (R19/R20) เป็น task ท้าย Phase 7 และ Phase 9 ตามที่ `design.md` สั่งไว้ตรงๆ ·
+  ปรับ Plan Summary และ Unresolved Open Questions ให้ครอบ 9 phase และบันทึกว่า R15 ไม่บล็อก
 - 2026-08-19 — Amend หลัง `system-analyst` ปิด `LS-QA-02`: เปลี่ยน naming/API/repository/audit/
   migration tasks ให้ตรง CA-1..CA-5 โดยไม่แก้ checkbox จาก FULL-1 · ยอมรับ `TrainingLink`,
   `RecipientName`, child `SessionId`, `SessionStatus`/`LinkStatus` และ server-side resolution จาก

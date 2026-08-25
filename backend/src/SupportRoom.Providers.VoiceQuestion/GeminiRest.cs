@@ -61,7 +61,6 @@ internal static class GeminiRest
         public string? Answer { get; init; }
         public string? AnswerStatus { get; init; }
         public string? RelatedSlideObjectId { get; init; }
-        public string? Readiness { get; init; }
         public GeminiConflictJson? Conflict { get; init; }
     }
 
@@ -70,10 +69,27 @@ internal static class GeminiRest
     // into a slightly slower success. 4xx (bad key/quota/malformed request) is never retried.
     private static readonly int[] RetryableStatuses = [429, 500, 503];
     private const int MaxAttempts = 3;
+    // A provider connection that stays open without returning a status used to inherit
+    // HttpClient's 100-second default. The tutor kept playing waiting fillers during that whole
+    // time, and a voice question can call Gemini twice (transcribe, then answer). Twenty seconds
+    // preserves ample headroom over the measured ~9-second healthy round-trip while turning a
+    // silent upstream stall into the existing 502/QUESTION_FAILED path promptly.
+    internal static readonly TimeSpan RequestTimeout = TimeSpan.FromSeconds(20);
 
-    /// <summary>audio/mimeType left null for a text-only request (the RAG answer step).</summary>
+    /// <summary>
+    /// audio/mimeType left null for a text-only request (the RAG answer step). systemInstruction,
+    /// when given, is sent in its own top-level request field - the same mechanism Gemini itself
+    /// uses to separate "rules the caller cannot override" from user content - rather than folded
+    /// into promptText. SEC-01: a rule spliced into promptText next to untrusted input is only text;
+    /// nothing stops that input from containing the same fence marker and confusing the model about
+    /// where the real boundary is. systemInstruction is a structurally separate field the model
+    /// never mistakes for content the caller supplied - promptText itself is what should hold only
+    /// the untrusted question when this is used, but this method does not enforce that; the caller
+    /// decides what goes in each field.
+    /// </summary>
     public static async Task<string?> CallAsync(
-        IHttpClientFactory httpClientFactory, GeminiCredentials creds, ILogger logger, string promptText, byte[]? audio = null, string? mimeType = null)
+        IHttpClientFactory httpClientFactory, GeminiCredentials creds, ILogger logger, string promptText,
+        byte[]? audio = null, string? mimeType = null, string? systemInstruction = null)
     {
         var operation = audio is not null ? "generateContent.audio" : "generateContent.text";
 
@@ -89,13 +105,20 @@ internal static class GeminiRest
                 }
 
                 var client = httpClientFactory.CreateClient(nameof(GeminiRest));
+                client.Timeout = RequestTimeout;
                 var url = $"https://generativelanguage.googleapis.com/v1beta/models/{creds.Model}:generateContent?key={creds.ApiKey}";
 
-                var response = await client.PostAsJsonAsync(url, new
+                var requestBody = new Dictionary<string, object?>
                 {
-                    contents = new[] { new { parts = parts.ToArray() } },
-                    generationConfig = new { responseMimeType = "application/json" },
-                });
+                    ["contents"] = new[] { new { parts = parts.ToArray() } },
+                    ["generationConfig"] = new { responseMimeType = "application/json" },
+                };
+                if (systemInstruction is not null)
+                {
+                    requestBody["systemInstruction"] = new { parts = new[] { new { text = systemInstruction } } };
+                }
+
+                var response = await client.PostAsJsonAsync(url, requestBody);
 
                 if (!response.IsSuccessStatusCode)
                 {

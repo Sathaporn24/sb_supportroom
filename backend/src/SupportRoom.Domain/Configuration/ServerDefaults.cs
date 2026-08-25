@@ -322,8 +322,11 @@ public static class ExternalServiceEnv
             ApiKey = Environment.GetEnvironmentVariable("ELEVENLABS_API_KEY")!,
             VoiceId = Environment.GetEnvironmentVariable("ELEVENLABS_VOICE_ID")!,
             // eleven_multilingual_v2 and eleven_flash_v2.5 do NOT support Thai despite the name -
-            // verified live against elevenlabs.io/docs. eleven_v3 is the only model that does.
-            ModelId = Environment.GetEnvironmentVariable("ELEVENLABS_MODEL_ID") is { Length: > 0 } m ? m : "eleven_v3",
+            // verified live against elevenlabs.io/docs. Only the v3 family does. Plain eleven_v3
+            // measured 9.4s for a 763-char Thai narration; eleven_v3_conversational measured 3.8s
+            // for the same text with no audible quality loss, so it's the default here even though
+            // "v3" is the name in the docs users see first.
+            ModelId = Environment.GetEnvironmentVariable("ELEVENLABS_MODEL_ID") is { Length: > 0 } m ? m : "eleven_v3_conversational",
         };
     }
 

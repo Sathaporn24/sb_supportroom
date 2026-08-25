@@ -7,9 +7,9 @@ using SupportRoom.Application.Services;
 namespace SupportRoom.Api.Controllers;
 
 /// <summary>
-/// Questions are never POSTed here - they are written inside POST /api/voice-question, the only
-/// place a question is actually asked and answered. What this controller adds on top of reading
-/// them back is CS's review verdict.
+/// Questions are never POSTed here - they are written inside POST /api/voice-question (spoken) or
+/// POST /api/text-question (typed), the only two places a question is actually asked and answered.
+/// What this controller adds on top of reading them back is CS's review verdict.
 /// </summary>
 [ApiController]
 [Route("api/session-questions")]

@@ -64,6 +64,7 @@ export function TrainingLinksTable({ links, origin }: { links: TrainingLink[]; o
           onChange={(event) => handleSearchChange(event.target.value)}
           placeholder="ค้นหาบทเรียนหรือหน่วยงาน..."
           className="pl-8"
+          data-testid="training-links-table-search-input"
         />
       </div>
 
@@ -91,7 +92,7 @@ export function TrainingLinksTable({ links, origin }: { links: TrainingLink[]; o
             </TableHeader>
             <TableBody>
               {pageLinks.map((link) => (
-                <TableRow key={link.id}>
+                <TableRow key={link.id} data-testid={`training-link-row-${link.token}`}>
                   <TableCell className="px-4 py-3">{formatDateTimeTh(link.createdAt)}</TableCell>
                   <TableCell className="px-4 py-3">{link.recipientOrgName || "ไม่ระบุ"}</TableCell>
                   <TableCell className="px-4 py-3">
@@ -112,10 +113,14 @@ export function TrainingLinksTable({ links, origin }: { links: TrainingLink[]; o
                   </TableCell>
                   <TableCell className="px-4 py-3">
                     <div className="flex flex-wrap items-center gap-2">
-                      <CopyLinkButton url={`${origin}/join/${link.token}`} />
+                      <CopyLinkButton
+                        url={`${origin}/join/${link.token}`}
+                        testId={`training-link-row-${link.token}-copy-button`}
+                      />
                       <AdminLink
                         href={`/admin/links/${link.token}`}
                         className={buttonVariants({ variant: "outline", size: "sm" })}
+                        data-testid={`training-link-row-${link.token}-view-learners-link`}
                       >
                         ดูผู้เข้าเรียน
                       </AdminLink>
@@ -140,6 +145,7 @@ export function TrainingLinksTable({ links, origin }: { links: TrainingLink[]; o
                 size="sm"
                 disabled={currentPage <= 1}
                 onClick={() => setPage((current) => Math.max(1, current - 1))}
+                data-testid="training-links-table-prev-page-button"
               >
                 ก่อนหน้า
               </Button>
@@ -150,6 +156,7 @@ export function TrainingLinksTable({ links, origin }: { links: TrainingLink[]; o
                 size="sm"
                 disabled={currentPage >= totalPages}
                 onClick={() => setPage((current) => Math.min(totalPages, current + 1))}
+                data-testid="training-links-table-next-page-button"
               >
                 ถัดไป
               </Button>

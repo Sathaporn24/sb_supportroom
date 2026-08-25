@@ -22,6 +22,12 @@ public sealed class SessionQuestion : IEntityMaster<string>, ICompanyScoped
     public string? Answer { get; init; }
     public required string AnswerStatus { get; init; }
 
+    /// <summary>QuestionSource.Voice | QuestionSource.Text - NOT NULL always: every row created
+    /// after RemoveChatMessageAndAddQuestionSource knows exactly which channel produced it, and
+    /// "unknown" is never a valid state to backfill going forward. Rows from before that migration
+    /// are backfilled to Voice because, as a matter of fact, typing a question did not exist yet.</summary>
+    public required string Source { get; init; }
+
     /// <summary>ReviewResult.Correct | ReviewResult.Incorrect, or null while unreviewed.</summary>
     public string? ReviewResult { get; set; }
 

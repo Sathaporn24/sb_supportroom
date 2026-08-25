@@ -8,7 +8,7 @@ type ChecklistStepProps = {
   done: boolean;
   title: string;
   description: string;
-  action?: { href: string; label: string; disabled?: boolean };
+  action?: { href: string; label: string; disabled?: boolean; testId: string };
 };
 
 function ChecklistStep({ done, title, description, action }: ChecklistStepProps) {
@@ -27,12 +27,17 @@ function ChecklistStep({ done, title, description, action }: ChecklistStepProps)
         (action.disabled ? (
           <span
             aria-disabled
+            data-testid={action.testId}
             className={cn(buttonVariants({ variant: "outline", size: "sm" }), "pointer-events-none opacity-50")}
           >
             {action.label}
           </span>
         ) : (
-          <AdminLink href={action.href} className={buttonVariants({ variant: "outline", size: "sm" })}>
+          <AdminLink
+            href={action.href}
+            className={buttonVariants({ variant: "outline", size: "sm" })}
+            data-testid={action.testId}
+          >
             {action.label}
           </AdminLink>
         ))}
@@ -59,13 +64,18 @@ export function OnboardingChecklist({ hasLesson }: { hasLesson: boolean }) {
           done={hasLesson}
           title="เพิ่มบทเรียนแรก"
           description="ตั้งค่าบทเรียนจาก Google Slides หรือ PDF"
-          action={{ href: "/admin/lessons/new", label: "เพิ่มบทเรียน" }}
+          action={{ href: "/admin/lessons/new", label: "เพิ่มบทเรียน", testId: "onboarding-checklist-add-lesson-link" }}
         />
         <ChecklistStep
           done={false}
           title="สร้างลิงก์การเรียนแรก"
           description={hasLesson ? "สร้างลิงก์เพื่อส่งให้ผู้เรียน" : "ต้องมีบทเรียนอย่างน้อย 1 บทก่อน"}
-          action={{ href: "/admin/links/new", label: "สร้างลิงก์การเรียน", disabled: !hasLesson }}
+          action={{
+            href: "/admin/links/new",
+            label: "สร้างลิงก์การเรียน",
+            disabled: !hasLesson,
+            testId: "onboarding-checklist-create-link-link",
+          }}
         />
       </EmptyContent>
     </Empty>

@@ -85,4 +85,78 @@ public class PdfSlidesRendererNarrationTests
     {
         Assert.Equal("", PdfSlidesRenderer.JoinLinesForNarration(""));
     }
+
+    // ---- ExtractHeadingCandidate ------------------------------------------------
+
+    [Fact]
+    public void ExtractHeadingCandidate_ReturnsFirstNonEmptyLine()
+    {
+        var result = PdfSlidesRenderer.ExtractHeadingCandidate("\n\nการใช้งานระบบ School Bright\nเนื้อหาบรรทัดถัดไป");
+
+        Assert.Equal("การใช้งานระบบ School Bright", result);
+    }
+
+    [Fact]
+    public void ExtractHeadingCandidate_StripsLeadingBulletMarker()
+    {
+        var result = PdfSlidesRenderer.ExtractHeadingCandidate("●บทที่ 1: เริ่มต้นใช้งาน\nรายละเอียด");
+
+        Assert.Equal("บทที่ 1: เริ่มต้นใช้งาน", result);
+    }
+
+    [Fact]
+    public void ExtractHeadingCandidate_ReturnsNull_WhenFirstLineIsLongerThan120Characters()
+    {
+        var longLine = new string('a', 121);
+
+        var result = PdfSlidesRenderer.ExtractHeadingCandidate($"{longLine}\nShort heading");
+
+        Assert.Null(result);
+    }
+
+    [Fact]
+    public void ExtractHeadingCandidate_AcceptsLineAtExactly120Characters()
+    {
+        var exactLine = new string('a', 120);
+
+        var result = PdfSlidesRenderer.ExtractHeadingCandidate(exactLine);
+
+        Assert.Equal(exactLine, result);
+    }
+
+    [Fact]
+    public void ExtractHeadingCandidate_ReturnsNull_WhenTextIsOnlyBlankLines()
+    {
+        Assert.Null(PdfSlidesRenderer.ExtractHeadingCandidate("\n\n   \n"));
+    }
+
+    // ---- ResolveTitle ------------------------------------------------
+
+    [Fact]
+    public void ResolveTitle_PrefersMetadataTitle_WhenPresent()
+    {
+        var result = PdfSlidesRenderer.ResolveTitle("Metadata Title", "Heading Candidate", "668832349.pdf");
+
+        Assert.Equal("Metadata Title", result);
+    }
+
+    [Fact]
+    public void ResolveTitle_FallsBackToHeadingCandidate_WhenMetadataTitleIsMissing()
+    {
+        Assert.Equal("Heading Candidate", PdfSlidesRenderer.ResolveTitle(null, "Heading Candidate", "668832349.pdf"));
+        Assert.Equal("Heading Candidate", PdfSlidesRenderer.ResolveTitle("   ", "Heading Candidate", "668832349.pdf"));
+    }
+
+    [Fact]
+    public void ResolveTitle_FallsBackToFilename_WhenNeitherMetadataNorHeadingIsUsable()
+    {
+        Assert.Equal("668832349.pdf", PdfSlidesRenderer.ResolveTitle(null, null, "668832349.pdf"));
+        Assert.Equal("668832349.pdf", PdfSlidesRenderer.ResolveTitle("", "   ", "668832349.pdf"));
+    }
+
+    [Fact]
+    public void ResolveTitle_TrimsWhitespace_FromMetadataTitle()
+    {
+        Assert.Equal("Trimmed Title", PdfSlidesRenderer.ResolveTitle("  Trimmed Title  ", null, "fallback.pdf"));
+    }
 }

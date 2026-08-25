@@ -57,7 +57,7 @@ public sealed class CurrentUserMiddleware(RequestDelegate next)
             throw GeneralException.Forbidden("กรุณาเปลี่ยนรหัสผ่านก่อนใช้งานระบบ");
         }
 
-        var requested = ResolveRequestedCompany(context, currentUser);
+        var requested = ResolveRequestedCompany(context.Request.Query, currentUser);
         if (requested is not null)
         {
             // Throws 403 for a company this user may not touch. Runs here, once, rather than in
@@ -77,10 +77,14 @@ public sealed class CurrentUserMiddleware(RequestDelegate next)
     /// An owner who omits it gets null on purpose. They belong to no company, so there is no
     /// sensible default; guessing one would silently show them a customer they did not pick.
     /// Endpoints that need a company then fail with a clear "company not known" instead.
+    ///
+    /// Takes the query collection directly (not HttpContext) so SessionHub can reuse this exact
+    /// rule from a hub method invocation's Context.GetHttpContext()?.Request.Query - the same
+    /// ?company= convention a JWT-authenticated agent's SignalR connection URL carries.
     /// </summary>
-    private static string? ResolveRequestedCompany(HttpContext context, ICurrentUser currentUser)
+    public static string? ResolveRequestedCompany(IQueryCollection query, ICurrentUser currentUser)
     {
-        if (context.Request.Query.TryGetValue(CompanyQueryKey, out var fromQuery)
+        if (query.TryGetValue(CompanyQueryKey, out var fromQuery)
             && !string.IsNullOrWhiteSpace(fromQuery))
         {
             return fromQuery.ToString().Trim();

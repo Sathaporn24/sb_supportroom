@@ -11,7 +11,4 @@ public sealed class SignalRRealtimeNotifier(IHubContext<SessionHub> hubContext) 
 {
     public Task NotifyNewQuestionAsync(string learningSessionId, SessionQuestionViewModel question)
         => hubContext.Clients.Group(learningSessionId).SendAsync("ReceiveNewQuestion", question);
-
-    public Task NotifyChatMessageAsync(string learningSessionId, ChatMessageViewModel message)
-        => hubContext.Clients.Group(learningSessionId).SendAsync("ReceiveChatMessage", message);
 }

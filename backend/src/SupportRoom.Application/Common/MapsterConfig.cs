@@ -54,8 +54,6 @@ public static class MapsterConfig
         TypeAdapterConfig<LessonConfig, LessonConfigViewModel>.NewConfig()
             .Map(dest => dest.CreatedAt, src => src.CreateDate)
             .Map(dest => dest.UpdatedAt, src => src.UpdateDate);
-        TypeAdapterConfig<ChatMessage, ChatMessageViewModel>.NewConfig()
-            .Map(dest => dest.CreatedAt, src => src.CreateDate);
         TypeAdapterConfig<KnowledgeQnA, KnowledgeQnAViewModel>.NewConfig()
             .Map(dest => dest.CreatedAt, src => src.CreateDate);
         TypeAdapterConfig<KnowledgeQnAConflict, KnowledgeQnAConflictViewModel>.NewConfig()

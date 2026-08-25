@@ -71,8 +71,16 @@ Push-to-Talk ถามได้ตลอด → AI ตอบโดยอ้า�
   `tailwind.config.*` — Tailwind v4 กำหนดธีมผ่าน CSS ล้วนใน `src/app/globals.css`
   - `@theme inline` ต้องอยู่ **top level** ของ `globals.css` เท่านั้น ห้ามย้ายไปไว้ใน `@layer base`
     เพราะจะทำให้ค่า dark mode ไม่ถูกส่งต่อไปยัง utility ที่ generate ออกมา
-  - ค่าเดียวที่จงใจต่างจาก Nova default คือ `--primary` (สีส้มแบรนด์ School Bright)
-    แก้ที่ `:root`/`.dark` ใน `globals.css` จุดเดียว ถ้าจะกลับไปใช้ neutral ล้วน
+  - ค่าที่จงใจต่างจาก Nova default (แก้ที่ `:root`/`.dark` ใน `globals.css` เท่านั้น):
+    - `--primary` — สีส้มแบรนด์ School Bright (`#f97316` ตาม Figma redesign, ปรับ 2026-08-25
+      จากเฉดแดง-ส้มเข้มเดิม)
+    - `--sidebar-accent`/`--sidebar-accent-foreground` — sidebar item ที่ active/hover เป็น
+      pill สีส้มทึบ (`#e86a27`) ตัวหนังสือขาว ไม่ใช่ neutral highlight ของ Nova
+    - `--tree-subcategory`/`--tree-subcategory-foreground`, `--tree-header` — สี accent เฉพาะ
+      หน้า tree หมวดบทเรียน (`CategoryTree.tsx`): แถบพีชตอนหมวดย่อยขยาย, แถบครีมที่หัวตาราง
+    - `--info`/`--info-foreground` — ปุ่มฟ้า (เช่น "+ เพิ่มบทเรียน" ใน `CategoryTree.tsx`)
+      ที่ Figma แยกสีจาก primary orange
+    - ถ้าจะกลับไปใช้ Nova neutral ล้วน ต้องแก้ทั้ง 5 จุดนี้ ไม่ใช่แค่ `--primary` อีกต่อไป
   - ยังไม่มี theme switcher ในระบบ (ไม่ได้ติดตั้ง `next-themes`) — token ฝั่ง `.dark`
     ประกาศไว้ครบและถูกต้องแล้ว แต่ยังไม่มีอะไร toggle คลาส `dark` ในการใช้งานจริง
 - ลิงก์ที่หน้าตาเป็นปุ่มให้ใช้ `<Link className={buttonVariants({...})}>` ไม่ใช่

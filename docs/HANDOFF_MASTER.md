@@ -7,7 +7,8 @@
 ## Executive summary
 
 ระบบมี prototype end-to-end ที่ครอบคลุมการสร้างบทเรียน → สร้างลิงก์ → ผู้เรียนเข้าเรียน
-1:1 → AI บรรยาย/ตอบคำถามแบบ grounded → CS ดู log/แชต/รีวิวคำตอบ พร้อม multi-company
+1:1 → AI บรรยาย/ตอบคำถามแบบ grounded → CS ดู log คำถามสด/รีวิวคำตอบ พร้อม multi-company
+(ไม่มีฟีเจอร์แชตคุยกับคนอีกต่อไป - F10-a, 2026-08-23)
 และหลังบ้านที่มี login 3 role แล้ว โครงหลักเหมาะแก่การแบ่งทีมต่อ แต่ **ยังไม่พร้อม production**
 จนกว่าจะเคาะ/ทำ TTS ที่มี SLA, rate limiting, secret/provider settings, deploy/CI, durable indexing,
 data-retention/privacy และ RAG evaluation
@@ -20,7 +21,7 @@ data-retention/privacy และ RAG evaluation
   พา tenant context ผิดบริษัทเข้าหน้าสาธารณะ
 - ลด public payload: ไม่ส่ง source/provider/document IDs, attendance/internal IDs ที่ไม่จำเป็น,
   review metadata และ `UnansweredPoints` ให้ผู้เรียน
-- ผูก lesson/PDF page/TTS/voice/chat กับ link + learner session จริง และบล็อกการเขียนหลัง session จบ
+- ผูก lesson/PDF page/TTS/voice/question กับ link + learner session จริง และบล็อกการเขียนหลัง session จบ
 - SignalR group ผูก `LearningSession`; agent ต้องมี JWT; sender role/name derive ฝั่ง server
 - ผู้เรียนเดิม reconnect ได้หลัง link หมดอายุ แต่ผู้เรียนใหม่/restart ไม่ได้; end/progress เป็น idempotent/guarded
 - รักษา `?company=` ในทุกลิงก์หลังบ้านและป้องกันการเปิด token ข้าม company context
@@ -35,7 +36,7 @@ migration/staging smoke/E2E ยังอยู่ใน blockers
 
 | Capability | สถานะ | หมายเหตุ |
 |---|---|---|
-| Frontend learner flow | ✅ Implemented | join, resume, room, PTT, chat, recap, learn again |
+| Frontend learner flow | ✅ Implemented | join, resume, room, PTT, ask AI (voice/text question), recap, learn again |
 | Admin work flow | ✅ Implemented | lessons, Google/PDF, documents, links, learner summary, answer review |
 | Multi-company isolation | ✅ Implemented | `CompanyId`, EF query filters, Pinecone namespaces |
 | Back-office auth/RBAC | ✅ Implemented | JWT; `owner`, `admin`, `cs`; company switcher; user management |
@@ -128,7 +129,7 @@ vector อยู่ Pinecone และไฟล์อยู่ local/OBS จึ�
 | D-03 | ใครเป็นผู้ถือ/จ่าย API key: School Bright ทั้งระบบ หรือบางบริษัท BYOK? | Shared system key ตาม TD-014 | เปลี่ยน schema, RBAC, billing, UX settings |
 | D-04 | Settings เปลี่ยนได้ runtime ทันทีหรือใช้ draft → test → activate? | Draft → test → activate + rollback | Runtime switch ตรง ๆ เสี่ยง outage ทุกบริษัท |
 | D-05 | ต้องเก็บ version ของ provider/prompt ต่อคำตอบย้อนหลังหรือไม่? | เก็บ config snapshot/version ต่อ question | ถ้าไม่เก็บ อธิบาย regression/ค่าใช้จ่ายย้อนหลังไม่ได้ |
-| D-06 | Retention ของเสียง, transcript, answer, chat, files, audit กี่วัน? | แยก policy ต่อชนิดข้อมูล | บล็อก delete/export/compliance flow |
+| D-06 | Retention ของเสียง, transcript, answer, files, audit กี่วัน? | แยก policy ต่อชนิดข้อมูล | บล็อก delete/export/compliance flow |
 | D-07 | เป้าหมาย quality ของ Knowledge คืออะไร? | grounded accuracy + citation + not-found precision | ทีมปรับ RAG โดยไม่มีเกณฑ์รับงาน |
 | D-08 | ปริมาณ session/วัน และพร้อมกันสูงสุด? | ใส่ estimate ก่อนเลือก scale | บล็อก capacity/rate/cost design |
 | D-09 | ต้องมี forgot password/email invite/SSO ใน release แรกไหม? | Password+admin reset ก่อน; SSO ถัดไป | บล็อก auth UX/SMTP/IdP integration |
@@ -141,4 +142,4 @@ vector อยู่ Pinecone และไฟล์อยู่ local/OBS จึ�
 - Backend ยืนยัน schema + API + auth boundary และ migration rehearsal
 - AI/Knowledge มี eval dataset และ baseline ก่อนเปลี่ยน model/chunk/threshold
 - QA มี smoke path อย่างน้อย: owner/admin/cs, 2 companies, Google/PDF, new/returning/expired
-  learner, voice answer/not_found, chat, review, reindex failure
+  learner, voice answer/not_found, review, reindex failure

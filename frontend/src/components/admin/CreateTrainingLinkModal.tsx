@@ -73,7 +73,7 @@ export function CreateTrainingLinkModal({ open, onClose, lesson }: Props) {
 
   return (
     <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
-      <DialogContent className="max-h-[90vh] max-w-md overflow-y-auto">
+      <DialogContent className="max-h-[90vh] max-w-md overflow-y-auto" data-testid="create-training-link-modal">
         <DialogHeader>
           <DialogTitle>{created ? "สร้างลิงก์การเรียนสำเร็จ" : "สร้างลิงก์การเรียน"}</DialogTitle>
         </DialogHeader>
@@ -84,8 +84,8 @@ export function CreateTrainingLinkModal({ open, onClose, lesson }: Props) {
               {origin}/join/{created.token}
             </p>
             <div className="flex flex-wrap gap-2">
-              <CopyLinkButton url={`${origin}/join/${created.token}`} />
-              <Button variant="ghost" onClick={onClose}>
+              <CopyLinkButton url={`${origin}/join/${created.token}`} testId="create-training-link-modal-copy-button" />
+              <Button variant="ghost" onClick={onClose} data-testid="create-training-link-modal-done-button">
                 เสร็จสิ้น
               </Button>
             </div>
@@ -113,6 +113,7 @@ export function CreateTrainingLinkModal({ open, onClose, lesson }: Props) {
                 value={recipientOrgName}
                 onChange={(e) => setRecipientOrgName(e.target.value)}
                 placeholder="เช่น โรงเรียนวัดโพธิ์ / สาขาสีลม / ฝ่ายบุคคล"
+                data-testid="create-training-link-modal-org-input"
               />
             </div>
             <div className="flex flex-col gap-2">
@@ -122,6 +123,7 @@ export function CreateTrainingLinkModal({ open, onClose, lesson }: Props) {
                 type="datetime-local"
                 value={expiresAt}
                 onChange={(e) => setExpiresAt(e.target.value)}
+                data-testid="create-training-link-modal-expires-at-input"
               />
             </div>
             <div className="flex flex-col gap-2">
@@ -136,13 +138,19 @@ export function CreateTrainingLinkModal({ open, onClose, lesson }: Props) {
                 aria-describedby="max-attendees-help"
                 onChange={(e) => setMaxAttendees(e.target.value)}
                 placeholder="เช่น 30"
+                data-testid="create-training-link-modal-max-attendees-input"
               />
               <p id="max-attendees-help" className="text-xs text-muted-foreground">
                 ค่านี้ยังไม่มีผลในระบบ ระบบจะยังไม่จำกัดจำนวนผู้เข้าเรียนในเฟสนี้
               </p>
             </div>
 
-            <Button className="w-full" onClick={handleCreate} disabled={!lesson || isCreating}>
+            <Button
+              className="w-full"
+              onClick={handleCreate}
+              disabled={!lesson || isCreating}
+              data-testid="create-training-link-modal-submit-button"
+            >
               {isCreating ? (
                 <>
                   <Spinner data-icon="inline-start" />

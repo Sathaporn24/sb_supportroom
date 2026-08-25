@@ -38,12 +38,16 @@ export default function DocumentChunksPage() {
     : null;
 
   return (
-    <main className="mx-auto flex max-w-3xl flex-col gap-6 p-6">
+    <main className="flex w-full flex-col gap-6 p-6">
       <div>
-        <AdminLink href="/admin/documents" className="text-xs text-muted-foreground hover:text-foreground">
+        <AdminLink
+          href="/admin/documents"
+          className="text-xs text-muted-foreground hover:text-foreground"
+          data-testid="document-chunks-back-link"
+        >
           ← กลับคลังเอกสาร
         </AdminLink>
-        <h1 className="mt-1 text-xl font-semibold">ข้อความที่แปลงได้{fileName ? `: ${fileName}` : ""}</h1>
+        <h1 className="mt-1 text-xl font-semibold text-primary">ข้อความที่แปลงได้{fileName ? `: ${fileName}` : ""}</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           นี่คือข้อความชุดเดียวกับที่คลังความรู้ใช้ตอบคำถามจริง — ไม่ใช่ข้อความที่แปลงสดใหม่ทุกครั้ง
           หากพบตัวอักษรเพี้ยน (เช่น วรรณยุกต์หาย) ให้ลบเอกสารแล้วอัปโหลดไฟล์ใหม่
@@ -79,6 +83,7 @@ export default function DocumentChunksPage() {
               {sorted.map((chunk) => (
                 <TableRow
                   key={chunk.id}
+                  data-testid={`document-chunk-row-${chunk.id}`}
                   className={cn(chunk.hasSuspectCharacters && "bg-destructive/5")}
                 >
                   <TableCell className="px-4 py-3 text-muted-foreground">{chunk.seqNo}</TableCell>

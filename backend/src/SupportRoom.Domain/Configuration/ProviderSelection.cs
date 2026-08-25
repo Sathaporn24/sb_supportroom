@@ -11,7 +11,9 @@ public static class TtsProvider
     public const string Edge = "edge";
 
     /// <summary>Real commercial TTS API with an SLA - see TD-001. Model defaults to
-    /// eleven_v3, the only ElevenLabs model that supports Thai.</summary>
+    /// eleven_v3_conversational - the only ElevenLabs models with Thai support are the v3
+    /// family, and the conversational variant is ~2.5x faster with no audible quality loss
+    /// (see ServerDefaults.GetElevenLabs).</summary>
     public const string ElevenLabs = "elevenlabs";
     public static readonly string[] Allowed = [Edge, ElevenLabs];
 }

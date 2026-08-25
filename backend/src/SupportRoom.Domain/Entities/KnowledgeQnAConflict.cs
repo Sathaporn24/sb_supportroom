@@ -26,7 +26,7 @@ public sealed class KnowledgeQnAConflict : IEntityMaster<string>, ICompanyScoped
     public required string QnAId { get; init; }
 
     /// <summary>The real question that raised the flag - SessionQuestion.Id (logical cross-module
-    /// FK). Null when that question was never recorded (e.g. a readiness check).</summary>
+    /// FK). Null when that question was never recorded (e.g. a no_speech result).</summary>
     public string? SessionQuestionId { get; init; }
 
     /// <summary>Human-readable name of the conflicting source - a document's FileName, or
