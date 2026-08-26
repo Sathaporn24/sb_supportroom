@@ -82,9 +82,12 @@ export default function JoinPage() {
       }
       setLearnerName(params.token, trimmedName);
       enterRoom();
-    } catch (err) {
+    } catch {
+      // LT-5/LT-6 - a revoked (trashed-lesson) link's new-join/restart is rejected server-side,
+      // but the reason must never reach an outside learner - show one generic message for every
+      // failure here rather than the server's own error text, whatever it says.
       setJoining(false);
-      setJoinError(err instanceof Error ? err.message : "เข้าห้องเรียนไม่สำเร็จ กรุณาลองใหม่อีกครั้งค่ะ");
+      setJoinError("เข้าห้องเรียนไม่สำเร็จ กรุณาลองใหม่อีกครั้งค่ะ");
     }
   }
 

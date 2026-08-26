@@ -23,9 +23,11 @@ public sealed class UnitOfWork(ApplicationDbContext dbContext, IServiceProvider 
         { typeof(IBackgroundJobRepository), typeof(BackgroundJobRepository) },
         { typeof(IDocumentChunkRepository), typeof(DocumentChunkRepository) },
         { typeof(ILessonSlideNarrationRepository), typeof(LessonSlideNarrationRepository) },
+        { typeof(ILessonExcludedSlideRepository), typeof(LessonExcludedSlideRepository) },
         { typeof(IKnowledgeQnARepository), typeof(KnowledgeQnARepository) },
         { typeof(IKnowledgeQnASourceRepository), typeof(KnowledgeQnASourceRepository) },
         { typeof(IKnowledgeQnAConflictRepository), typeof(KnowledgeQnAConflictRepository) },
+        { typeof(ISessionQuestionReviewExclusionRepository), typeof(SessionQuestionReviewExclusionRepository) },
     };
 
     public TRepository GetRepository<TRepository>()

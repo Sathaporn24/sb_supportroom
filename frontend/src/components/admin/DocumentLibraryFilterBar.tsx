@@ -1,7 +1,14 @@
 "use client";
 
 import { useMemo } from "react";
-import type { KnowledgeCategory, KnowledgeQnAFilter, KnowledgeScopeType, LessonConfig } from "@/types/domain";
+import type {
+  DocumentIndexingStatus,
+  KnowledgeCategory,
+  KnowledgeQnAFilter,
+  KnowledgeScopeType,
+  LessonConfig,
+} from "@/types/domain";
+import { statusLabels } from "@/components/admin/DocumentUploadList";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -13,6 +20,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+
+const INDEXING_STATUS_VALUES: DocumentIndexingStatus[] = ["pending", "indexed", "failed"];
 
 /** KL-12 - below this the server treats `q` as "not searching", not an error; the frontend mirrors
  * that so the note under the input and the actual filtering behaviour never disagree. */
@@ -78,6 +87,14 @@ export function DocumentLibraryFilterBar({
     onFilterChange({ ...filter, scopeType, scopeId });
   }
 
+  function handleStatusSelect(value: string | null) {
+    if (!value || value === "all") {
+      onFilterChange({ ...filter, status: undefined });
+      return;
+    }
+    onFilterChange({ ...filter, status: value as DocumentIndexingStatus });
+  }
+
   return (
     <div className="flex flex-col gap-3 rounded-xl border p-3">
       <div className="flex flex-wrap items-end gap-3">
@@ -133,6 +150,25 @@ export function DocumentLibraryFilterBar({
             onChange={(e) => onSearchInputChange(e.target.value)}
             placeholder="พิมพ์คำที่ต้องการค้นหา..."
           />
+        </div>
+
+        <div className="flex flex-col gap-2">
+          <Label>สถานะ</Label>
+          <Select value={filter.status ?? "all"} onValueChange={handleStatusSelect}>
+            <SelectTrigger className="w-48" data-testid="documents-filter-status-select">
+              <SelectValue placeholder="เลือกสถานะ">
+                {(value: string) => (value === "all" ? "ทั้งหมด" : statusLabels[value as DocumentIndexingStatus])}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">ทั้งหมด</SelectItem>
+              {INDEXING_STATUS_VALUES.map((status) => (
+                <SelectItem key={status} value={status}>
+                  {statusLabels[status]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
       </div>
       {/* KL-12/KL-13 - both notes are contract requirements, not incidental copy: CS must not

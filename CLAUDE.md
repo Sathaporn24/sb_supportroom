@@ -253,9 +253,11 @@ Convention ที่ไม่ปกติแต่จงใจ — ทำตา�
 
 This repo defines a fixed, hand-off-based agent pipeline for building a project from a vague idea through to verified, security-reviewed, deployed code. Each stage is a subagent under `.claude/agents/`, each owns exactly one artifact, and **no agent ever invokes the next one** — structurally true in every mode, since none of them holds the `Agent` tool. By default the user decides every handoff explicitly; an opt-in autonomous mode lets the session chain them instead, but five points (requirement interview, schema confirmation, a failed QA round, a Critical/Important security finding, an actual deploy/migration) always wait for a person regardless. **`qa-engineer` and `security` are never auto-chained in any mode — they run only when the user explicitly asks for them, every time.** See "Rules that hold across every agent" below.
 
+This pipeline is also engine-agnostic on purpose: it runs identically under Codex via [`AGENTS.md`](./AGENTS.md)'s adapter chain, so work can move between Claude Code and Codex mid-task without a handoff beyond what §6 below already requires — see `.claude/shared/conventions.md` §13 for the rule against re-running a role on the other engine just to double-check its own output.
+
 ## Read this first
 
-`.claude/shared/conventions.md` is the authoritative source for the rules every agent shares: module-folder resolution, the `_docs/status.md` index, dates, amend discipline, version control, handoffs, the design-as-contract rule, and where the stack is defined. The agent files deliberately don't repeat those rules — they point at that file, so changing a rule means editing one place, not nine.
+`.claude/shared/conventions.md` is the authoritative source for the rules every agent shares: module-folder resolution, the `_docs/status.md` index, dates, amend discipline, version control, handoffs, the design-as-contract rule, where the stack is defined, and how work moves between Claude Code and Codex without duplicating effort. The agent files deliberately don't repeat those rules — they point at that file, so changing a rule means editing one place, not nine.
 
 ## The pipeline
 

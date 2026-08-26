@@ -66,6 +66,21 @@ public static class UploadLimits
     public static int MaxDocumentUploadMb => NumberEnv("MAX_DOCUMENT_UPLOAD_MB", 20);
 }
 
+/// <summary>
+/// R9/Module L - O-18: retention is a fixed system-wide value this round, deliberately NOT an env
+/// var or a per-company setting (a future per-company retention is a confirmed direction but
+/// explicitly deferred - see design.md O-18). Do not add configurability here without that schema
+/// decision going through system-analyst first.
+/// </summary>
+public static class LessonTrashPolicy
+{
+    public const int RetentionDays = 60;
+
+    /// <summary>LT-12 - how far the worker pushes NextAttemptAt out when it finds an active
+    /// session instead of claiming the purge.</summary>
+    public const int ActiveSessionDeferralHours = 1;
+}
+
 public sealed class JwtSettings
 {
     /// <summary>Signing key. No default on purpose - a fallback secret would mean every

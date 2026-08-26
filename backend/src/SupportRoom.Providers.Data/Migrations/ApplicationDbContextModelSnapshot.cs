@@ -702,6 +702,12 @@ namespace SupportRoom.Providers.Data.Migrations
                     b.Property<string>("PresentationId")
                         .HasColumnType("text");
 
+                    b.Property<string>("PurgeJobId")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("PurgeStartedAt")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<string>("SlidesEmbedUrl")
                         .HasColumnType("text");
 
@@ -730,7 +736,56 @@ namespace SupportRoom.Providers.Data.Migrations
                     b.HasIndex("CompanyId", "Slug")
                         .IsUnique();
 
+                    b.HasIndex("CompanyId", "IsDelete", "DeletedAt");
+
                     b.ToTable("LessonConfig");
+                });
+
+            modelBuilder.Entity("SupportRoom.Domain.Entities.LessonExcludedSlide", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("text");
+
+                    b.Property<string>("CompanyId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("CreateBy")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("CreateDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DeleteBy")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsDelete")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("LessonId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("SlideObjectId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("UpdateBy")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("UpdateDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CompanyId");
+
+                    b.HasIndex("LessonId", "SlideObjectId");
+
+                    b.ToTable("LessonExcludedSlide");
                 });
 
             modelBuilder.Entity("SupportRoom.Domain.Entities.LessonSlideNarration", b =>
@@ -855,6 +910,58 @@ namespace SupportRoom.Providers.Data.Migrations
                     b.HasIndex("CompanyId", "ReviewResult");
 
                     b.ToTable("SessionQuestion");
+                });
+
+            modelBuilder.Entity("SupportRoom.Domain.Entities.SessionQuestionReviewExclusion", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("text");
+
+                    b.Property<string>("CompanyId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("CreateBy")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("CreateDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DeleteBy")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsDelete")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("LessonId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("SessionQuestionId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("UpdateBy")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("UpdateDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CompanyId", "LessonId");
+
+                    b.HasIndex("CompanyId", "SessionQuestionId")
+                        .IsUnique();
+
+                    b.ToTable("SessionQuestionReviewExclusion");
                 });
 
             modelBuilder.Entity("SupportRoom.Domain.Entities.TrainingLink", b =>

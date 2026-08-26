@@ -28,9 +28,30 @@ public sealed class LessonConfig : IEntityMaster<string>, ICompanyScoped
     // edit must be able to record who made it.
     public string? UpdateBy { get; set; }
     public DateTime? UpdateDate { get; set; }
-    public string? DeleteBy { get; init; }
-    public bool IsDelete { get; init; }
-    public DateTime? DeletedAt { get; init; }
+    // R9/Module L - init -> set: these three become the real trash-lifecycle state on this
+    // entity (see the state invariant note below), which needs to be toggled by archive/restore,
+    // not only ever set once at creation like every other entity's DeleteBy/IsDelete/DeletedAt.
+    public string? DeleteBy { get; set; }
+    public bool IsDelete { get; set; }
+    public DateTime? DeletedAt { get; set; }
+
+    /// <summary>R9/Module L - BackgroundJob.Id of the single lesson_purge job created by the most
+    /// recent archive (LT-3). Null on active/restored. Doubles as a generation token: a stale job
+    /// from an earlier trash round whose id no longer matches this column must no-op (LT-11) -
+    /// logical FK only, no database FK, same pattern as every other cross-entity pointer here.</summary>
+    public string? PurgeJobId { get; set; }
+
+    /// <summary>R9/Module L - null while the lesson is still restorable; the worker sets this
+    /// (UTC now, via a conditional update - LT-13) the instant it commits to deleting for real.
+    /// Once set, restore must be rejected with 409 (LT-4) and retries of the same job id continue
+    /// idempotently (LT-13/LT-14).
+    ///
+    /// State invariant (design.md DM-2):
+    ///   active   = !IsDelete   &amp;&amp; DeletedAt/DeleteBy/PurgeJobId/PurgeStartedAt all null
+    ///   trash    = IsDelete    &amp;&amp; DeletedAt/PurgeJobId set                &amp;&amp; PurgeStartedAt null
+    ///   purging  = IsDelete    &amp;&amp; DeletedAt/PurgeJobId set                &amp;&amp; PurgeStartedAt set
+    ///   purged   = row hard-deleted (no in-between representation left behind)</summary>
+    public DateTime? PurgeStartedAt { get; set; }
 
     public required string Slug { get; init; }
     public required string CategoryId { get; set; }

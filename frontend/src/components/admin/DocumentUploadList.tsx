@@ -194,7 +194,7 @@ export function DocumentUploadList({ filter, categories, lessons }: Props) {
   useEffect(() => {
     void reload(filter);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filter.scopeType, filter.scopeId, filter.q]);
+  }, [filter.scopeType, filter.scopeId, filter.q, filter.status]);
 
   async function performUpload(file: File, scope: DocumentScope, checkDuplicate: boolean) {
     setUploading(true);

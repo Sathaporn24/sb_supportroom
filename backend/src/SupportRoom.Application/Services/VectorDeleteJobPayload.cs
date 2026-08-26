@@ -10,6 +10,13 @@ public static class VectorDeleteTargetKind
 {
     public const string Document = "document";
     public const string Qna = "qna";
+
+    /// <summary>EX-6 - a PDF lesson page's document-copy vector ({documentId}-page-N, the row in
+    /// DocumentChunk). Deliberately its own kind, not Document: ProcessVectorDeleteAsync's
+    /// Document branch guards on the document still being soft-deleted (DI-16's restore-collision
+    /// note) - the deck's DocumentResource is still active when a page gets excluded, so that
+    /// guard would return early and silently drop this job every time.</summary>
+    public const string LessonPage = "lesson_page";
 }
 
 /// <summary>

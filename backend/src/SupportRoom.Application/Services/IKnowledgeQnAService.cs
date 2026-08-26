@@ -57,6 +57,7 @@ public sealed class KnowledgeQnAService(
     private readonly ILearningSessionRepository _learningSessionRepository = unitOfWork.GetRepository<ILearningSessionRepository>();
     private readonly ITrainingLinkRepository _trainingLinkRepository = unitOfWork.GetRepository<ITrainingLinkRepository>();
     private readonly ILessonConfigRepository _lessonConfigRepository = unitOfWork.GetRepository<ILessonConfigRepository>();
+    private readonly ISessionQuestionReviewExclusionRepository _reviewExclusionRepository = unitOfWork.GetRepository<ISessionQuestionReviewExclusionRepository>();
 
     public IReadOnlyList<KnowledgeQnAQueueItemViewModel> GetQueue()
     {
@@ -70,10 +71,27 @@ public sealed class KnowledgeQnAService(
         }
 
         var candidateIds = candidates.Select(c => c.Id).ToList();
-        var alreadyAnswered = _sourceRepository.GetBySessionQuestionIds(candidateIds)
+
+        // R9/LT-16 - a permanently-purged lesson's questions must never reappear in the queue,
+        // regardless of whether a KnowledgeQnASource happens to exist for them (a purged lesson's
+        // own Q&A/source rows are hard-deleted, but a question could in principle still match one
+        // from ANOTHER lesson's Q&A written before purge - the exclusion tombstone is what makes
+        // this permanent instead of accidental). Checked first, before the ordinary "already
+        // answered" check below.
+        var permanentlyExcluded = _reviewExclusionRepository.GetBySessionQuestionIds(candidateIds)
+            .Select(x => x.SessionQuestionId)
+            .ToHashSet();
+        var candidatesAfterExclusion = candidates.Where(c => !permanentlyExcluded.Contains(c.Id)).ToList();
+        if (candidatesAfterExclusion.Count == 0)
+        {
+            return [];
+        }
+
+        var remainingIds = candidatesAfterExclusion.Select(c => c.Id).ToList();
+        var alreadyAnswered = _sourceRepository.GetBySessionQuestionIds(remainingIds)
             .Select(s => s.SessionQuestionId)
             .ToHashSet();
-        var open = candidates.Where(c => !alreadyAnswered.Contains(c.Id)).ToList();
+        var open = candidatesAfterExclusion.Where(c => !alreadyAnswered.Contains(c.Id)).ToList();
         if (open.Count == 0)
         {
             return [];
@@ -88,6 +106,32 @@ public sealed class KnowledgeQnAService(
         var linkIds = sessions.Values.Select(s => s.TrainingLinkId).Distinct().ToList();
         var links = _trainingLinkRepository.FindBy(l => linkIds.Contains(l.Id)).ToList()
             .ToDictionary(l => l.Id);
+
+        // R9/LT-8 - derive candidate -> session -> link -> lesson and drop anything whose lesson is
+        // currently trashed. Checked against GetTrash specifically (not "missing from the active
+        // set") so a lesson the caller genuinely has no row for at all - which should never happen
+        // in production, since every link is created against a real lesson - is not silently
+        // treated the same as trashed.
+        var lessonIds = links.Values.Select(l => l.LessonId).Distinct().ToList();
+        var trashedLessonIds = lessonIds.Count == 0
+            ? []
+            : _lessonConfigRepository.GetTrash(CurrentCompanyId).Where(l => lessonIds.Contains(l.Id)).Select(l => l.Id).ToHashSet();
+        open = open.Where(q =>
+        {
+            if (!sessions.TryGetValue(q.SessionId, out var session))
+            {
+                return true; // orphaned session reference - not this method's problem to hide, unchanged behavior
+            }
+            if (!links.TryGetValue(session.TrainingLinkId, out var link))
+            {
+                return true; // same as above
+            }
+            return !trashedLessonIds.Contains(link.LessonId);
+        }).ToList();
+        if (open.Count == 0)
+        {
+            return [];
+        }
 
         return open
             .OrderBy(q => q.CreateDate)

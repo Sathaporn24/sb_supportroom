@@ -74,7 +74,19 @@ public sealed class LearningSessionService(IUnitOfWork unitOfWork, IServiceProvi
             // Deliberately returns an ENDED session as-is instead of silently opening a new one:
             // reopening a finished link must show the recap and let the learner decide to go again
             // (§2.5). Restart() is the explicit path for that.
+            //
+            // R9/LT-5 - a revoked link's already-existing session (in progress or ended) is not
+            // blocked here: only a brand NEW join is rejected below. Content/question endpoints
+            // still apply their own IN_PROGRESS-bound gate independently
+            // (ITrainingLinkService.GetEntityByTokenForContentAccess).
             return ToViewModel(existing);
+        }
+
+        // R9/LT-5 - no existing row means this is a genuinely new join. A revoked link must
+        // reject that outright, with no exception - there is no session yet to bind to.
+        if (link.IsDelete)
+        {
+            throw GeneralException.NotFound("ลิงก์ หรือลิงก์หมดอายุ");
         }
 
         EnsureLinkNotExpired(link);
@@ -290,6 +302,15 @@ public sealed class LearningSessionService(IUnitOfWork unitOfWork, IServiceProvi
     private TrainingLink ResolveLinkForJoin(string token)
     {
         var link = ServiceProvider.GetRequiredService<ITrainingLinkService>().GetEntityByToken(token);
+
+        // R9/LT-5 - Restart() always creates a brand new session round, so it is a "new join" for
+        // this purpose even when called by someone who already has an ended one - a revoked link
+        // must reject it outright, unlike Join()'s resume branch above.
+        if (link.IsDelete)
+        {
+            throw GeneralException.NotFound("ลิงก์ หรือลิงก์หมดอายุ");
+        }
+
         EnsureLinkNotExpired(link);
         return link;
     }

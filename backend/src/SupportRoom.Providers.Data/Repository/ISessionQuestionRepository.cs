@@ -23,6 +23,10 @@ public interface ISessionQuestionRepository : IRepositoryBase<SessionQuestion, s
     /// elsewhere - rather than this repository reaching into another module-adjacent table itself.
     /// </summary>
     IQueryable<SessionQuestion> GetReviewQueue();
+
+    /// <summary>R9/LT-15 - purge's dependency snapshot: every question of every session under a
+    /// lesson's links, in one batched query rather than one per session.</summary>
+    IQueryable<SessionQuestion> GetBySessionIds(IReadOnlyList<string> sessionIds);
 }
 
 public sealed class SessionQuestionRepository(ApplicationDbContext dbContext)
@@ -33,4 +37,7 @@ public sealed class SessionQuestionRepository(ApplicationDbContext dbContext)
 
     public IQueryable<SessionQuestion> GetReviewQueue()
         => FindBy(x => x.AnswerStatus == AnswerStatus.NotFound || x.ReviewResult == ReviewResult.Incorrect);
+
+    public IQueryable<SessionQuestion> GetBySessionIds(IReadOnlyList<string> sessionIds)
+        => FindBy(x => sessionIds.Contains(x.SessionId));
 }

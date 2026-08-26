@@ -42,18 +42,56 @@ internal sealed class FakeLessonConfigRepository : ILessonConfigRepository
 {
     public readonly List<LessonConfig> Items = [];
 
-    public IQueryable<LessonConfig> GetAll() => Items.AsQueryable();
-    public IQueryable<LessonConfig> FindBy(Expression<Func<LessonConfig, bool>> predicate) => Items.AsQueryable().Where(predicate);
-    public LessonConfig? Get(string id) => Items.FirstOrDefault(x => x.Id == id);
+    // R9 - mirrors the real HasQueryFilter (CompanyId + !IsDelete): a trashed lesson must not be
+    // reachable through the normal query surface, only through GetTrash/GetIncludingDeleted below.
+    public IQueryable<LessonConfig> GetAll() => Items.AsQueryable().Where(x => !x.IsDelete);
+    public IQueryable<LessonConfig> FindBy(Expression<Func<LessonConfig, bool>> predicate) => GetAll().Where(predicate);
+    public LessonConfig? Get(string id) => GetAll().FirstOrDefault(x => x.Id == id);
     public Task<LessonConfig?> GetAsync(string id) => Task.FromResult(Get(id));
     public void Add(LessonConfig entity) => Items.Add(entity);
     public void Update(LessonConfig entity) { /* list already holds the tracked reference */ }
     public void Delete(LessonConfig entity) => Items.Remove(entity);
 
-    public LessonConfig? GetBySlug(string slug) => Items.FirstOrDefault(x => x.Slug == slug);
-    public IQueryable<LessonConfig> GetActive() => Items.AsQueryable().Where(x => x.IsActive);
-    public IQueryable<LessonConfig> GetByCategoryId(string categoryId) => Items.AsQueryable().Where(x => x.CategoryId == categoryId);
-    public int CountByCategoryId(string categoryId) => Items.Count(x => x.CategoryId == categoryId);
+    public LessonConfig? GetBySlug(string slug) => Items.FirstOrDefault(x => x.Slug == slug && !x.IsDelete);
+    public IQueryable<LessonConfig> GetActive() => Items.AsQueryable().Where(x => x.IsActive && !x.IsDelete);
+    public IQueryable<LessonConfig> GetByCategoryId(string categoryId) => Items.AsQueryable().Where(x => x.CategoryId == categoryId && !x.IsDelete);
+    public int CountByCategoryId(string categoryId) => Items.Count(x => x.CategoryId == categoryId && !x.IsDelete);
+
+    public IQueryable<LessonConfig> GetTrash(string companyId)
+        => Items.AsQueryable().Where(x => x.CompanyId == companyId && x.IsDelete);
+
+    public LessonConfig? GetIncludingDeleted(string companyId, string lessonId)
+        => Items.FirstOrDefault(x => x.CompanyId == companyId && x.Id == lessonId);
+
+    public bool TryClaimPurge(string companyId, string lessonId, string purgeJobId, DateTime now)
+    {
+        var entity = Items.FirstOrDefault(x => x.Id == lessonId && x.CompanyId == companyId
+            && x.IsDelete && x.PurgeJobId == purgeJobId && x.PurgeStartedAt == null);
+        if (entity is null)
+        {
+            return false;
+        }
+        entity.PurgeStartedAt = now;
+        return true;
+    }
+
+    public bool TryRestore(string companyId, string lessonId, string? actorUserId, DateTime now)
+    {
+        var entity = Items.FirstOrDefault(x => x.Id == lessonId && x.CompanyId == companyId
+            && x.IsDelete && x.PurgeStartedAt == null);
+        if (entity is null)
+        {
+            return false;
+        }
+        entity.IsDelete = false;
+        entity.DeletedAt = null;
+        entity.DeleteBy = null;
+        entity.PurgeJobId = null;
+        entity.PurgeStartedAt = null;
+        entity.UpdateBy = actorUserId;
+        entity.UpdateDate = now;
+        return true;
+    }
 }
 
 internal sealed class FakeDocumentResourceRepository : IDocumentResourceRepository
@@ -77,6 +115,12 @@ internal sealed class FakeDocumentResourceRepository : IDocumentResourceReposito
     public IQueryable<DocumentResource> GetByScope(string scopeType, string? scopeId)
         => Items.AsQueryable().Where(x => x.ScopeType == scopeType && x.ScopeId == scopeId && !x.IsDelete);
     public IQueryable<DocumentResource> GetDeleted(string companyId) => Items.AsQueryable().Where(x => x.CompanyId == companyId && x.IsDelete);
+
+    public IQueryable<DocumentResource> GetByScopeIncludingDeleted(string companyId, string scopeType, string? scopeId)
+        => Items.AsQueryable().Where(x => x.CompanyId == companyId && x.ScopeType == scopeType && x.ScopeId == scopeId);
+
+    public DocumentResource? GetByIdIncludingDeleted(string companyId, string id)
+        => Items.FirstOrDefault(x => x.CompanyId == companyId && x.Id == id);
 
     // Mirrors the real FindBy(_ => true) - the real isolation comes entirely from the EF query
     // filter, which this fake reproduces with the same "!IsDelete" half GetAll() already applies
@@ -102,6 +146,30 @@ internal sealed class FakeBackgroundJobRepository : IBackgroundJobRepository
 
     public BackgroundJob? ClaimNext(DateTime now) => throw new NotSupportedException("not exercised in unit tests - needs FOR UPDATE SKIP LOCKED against real Postgres");
     public int RequeueOrphanedRunning() => throw new NotSupportedException("not exercised in unit tests - needs real Postgres");
+
+    public bool CancelPendingLessonPurge(string companyId, string lessonId, string purgeJobId)
+    {
+        var job = Items.FirstOrDefault(x => x.Id == purgeJobId && x.CompanyId == companyId
+            && x.JobType == BackgroundJobType.LessonPurge && x.TargetId == lessonId && x.Status == BackgroundJobStatus.Pending);
+        if (job is null)
+        {
+            return false;
+        }
+        job.Status = BackgroundJobStatus.Canceled;
+        return true;
+    }
+
+    public bool AccelerateLessonPurge(string companyId, string lessonId, string purgeJobId)
+    {
+        var job = Items.FirstOrDefault(x => x.Id == purgeJobId && x.CompanyId == companyId
+            && x.JobType == BackgroundJobType.LessonPurge && x.TargetId == lessonId && x.Status == BackgroundJobStatus.Pending);
+        if (job is null)
+        {
+            return false;
+        }
+        job.NextAttemptAt = DateTime.UtcNow;
+        return true;
+    }
 }
 
 internal sealed class FakeDocumentChunkRepository : IDocumentChunkRepository
@@ -127,6 +195,9 @@ internal sealed class FakeDocumentChunkRepository : IDocumentChunkRepository
             chunk.DeletedAt = DateTime.UtcNow;
         }
     }
+
+    public IQueryable<DocumentChunk> GetAllByDocumentIdIncludingDeleted(string companyId, string documentId)
+        => Items.AsQueryable().Where(x => x.CompanyId == companyId && x.DocumentId == documentId);
 }
 
 internal sealed class FakeLessonSlideNarrationRepository : ILessonSlideNarrationRepository
@@ -146,6 +217,44 @@ internal sealed class FakeLessonSlideNarrationRepository : ILessonSlideNarration
 
     public LessonSlideNarration? GetOne(string lessonId, string slideObjectId)
         => GetAll().FirstOrDefault(x => x.LessonId == lessonId && x.SlideObjectId == slideObjectId);
+
+    public int DeleteByLessonId(string lessonId)
+    {
+        var rows = Items.Where(x => x.LessonId == lessonId && !x.IsDelete).ToList();
+        foreach (var row in rows)
+        {
+            row.IsDelete = true;
+            row.DeletedAt = DateTime.UtcNow;
+        }
+        return rows.Count;
+    }
+
+    public IQueryable<LessonSlideNarration> GetAllByLessonIdIncludingDeleted(string companyId, string lessonId)
+        => Items.AsQueryable().Where(x => x.CompanyId == companyId && x.LessonId == lessonId);
+}
+
+/// <summary>Mirrors the real repository's soft-delete-included reads (IgnoreQueryFilters in the
+/// real ApplicationDbContext) - EX-4's toggle needs to find a previously soft-deleted row.</summary>
+internal sealed class FakeLessonExcludedSlideRepository : ILessonExcludedSlideRepository
+{
+    public readonly List<LessonExcludedSlide> Items = [];
+
+    public IQueryable<LessonExcludedSlide> GetAll() => Items.AsQueryable().Where(x => !x.IsDelete);
+    public IQueryable<LessonExcludedSlide> FindBy(Expression<Func<LessonExcludedSlide, bool>> predicate) => GetAll().Where(predicate);
+    public LessonExcludedSlide? Get(string id) => GetAll().FirstOrDefault(x => x.Id == id);
+    public Task<LessonExcludedSlide?> GetAsync(string id) => Task.FromResult(Get(id));
+    public void Add(LessonExcludedSlide entity) => Items.Add(entity);
+    public void Update(LessonExcludedSlide entity) { }
+    public void Delete(LessonExcludedSlide entity) => Items.Remove(entity);
+
+    public IQueryable<LessonExcludedSlide> GetByLessonId(string lessonId)
+        => Items.AsQueryable().Where(x => x.LessonId == lessonId);
+
+    public LessonExcludedSlide? GetOne(string lessonId, string slideObjectId)
+        => Items.Where(x => x.LessonId == lessonId && x.SlideObjectId == slideObjectId)
+            .OrderBy(x => x.IsDelete)
+            .ThenByDescending(x => x.CreateDate)
+            .FirstOrDefault();
 
     public int DeleteByLessonId(string lessonId)
     {
@@ -208,6 +317,9 @@ internal sealed class FakeKnowledgeQnARepository : IKnowledgeQnARepository
     // See FakeDocumentResourceRepository.GetAllInCompany() for why this does not also filter
     // CompanyId.
     public IQueryable<KnowledgeQnA> GetAllInCompany() => GetAll();
+
+    public IQueryable<KnowledgeQnA> GetByScopeIncludingDeleted(string companyId, string scopeType, string? scopeId)
+        => Items.AsQueryable().Where(x => x.CompanyId == companyId && x.ScopeType == scopeType && x.ScopeId == scopeId);
 }
 
 internal sealed class FakeKnowledgeQnASourceRepository : IKnowledgeQnASourceRepository
@@ -227,6 +339,9 @@ internal sealed class FakeKnowledgeQnASourceRepository : IKnowledgeQnASourceRepo
 
     public IQueryable<KnowledgeQnASource> GetByQnAId(string qnaId)
         => GetAll().Where(x => x.QnAId == qnaId);
+
+    public IQueryable<KnowledgeQnASource> GetByQnAIdsIncludingDeleted(string companyId, IReadOnlyList<string> qnaIds)
+        => Items.AsQueryable().Where(x => x.CompanyId == companyId && qnaIds.Contains(x.QnAId));
 }
 
 internal sealed class FakeKnowledgeQnAConflictRepository : IKnowledgeQnAConflictRepository
@@ -242,6 +357,9 @@ internal sealed class FakeKnowledgeQnAConflictRepository : IKnowledgeQnAConflict
     public void Delete(KnowledgeQnAConflict entity) => Items.Remove(entity);
 
     public IQueryable<KnowledgeQnAConflict> GetUnresolved() => GetAll().Where(x => x.ResolvedAt == null);
+
+    public IQueryable<KnowledgeQnAConflict> GetByQnAIdsIncludingDeleted(string companyId, IReadOnlyList<string> qnaIds)
+        => Items.AsQueryable().Where(x => x.CompanyId == companyId && qnaIds.Contains(x.QnAId));
 }
 
 /// <summary>
@@ -249,6 +367,48 @@ internal sealed class FakeKnowledgeQnAConflictRepository : IKnowledgeQnAConflict
 /// because the real table has no query filter either (Company is the tenant registry). A fake that
 /// helpfully filtered would hide exactly the bugs these tests exist to catch.
 /// </summary>
+internal sealed class FakeSessionQuestionReviewExclusionRepository : ISessionQuestionReviewExclusionRepository
+{
+    public readonly List<SessionQuestionReviewExclusion> Items = [];
+
+    public IQueryable<SessionQuestionReviewExclusion> GetAll() => Items.AsQueryable().Where(x => !x.IsDelete);
+    public IQueryable<SessionQuestionReviewExclusion> FindBy(Expression<Func<SessionQuestionReviewExclusion, bool>> predicate) => GetAll().Where(predicate);
+    public SessionQuestionReviewExclusion? Get(string id) => GetAll().FirstOrDefault(x => x.Id == id);
+    public Task<SessionQuestionReviewExclusion?> GetAsync(string id) => Task.FromResult(Get(id));
+    public void Add(SessionQuestionReviewExclusion entity) => Items.Add(entity);
+    public void Update(SessionQuestionReviewExclusion entity) { }
+    public void Delete(SessionQuestionReviewExclusion entity) => Items.Remove(entity);
+
+    public IQueryable<SessionQuestionReviewExclusion> GetBySessionQuestionIds(IReadOnlyList<string> sessionQuestionIds)
+        => GetAll().Where(x => sessionQuestionIds.Contains(x.SessionQuestionId));
+
+    public int AddMissingForLesson(string companyId, string lessonId, IReadOnlyList<string> sessionQuestionIds, string? actorUserId)
+    {
+        var existing = GetBySessionQuestionIds(sessionQuestionIds).Select(x => x.SessionQuestionId).ToHashSet();
+        var now = DateTime.UtcNow;
+        var added = 0;
+        foreach (var sessionQuestionId in sessionQuestionIds.Distinct())
+        {
+            if (existing.Contains(sessionQuestionId))
+            {
+                continue;
+            }
+            Items.Add(new SessionQuestionReviewExclusion
+            {
+                Id = IdGenerator.GenerateId("qex"),
+                CompanyId = companyId,
+                CreateBy = actorUserId,
+                CreateDate = now,
+                SessionQuestionId = sessionQuestionId,
+                LessonId = lessonId,
+                Reason = QuestionReviewExclusionReason.LessonPermanentlyDeleted,
+            });
+            added++;
+        }
+        return added;
+    }
+}
+
 internal sealed class FakeCompanyRepository : ICompanyRepository
 {
     public readonly List<Company> Items = [];
@@ -306,6 +466,8 @@ internal sealed class FakeTrainingLinkRepository : ITrainingLinkRepository
     public void Delete(TrainingLink entity) => Items.Remove(entity);
 
     public TrainingLink? GetByToken(string token) => Items.FirstOrDefault(x => x.Token == token);
+
+    public IQueryable<TrainingLink> GetByLessonId(string lessonId) => Items.AsQueryable().Where(x => x.LessonId == lessonId);
 }
 
 internal sealed class FakeLearningSessionRepository : ILearningSessionRepository
@@ -341,6 +503,9 @@ internal sealed class FakeLearningSessionRepository : ILearningSessionRepository
 
     public IQueryable<LearningSession> GetByTrainingLinkId(string trainingLinkId)
         => Items.AsQueryable().Where(x => x.TrainingLinkId == trainingLinkId);
+
+    public IQueryable<LearningSession> GetByTrainingLinkIds(IReadOnlyList<string> trainingLinkIds)
+        => Items.AsQueryable().Where(x => trainingLinkIds.Contains(x.TrainingLinkId));
 }
 
 internal sealed class FakeSessionQuestionRepository : ISessionQuestionRepository
@@ -359,6 +524,9 @@ internal sealed class FakeSessionQuestionRepository : ISessionQuestionRepository
 
     public IQueryable<SessionQuestion> GetReviewQueue()
         => Items.AsQueryable().Where(x => x.AnswerStatus == AnswerStatus.NotFound || x.ReviewResult == ReviewResult.Incorrect);
+
+    public IQueryable<SessionQuestion> GetBySessionIds(IReadOnlyList<string> sessionIds)
+        => Items.AsQueryable().Where(x => sessionIds.Contains(x.SessionId));
 }
 
 /// <summary>Records what would have been indexed without touching Gemini/Pinecone - the real

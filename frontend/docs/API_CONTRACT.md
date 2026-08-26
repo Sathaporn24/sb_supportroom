@@ -19,9 +19,17 @@ Error กลาง:
 | GET | `/api/lessons` | รายการบทเรียน |
 | POST | `/api/lessons` | create/update lesson ตาม slug |
 | GET | `/api/lessons/{slug}` | lesson + resolved teaching content (back office, JWT) |
-| GET | `/api/lessons/by-link/{token}` | learner-safe lesson timing + resolved teaching content; ไม่มี source/provider/document IDs |
-| GET | `/api/lessons/pdf-preview?documentId=` | preview PDF เป็น slides |
-| GET | `/api/lessons/pdf-pages/{token}/{documentId}/{pageNumber}` | learner PDF page; token ต้องชี้มาที่บทเรียนที่ใช้ document นี้ |
+| GET | `/api/lessons/by-link/{token}?learnerKey=` | learner-safe lesson timing + resolved teaching content; ไม่มี source/provider/document IDs · **R9/LT-5/LT-6**: `learnerKey` ต้อง query ทุกครั้ง (ไม่บังคับ 400 แต่จำเป็นสำหรับ revoked link) — link ปกติไม่กระทบ; link ที่ถูก revoke (บทเรียนอยู่ถัง) อ่านได้เฉพาะเมื่อ `(token, learnerKey)` ผูกกับ session เดิมของ link นั้นที่ `IN_PROGRESS` เท่านั้น มิฉะนั้น `NOT_FOUND` เหมือน token ผิด |
+| GET | `/api/lessons/trash` | (R9/Module L) รายการบทเรียนในถังของบริษัทปัจจุบัน — คืน `{ lessons: LessonTrashItem[] }` ดู Key Payloads |
+| POST | `/api/lessons/{id}/trash` | (R9/LT-1..LT-3) ย้ายบทเรียน active เข้าถัง — `owner`/`admin` เท่านั้น, `cs` = 403; idempotent (เรียกซ้ำ = `NOT_FOUND` เพราะออกจากรายการ active แล้ว) |
+| POST | `/api/lessons/{id}/restore` | (R9/LT-1/LT-4) กู้คืนจากถัง — ต้องยังไม่เริ่ม purge (`PurgeStartedAt=null`) มิฉะนั้น `409 CONFLICT`; ไม่คืนลิงก์เดิม (ยัง revoked) |
+| POST | `/api/lessons/{id}/permanent-delete` | (R9/LT-2/LT-10) body `{ confirmationTitle }` — `owner` เท่านั้น; เทียบ `confirmationTitle` แบบ trim + ordinal-exact กับชื่อบทเรียนจริง ไม่ตรง = `400 VALIDATION_ERROR`; ตรง = เร่งงานลบถาวรที่มีอยู่แล้วให้รันทันทีและคืน `202 Accepted` (ไม่ลบ inline, ไม่สร้างงานที่สอง) |
+| GET | `/api/lessons/pdf-preview?documentId=` | preview PDF ที่อัปโหลดแล้ว (มี `documentId`) เป็น slides |
+| POST | `/api/lessons/pdf-preview/session` | (Module J/NR-10) multipart `file` เดียว, สูงสุด 30MB — preview PDF ที่**ยังไม่ persist** ในหน่วยความจำล้วน คืน `{ previewId, title, pageCount, isLikelyScanned, slides: [{ slideObjectId, index, narrationText }] }`; ไม่เขียน DB/storage/Pinecone/BackgroundJob; ไม่มี endpoint ลบ session (หมดอายุเองใน 10 นาที) |
+| GET | `/api/lessons/pdf-preview/{previewId}/pages/{pageNumber}` | (Module J/NR-10/NR-11) ภาพหน้าของ preview session ข้างบน; `previewId` ที่หมดอายุ/ไม่มี/เป็นของบริษัทอื่น → 404 ข้อความเดียวกันทุกกรณี (คนละ id space จาก `documentId`, ห้ามใช้แทนกัน) |
+| GET | `/api/lessons/pdf-pages/{token}/{documentId}/{pageNumber}?learnerKey=` | learner PDF page; token ต้องชี้มาที่บทเรียนที่ใช้ document นี้ · เกต `learnerKey` เดียวกับ `by-link` ข้างบน (R9/LT-6) |
+| GET | `/api/lessons/{id}/narrations/count` | (Module K/NR-3/EX-10) จำนวนบทพูดที่แก้ไว้ + จำนวนหน้าที่ตัดออกไว้ ก่อนยืนยันอัปโหลด PDF ทับของเดิม — คืน `{ count, excludedCount }` |
+| PUT | `/api/lessons/{id}/slides/{slideObjectId}/excluded` | (Module K/EX-4) body `{ excluded: boolean }` — ตัด/เอาหน้ากลับจากบทเรียน PDF; idempotent ทั้งสองทิศทาง, ปฏิเสธด้วย `VALIDATION_ERROR` ถ้าจะเหลือ 0 หน้า, `NOT_FOUND` ถ้า `slideObjectId` ไม่ใช่หน้าจริงของเด็คนี้ |
 | POST | `/api/slides/resolve` | resolve Google Slides URL |
 | GET | `/api/slides/content?presentationId=` | slide order และ speaker notes |
 | GET | `/api/training-links` | รายการลิงก์ + จำนวนผู้เข้าเรียนต่อลิงก์ |
@@ -45,12 +53,48 @@ Error กลาง:
 | GET | `/api/documents?scopeType=&scopeId=&status=&q=` | documents ตาม scope (`lesson`/`category`/`company`); **ไม่ส่ง `scopeType` เลย = ทุก scope ของบริษัท** (KL-2, เดิมคือ `company`) · `scopeType=category` คืนของหมวดนั้นบวกของทุกบทเรียนในหมวดนั้นด้วย (KL-5) · `status` กรองด้วย `IndexingStatus` · `q` ค้นใน `FileName`/`DocumentChunk.Text` (ILIKE, ไม่สนตัวพิมพ์ใหญ่เล็ก) — ว่างหรือสั้นกว่า 2 ตัวอักษร = ไม่ค้น (KL-11..KL-13) |
 | POST | `/api/documents` | upload document (multipart `file` + `scopeType` + `scopeId?` + `checkDuplicate?`), สูงสุดตาม `MAX_DOCUMENT_UPLOAD_MB` — ดู "Duplicate detection" ด้านล่าง |
 | PATCH | `/api/documents/{id}/scope` | JSON `{ scopeType, scopeId? }` — ย้ายเอกสารไป scope ใหม่ (DS-5/DS-6) |
+| GET | `/api/documents/{documentId}/pdf-pages/{pageNumber}` | (Module J/NR-18) ภาพหน้าของเอกสาร PDF ที่ persist แล้ว สำหรับหน้าแก้บทพูด (`/admin/lessons/[slug]/narrations`); admin-auth, company scope จาก query filter ปกติ — คนละ endpoint จาก `/api/lessons/pdf-pages/{token}/...` (learner, link token) |
 | DELETE | `/api/documents/{id}` | ลบ metadata/storage object |
 | GET | `/api/knowledge-qna?scopeType=&scopeId=&status=&q=` | Q&A ของบริษัทผู้เรียก เรียงตาม `CreateDate` ลง — query ตีความเหมือน `/api/documents` ทุกข้อ (KL-8/KL-9); **ไม่ใช่** `/api/qna-queue` (คิวคำถามที่ยังไม่มีคำตอบ คนละตาราง) |
 | POST | `/api/admin/reset` | ลบ link/learning session/question เมื่ออนุญาต |
 | POST | `/api/admin/reindex` | rebuild RAG namespaces เมื่ออนุญาต |
 
 ## Key Payloads
+
+### `GET /api/lessons/trash` (R9/Module L)
+
+```json
+{
+  "lessons": [
+    {
+      "id": "lesson-...",
+      "slug": "...",
+      "title": "...",
+      "categoryId": "kbcat-...",
+      "deletedAt": "2026-08-26T12:00:00.000Z",
+      "scheduledPurgeAt": "2026-10-25T12:00:00.000Z",
+      "remainingDays": 60,
+      "urgency": "neutral",
+      "purgeState": "trash"
+    }
+  ]
+}
+```
+
+- `urgency`: `"neutral"` (>14 วัน) · `"yellow"` (≤14/>7 วัน) · `"red"` (≤7 วัน/>24 ชม.) ·
+  `"red_today"` (≤24 ชม. — แสดงข้อความ "จะถูกลบถาวรภายในวันนี้" แทน "เหลืออีก N วัน") — backend
+  ส่งค่านี้มาตรงๆ ไม่ต้องคำนวณฝั่ง frontend
+- `purgeState`: `"trash"` (กู้คืน/ลบถาวรได้) หรือ `"purging"` (worker เริ่มลบแล้ว — ไม่มี action ใดๆ
+  ให้กด, ต้องแสดง "กำลังลบถาวร")
+- retention fix ที่ 60 วันทั้งระบบ ไม่มี setting ต่อบริษัท (O-18 deferred)
+
+### `POST /api/lessons/{id}/permanent-delete` (R9/LT-2/LT-10)
+
+Request: `{ "confirmationTitle": "ชื่อบทเรียนที่พิมพ์" }`
+
+- ต้องตรงกับชื่อบทเรียนจริงแบบ trim + ordinal-exact (ไม่ตัดพิมพ์เล็ก-ใหญ่)
+- สำเร็จ = `202 Accepted` ไม่มี body ที่ใช้งาน — ไม่ใช่บทเรียนถูกลบเสร็จแล้วทันที เป็นการเร่งงานลบ
+  ถาวรที่มีอยู่แล้วให้รันโดยเร็วที่สุด (worker poll ทุก ~5 วินาที)
 
 ### `POST /api/voice-question`
 
@@ -91,7 +135,19 @@ Response: `VoiceAnswerViewModel` เดียวกับ `/api/voice-question` 
 ### `POST /api/lessons`
 
 รับ `LessonConfigDto`: slug/title, Google Slides metadata, `contentSourceType` (`google_slides`
-หรือ `pdf`), optional `pdfDocumentResourceId`, timing, slide configs และ `isActive`
+หรือ `pdf`), optional `pdfDocumentResourceId`, timing, slide configs, `isActive` และ optional
+`excludedSlideObjectIds: string[]` (Module K/EX-9 — เฉพาะบทเรียน PDF) — `null`/ไม่ส่ง = ไม่แตะ
+รายการหน้าที่ตัดไว้เดิม, `[]` = ไม่มีหน้าไหนถูกตัด, มีค่า = แทนที่ทั้งชุด (ไม่ใช่เพิ่มทีละหน้า);
+ทุกค่าต้องเป็นหน้าจริงของเด็คนี้และต้องเหลืออย่างน้อย 1 หน้าหลังตัด ไม่งั้นได้ `NOT_FOUND`/
+`VALIDATION_ERROR` ตามลำดับ
+
+### `GET /api/lessons/{id}/narrations` และ `PUT /api/lessons/{id}/narrations/{slideObjectId}`
+
+`LessonNarrationsViewModel.slides[]` แต่ละหน้ามี `slideObjectId`/`index`/`narrationText`/
+`isOverridden` และ (Module K) `isExcluded: boolean` + `lessonIndex: number | null` — `index` คือ
+เลขหน้าจริงของไฟล์เสมอไม่เรียงใหม่ ส่วน `lessonIndex` คือลำดับ 0-based เฉพาะหน้าที่เหลือในบทเรียน
+(`null` เมื่อ `isExcluded` เป็น `true`) — แก้บทพูดของหน้าที่ถูกตัดไม่ได้ (`VALIDATION_ERROR`)
+จนกว่าจะเอาหน้ากลับก่อน
 
 ### `POST /api/learning-sessions/{token}/join`
 

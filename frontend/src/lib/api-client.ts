@@ -27,10 +27,14 @@ import type {
   LearnerLessonConfig,
   LessonConfig,
   LessonConfigInput,
+  LessonNarrationCount,
   LessonNarrations,
+  LessonTrashItem,
   LoginInput,
   LoginResult,
+  PdfPreviewSessionResponse,
   ResolvedPresentation,
+  RequestLessonPermanentDeleteInput,
   ReviewSessionQuestionInput,
   LearnerSessionQuestion,
   LearnerSessionSummary,
@@ -159,6 +163,40 @@ export function saveLesson(input: LessonConfigInput): Promise<{ lesson: LessonCo
   return request(apiUrl("/api/lessons"), { method: "POST", headers: jsonHeaders, body: JSON.stringify(input) });
 }
 
+// --- Lesson trash, restore & permanent purge (R9/Module L, LT-1..LT-24) ---------------------
+
+/** LT-7 - the normal list above never includes a trashed lesson; this is the only way to see one. */
+export function listTrashedLessons(): Promise<{ lessons: LessonTrashItem[] }> {
+  return request(apiUrl("/api/lessons/trash"));
+}
+
+/** LT-2/LT-3 - owner or admin only (server-enforced); revokes every TrainingLink on this lesson
+ * immediately and schedules the 60-day purge job. Idempotent at the already-trashed state. */
+export function archiveLesson(id: string): Promise<{ status: string }> {
+  return request(apiUrl(`/api/lessons/${encodeURIComponent(id)}/trash`), { method: "POST" });
+}
+
+/** LT-2/LT-4 - owner or admin only; cancels the pending purge job and returns the lesson to
+ * active. Revoked TrainingLinks are never restored (LT-4) - a fresh link is required. 409 once
+ * the worker has already claimed the purge (LT-13). */
+export function restoreLesson(id: string): Promise<{ status: string }> {
+  return request(apiUrl(`/api/lessons/${encodeURIComponent(id)}/restore`), { method: "POST" });
+}
+
+/** LT-2/LT-10 - owner only. `confirmationTitle` must match the lesson's own title exactly (server
+ * trims and compares ordinally). A 202 means the purge job was accelerated to run now, not that
+ * the lesson is already gone - the worker still has to run. */
+export function requestLessonPermanentDelete(
+  id: string,
+  input: RequestLessonPermanentDeleteInput,
+): Promise<{ status: string }> {
+  return request(apiUrl(`/api/lessons/${encodeURIComponent(id)}/permanent-delete`), {
+    method: "POST",
+    headers: jsonHeaders,
+    body: JSON.stringify(input),
+  });
+}
+
 /** TX-9 - a category move is a single-column update, never a re-index. Call getCategoryMovePreview
  * first and get the CS's confirmation before calling this (R3.1) - never call it silently from a
  * general lesson save. */
@@ -191,10 +229,30 @@ export function saveLessonNarration(
   });
 }
 
-/** NR-3 - how many narration overrides would be deleted if the lesson's PDF source is replaced.
- * Call before letting CS confirm uploading a new PDF over an existing one. */
-export function getLessonNarrationCount(lessonId: string): Promise<{ count: number }> {
+/** NR-3/EX-10 - how many narration overrides and how many excluded pages would be cleared if the
+ * lesson's PDF source is replaced. Call before letting CS confirm uploading a new PDF over an
+ * existing one. */
+export function getLessonNarrationCount(lessonId: string): Promise<LessonNarrationCount> {
   return request(apiUrl(`/api/lessons/${encodeURIComponent(lessonId)}/narrations/count`));
+}
+
+/** EX-4 (R4.7) - toggle whether a PDF page is excluded from teaching/answering. Idempotent both
+ * ways (design.md EX-4): setting excluded=true on an already-excluded page, or excluded=false on
+ * a page that isn't excluded, is a no-op 200, not an error. Never call this during the
+ * create-lesson content phase (Module J) - there is no LessonId yet (EX-9). */
+export function toggleExcludedSlide(
+  lessonId: string,
+  slideObjectId: string,
+  excluded: boolean,
+): Promise<void> {
+  return request(
+    apiUrl(`/api/lessons/${encodeURIComponent(lessonId)}/slides/${encodeURIComponent(slideObjectId)}/excluded`),
+    {
+      method: "PUT",
+      headers: jsonHeaders,
+      body: JSON.stringify({ excluded }),
+    },
+  );
 }
 
 export function resolveSlides(input: {
@@ -218,16 +276,58 @@ export function previewPdfLessonContent(documentId: string): Promise<SlidesLesso
   return request(apiUrl(`/api/lessons/pdf-preview?documentId=${encodeURIComponent(documentId)}`));
 }
 
+// --- PDF preview sessions (Module J / NR-10..NR-13 - create-lesson content phase only) --------
+
+/** NR-10 - preview a PDF that has not been uploaded anywhere yet, parsed entirely in memory
+ * server-side. Used by mode="create" + contentSourceType "pdf" before the content-management
+ * phase's confirm step (NR-12); mode="edit" never calls this (NR-17). */
+export function createPdfPreviewSession(file: File): Promise<PdfPreviewSessionResponse> {
+  const formData = new FormData();
+  formData.append("file", file);
+  return request(apiUrl("/api/lessons/pdf-preview/session"), { method: "POST", body: formData });
+}
+
+/** NR-10/NR-11 - image URL for one page of the preview session above. `pageNumber` is 1-based.
+ * A plain <img src> can't attach the bearer token this admin endpoint requires - pair with
+ * fetchAuthenticatedImageUrl() below to actually load it. */
+export function getPdfPreviewPageUrl(previewId: string, pageNumber: number): string {
+  return apiUrl(`/api/lessons/pdf-preview/${encodeURIComponent(previewId)}/pages/${pageNumber}`);
+}
+
+/** NR-18 - image URL for one page of an already-persisted PDF document (admin-auth, company
+ * scope from the normal query filter) - used by both the create-lesson content phase and
+ * /admin/lessons/[slug]/narrations. `pageNumber` is 1-based. Same auth caveat as above. */
+export function getLessonPdfPageUrl(documentId: string, pageNumber: number): string {
+  return apiUrl(`/api/documents/${encodeURIComponent(documentId)}/pdf-pages/${pageNumber}`);
+}
+
+/** Admin PDF page endpoints require a Bearer token that a plain <img src> cannot send - fetch the
+ * PNG with the same auth as every other admin request and hand back an object URL. The caller
+ * owns its lifetime and must URL.revokeObjectURL() it once done (see SlideNarrationEditorCard). */
+export async function fetchAuthenticatedImageUrl(url: string): Promise<string> {
+  const token = getAccessToken();
+  const response = await fetch(url, token ? { headers: { Authorization: `Bearer ${token}` } } : undefined);
+  if (!response.ok) {
+    throw new Error(`Request failed: ${response.status}`);
+  }
+  const blob = await response.blob();
+  return URL.createObjectURL(blob);
+}
+
 /** Learner-side content lookup. The token resolves company and lesson together server-side; a
- * public slug alone cannot safely identify a lesson now that slugs are unique only per company. */
+ * public slug alone cannot safely identify a lesson now that slugs are unique only per company.
+ * LT-5/LT-6 - `learnerKey` is required so a revoked (trashed-lesson) link can still be told apart
+ * from a plain-token attempt: the server allows this call to keep working only for the session
+ * that owns this exact (token, learnerKey) pair while it is still IN_PROGRESS. */
 export async function getLessonByLinkToken(
   token: string,
+  learnerKey: string,
 ): Promise<{ lesson: LearnerLessonConfig; embedUrl: string; slides: TeachingSlide[] }> {
   const result = await publicRequest<{
     lesson: LearnerLessonConfig;
     embedUrl: string;
     slides: TeachingSlide[];
-  }>(`/api/lessons/by-link/${encodeURIComponent(token)}`);
+  }>(`/api/lessons/by-link/${encodeURIComponent(token)}?learnerKey=${encodeURIComponent(learnerKey)}`);
 
   // PDF page paths are generated by the API. Prefix its host when frontend and backend are
   // deployed separately; Google-hosted absolute URLs remain untouched.

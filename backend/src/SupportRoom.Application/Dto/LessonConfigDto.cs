@@ -47,4 +47,10 @@ public sealed class LessonConfigDto
     public required List<SlideConfigDto> SlideConfigs { get; init; }
     [Required]
     public required bool IsActive { get; init; }
+
+    /// <summary>EX-9 - null/omitted leaves the lesson's existing exclusions untouched (every
+    /// ordinary edit falls into this case); an empty array means no page is excluded; a non-empty
+    /// array replaces the whole exclusion set (not an incremental add). Only meaningful for a PDF
+    /// lesson - see ILessonConfigService.SaveAsync.</summary>
+    public List<string>? ExcludedSlideObjectIds { get; init; }
 }

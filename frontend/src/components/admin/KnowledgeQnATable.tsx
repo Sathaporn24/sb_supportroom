@@ -59,7 +59,7 @@ export function KnowledgeQnATable({ filter, categories, lessons }: Props) {
   useEffect(() => {
     void reload();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filter.scopeType, filter.scopeId, filter.q]);
+  }, [filter.scopeType, filter.scopeId, filter.q, filter.status]);
 
   function handleEditSaved() {
     setEditingQnA(null);

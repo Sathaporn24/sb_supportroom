@@ -26,6 +26,11 @@ public interface ILearningSessionRepository : IRepositoryBase<LearningSession, s
     LearningSession? GetLatestEndedByLearnerKey(string trainingLinkId, string learnerKey);
 
     IQueryable<LearningSession> GetByTrainingLinkId(string trainingLinkId);
+
+    /// <summary>R9/LT-12/LT-15 - every session under several links in one batched query: the purge
+    /// worker's "is anything still IN_PROGRESS" check and the dependency snapshot both need every
+    /// session across a lesson's (possibly many) links, not one link at a time.</summary>
+    IQueryable<LearningSession> GetByTrainingLinkIds(IReadOnlyList<string> trainingLinkIds);
 }
 
 public sealed class LearningSessionRepository(ApplicationDbContext dbContext)
@@ -52,4 +57,7 @@ public sealed class LearningSessionRepository(ApplicationDbContext dbContext)
 
     public IQueryable<LearningSession> GetByTrainingLinkId(string trainingLinkId)
         => FindBy(x => x.TrainingLinkId == trainingLinkId);
+
+    public IQueryable<LearningSession> GetByTrainingLinkIds(IReadOnlyList<string> trainingLinkIds)
+        => FindBy(x => trainingLinkIds.Contains(x.TrainingLinkId));
 }

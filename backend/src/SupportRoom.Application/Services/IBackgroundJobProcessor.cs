@@ -124,6 +124,9 @@ public sealed class BackgroundJobProcessor(
                 case BackgroundJobType.QnaIndex:
                     await ProcessQnaIndexAsync(job.TargetId, job.PayloadJson);
                     break;
+                case BackgroundJobType.LessonPurge:
+                    await ProcessLessonPurgeAsync(job);
+                    break;
                 default:
                     throw new InvalidOperationException($"ยังไม่รองรับ BackgroundJobType \"{job.JobType}\"");
             }
@@ -133,11 +136,22 @@ public sealed class BackgroundJobProcessor(
             jobRepository.Update(job);
             unitOfWork.Commit();
         }
+        catch (LessonPurgeDeferredException)
+        {
+            // R9/LT-12 - ProcessLessonPurgeAsync already committed its own terminal state for this
+            // attempt (the active-session deferral: back to Pending, NextAttemptAt pushed an hour,
+            // AttemptCount untouched). Must not also mark the job Succeeded, and must not run
+            // HandleFailure's retry/backoff bookkeeping on top of that.
+        }
         catch (Exception ex)
         {
             HandleFailure(job, ex, jobRepository);
         }
     }
+
+    /// <summary>R9/LT-12 - signals that ProcessLessonPurgeAsync already committed its own terminal
+    /// state for this attempt. See the catch clause in ProcessAsync above.</summary>
+    private sealed class LessonPurgeDeferredException : Exception;
 
     private async Task ProcessDocumentIndexAsync(string documentId)
     {
@@ -198,10 +212,30 @@ public sealed class BackgroundJobProcessor(
                 throw new DocumentIndexingException(DocumentIndexOutcome.NoText, "แปลงไฟล์ได้ แต่ไม่พบข้อความ");
             }
 
+            // EX-6 (second enforcement point) - a page excluded from any PDF lesson that uses
+            // this document must not get its document-copy vector re-created by a later re-index
+            // (moving scope - DS-5, restoring the document - DI-15, or re-uploading over it).
+            // DocumentChunk rows are still written for every page below, untouched either way -
+            // only what gets embedded/upserted here is filtered.
+            var lessonRepository = unitOfWork.GetRepository<ILessonConfigRepository>();
+            var excludedSlideRepository = unitOfWork.GetRepository<ILessonExcludedSlideRepository>();
+            var excludedChunkKeys = lessonRepository.GetAll()
+                .Where(l => l.PdfDocumentResourceId == documentId)
+                .Select(l => l.Id)
+                .ToList()
+                .SelectMany(lessonId => excludedSlideRepository.GetByLessonId(lessonId).Where(x => !x.IsDelete))
+                .Select(x => PdfPageChunkKeys.ToDocumentChunkKey(x.SlideObjectId))
+                .OfType<string>()
+                .ToHashSet();
+
+            var chunksToEmbed = excludedChunkKeys.Count == 0
+                ? chunks
+                : chunks.Where(c => !excludedChunkKeys.Contains(c.Metadata!["chunkId"])).ToList();
+
             int indexedCount;
             try
             {
-                indexedCount = await knowledgeIndexingService.EmbedAndUpsertAsync(namespaceKey, chunks);
+                indexedCount = await knowledgeIndexingService.EmbedAndUpsertAsync(namespaceKey, chunksToEmbed);
             }
             catch (KnowledgeEmbeddingFailedException ex)
             {
@@ -421,25 +455,52 @@ public sealed class BackgroundJobProcessor(
         var resolvedSlides = await narrationResolver.ResolveAsync(lessonId, baseContent.Slides);
         var resolvedById = resolvedSlides.ToDictionary(s => s.SlideObjectId);
 
-        var namespaceKey = KnowledgeNamespaces.For(lesson.CompanyId, lesson.Slug);
-        var chunks = payload.SlideObjectIds
-            .Where(resolvedById.ContainsKey)
-            .Select(id => resolvedById[id])
-            .Select(slide => new KnowledgeSourceChunk
-            {
-                Id = slide.SlideObjectId,
-                Text = slide.SpeakerNotes,
-                Metadata = new Dictionary<string, string>
-                {
-                    ["slideObjectId"] = slide.SlideObjectId,
-                    ["index"] = slide.Index.ToString(),
-                    ["sourceType"] = KnowledgeSourceType.Slide,
-                },
-            })
-            .ToList();
+        var excludedSlideRepository = unitOfWork.GetRepository<ILessonExcludedSlideRepository>();
+        var excludedIds = excludedSlideRepository.GetByLessonId(lessonId)
+            .Where(x => !x.IsDelete)
+            .Select(x => x.SlideObjectId)
+            .ToHashSet();
 
-        var toUpsert = chunks.Where(c => !string.IsNullOrWhiteSpace(c.Text)).ToList();
-        var toDelete = chunks.Where(c => string.IsNullOrWhiteSpace(c.Text)).Select(c => c.Id).ToList();
+        var namespaceKey = KnowledgeNamespaces.For(lesson.CompanyId, lesson.Slug);
+        var toUpsert = new List<KnowledgeSourceChunk>();
+        var toDelete = new List<string>();
+
+        foreach (var slideObjectId in payload.SlideObjectIds)
+        {
+            if (excludedIds.Contains(slideObjectId))
+            {
+                // EX-5 - an excluded page's vector must always be removed, regardless of whatever
+                // narration text it resolves to. This must be decided before the blank-text check
+                // below (and never by whether resolvedById happens to contain the key) - a page
+                // with real narration would otherwise get silently re-upserted instead of cut.
+                toDelete.Add(slideObjectId);
+                continue;
+            }
+
+            if (!resolvedById.TryGetValue(slideObjectId, out var slide))
+            {
+                continue;
+            }
+
+            if (string.IsNullOrWhiteSpace(slide.SpeakerNotes))
+            {
+                toDelete.Add(slideObjectId);
+            }
+            else
+            {
+                toUpsert.Add(new KnowledgeSourceChunk
+                {
+                    Id = slide.SlideObjectId,
+                    Text = slide.SpeakerNotes,
+                    Metadata = new Dictionary<string, string>
+                    {
+                        ["slideObjectId"] = slide.SlideObjectId,
+                        ["index"] = slide.Index.ToString(),
+                        ["sourceType"] = KnowledgeSourceType.Slide,
+                    },
+                });
+            }
+        }
 
         try
         {
@@ -468,6 +529,247 @@ public sealed class BackgroundJobProcessor(
         logger.LogInformation(
             "Lesson slides re-indexed: {LessonId} upserted={UpsertCount} deleted={DeleteCount} namespace={Namespace}",
             lessonId, toUpsert.Count, toDelete.Count, namespaceKey);
+    }
+
+    /// <summary>
+    /// R9/Module L - the durable purge worker (LT-11..LT-14). Runs 60 days after archive (LT-3),
+    /// or immediately once accelerated by a manual permanent-delete (LT-10).
+    /// </summary>
+    private async Task ProcessLessonPurgeAsync(BackgroundJob job)
+    {
+        var lessonRepository = unitOfWork.GetRepository<ILessonConfigRepository>();
+        // LT-11/LT-23 - job.CompanyId was already resolved into companyContext by ProcessAsync
+        // before this dispatched; GetIncludingDeleted re-applies it explicitly regardless.
+        var lesson = lessonRepository.GetIncludingDeleted(companyContext.CompanyId!, job.TargetId);
+
+        if (lesson is null || !lesson.IsDelete || !string.Equals(lesson.PurgeJobId, job.Id, StringComparison.Ordinal))
+        {
+            // LT-11 - stale/missing/restored/generation-mismatched: no-op succeeded. Comparing
+            // job id (not a timestamp) is the generation guard - PostgreSQL can truncate
+            // timestamp precision, which a timestamp comparison here could silently get wrong.
+            logger.LogInformation(
+                "Lesson purge job {JobId} no-op: lesson {LessonId} is not in the state this job owns", job.Id, job.TargetId);
+            return;
+        }
+
+        if (lesson.PurgeStartedAt is null)
+        {
+            if (HasActiveSession(lesson.Id))
+            {
+                // LT-12 - defer an hour without claiming and without spending a retry attempt.
+                // This commits its own final state for THIS attempt - see LessonPurgeDeferredException.
+                var jobRepository = unitOfWork.GetRepository<IBackgroundJobRepository>();
+                job.Status = BackgroundJobStatus.Pending;
+                job.StartedAt = null;
+                job.NextAttemptAt = DateTime.UtcNow.AddHours(LessonTrashPolicy.ActiveSessionDeferralHours);
+                jobRepository.Update(job);
+                unitOfWork.Commit();
+                logger.LogInformation(
+                    "Lesson purge job {JobId} deferred {Hours}h: lesson {LessonId} still has an IN_PROGRESS session",
+                    job.Id, LessonTrashPolicy.ActiveSessionDeferralHours, lesson.Id);
+                throw new LessonPurgeDeferredException();
+            }
+
+            // LT-13 - conditional claim: only a fresh claim actually flips PurgeStartedAt at the
+            // database level. Losing this race means restore won the same instant - no-op
+            // succeeded, same as the LT-11 check above.
+            var claimedNow = DateTime.UtcNow;
+            if (!lessonRepository.TryClaimPurge(companyContext.CompanyId!, lesson.Id, job.Id, claimedNow))
+            {
+                logger.LogInformation(
+                    "Lesson purge job {JobId} lost the claim race for lesson {LessonId} (restored concurrently)", job.Id, lesson.Id);
+                return;
+            }
+            // TryClaimPurge ran as raw SQL, invisible to EF's change tracker - keep the in-memory
+            // copy consistent so the rest of this method (and its logging) sees the real state.
+            lesson.PurgeStartedAt = claimedNow;
+        }
+
+        await PurgeLessonAsync(lesson);
+    }
+
+    /// <summary>LT-12 - true when any LearningSession under this lesson's TrainingLinks is still
+    /// IN_PROGRESS, including a stalled one (there is no separate "stalled" status - see
+    /// LearningSession.Status - a stalled session is still IN_PROGRESS by definition).</summary>
+    private bool HasActiveSession(string lessonId)
+    {
+        var linkRepository = unitOfWork.GetRepository<ITrainingLinkRepository>();
+        var linkIds = linkRepository.GetByLessonId(lessonId).Select(l => l.Id).ToList();
+        if (linkIds.Count == 0)
+        {
+            return false;
+        }
+        var sessionRepository = unitOfWork.GetRepository<ILearningSessionRepository>();
+        return sessionRepository.GetByTrainingLinkIds(linkIds).Any(s => s.Status == SessionStatus.InProgress);
+    }
+
+    /// <summary>
+    /// R9/LT-15..LT-20 - the actual destructive work, once claimed. External deletes happen first
+    /// (Pinecone namespace/vectors, then storage bytes) and every one of them is idempotent
+    /// (deleting something already gone is a success), so a retried attempt after any external
+    /// failure simply repeats whatever did not finish - nothing in the DB has changed yet at that
+    /// point. Only once every external delete has succeeded does the final DB transaction run.
+    /// </summary>
+    private async Task PurgeLessonAsync(LessonConfig lesson)
+    {
+        var companyId = lesson.CompanyId;
+
+        // ---- LT-15: snapshot every dependency, ids only, read fresh from the DB ---------------
+        var linkRepository = unitOfWork.GetRepository<ITrainingLinkRepository>();
+        var links = linkRepository.GetByLessonId(lesson.Id).ToList();
+        var linkIds = links.Select(l => l.Id).ToList();
+
+        var sessionRepository = unitOfWork.GetRepository<ILearningSessionRepository>();
+        var sessionIds = linkIds.Count == 0
+            ? []
+            : sessionRepository.GetByTrainingLinkIds(linkIds).Select(s => s.Id).ToList();
+
+        var sessionQuestionRepository = unitOfWork.GetRepository<ISessionQuestionRepository>();
+        var questionIds = sessionIds.Count == 0
+            ? []
+            : sessionQuestionRepository.GetBySessionIds(sessionIds).Select(q => q.Id).ToList();
+
+        var narrationRepository = unitOfWork.GetRepository<ILessonSlideNarrationRepository>();
+        var excludedSlideRepository = unitOfWork.GetRepository<ILessonExcludedSlideRepository>();
+
+        var documentRepository = unitOfWork.GetRepository<IDocumentResourceRepository>();
+        var documentsById = documentRepository
+            .GetByScopeIncludingDeleted(companyId, KnowledgeScopeType.Lesson, lesson.Id)
+            .ToList()
+            .ToDictionary(d => d.Id);
+        // The primary PDF may not be scope=lesson (a company/category-scoped document picked as
+        // this lesson's content source) - make sure it is still in scope for the shared-PDF guard
+        // and for purge, even when its own ScopeType/ScopeId point elsewhere.
+        if (!string.IsNullOrEmpty(lesson.PdfDocumentResourceId) && !documentsById.ContainsKey(lesson.PdfDocumentResourceId))
+        {
+            var primaryPdf = documentRepository.GetByIdIncludingDeleted(companyId, lesson.PdfDocumentResourceId);
+            if (primaryPdf is not null)
+            {
+                documentsById[primaryPdf.Id] = primaryPdf;
+            }
+        }
+
+        // Q-L3/LT-18 - a document still referenced by ANOTHER LessonConfig in this company (active
+        // or itself still trashed but not yet purged) is preserved in full: resource row, bytes,
+        // chunks, and vectors. Only this lesson's own, non-shared attachments are ever purged.
+        var lessonRepository = unitOfWork.GetRepository<ILessonConfigRepository>();
+        var candidateDocumentIds = documentsById.Keys.ToList();
+        var referencedElsewhere = candidateDocumentIds.Count == 0
+            ? []
+            : lessonRepository.GetAll()
+                .Where(l => l.Id != lesson.Id && l.PdfDocumentResourceId != null && candidateDocumentIds.Contains(l.PdfDocumentResourceId))
+                .Select(l => l.PdfDocumentResourceId!)
+                .Concat(lessonRepository.GetTrash(companyId)
+                    .Where(l => l.Id != lesson.Id && l.PdfDocumentResourceId != null && candidateDocumentIds.Contains(l.PdfDocumentResourceId))
+                    .Select(l => l.PdfDocumentResourceId!))
+                .ToHashSet();
+
+        var documentsToPurge = documentsById.Values.Where(d => !referencedElsewhere.Contains(d.Id)).ToList();
+        var preservedCount = documentsById.Count - documentsToPurge.Count;
+
+        var documentChunkRepository = unitOfWork.GetRepository<IDocumentChunkRepository>();
+        var chunksByDocumentId = documentsToPurge.ToDictionary(
+            d => d.Id,
+            d => documentChunkRepository.GetAllByDocumentIdIncludingDeleted(companyId, d.Id).ToList());
+
+        var qnaRepository = unitOfWork.GetRepository<IKnowledgeQnARepository>();
+        var lessonQnAs = qnaRepository.GetByScopeIncludingDeleted(companyId, KnowledgeScopeType.Lesson, lesson.Id).ToList();
+        var qnaIds = lessonQnAs.Select(q => q.Id).ToList();
+
+        // ---- LT-17/LT-18: external deletes, before anything in the DB changes ----------------
+        try
+        {
+            // The lesson's own namespace first - covers narration/slide vectors and any orphaned
+            // legacy-scope vectors ever indexed there (LT-17).
+            await knowledgeIndexProvider.DeleteNamespaceAsync(KnowledgeNamespaces.For(companyId, lesson.Slug));
+
+            // Document vectors, grouped by the namespace they were ACTUALLY upserted into
+            // (DocumentChunk.NamespaceKey - KS-4 means scope can move after indexing, so this can
+            // differ from the document's current ScopeType/ScopeId).
+            foreach (var document in documentsToPurge)
+            {
+                foreach (var group in chunksByDocumentId[document.Id].GroupBy(c => c.NamespaceKey))
+                {
+                    await knowledgeIndexProvider.DeleteVectorsAsync(group.Key, group.Select(c => c.VectorId).ToList());
+                }
+            }
+
+            // Q&A vectors, one per row, by the namespace it was actually indexed into (never
+            // assumed from ScopeType/ScopeId, which can be stale relative to IndexedNamespaceKey).
+            foreach (var qna in lessonQnAs)
+            {
+                if (!string.IsNullOrEmpty(qna.IndexedNamespaceKey))
+                {
+                    await knowledgeIndexProvider.DeleteVectorsAsync(qna.IndexedNamespaceKey, [qna.VectorId]);
+                }
+            }
+
+            // LT-18 - storage bytes, only for documents not shared with another lesson. Both real
+            // IDocumentStorageProvider implementations already treat a missing key as a success.
+            foreach (var document in documentsToPurge)
+            {
+                await storageProvider.DeleteAsync(document.ObsKey);
+            }
+        }
+        catch (Exception ex) when (ex is not DocumentIndexingException)
+        {
+            // LT-14 - retries later with unbounded backoff; nothing in the DB has changed yet, so
+            // the retry simply repeats these idempotent calls.
+            throw new DocumentIndexingException(DocumentIndexOutcome.IndexFailed, "ลบข้อมูลบทเรียนออกจากคลังความรู้/พื้นที่จัดเก็บไม่สำเร็จ", ex);
+        }
+
+        // ---- LT-16/LT-19/LT-20: one DB transaction, only after every external delete succeeded ----
+        var reviewExclusionRepository = unitOfWork.GetRepository<ISessionQuestionReviewExclusionRepository>();
+        // LT-16 - inserted BEFORE the Q&A/source rows below are deleted, so QQ-1 can always find
+        // them regardless of statement order within this same commit.
+        reviewExclusionRepository.AddMissingForLesson(companyId, lesson.Id, questionIds, actorUserId: null);
+
+        // LT-20 - batch/snapshot hard-delete, never IKnowledgeQnAService.DeleteAsync in a loop:
+        // that path soft-deletes source rows and reopens their questions to the review queue
+        // before any exclusion exists, and commits multiple times mid-purge.
+        var sourceRepository = unitOfWork.GetRepository<IKnowledgeQnASourceRepository>();
+        foreach (var source in sourceRepository.GetByQnAIdsIncludingDeleted(companyId, qnaIds).ToList())
+        {
+            sourceRepository.Delete(source);
+        }
+        var conflictRepository = unitOfWork.GetRepository<IKnowledgeQnAConflictRepository>();
+        foreach (var conflict in conflictRepository.GetByQnAIdsIncludingDeleted(companyId, qnaIds).ToList())
+        {
+            conflictRepository.Delete(conflict);
+        }
+        foreach (var qna in lessonQnAs)
+        {
+            qnaRepository.Delete(qna);
+        }
+
+        foreach (var narration in narrationRepository.GetAllByLessonIdIncludingDeleted(companyId, lesson.Id).ToList())
+        {
+            narrationRepository.Delete(narration);
+        }
+        foreach (var excludedSlide in excludedSlideRepository.GetByLessonId(lesson.Id).ToList())
+        {
+            excludedSlideRepository.Delete(excludedSlide);
+        }
+
+        foreach (var document in documentsToPurge)
+        {
+            foreach (var chunk in chunksByDocumentId[document.Id])
+            {
+                documentChunkRepository.Delete(chunk);
+            }
+            documentRepository.Delete(document);
+        }
+
+        // TrainingLink (already revoked at archive time), LearningSession, SessionQuestion, the
+        // exclusion rows just written above, and BackgroundJob history are all deliberately left
+        // untouched (LT-19) - only this lesson row itself is hard-deleted.
+        lessonRepository.Delete(lesson);
+
+        unitOfWork.Commit();
+
+        logger.LogInformation(
+            "Lesson permanently purged: {LessonId} slug={Slug} documentsDeleted={DocumentsDeleted} documentsPreserved={DocumentsPreserved} qnaDeleted={QnaCount} questionsExcluded={QuestionCount}",
+            lesson.Id, lesson.Slug, documentsToPurge.Count, preservedCount, lessonQnAs.Count, questionIds.Count);
     }
 
     private void HandleFailure(BackgroundJob job, Exception ex, IBackgroundJobRepository jobRepository)

@@ -16,6 +16,11 @@ public interface ITrainingLinkRepository : IRepositoryBase<TrainingLink, string>
     /// see ITrainingLinkService.GetByToken.
     /// </summary>
     TrainingLink? GetByToken(string token);
+
+    /// <summary>R9/LT-3/LT-4 - every link a lesson ever had, for archive's revoke-all-links step and
+    /// admin history views. Left scoped by the normal query filter (CompanyId only, no !IsDelete -
+    /// see ApplicationDbContext's O-3 note) since every caller already has a resolved company.</summary>
+    IQueryable<TrainingLink> GetByLessonId(string lessonId);
 }
 
 public sealed class TrainingLinkRepository(ApplicationDbContext dbContext)
@@ -23,4 +28,7 @@ public sealed class TrainingLinkRepository(ApplicationDbContext dbContext)
 {
     public TrainingLink? GetByToken(string token)
         => Context.TrainingLink.IgnoreQueryFilters().SingleOrDefault(x => x.Token == token);
+
+    public IQueryable<TrainingLink> GetByLessonId(string lessonId)
+        => FindBy(x => x.LessonId == lessonId);
 }

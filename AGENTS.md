@@ -137,6 +137,13 @@ side effect ของคำสั่ง generic
   contract ย้อนหลังเพื่อทำให้สิ่งที่ implement ไปแล้วดูถูกต้อง
 - ปิด pipeline run ด้วยการอัปเดตเฉพาะบรรทัดใน `_docs/status.md` ที่ run นั้นกระทบ แล้วบอกว่า
   พร้อมส่งต่อ role ใด โดยไม่เรียก role นั้นเอง
+- **การสลับ engine (Claude Code ↔ Codex) กลางงานเป็นการออกแบบตั้งใจ ไม่ใช่ fallback** — ดู
+  `.claude/shared/conventions.md` §13: state ของ pipeline อยู่ในไฟล์ (`status.md`/`plan.md`/
+  `design.md`/`review.md`) ไม่ได้อยู่ใน memory ของ engine ไหน ดังนั้น role เดียวกันที่ Codex
+  ทำกับที่ Claude subagent ทำมีน้ำหนักเท่ากัน — **ห้ามรัน role ซ้ำในอีก engine เพียงเพื่อเช็คผล
+  ของตัวเอง** (เช่น Codex ตรวจ QA ติ๊ก checkbox ไปแล้ว ไม่ต้องให้ Claude `qa-engineer` มาตรวจซ้ำ
+  ทั้งเฟสอีกรอบ) เว้นแต่ผู้ใช้ขอ second opinion แบบเจาะจงเหตุผล (เช่น phase ติด Security gate
+  หรือผลลัพธ์ที่ดูน่าสงสัย) ซึ่งต้องระบุชัดว่าเป็นการตรวจซ้ำโดยตั้งใจ ไม่ใช่ความเคยชิน
 
 Hard stops ของ continuous/autonomous run ยังคงเหมือน Claude workflow และต้องรอผู้ใช้:
 

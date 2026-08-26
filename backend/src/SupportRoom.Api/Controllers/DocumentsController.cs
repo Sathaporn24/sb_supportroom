@@ -27,10 +27,12 @@ public sealed class UploadDocumentRequest
 public sealed class DocumentsController : ControllerBase
 {
     private readonly IDocumentResourceService _service;
+    private readonly ILessonConfigService _lessonConfigService;
 
     public DocumentsController(IServiceProvider serviceProvider)
     {
         _service = serviceProvider.GetRequiredService<IDocumentResourceService>();
+        _lessonConfigService = serviceProvider.GetRequiredService<ILessonConfigService>();
     }
 
     [HttpPost]
@@ -103,6 +105,20 @@ public sealed class DocumentsController : ControllerBase
     {
         await _service.RestoreAsync(id);
         return Ok(new { status = "restored" });
+    }
+
+    /// <summary>NR-18 - page image for the narration-editor screen
+    /// (/admin/lessons/[slug]/narrations), which today has no way to show what a slide actually
+    /// looks like. Thin wrapper over ILessonConfigService.RenderPdfPageAsync, which already scopes
+    /// documentId through IDocumentResourceRepository.Get's normal company query filter - nothing
+    /// extra to check here. Distinct from the learner-side, link-token-scoped
+    /// LessonController.GetPdfPage: this one is admin-auth (fallback policy, no [AllowAnonymous])
+    /// and must never be reachable without a JWT.</summary>
+    [HttpGet("{documentId}/pdf-pages/{pageNumber:int}")]
+    public async Task<ActionResult> GetPdfPage([FromRoute] string documentId, [FromRoute] int pageNumber)
+    {
+        var png = await _lessonConfigService.RenderPdfPageAsync(documentId, pageNumber);
+        return File(png, "image/png");
     }
 
     /// <summary>DS-5 - first call site of KS-4 ("changing scope moves the document"). id comes

@@ -42,7 +42,8 @@ public class KnowledgeQnAServiceTests
             .Register<ITrainingLinkRepository>(_links)
             .Register<IBackgroundJobRepository>(_jobs)
             .Register<ILessonConfigRepository>(lessonConfigRepository)
-            .Register<IKnowledgeCategoryRepository>(categoryRepository);
+            .Register<IKnowledgeCategoryRepository>(categoryRepository)
+            .Register<ISessionQuestionReviewExclusionRepository>(new FakeSessionQuestionReviewExclusionRepository());
 
         var namespaceResolver = new KnowledgeNamespaceResolver(_unitOfWork);
         _service = new KnowledgeQnAService(

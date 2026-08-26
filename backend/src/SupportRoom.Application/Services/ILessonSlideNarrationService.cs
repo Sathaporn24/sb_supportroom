@@ -1,11 +1,9 @@
-using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using SupportRoom.Application.Common;
 using SupportRoom.Application.Exceptions;
 using SupportRoom.Domain;
 using SupportRoom.Domain.Configuration;
 using SupportRoom.Domain.Entities;
-using SupportRoom.Domain.Enums;
 using SupportRoom.Providers.Data.Data.UnitOfWork;
 using SupportRoom.Providers.Data.Repository;
 
@@ -20,6 +18,15 @@ public sealed class LessonNarrationSlideViewModel
     /// <summary>true when a LessonSlideNarration row exists for this page - the admin editor uses
     /// this to tell a CS-authored page apart from one still showing the extracted prefill.</summary>
     public required bool IsOverridden { get; init; }
+
+    /// <summary>EX-3(ข)/EX-11 - true when a live (non soft-deleted) LessonExcludedSlide row exists
+    /// for this page.</summary>
+    public required bool IsExcluded { get; init; }
+
+    /// <summary>EX-3(ข)/EX-11 - 0-based position among the pages that remain in the lesson (the
+    /// same numbering GetTeachingContentBySlugAsync's Index uses). null when IsExcluded is true -
+    /// an excluded page has no position in the lesson at all.</summary>
+    public required int? LessonIndex { get; init; }
 }
 
 public sealed class LessonNarrationsViewModel
@@ -41,9 +48,10 @@ public interface ILessonSlideNarrationService
     /// it. Enqueues a lesson_index job for just this page on any actual change (NR-6).</summary>
     Task SaveAsync(string lessonId, string slideObjectId, string? narrationText);
 
-    /// <summary>NR-3 - how many narration rows would be soft-deleted if the lesson's PDF source is
-    /// replaced. The admin UI calls this before letting CS confirm the upload.</summary>
-    int CountByLessonId(string lessonId);
+    /// <summary>NR-3/EX-10 - how many narration rows, and how many exclusion rows, would be
+    /// soft-deleted if the lesson's PDF source is replaced. The admin UI calls this before letting
+    /// CS confirm the upload.</summary>
+    (int Count, int ExcludedCount) CountByLessonId(string lessonId);
 }
 
 /// <summary>
@@ -62,6 +70,7 @@ public sealed class LessonSlideNarrationService(
 {
     private readonly ILessonConfigRepository _lessonRepository = unitOfWork.GetRepository<ILessonConfigRepository>();
     private readonly ILessonSlideNarrationRepository _narrationRepository = unitOfWork.GetRepository<ILessonSlideNarrationRepository>();
+    private readonly ILessonExcludedSlideRepository _excludedSlideRepository = unitOfWork.GetRepository<ILessonExcludedSlideRepository>();
 
     public async Task<LessonNarrationsViewModel> GetAllAsync(string lessonId)
     {
@@ -74,15 +83,26 @@ public sealed class LessonSlideNarrationService(
 
         var resolvedSlides = await narrationResolver.ResolveAsync(lessonId, baseContent.Slides);
         var overriddenIds = _narrationRepository.GetByLessonId(lessonId).Select(x => x.SlideObjectId).ToHashSet();
+        var excludedIds = _excludedSlideRepository.GetByLessonId(lessonId).Where(x => !x.IsDelete).Select(x => x.SlideObjectId).ToHashSet();
 
+        // EX-11 - every page shows in file order, excluded or not; LessonIndex is a running count
+        // over only the pages that remain, matching what GetTeachingContentBySlugAsync's Index
+        // would assign the same page.
+        var lessonIndex = 0;
         var slides = resolvedSlides
             .OrderBy(s => s.Index)
-            .Select(s => new LessonNarrationSlideViewModel
+            .Select(s =>
             {
-                SlideObjectId = s.SlideObjectId,
-                Index = s.Index,
-                NarrationText = s.SpeakerNotes,
-                IsOverridden = overriddenIds.Contains(s.SlideObjectId),
+                var isExcluded = excludedIds.Contains(s.SlideObjectId);
+                return new LessonNarrationSlideViewModel
+                {
+                    SlideObjectId = s.SlideObjectId,
+                    Index = s.Index,
+                    NarrationText = s.SpeakerNotes,
+                    IsOverridden = overriddenIds.Contains(s.SlideObjectId),
+                    IsExcluded = isExcluded,
+                    LessonIndex = isExcluded ? null : lessonIndex++,
+                };
             })
             .ToList();
 
@@ -93,6 +113,14 @@ public sealed class LessonSlideNarrationService(
     {
         var lesson = _lessonRepository.Get(lessonId) ?? throw GeneralException.NotFound("บทเรียน");
         EnsurePdfSource(lesson);
+
+        // EX-12(ก) - a page the CS just cut cannot have its narration edited until it's brought
+        // back; readOnly in the UI is the second layer, not the only one.
+        var excludedRow = _excludedSlideRepository.GetOne(lessonId, slideObjectId);
+        if (excludedRow is not null && !excludedRow.IsDelete)
+        {
+            throw GeneralException.ValidationError("หน้านี้ถูกตัดออกจากบทเรียนแล้ว - เอาหน้ากลับก่อนจึงจะแก้บทพูดได้");
+        }
 
         var baseContent = await lessonConfigService.PreviewPdfAsync(lesson.PdfDocumentResourceId!);
         var baseSlide = baseContent.Slides.FirstOrDefault(s => s.SlideObjectId == slideObjectId)
@@ -145,19 +173,24 @@ public sealed class LessonSlideNarrationService(
             return;
         }
 
-        EnqueueLessonIndexJob(lessonId, [slideObjectId]);
+        var jobRepository = UnitOfWork.GetRepository<IBackgroundJobRepository>();
+        jobRepository.Add(LessonIndexJobFactory.Create(CurrentCompanyId, CurrentUserId, lessonId, [slideObjectId]));
         UnitOfWork.Commit();
 
         Logger.LogInformation("Lesson narration saved: {LessonId}/{SlideObjectId}, re-index job queued", lessonId, slideObjectId);
     }
 
-    public int CountByLessonId(string lessonId)
+    public (int Count, int ExcludedCount) CountByLessonId(string lessonId)
     {
         var lesson = _lessonRepository.Get(lessonId) ?? throw GeneralException.NotFound("บทเรียน");
-        return _narrationRepository.GetByLessonId(lesson.Id).Count();
+        var count = _narrationRepository.GetByLessonId(lesson.Id).Count();
+        var excludedCount = _excludedSlideRepository.GetByLessonId(lesson.Id).Count(x => !x.IsDelete);
+        return (count, excludedCount);
     }
 
-    private static void EnsurePdfSource(LessonConfig lesson)
+    /// <summary>EX-2 - the one PDF-source guard for this whole phase's endpoints; every new
+    /// endpoint (EX-4, EX-12(ก)) reuses this exact method rather than writing a second guard.</summary>
+    internal static void EnsurePdfSource(LessonConfig lesson)
     {
         // NR-9 server-side reject - Google Slides has no narration override path at all, the
         // editor UI hiding the button is not enough on its own.
@@ -184,23 +217,5 @@ public sealed class LessonSlideNarrationService(
         }
 
         return string.Concat(narrationText.Where(c => c >= ' ' || c is '\n' or '\t'));
-    }
-
-    private void EnqueueLessonIndexJob(string lessonId, IReadOnlyList<string> slideObjectIds)
-    {
-        var jobRepository = UnitOfWork.GetRepository<IBackgroundJobRepository>();
-        jobRepository.Add(new BackgroundJob
-        {
-            Id = IdGenerator.GenerateId("job"),
-            CompanyId = CurrentCompanyId,
-            CreateBy = CurrentUserId,
-            CreateDate = DateTime.UtcNow,
-            JobType = BackgroundJobType.LessonIndex,
-            TargetId = lessonId,
-            PayloadJson = JsonSerializer.Serialize(new LessonIndexJobPayload { SlideObjectIds = slideObjectIds }),
-            Status = BackgroundJobStatus.Pending,
-            AttemptCount = 0,
-            NextAttemptAt = DateTime.UtcNow,
-        });
     }
 }

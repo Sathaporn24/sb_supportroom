@@ -30,6 +30,16 @@ internal static class TestFixtures
     /// <summary>A guard for a request nobody is signed in to - every check must refuse.</summary>
     public static IAuthorizationGuard AnonymousGuard() => new AuthorizationGuard(new CurrentUser());
 
+    /// <summary>R9/Module L - LessonConfigService now takes IAuthorizationGuard AND ICurrentUser
+    /// directly (archive/restore/permanent-delete's role checks), so tests that construct it need
+    /// a matching pair resolved to the SAME identity, not just a guard on its own.</summary>
+    public static (IAuthorizationGuard Guard, ICurrentUser User) AdminContext(string role, string? companyId, string userId = "user-test")
+    {
+        var user = new CurrentUser();
+        user.Resolve(userId, role, companyId);
+        return (new AuthorizationGuard(user), user);
+    }
+
     /// <summary>Company every seeded entity belongs to. FakeServiceProvider pre-resolves
     /// ICompanyContext to this value, so services under test stamp the same id on rows they
     /// create and the two match up.</summary>

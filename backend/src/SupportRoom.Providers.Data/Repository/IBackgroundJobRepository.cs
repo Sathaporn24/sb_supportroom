@@ -32,6 +32,21 @@ public interface IBackgroundJobRepository : IRepositoryBase<BackgroundJob, strin
     /// and this must catch orphaned jobs across every company.
     /// </summary>
     int RequeueOrphanedRunning();
+
+    /// <summary>R9/LT-4 - restore cancels the specific lesson_purge job it is undoing, never "the
+    /// job with this TargetId" alone: BackgroundJob has no query filter, so company + target +
+    /// job id must all match in the same predicate or one company's restore could cancel another
+    /// company's job that happens to share a TargetId collision window. Only flips a job still
+    /// Pending - a job the worker already claimed (Running/PurgeStartedAt set) must not be
+    /// canceled from here, that case is 409 at the LessonConfig level instead (LT-4). Returns
+    /// whether a row was actually canceled.</summary>
+    bool CancelPendingLessonPurge(string companyId, string lessonId, string purgeJobId);
+
+    /// <summary>R9/LT-10 - manual permanent-delete's "accelerate the existing job" step: pulls
+    /// NextAttemptAt to now so the worker picks it up on its next poll instead of creating a
+    /// second job. Same company+target+job id guard as CancelPendingLessonPurge, for the same
+    /// reason. Only affects a job still Pending.</summary>
+    bool AccelerateLessonPurge(string companyId, string lessonId, string purgeJobId);
 }
 
 public sealed class BackgroundJobRepository(ApplicationDbContext dbContext)
@@ -68,5 +83,29 @@ public sealed class BackgroundJobRepository(ApplicationDbContext dbContext)
             """;
 
         return Context.Database.ExecuteSqlRaw(sql, BackgroundJobStatus.Pending, BackgroundJobStatus.Running);
+    }
+
+    public bool CancelPendingLessonPurge(string companyId, string lessonId, string purgeJobId)
+    {
+        const string sql = """
+            UPDATE "BackgroundJob"
+            SET "Status" = {0}
+            WHERE "Id" = {1} AND "CompanyId" = {2} AND "JobType" = {3} AND "TargetId" = {4} AND "Status" = {5}
+            """;
+        var rows = Context.Database.ExecuteSqlRaw(
+            sql, BackgroundJobStatus.Canceled, purgeJobId, companyId, BackgroundJobType.LessonPurge, lessonId, BackgroundJobStatus.Pending);
+        return rows == 1;
+    }
+
+    public bool AccelerateLessonPurge(string companyId, string lessonId, string purgeJobId)
+    {
+        const string sql = """
+            UPDATE "BackgroundJob"
+            SET "NextAttemptAt" = {0}
+            WHERE "Id" = {1} AND "CompanyId" = {2} AND "JobType" = {3} AND "TargetId" = {4} AND "Status" = {5}
+            """;
+        var rows = Context.Database.ExecuteSqlRaw(
+            sql, DateTime.UtcNow, purgeJobId, companyId, BackgroundJobType.LessonPurge, lessonId, BackgroundJobStatus.Pending);
+        return rows == 1;
     }
 }

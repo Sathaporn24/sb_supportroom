@@ -42,17 +42,21 @@ public class VoiceQuestionServiceTextNamespaceTests
             .Register<ILessonConfigRepository>(_lessons)
             .Register<IDocumentResourceRepository>(new FakeDocumentResourceRepository())
             .Register<ILessonSlideNarrationRepository>(new FakeLessonSlideNarrationRepository())
+            .Register<ILessonExcludedSlideRepository>(new FakeLessonExcludedSlideRepository())
             .Register<ISessionQuestionRepository>(_questions)
             .Register<IKnowledgeCategoryRepository>(new FakeKnowledgeCategoryRepository())
             .Register<ICompanyRepository>(new FakeCompanyRepository());
         var namespaceResolver = new KnowledgeNamespaceResolver(uow);
 
+        var (lessonGuard, lessonCurrentUser) = TestFixtures.AdminContext(AdminRole.Owner, TestFixtures.CompanyId);
         var lessonService = new LessonConfigService(
             uow, new FakeServiceProvider(), NullLogger<ILessonConfigService>.Instance,
             new CannedSlidesProvider(), new FakeKnowledgeIndexingService(),
             new LocalDocumentStorageProvider(NullLogger<LocalDocumentStorageProvider>.Instance),
             new MemoryCache(new MemoryCacheOptions()),
-            new LessonSlideNarrationResolver(uow));
+            new LessonSlideNarrationResolver(uow),
+            lessonGuard,
+            lessonCurrentUser);
         var questionService = new SessionQuestionService(uow, new FakeServiceProvider(), NullLogger<ISessionQuestionService>.Instance);
 
         var serviceProvider = new FakeServiceProvider()

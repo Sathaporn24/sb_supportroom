@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using SupportRoom.Domain.Entities;
 using SupportRoom.Providers.Data.Common;
 using SupportRoom.Providers.Data.Data;
@@ -16,6 +17,11 @@ public interface IKnowledgeQnARepository : IRepositoryBase<KnowledgeQnA, string>
     /// respect: FindBy(_ => true), isolation left entirely to the EF global query filter, never
     /// IgnoreQueryFilters().</summary>
     IQueryable<KnowledgeQnA> GetAllInCompany();
+
+    /// <summary>R9/LT-15/LT-19 - every Q&amp;A of this scope regardless of soft-delete state, for
+    /// purge's dependency snapshot and hard-delete step. IgnoreQueryFilters() only exists to see
+    /// past `!IsDelete` - CompanyId is reapplied explicitly (LT-23).</summary>
+    IQueryable<KnowledgeQnA> GetByScopeIncludingDeleted(string companyId, string scopeType, string? scopeId);
 }
 
 public sealed class KnowledgeQnARepository(ApplicationDbContext dbContext)
@@ -28,4 +34,8 @@ public sealed class KnowledgeQnARepository(ApplicationDbContext dbContext)
         => FindBy(x => x.Question.Contains(keyword) || x.Answer.Contains(keyword));
 
     public IQueryable<KnowledgeQnA> GetAllInCompany() => FindBy(_ => true);
+
+    public IQueryable<KnowledgeQnA> GetByScopeIncludingDeleted(string companyId, string scopeType, string? scopeId)
+        => Context.KnowledgeQnA.IgnoreQueryFilters()
+            .Where(x => x.CompanyId == companyId && x.ScopeType == scopeType && x.ScopeId == scopeId);
 }
