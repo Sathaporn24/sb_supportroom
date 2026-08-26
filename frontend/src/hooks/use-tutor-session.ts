@@ -464,7 +464,7 @@ export function useTutorSession(link: PublicTrainingLink, learningSession: Learn
       case "LOAD_LESSON":
         void (async () => {
           try {
-            const { lesson, embedUrl: url, slides } = await api.getLessonByLinkToken(link.token);
+            const { lesson, embedUrl: url, slides } = await api.getLessonByLinkToken(link.token, learnerKey);
             slidesRef.current = slides;
             ctxRef.current = {
               slides,

@@ -1,6 +1,5 @@
 import { XIcon } from "lucide-react";
 import type { TeachingSlide } from "@/types/domain";
-import { getApiBaseUrl } from "@/lib/api-client";
 import { LoadingBlock } from "@/components/shared/LoadingBlock";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -84,7 +83,10 @@ export function SlidesEmbed({
   // image URL instead (populated by PdfSlidesRenderer on the backend). Check this before the
   // Mock-mode fallback below, since a PDF lesson legitimately has no embedUrl at all.
   if (currentSlide?.slideUrl) {
-    const imageSrc = `${getApiBaseUrl()}${currentSlide.slideUrl}`;
+    // getLessonByLinkToken already resolves this to an absolute URL (api-client.ts) - prefixing
+    // the API base here a second time used to double it up into an unparseable
+    // "http://host1http://host1/..." string, so every PDF-sourced slide's image failed to load.
+    const imageSrc = currentSlide.slideUrl;
     return (
       <div className={cn(wrapperClassName, "flex items-center justify-center")}>
         {fullscreen ? (

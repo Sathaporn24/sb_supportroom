@@ -3,21 +3,17 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { AdminLink } from "@/components/admin/AdminLink";
+import { SlideNarrationEditorCard } from "@/components/admin/SlideNarrationEditorCard";
 import * as api from "@/lib/api-client";
 import { ApiClientError } from "@/lib/api-client";
+import { getPdfFilePageNumber } from "@/lib/pdf-slide";
 import type { LessonConfig, LessonNarrations } from "@/types/domain";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Spinner } from "@/components/ui/spinner";
-import { Textarea } from "@/components/ui/textarea";
 import { CardListSkeleton } from "@/components/shared/CardListSkeleton";
 import { LoadingBlock } from "@/components/shared/LoadingBlock";
-
-// DtoLimits.NarrationTextMaxLength (backend) - 5000 characters is what Edge TTS can synthesize
-// for one page without needing to be split up.
-const NARRATION_MAX_LENGTH = 5000;
 
 /**
  * NR-1..NR-9 - per-page narration override editor. PDF-sourced lessons only: Google Slides has
@@ -30,6 +26,7 @@ export default function LessonNarrationsPage() {
   const [narrations, setNarrations] = useState<LessonNarrations | null>(null);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [savingId, setSavingId] = useState<string | null>(null);
+  const [togglingId, setTogglingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notFound, setNotFound] = useState(false);
 
@@ -106,6 +103,24 @@ export default function LessonNarrationsPage() {
     }
   }
 
+  /** EX-4 - toggle exclusion then reload from the server so isExcluded/lessonIndex stay in sync
+   * with what the server just recomputed (renumbering every remaining page - EX-3(ข)). */
+  async function handleToggleExcluded(slideObjectId: string, currentlyExcluded: boolean) {
+    if (!lesson) return;
+    setTogglingId(slideObjectId);
+    setError(null);
+    try {
+      await api.toggleExcludedSlide(lesson.id, slideObjectId, !currentlyExcluded);
+      const refreshed = await api.getLessonNarrations(lesson.id);
+      setNarrations(refreshed);
+      setDrafts(Object.fromEntries(refreshed.slides.map((s) => [s.slideObjectId, s.narrationText])));
+    } catch (err) {
+      setError(err instanceof ApiClientError ? err.response.error.message : "ตัด/เอาหน้ากลับไม่สำเร็จ");
+    } finally {
+      setTogglingId(null);
+    }
+  }
+
   return (
     <main className="flex w-full flex-col gap-6 p-6">
       <div>
@@ -138,42 +153,44 @@ export default function LessonNarrationsPage() {
         <CardListSkeleton count={4} />
       ) : (
         <div className="flex flex-col gap-4">
-          {narrations.slides.map((slide) => {
-            const draft = drafts[slide.slideObjectId] ?? "";
-            const changed = draft !== slide.narrationText;
-            return (
-              <Card key={slide.slideObjectId} size="sm">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-xs tracking-wide text-muted-foreground uppercase">
-                    หน้า {slide.index + 1}
-                    {slide.isOverridden && <Badge variant="secondary">แก้ไขแล้ว</Badge>}
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="flex flex-col gap-2">
-                  <Textarea
-                    value={draft}
-                    maxLength={NARRATION_MAX_LENGTH}
-                    rows={4}
-                    onChange={(e) => setDrafts((prev) => ({ ...prev, [slide.slideObjectId]: e.target.value }))}
-                    data-testid={`lesson-narrations-textarea-${slide.slideObjectId}`}
-                  />
-                  <div className="flex items-center justify-between">
-                    <p className="text-xs text-muted-foreground">
-                      {draft.length}/{NARRATION_MAX_LENGTH} ตัวอักษร
-                    </p>
-                    <Button
-                      size="sm"
-                      onClick={() => handleSave(slide.slideObjectId)}
-                      disabled={!changed || savingId === slide.slideObjectId}
-                      data-testid={`lesson-narrations-save-button-${slide.slideObjectId}`}
-                    >
-                      {savingId === slide.slideObjectId ? <Spinner /> : "บันทึก"}
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })}
+          {(() => {
+            const remainingCount = narrations.slides.filter((s) => !s.isExcluded).length;
+            return narrations.slides.map((slide) => {
+              const draft = drafts[slide.slideObjectId] ?? "";
+              const changed = draft !== slide.narrationText;
+              const filePageNumber = getPdfFilePageNumber(slide.slideObjectId);
+              const pageLabel = slide.isExcluded
+                ? `หน้าที่ ${filePageNumber} ของไฟล์`
+                : `หน้า ${(slide.lessonIndex ?? 0) + 1}`;
+              return (
+                <SlideNarrationEditorCard
+                  key={slide.slideObjectId}
+                  pageLabel={pageLabel}
+                  imageSrc={api.getLessonPdfPageUrl(lesson.pdfDocumentResourceId ?? "", filePageNumber)}
+                  value={draft}
+                  onChange={(text) => setDrafts((prev) => ({ ...prev, [slide.slideObjectId]: text }))}
+                  isExcluded={slide.isExcluded}
+                  onToggleExcluded={() => void handleToggleExcluded(slide.slideObjectId, slide.isExcluded)}
+                  excludeToggleDisabled={remainingCount <= 1}
+                  toggleInFlight={togglingId === slide.slideObjectId}
+                  badge={slide.isOverridden && <Badge variant="secondary">แก้ไขแล้ว</Badge>}
+                  footer={
+                    !slide.isExcluded && (
+                      <Button
+                        size="sm"
+                        onClick={() => handleSave(slide.slideObjectId)}
+                        disabled={!changed || savingId === slide.slideObjectId}
+                        data-testid={`lesson-narrations-save-button-${slide.slideObjectId}`}
+                      >
+                        {savingId === slide.slideObjectId ? <Spinner /> : "บันทึก"}
+                      </Button>
+                    )
+                  }
+                  testIdPrefix={`lesson-narrations-${slide.slideObjectId}`}
+                />
+              );
+            });
+          })()}
         </div>
       )}
     </main>

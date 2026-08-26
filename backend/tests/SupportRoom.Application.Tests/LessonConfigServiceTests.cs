@@ -5,6 +5,7 @@ using SupportRoom.Application.Dto;
 using SupportRoom.Application.Exceptions;
 using SupportRoom.Application.Services;
 using SupportRoom.Application.Tests.Fakes;
+using SupportRoom.Domain.Common;
 using SupportRoom.Domain.Configuration;
 using SupportRoom.Domain.Entities;
 using SupportRoom.Domain.Enums;
@@ -22,6 +23,7 @@ public class LessonConfigServiceTests
     private readonly FakeDocumentResourceRepository _documents = new();
     private readonly FakeKnowledgeCategoryRepository _categories = new();
     private readonly FakeLessonSlideNarrationRepository _narrations = new();
+    private readonly FakeLessonExcludedSlideRepository _excludedSlides = new();
     private readonly FakeCompanyRepository _companies = new();
     private readonly FakeTrainingLinkRepository _links = new();
     private readonly FakeKnowledgeIndexingService _knowledge = new();
@@ -39,6 +41,7 @@ public class LessonConfigServiceTests
         _unitOfWork.Register<IDocumentResourceRepository>(_documents);
         _unitOfWork.Register<IKnowledgeCategoryRepository>(_categories);
         _unitOfWork.Register<ILessonSlideNarrationRepository>(_narrations);
+        _unitOfWork.Register<ILessonExcludedSlideRepository>(_excludedSlides);
         _unitOfWork.Register<ICompanyRepository>(_companies);
         _unitOfWork.Register<ITrainingLinkRepository>(_links);
         _unitOfWork.Register<ILearningSessionRepository>(new FakeLearningSessionRepository());
@@ -57,6 +60,7 @@ public class LessonConfigServiceTests
         serviceProvider.Register<ITrainingLinkService>(
             new TrainingLinkService(_unitOfWork, serviceProvider, NullLogger<ITrainingLinkService>.Instance));
 
+        var (guard, currentUser) = TestFixtures.AdminContext(AdminRole.Owner, TestFixtures.CompanyId);
         _service = new LessonConfigService(
             _unitOfWork,
             serviceProvider,
@@ -65,7 +69,9 @@ public class LessonConfigServiceTests
             _knowledge,
             _storage,
             new MemoryCache(new MemoryCacheOptions()),
-            new LessonSlideNarrationResolver(_unitOfWork));
+            new LessonSlideNarrationResolver(_unitOfWork),
+            guard,
+            currentUser);
     }
 
     private static LessonConfigDto NewDto(
@@ -73,7 +79,8 @@ public class LessonConfigServiceTests
         string contentSourceType = LessonContentSourceType.GoogleSlides,
         string slidesSourceUrl = "",
         string? pdfDocumentResourceId = null,
-        bool isActive = true) => new()
+        bool isActive = true,
+        List<string>? excludedSlideObjectIds = null) => new()
     {
         Slug = slug,
         CategoryId = "kbcat-child",
@@ -85,6 +92,7 @@ public class LessonConfigServiceTests
         PdfDocumentResourceId = pdfDocumentResourceId,
         SlideConfigs = [],
         IsActive = isActive,
+        ExcludedSlideObjectIds = excludedSlideObjectIds,
     };
 
     private DocumentResource SeedPdfDocument(string id = "doc-1", string? lessonId = null)
@@ -259,7 +267,7 @@ public class LessonConfigServiceTests
             ExpiresAt = DateTime.UtcNow.AddHours(1),
         });
 
-        var content = await _service.GetTeachingContentByLinkAsync("tok-1");
+        var content = await _service.GetTeachingContentByLinkAsync("tok-1", null);
 
         Assert.Equal(1234, content.Lesson.IntroWaitMs);
         Assert.Equal(222, content.Lesson.BreathPauseMs);
@@ -347,5 +355,245 @@ public class LessonConfigServiceTests
         var ex = await Assert.ThrowsAsync<HttpStatusCodeException>(() => _service.RenderPdfPageAsync(doc.Id, 11));
         Assert.Equal(404, (int)ex.StatusCode);
         Assert.Contains("10 หน้า", ex.Message);
+    }
+
+    // ---- PDF preview session (NR-10/NR-11/NR-5) ----------------------------
+
+    private static Task<Stream> OpenSamplePdfAsync()
+        => Task.FromResult<Stream>(File.OpenRead(Path.Combine(AppContext.BaseDirectory, "Fixtures", "sample.pdf")));
+
+    [Fact]
+    public async Task CreatePdfPreviewSession_ReturnsSlidesShapedLikeNarrationViewModel_WithoutPersistingAnything()
+    {
+        using var stream = await OpenSamplePdfAsync();
+
+        var session = await _service.CreatePdfPreviewSessionAsync(stream, "manual.pdf");
+
+        Assert.NotEmpty(session.PreviewId);
+        Assert.Equal(10, session.PageCount);
+        Assert.Equal(10, session.Slides.Count);
+        Assert.False(session.IsLikelyScanned); // fixture has real extracted text
+        Assert.All(session.Slides, s => Assert.False(string.IsNullOrWhiteSpace(s.SlideObjectId)));
+        // NR-10 - nothing written to any of the DB-backed fakes.
+        Assert.Empty(_documents.Items);
+        Assert.Empty(_lessons.Items);
+        Assert.Equal(0, _unitOfWork.CommitCount);
+    }
+
+    [Fact]
+    public async Task RenderPdfPreviewPage_ReturnsAnImage_ForTheSameCompanyThatCreatedTheSession()
+    {
+        using var stream = await OpenSamplePdfAsync();
+        var session = await _service.CreatePdfPreviewSessionAsync(stream, "manual.pdf");
+
+        var png = await _service.RenderPdfPreviewPageAsync(session.PreviewId, 1);
+
+        Assert.NotEmpty(png);
+    }
+
+    [Fact]
+    public async Task RenderPdfPreviewPage_ThrowsNotFound_WhenPreviewIdNeverExisted()
+    {
+        var ex = await Assert.ThrowsAsync<HttpStatusCodeException>(
+            () => _service.RenderPdfPreviewPageAsync("pdfprev-does-not-exist", 1));
+        Assert.Equal(404, (int)ex.StatusCode);
+    }
+
+    /// <summary>NR-11 - the security-load-bearing test: a previewId that belongs to another
+    /// company must be rejected with the exact same NotFound message as a previewId that never
+    /// existed, so a caller cannot tell "not yours" apart from "doesn't exist".</summary>
+    [Fact]
+    public async Task RenderPdfPreviewPage_ThrowsTheSameNotFound_ForWrongCompany_AsForAMissingSession()
+    {
+        // Both services below must share one IMemoryCache instance - a preview session created
+        // under one company's own cache wouldn't prove anything about cross-company isolation.
+        var sharedCache = new MemoryCache(new MemoryCacheOptions());
+        var (ownerGuard, ownerCurrentUser) = TestFixtures.AdminContext(AdminRole.Owner, TestFixtures.CompanyId);
+        var ownerService = new LessonConfigService(
+            _unitOfWork,
+            new FakeServiceProvider(),
+            NullLogger<ILessonConfigService>.Instance,
+            new GoogleSlidesProvider(NullLogger<GoogleSlidesProvider>.Instance),
+            _knowledge,
+            _storage,
+            sharedCache,
+            new LessonSlideNarrationResolver(_unitOfWork),
+            ownerGuard,
+            ownerCurrentUser);
+        var otherReaderServiceProvider = new FakeServiceProvider();
+        var otherContext = new CompanyContext();
+        otherContext.Resolve(TestFixtures.OtherCompanyId);
+        var (otherGuard, otherCurrentUser) = TestFixtures.AdminContext(AdminRole.Owner, TestFixtures.OtherCompanyId);
+        var otherReaderService = new LessonConfigService(
+            _unitOfWork,
+            otherReaderServiceProvider.Register<ICompanyContext>(otherContext),
+            NullLogger<ILessonConfigService>.Instance,
+            new GoogleSlidesProvider(NullLogger<GoogleSlidesProvider>.Instance),
+            _knowledge,
+            _storage,
+            sharedCache,
+            new LessonSlideNarrationResolver(_unitOfWork),
+            otherGuard,
+            otherCurrentUser);
+
+        using var stream = await OpenSamplePdfAsync();
+        var session = await ownerService.CreatePdfPreviewSessionAsync(stream, "manual.pdf");
+
+        var wrongCompanyEx = await Assert.ThrowsAsync<HttpStatusCodeException>(
+            () => otherReaderService.RenderPdfPreviewPageAsync(session.PreviewId, 1));
+        var missingSessionEx = await Assert.ThrowsAsync<HttpStatusCodeException>(
+            () => otherReaderService.RenderPdfPreviewPageAsync("pdfprev-does-not-exist", 1));
+
+        Assert.Equal(404, (int)wrongCompanyEx.StatusCode);
+        Assert.Equal(missingSessionEx.Message, wrongCompanyEx.Message);
+    }
+
+    [Fact]
+    public async Task RenderPdfPreviewPage_RejectsAPageNumberBelowOne()
+    {
+        using var stream = await OpenSamplePdfAsync();
+        var session = await _service.CreatePdfPreviewSessionAsync(stream, "manual.pdf");
+
+        var ex = await Assert.ThrowsAsync<HttpStatusCodeException>(
+            () => _service.RenderPdfPreviewPageAsync(session.PreviewId, 0));
+        Assert.Equal(400, (int)ex.StatusCode);
+    }
+
+    [Fact]
+    public async Task CreatePdfPreviewSession_RejectsANonPdfFile()
+    {
+        using var stream = new MemoryStream("not a pdf"u8.ToArray());
+
+        var ex = await Assert.ThrowsAsync<HttpStatusCodeException>(
+            () => _service.CreatePdfPreviewSessionAsync(stream, "notes.txt"));
+        Assert.Equal(400, (int)ex.StatusCode);
+    }
+
+    // ---- EX-9 (excludedSlideObjectIds on SaveAsync) ------------------------
+
+    [Fact]
+    public async Task SaveAsync_WithExcludedSlideObjectIds_WritesTheSetInTheSameRequestThatTriggersNR3Clear()
+    {
+        // EX-9's mandated (ก)(ข)(ค) ordering - the exclusion set written in THIS request must
+        // survive even though the very same request also triggers NR-3's "PdfDocumentResourceId
+        // changed" clear. Swapping (ก)/(ข) would make this new set vanish silently.
+        var docA = await SeedRealPdfBytesAsync("doc-order-a");
+        await _service.SaveAsync(NewDto(
+            slug: "order-lesson", contentSourceType: LessonContentSourceType.Pdf, pdfDocumentResourceId: docA.Id));
+
+        var docB = await SeedRealPdfBytesAsync("doc-order-b");
+        await _service.SaveAsync(NewDto(
+            slug: "order-lesson",
+            contentSourceType: LessonContentSourceType.Pdf,
+            pdfDocumentResourceId: docB.Id,
+            excludedSlideObjectIds: ["pdf-page-1"]));
+
+        var lesson = _lessons.Items.Single(l => l.Slug == "order-lesson");
+        var liveExclusions = _excludedSlides.Items.Where(x => x.LessonId == lesson.Id && !x.IsDelete).ToList();
+        Assert.Single(liveExclusions);
+        Assert.Equal("pdf-page-1", liveExclusions[0].SlideObjectId);
+    }
+
+    [Fact]
+    public async Task SaveAsync_WithExcludedSlideObjectIds_Null_LeavesExistingExclusionsUntouched()
+    {
+        var doc = await SeedRealPdfBytesAsync("doc-null-excl");
+        await _service.SaveAsync(NewDto(
+            slug: "untouched-lesson",
+            contentSourceType: LessonContentSourceType.Pdf,
+            pdfDocumentResourceId: doc.Id,
+            excludedSlideObjectIds: ["pdf-page-1"]));
+        var lesson = _lessons.Items.Single(l => l.Slug == "untouched-lesson");
+
+        // Same PdfDocumentResourceId (no NR-3 trigger), ExcludedSlideObjectIds omitted entirely.
+        await _service.SaveAsync(NewDto(
+            slug: "untouched-lesson", contentSourceType: LessonContentSourceType.Pdf, pdfDocumentResourceId: doc.Id));
+
+        var liveExclusions = _excludedSlides.Items.Where(x => x.LessonId == lesson.Id && !x.IsDelete).ToList();
+        Assert.Single(liveExclusions);
+    }
+
+    [Fact]
+    public async Task SaveAsync_WithExcludedSlideObjectIds_RejectsCuttingEveryPage()
+    {
+        var doc = await SeedRealPdfBytesAsync("doc-floor");
+        var allTenPages = Enumerable.Range(1, 10).Select(n => $"pdf-page-{n}").ToList();
+
+        var ex = await Assert.ThrowsAsync<HttpStatusCodeException>(() => _service.SaveAsync(NewDto(
+            slug: "floor-lesson",
+            contentSourceType: LessonContentSourceType.Pdf,
+            pdfDocumentResourceId: doc.Id,
+            excludedSlideObjectIds: allTenPages)));
+
+        Assert.Equal(400, (int)ex.StatusCode);
+        Assert.Contains("อย่างน้อย 1 หน้า", ex.Message);
+    }
+
+    [Fact]
+    public async Task SaveAsync_WithExcludedSlideObjectIds_RejectsAPageThatDoesNotExistInTheDeck()
+    {
+        var doc = await SeedRealPdfBytesAsync("doc-invalid-page");
+
+        var ex = await Assert.ThrowsAsync<HttpStatusCodeException>(() => _service.SaveAsync(NewDto(
+            slug: "invalid-page-lesson",
+            contentSourceType: LessonContentSourceType.Pdf,
+            pdfDocumentResourceId: doc.Id,
+            excludedSlideObjectIds: ["pdf-page-999"])));
+
+        Assert.Equal(404, (int)ex.StatusCode);
+    }
+
+    [Fact]
+    public async Task SaveAsync_WithALegacyDuplicateExcludedSlideRow_CleansUpTheDuplicateInsteadOfThrowing()
+    {
+        // P11-01 (2nd re-check) - seeds a duplicate (LessonId, SlideObjectId) pair the way the
+        // pre-fix bug actually left it: two live rows for the same page, written directly to the
+        // fake's backing store rather than through ToggleAsync/SaveAsync (which no longer produce
+        // this state on a clean DB). ApplyExcludedSlidesAsync's reconciliation must hard-delete the
+        // sibling even though this save's excludedSlideObjectIds never mentions "pdf-page-2" - a
+        // page nobody is touching in this particular save is exactly the case the previous fix
+        // (which only grouped, never deleted) still left broken.
+        var doc = await SeedRealPdfBytesAsync("doc-legacy-dupe");
+        await _service.SaveAsync(NewDto(
+            slug: "legacy-dupe-lesson",
+            contentSourceType: LessonContentSourceType.Pdf,
+            pdfDocumentResourceId: doc.Id,
+            excludedSlideObjectIds: ["pdf-page-1"]));
+        var lesson = _lessons.Items.Single(l => l.Slug == "legacy-dupe-lesson");
+
+        _excludedSlides.Items.Add(new LessonExcludedSlide
+        {
+            Id = "exsl-legacy-dupe-1",
+            CompanyId = TestFixtures.CompanyId,
+            LessonId = lesson.Id,
+            SlideObjectId = "pdf-page-2",
+            CreateDate = DateTime.UtcNow.AddDays(-2),
+            IsDelete = false,
+        });
+        _excludedSlides.Items.Add(new LessonExcludedSlide
+        {
+            Id = "exsl-legacy-dupe-2",
+            CompanyId = TestFixtures.CompanyId,
+            LessonId = lesson.Id,
+            SlideObjectId = "pdf-page-2",
+            CreateDate = DateTime.UtcNow.AddDays(-1),
+            IsDelete = false,
+        });
+
+        // Same excludedSlideObjectIds as before ("pdf-page-2" not mentioned) - the duplicate on
+        // pdf-page-2 must still get cleaned up as a side effect of any save touching this lesson.
+        await _service.SaveAsync(NewDto(
+            slug: "legacy-dupe-lesson",
+            contentSourceType: LessonContentSourceType.Pdf,
+            pdfDocumentResourceId: doc.Id,
+            excludedSlideObjectIds: ["pdf-page-1"]));
+
+        var page2Rows = _excludedSlides.Items.Where(x => x.LessonId == lesson.Id && x.SlideObjectId == "pdf-page-2").ToList();
+        var singleSurvivor = Assert.Single(page2Rows); // the duplicate sibling was hard-deleted, not just soft-deleted alongside it
+        Assert.Equal("exsl-legacy-dupe-2", singleSurvivor.Id); // most-recently-touched of the two live rows wins
+        // page-2 was never in this save's set, so the surviving row ends up soft-deleted -
+        // GetOne must still return it (not throw) since it deliberately includes soft-deleted rows.
+        Assert.Equal(singleSurvivor, _excludedSlides.GetOne(lesson.Id, "pdf-page-2"));
+        Assert.True(singleSurvivor.IsDelete);
     }
 }

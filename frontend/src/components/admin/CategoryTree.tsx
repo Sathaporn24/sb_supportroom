@@ -2,7 +2,7 @@
 
 import { LinkIcon, LockIcon, PencilIcon, PlusIcon, Trash2Icon } from "lucide-react";
 import { AdminLink } from "@/components/admin/AdminLink";
-import type { KnowledgeCategory, LessonConfig } from "@/types/domain";
+import type { AdminRole, KnowledgeCategory, LessonConfig } from "@/types/domain";
 import {
   Accordion,
   AccordionContent,
@@ -47,20 +47,26 @@ type Props = {
   categories: KnowledgeCategory[];
   lessons: LessonConfig[];
   busyLessonId: string | null;
+  role: AdminRole;
   onEditParent: (category: KnowledgeCategory) => void;
   onDeleteParent: (category: KnowledgeCategory) => void;
   onToggleLesson: (lesson: LessonConfig, checked: boolean) => void;
   onCreateLink: (lesson: LessonConfig) => void;
+  /** LT-2/LT-3 - owner/admin only; the button itself is hidden for `cs` (LessonTable below), the
+   * server is the real check. */
+  onArchiveLesson: (lesson: LessonConfig) => void;
 };
 
 export function CategoryTree({
   categories,
   lessons,
   busyLessonId,
+  role,
   onEditParent,
   onDeleteParent,
   onToggleLesson,
   onCreateLink,
+  onArchiveLesson,
 }: Props) {
   const parents = categories
     .filter((category) => category.level === 1)
@@ -139,8 +145,10 @@ export function CategoryTree({
                         <LessonTable
                           lessons={childLessons}
                           busyLessonId={busyLessonId}
+                          role={role}
                           onToggleLesson={onToggleLesson}
                           onCreateLink={onCreateLink}
+                          onArchiveLesson={onArchiveLesson}
                         />
                       </AccordionContent>
                     </AccordionItem>
@@ -155,16 +163,22 @@ export function CategoryTree({
   );
 }
 
+const CAN_ARCHIVE_LESSON: ReadonlySet<AdminRole> = new Set(["owner", "admin"]);
+
 function LessonTable({
   lessons,
   busyLessonId,
+  role,
   onToggleLesson,
   onCreateLink,
+  onArchiveLesson,
 }: {
   lessons: LessonConfig[];
   busyLessonId: string | null;
+  role: AdminRole;
   onToggleLesson: (lesson: LessonConfig, checked: boolean) => void;
   onCreateLink: (lesson: LessonConfig) => void;
+  onArchiveLesson: (lesson: LessonConfig) => void;
 }) {
   return (
     <Table>
@@ -224,6 +238,19 @@ function LessonTable({
                   >
                     <PencilIcon />
                   </AdminLink>
+                  {CAN_ARCHIVE_LESSON.has(role) && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon-sm"
+                      disabled={busyLessonId !== null}
+                      aria-label={`ย้ายบทเรียน ${lesson.title} ไปถังขยะ`}
+                      onClick={() => onArchiveLesson(lesson)}
+                      data-testid={`lesson-row-${lesson.slug}-archive-button`}
+                    >
+                      <Trash2Icon />
+                    </Button>
+                  )}
                 </div>
               </TableCell>
             </TableRow>

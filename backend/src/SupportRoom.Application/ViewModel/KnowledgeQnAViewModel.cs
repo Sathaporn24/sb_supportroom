@@ -38,6 +38,17 @@ public sealed class KnowledgeQnAQueueItemViewModel
     public required bool FromIncorrect { get; init; }
 }
 
+/// <summary>KL-23/Q-H2 - the 409 Conflict payload when CreateAsync finds an existing, non-deleted
+/// Q&A of this company with the same Question after trim/whitespace-collapse/case-fold. A list,
+/// not a single row: ConfirmDuplicate=true saving anyway can legitimately produce several
+/// identical questions since KL-24 forbids a unique constraint. Ordered CreateDate descending.
+/// Reuses KnowledgeQnAViewModel as-is - distinct shape from KL-21's DuplicateDocumentDto (a
+/// different endpoint entirely).</summary>
+public sealed class DuplicateQnAResponse
+{
+    public required IReadOnlyList<KnowledgeQnAViewModel> DuplicateByQuestion { get; init; }
+}
+
 public sealed class KnowledgeQnAConflictViewModel
 {
     public required string Id { get; init; }

@@ -4,174 +4,48 @@
 
 | Issue | Phase | Routes to | Blocking | Rounds |
 |---|---|---|---|---|
-| R-2 latency measurement (3-namespace query) still not taken — no traffic/deployment exists to measure against yet. Not a code defect; carried forward from the Phase 2 backend handoff in `status.md`. | Phase 2 (`review/phase-1-6.md`) | `devops` (once deployed with real traffic) | No | 0 |
-| No `security` audit has run on any phase in this module yet. Phases 2, 3, 4, 6, 7 all carry `🔒 Security gate` in `plan.md` and cannot reach `devops` until `security` runs, independent of round mode. | Phases 2, 3, 4, 6, 7 | `security` | Yes, for the gated phases | 0 |
-| `DS-3`'s "category id belongs to a different company" rejection case is proven correct by direct inspection of the unchanged, already-verified `KnowledgeCategory` `HasQueryFilter` and by a live test against the real running app with a globally-nonexistent id (behaves identically under the filter) — but not by a dedicated unit test with a company-scoped fake (`FakeKnowledgeCategoryRepository` in `ServiceTestFakes.cs` does not filter by `CompanyId` at all) or by a live test with a genuine second company (the local dev seed data has only one company). Not a functional defect — a test-coverage strengthening suggestion. | Phase 7 | `backend-engineer` (optional hardening, not blocking) | No | 0 |
+| R-2 latency measurement (3-namespace query) still has no deployed traffic to measure. This is not a code defect. | Phase 2 (review/phase-1-6.md) | devops, after deployment | No | 0 |
+| No security audit has run on this module. Phases 2, 3, 4, 6, 7, 8, 10, 11, and 12 carry the Security gate and cannot reach devops until security runs. Phase 11 closed its QA round in Round 12 — the Security gate is now its only remaining blocker. | Phases 2, 3, 4, 6, 7, 8, 10, 11, 12 | security | Yes, for gated phases | 0 |
+| DS-3 cross-company category-id rejection is protected by the real KnowledgeCategory query filter, but still lacks a dedicated two-company category test. This remains optional hardening, not a demonstrated defect. | Phase 7 (review/phase-7.md) | backend-engineer | No | 0 |
+| RenderPdfPreviewPageAsync does not wrap PdfSlidesRenderer.RenderPagePng in the Phase 10-specific 4xx conversion path. Re-confirmed present (unchanged) by direct code read in Round 8 — still an audit-time residual, not a failed Phase 10 task. | Phase 10 | security | No | 0 |
+| EX-8's hard-floor exclusion count in `ToggleAsync` can transiently overcount by 1 within a single request if a *different* page of the same lesson still has an un-reconciled legacy duplicate row pair — the reconciler's hard-deletes aren't committed yet when the count query runs. Safe-direction only (over-conservative rejection near the floor, never permits going below it); self-heals the first time any endpoint touches that lesson. Optional hardening only. | Phase 11 (review/phase-11.md, Round 12) | backend-engineer | No | 0 |
 
 ## Verification Summary (current round)
 
-**Round 3 — Mode: FULL (Phase 7, first-ever round for this phase; also the first-ever confirmation of two bugs found and fixed during today's manual testing).** Covers all 22 `plan.md` tasks in Phase 7 (14 `[backend]`, 8 `[frontend]`) from scratch, plus:
+**Round 12 — Mode: FULL — Phase 11 / Module K, all 37 tasks verified from scratch, closing the phase.** This is the third re-check of P11-01, whose fix architecture (a shared `LessonExcludedSlideReconciler.ReconcileAndLoad` helper called by both write paths before any per-page logic runs) the project owner approved directly, past the two-round escalation ceiling. The fix was verified genuinely, not taken on the owner's approval as a reason to relax scrutiny: traced the exact two-live-duplicate-row scenario that failed twice before through `ToggleAsync`, confirmed the reconciler's hard-deletes (`repository.Delete` → EF `_set.Remove`) commit in the same `UnitOfWork.Commit()` as the rest of the method (no premature commit), and confirmed `LessonExcludedSlideServiceTests.ToggleAsync_WithTwoLiveLegacyDuplicateRows_RestoringCollapsesThemToOneNonLiveRow` asserts the corrected end state (one surviving row, not live) rather than merely "no throw."
 
-1. **Bug 2** — an owner with exactly one company could never sign in (stuck forever on "เลือกบริษัทก่อนเริ่มทำงาน" because `CompanySwitcher` renders no interactive control at all when `companies.length <= 1`, just a `<span>`). Fixed in `frontend/src/components/admin/AdminSessionProvider.tsx` with a new effect that auto-selects the single company via `router.replace` when `user.role === "owner"`, `companies.length === 1`, and nothing is resolved yet.
-2. **Bug 3** — the category `Select` in the scope picker needed two clicks to register, a classic Base UI uncontrolled→controlled transition (`value={scopeId}` starts as `undefined`). Fixed in `frontend/src/components/admin/DocumentUploadList.tsx` (`CompanyOrCategoryScopeFields`) and `frontend/src/components/admin/KnowledgeQnAAnswerDialog.tsx` (the same bug, inherited from the Phase 6 original this component was copied from) by changing to `value={scopeId ?? ""}`.
+**Result: 37/37 ✅ Verified, 0/37 ⚠️ Partial, 0 ❌ Failed. Overall: ✅ Verified — Phase 11 closes.** All 37 `plan.md` checkboxes for Phase 11 are now `[x]`. Phase 12 (Module L) may now start per the Module K → Module L dependency.
 
-Per the user's explicit instruction, this round did **not** re-check Bug 1 (the Phase 3 cross-company `GetDeleted()` leak/IDOR — already closed and confirmed by Round 2/TARGETED, see `review/phase-1-6.md`) beyond confirming via the file-manifest diff that Phase 7 did not touch the same code again (`IDocumentResourceRepository.cs` changed only by +0 bytes beyond Round 2's fix — confirmed identical to the Round 2 manifest row).
+**Automated checks run, project-wide:**
 
-**Phase 7 tasks — all 22 verified by direct code read, not taken on the implementer's report:**
+- Frontend `npm run typecheck` ✅ clean; `npm run lint` ✅ clean; `npm run test` ✅ **69/69**; `npm run build` ✅ **19/19** routes generated, no errors.
+- Backend `dotnet build SupportRoom.slnx -c Release` ✅ **0 Warning(s) / 0 Error(s)**.
+- Backend `dotnet test SupportRoom.slnx -c Release --no-build --filter "Category!=Integration"` ✅ **289/289** (238 Application + 41 Providers + 10 Api.IntegrationTests).
+- Backend `dotnet ef migrations has-pending-model-changes ... --no-build` ✅ no pending model changes.
+- No locked `SupportRoom.Api.exe` process found before building (checked via `tasklist` first, per this phase's standing note).
 
-- **DS-1** (`UploadDocumentDto`/`UploadDocumentRequest`) — `LessonSlug` fully removed, replaced by `required string ScopeType` + `string? ScopeId`, exact same shape as `KnowledgeQnADto`. `ScopeId` documented and used as `LessonConfig.Id` (not `Slug`) for lesson scope. Confirmed in `UploadDocumentDto.cs` and `DocumentsController.cs`.
-- **DS-2** (`EnsureValidScope` before storage) — `DocumentResourceService.UploadAsync`'s first line is `namespaceResolver.EnsureValidScope(CurrentCompanyId, input.ScopeType, input.ScopeId)`, before `storageProvider.UploadAsync`. Confirmed by direct read of `IDocumentResourceService.cs`.
-- **DS-3** (6 rejection cases) — all 6 confirmed **both** by the real unit tests (`DocumentResourceServiceTests.cs`: `UploadAsync_Rejects_UnknownScopeType`, `..._LessonScopeId_NotInThisCompany`, `..._CategoryThatIsALevel1Parent`, `..._CategoryScopeId_ThatDoesNotExist`, `..._CompanyScope_WithAScopeId`, `..._LessonOrCategoryScope_WithNoScopeId` (Theory×2)) **and** by hitting the real running backend (`dotnet run`, real Postgres, real JWT) directly with `curl`: company+scopeId → 400, unknown scopeType → 400, category→ghost id → 404, lesson→no scopeId → 400, lesson→ghost id → 404, category→Level-1-parent id → 400 (all 6 confirmed with the actual HTTP status code returned, using the real seeded `kbcat-backfill-parent-...`/`kbcat-backfill-child-...` default-chain ids). No second validation path exists — `GeneralException.NotFound`/`ValidationError` map to 404/400 via the unchanged `HttpStatusCodeExceptionHandler`.
-- **DS-4** (`GET /api/documents` scope query) — `DocumentsController.GetAll(scopeType, scopeId)` calls the single `IDocumentResourceService.GetByScope`; `GetByLessonSlug`/`GetStandalone` no longer exist anywhere in the interface. Omitting the query defaults to `company`, confirmed by both the code (`string.IsNullOrEmpty(scopeType) ? KnowledgeScopeType.Company : scopeType`) and the existing `GetByScope_DefaultsToCompany_WhenNoQuerySent` test.
-- **DS-5/DS-9** — `IDocumentResourceService.MoveScopeAsync(id, MoveDocumentScopeDto)`, `PATCH /api/documents/{id}/scope` wired to it, `MoveDocumentScopeDto` DTO exists with the exact `ScopeType`/`ScopeId` shape, `DocumentResourceViewModel` unchanged (`ScopeType`/`ScopeId` already existed).
-- **DS-6** (the move itself) — confirmed transactional and matching the spec exactly: reads `DocumentChunk` rows, groups by `NamespaceKey`, creates one `vector_delete` `BackgroundJob` per group with `VectorDeleteJobPayload{NamespaceKey, VectorIds}` (identical shape to DI-13's delete path), soft-deletes the `DocumentChunk` rows, writes new `ScopeType`/`ScopeId` + `IndexingStatus = pending` + `IndexedChunkCount = 0` + `FailureReason = null` + `UpdateBy`/`UpdateDate`, enqueues `document_index` — all inside one `UnitOfWork.Commit()`. No new `BackgroundJobType` was added; the worker (`IBackgroundJobProcessor`) was not touched (confirmed unchanged via the file-manifest diff). Proven by `MoveScopeAsync_QueuesVectorDelete_AndReindex_WhenScopeActuallyChanges`.
-- **DS-7** (edge cases) — all 5 confirmed by dedicated tests: same-scope move is a true no-op (`MoveScopeAsync_IsANoOp_WhenMovingToTheExactSameScope` — zero jobs enqueued, chunks untouched), a document with no `DocumentChunk` rows creates no `vector_delete` but still re-queues `document_index` (`..._DoesNotQueueVectorDelete_WhenDocumentHasNoPersistedChunks`), a soft-deleted document 404s (`..._ThrowsNotFound_WhenDocumentIsSoftDeleted`, relying on the query filter behind `_repository.Get()`), a document that's a lesson's PDF source can still be moved unlike delete (`MoveScopeAsync_Allowed_ForADocumentThatIsALessonsPdfSource`, explicitly contrasted with `DeleteAsync`'s block in the test's own comment), and permissions are the same as upload/delete (no new role check exists anywhere in `MoveScopeAsync`, confirmed by direct read).
-- **DS-10** — confirmed `IKnowledgeCategoryService.cs` is byte-for-byte unchanged since the last QA round (manifest stat match), so TX-6/TX-10's counting code was correctly left untouched.
-- **DS-11** (no migration) — confirmed three ways: `dotnet ef migrations has-pending-model-changes` → "No changes have been made to the model since the last migration"; the `Migrations/` directory has no file dated after `20260819134222_AddKnowledgeQnA.cs` (Phase 6); `git status --porcelain` shows no untracked/modified migration file.
-- **DS-12** (3 test groups) — confirmed present and correct: the category-scope-succeeds + 6-rejection-case group, the move-scope-creates-correct-vector_delete-payload group, and the no-op/no-chunks group — all read in full above.
-- **API_CONTRACT.md** — updated to the new wire shapes for all three endpoints (`POST`/`GET /api/documents`, `PATCH /api/documents/{id}/scope`), confirmed by direct read.
-- **Frontend**: `domain.ts`'s `DocumentScope`/`DocumentResource` types use `scopeType`/`scopeId` (no `lessonSlug` residue on this type — the unrelated `TrainingLink.lessonSlug`/`CreateTrainingLinkInput.lessonSlug` fields belong to `learning-session` and were correctly left alone). `api-client.ts`'s `uploadDocument`/`listDocuments` send/receive `scopeType`/`scopeId`, and a new `moveDocumentScope` calls `PATCH .../scope`. `DocumentUploadList.tsx` used inside the lesson editor (`fixedScope={{ scopeType: "lesson", scopeId: lesson.id }}`) has no picker at all (confirmed by the `libraryMode` conditional gating every scope-related control). Both `app/admin/lessons/[slug]/page.tsx` (line 166, 480–481) and `app/admin/lessons/new/page.tsx` (line 96, using `company` scope since the lesson row doesn't exist yet at upload time — a reasonable carry-over of the previous "standalone" behaviour, not a contract violation) call the new shape. `app/admin/documents/page.tsx` gained the RadioGroup+Select scope picker (`CompanyOrCategoryScopeFields`, copied from `KnowledgeQnAAnswerDialog.tsx` as instructed, not a second pattern), a "ขอบเขต" column + filter, a corrected page title/description (no longer claims "ใช้ได้ทุกบทเรียน"), and a per-row "ย้ายขอบเขต" dialog calling `moveDocumentScope`.
-
-**Bug 2 (AdminSessionProvider single-company auto-select) — confirmed by code trace + live data, not by an automated test (none exists for this component):**
-
-- Root cause confirmed by reading `CompanySwitcher.tsx`: when `companies.length <= 1` it renders only `<span>บริษัท: {name}</span>` — literally no control to pick a company, so an owner in that state (blocked by `AdminGuard`'s "เลือกบริษัทก่อนเริ่มทำงาน" screen, which requires `activeCompanyId`) had no way forward at all.
-- The fix (`AdminSessionProvider.tsx`, new effect) traced render-cycle by render-cycle: only fires for `user?.role === "owner"`; only acts when nothing is resolved yet (`companyFromUrl ?? user?.companyId ?? getActiveCompanyId()` is falsy) **and** `companies.length === 1`; sets `?company=<id>` via `router.replace` and stops re-firing on the next render because `resolved` becomes truthy. No redirect loop, no interference with the existing owner-with-URL effect (guarded by `!companyFromUrl`, which becomes false once this effect's replace lands), no effect on non-owner roles (role-gated) or owners with >1 company (`companies.length !== 1` guard) — confirmed by reading every line of both effects and their interaction, not just the new one in isolation.
-- **Live confirmation against the real running app** (not just reading code): logged in via `curl -X POST /api/auth/login` with the given credentials (`owner@local.test`) against the actual running backend (`dotnet run`, real Postgres) — response confirms `role: "owner"`, `companyId: null`. Called `GET /api/companies` (the endpoint `listSwitchableCompanies()` hits) with the resulting token — confirms exactly **one** company (`company-test`) is returned, i.e. the live data genuinely matches the single-company scenario this fix targets, not a hypothetical.
-- `frontend/src/app/admin/layout.tsx` (unchanged, confirmed by direct read) wraps every `/admin/*` route in `AdminSessionProvider → TooltipProvider → AdminGuard`, so the fix applies uniformly across the whole admin app (users, links, lessons, documents, etc.), not just knowledge-base screens — this is the cross-module regression check the user asked for. `AdminGuard.tsx` and `CompanySwitcher.tsx` (both read in full, both unchanged) confirm no other code path depends on the old stuck behaviour.
-- **What this round could not do**: no browser/computer-use tool was available in this session's toolset to literally click through the owner-login flow in a live browser. Compensating evidence used instead: the full effect-timing trace above, the live backend data confirmation above, and the user's own reported manual browser test (login → auto-redirect to `?company=company-test` → dashboard, confirmed by their own observation, not just an engineer's report). This is recorded explicitly rather than silently treated as equivalent to a browser click-test — see `## Unverified Behaviour` below.
-
-**Bug 3 (Select controlled-value fix) — confirmed by direct diff read in both files:**
-
-- `DocumentUploadList.tsx`'s `CompanyOrCategoryScopeFields` (line 93) and `KnowledgeQnAAnswerDialog.tsx` (line 145): both now read `value={scopeId ?? ""}` instead of `value={scopeId}`, so the Base UI `Select` is controlled from the very first render instead of transitioning from `undefined` to a real string once a category is picked (the exact shape of the uncontrolled→controlled warning/two-click bug). `frontend/src/components/ui/select.tsx` itself (the shared shadcn wrapper) is untouched — confirmed by direct read — so the fix is correctly scoped to the two call sites, not a primitive-level workaround.
-- **Phase 6 regression check on `KnowledgeQnAAnswerDialog.tsx`** (explicitly requested, since this file already passed Phase 6 QA before today): read the entire file top to bottom. The one-line diff is the *only* change — scope prefill logic (`useEffect` on `open`/`primaryItem?.id`), `handleScopeTypeChange`, `handleSave`'s payload, the `canSave` guard, and the RadioGroup's three options are all byte-identical to what Round 1 verified for Phase 6. No regression to the Q&A answer flow.
-
-**Automated checks — all re-run independently this round:**
-
-- Backend: `dotnet build SupportRoom.slnx` → **0 Warning(s), 0 Error(s)**.
-- Backend: `dotnet test SupportRoom.slnx --filter "Category!=Integration"` → **204/204 passed** (21 `SupportRoom.Providers.Tests` + 182 `SupportRoom.Application.Tests` + 1 `SupportRoom.Api.IntegrationTests`) — 14 more than Round 2's 190, exactly the new DS-12 tests (8 `UploadAsync` cases + 6 `MoveScopeAsync` cases), confirmed by an independent run.
-- Backend: `dotnet ef migrations has-pending-model-changes` → **"No changes have been made to the model since the last migration."** — confirms DS-11 (no schema change in Phase 7).
-- Frontend (Node 22 via nvm): `npm run typecheck` → clean. `npm run lint` → clean. `npm run test` (Vitest) → **36/36 passed**, unchanged from Round 2 (Phase 7's `plan.md` has no `[frontend]` test task; DS-12's 3 test tasks are all `[backend]`). `npm run build` → succeeds, same 21 admin/public routes compile (route count unchanged; `/admin/documents` grew in size, not in route count).
-- **Live app tests against the real running backend** (`dotnet run --project src/SupportRoom.Api`, real Postgres via `supportroom-pg`): login, `GET /api/companies`, and all 6 DS-3 rejection cases (see above) hit directly with `curl` and an authenticated JWT, independent of both the unit tests and the frontend.
-
-**File manifest — blast radius confirmed exactly as expected, nothing else in the codebase moved:**
-
-Content-based stat/line comparison (not mtime, which is unreliable here) of all 75 files in the previous manifest (`review/phase-1-6.md`) found **exactly 10 changed**: `IDocumentResourceService.cs`, `DocumentsController.cs`, `DocumentResourceServiceTests.cs`, `Fakes/ServiceTestFakes.cs`, `domain.ts`, `api-client.ts`, `DocumentUploadList.tsx`, `lessons/new/page.tsx`, `KnowledgeQnAAnswerDialog.tsx`, `lessons/[slug]/page.tsx` — precisely the set Phase 7 + the two bugs should touch, no more, no less. The other 65 files, including the entire shared-code watchlist (`ApplicationDbContext.cs`, `IAuthorizationGuard.cs`, `IKnowledgeCategoryService.cs`, `IKnowledgeNamespaceResolver.cs`, `IBackgroundJobProcessor.cs` beyond the earlier Round 2 fix), are byte/line-identical to Round 2's recorded state. `AdminSessionProvider.tsx` was not in the prior manifest (never directly inspected in an earlier round) and is added here as newly-inspected shared code. `Glob`/`find` swept `backend/src`, `backend/tests`, `frontend/src` for anything not already in the manifest; the only genuinely new files are `MoveDocumentScopeDto.cs` (new DTO) and the frontend/backend files already listed above — no stray file was created outside the phase's declared scope.
-
-**Data Model contract check — confirmed no change.** Phase 7's own contract (`design.md` DS-11) states no migration and no new/changed fields; `dotnet ef migrations has-pending-model-changes` and the migrations-directory listing both confirm this directly rather than taking the contract's word for it. `DocumentResourceViewModel` (the one entity-adjacent file Phase 7 could plausibly have touched) is unchanged — confirmed by the manifest diff (1405 bytes/26 lines, identical to Round 1's recording). No model in this module's `design.md` is missing from the codebase and no untracked model exists — same conclusion as Round 1/2, unchanged by this round.
-
-## Verified File Manifest — knowledge-base (Phase 1–7)
-
-Current as of this round (Round 3, FULL). Supersedes the manifest in `review/phase-1-6.md`. The 10 rows marked `[R3]` changed this round (new bytes/lines shown); everything else is unchanged since Round 2 (re-confirmed, not just carried over). Rows marked `[R3, new to manifest]` were not inspected in any earlier round.
-
-| File | Bytes | Lines |
-|---|---:|---:|
-| backend/src/SupportRoom.Domain/Entities/KnowledgeCategory.cs | 839 | 22 |
-| backend/src/SupportRoom.Domain/Entities/LessonConfig.cs | 2505 | 58 |
-| backend/src/SupportRoom.Domain/Entities/DocumentResource.cs | 1574 | 36 |
-| backend/src/SupportRoom.Domain/Entities/DocumentChunk.cs | 5133 | 59 |
-| backend/src/SupportRoom.Domain/Entities/LessonSlideNarration.cs | 2247 | 33 |
-| backend/src/SupportRoom.Domain/Entities/KnowledgeQnA.cs | 2989 | 57 |
-| backend/src/SupportRoom.Domain/Entities/KnowledgeQnASource.cs | 1296 | 29 |
-| backend/src/SupportRoom.Domain/Entities/KnowledgeQnAConflict.cs | 2264 | 44 |
-| backend/src/SupportRoom.Domain/Entities/BackgroundJob.cs | 2931 | 60 |
-| backend/src/SupportRoom.Domain/Enums/KnowledgeScopeType.cs | 215 | 8 |
-| backend/src/SupportRoom.Domain/Enums/DocumentFailureReason.cs | 363 | 10 |
-| backend/src/SupportRoom.Domain/Enums/BackgroundJobType.cs | 588 | 12 |
-| backend/src/SupportRoom.Domain/Enums/BackgroundJobStatus.cs | 389 | 11 |
-| backend/src/SupportRoom.Domain/Enums/KnowledgeSourceType.cs | 611 | 13 |
-| backend/src/SupportRoom.Providers.Data/Data/ApplicationDbContext.cs | 10601 | 200 |
-| backend/src/SupportRoom.Providers.Data/Migrations/20260819082956_AddKnowledgeTaxonomyAndScope.cs | 6832 | 114 |
-| backend/src/SupportRoom.Providers.Data/Migrations/20260819122301_AddDurableIndexingJobs.cs | 3025 | 61 |
-| backend/src/SupportRoom.Providers.Data/Migrations/20260819124738_AddDocumentChunks.cs | 2721 | 59 |
-| backend/src/SupportRoom.Providers.Data/Migrations/20260819130857_AddLessonSlideNarrations.cs | 2366 | 54 |
-| backend/src/SupportRoom.Providers.Data/Migrations/20260819134222_AddKnowledgeQnA.cs | 7273 | 144 |
-| backend/src/SupportRoom.Providers.Data/Repository/IKnowledgeCategoryRepository.cs | 1413 | 29 |
-| backend/src/SupportRoom.Providers.Data/Repository/IDocumentResourceRepository.cs | 1443 | 30 |
-| backend/src/SupportRoom.Providers.Data/Repository/IDocumentChunkRepository.cs | 1221 | 33 |
-| backend/src/SupportRoom.Providers.Data/Repository/ILessonSlideNarrationRepository.cs | 1627 | 40 |
-| backend/src/SupportRoom.Providers.Data/Repository/IKnowledgeQnARepository.cs | 1026 | 24 |
-| backend/src/SupportRoom.Providers.Data/Repository/IKnowledgeQnASourceRepository.cs | 1222 | 26 |
-| backend/src/SupportRoom.Providers.Data/Repository/IKnowledgeQnAConflictRepository.cs | 816 | 19 |
-| backend/src/SupportRoom.Providers.Data/Repository/IBackgroundJobRepository.cs | 3045 | 72 |
-| backend/src/SupportRoom.Providers.Data/Data/UnitOfWork/UnitOfWork.cs | 2296 | 43 |
-| backend/src/SupportRoom.Application/Services/IKnowledgeCategoryService.cs | 7121 | 154 |
-| backend/src/SupportRoom.Application/Services/IKnowledgeNamespaceResolver.cs | 5219 | 88 |
-| backend/src/SupportRoom.Application/Services/IKnowledgeIndexingService.cs | 5934 | 134 |
-| backend/src/SupportRoom.Application/Services/IBackgroundJobProcessor.cs | 24240 | 500 |
-| backend/src/SupportRoom.Application/Services/IDocumentResourceService.cs `[R3]` | 18398 | 374 |
-| backend/src/SupportRoom.Application/Services/VectorDeleteJobPayload.cs `[R3, new to manifest]` | 1723 | 30 |
-| backend/src/SupportRoom.Application/Services/ILessonSlideNarrationService.cs | 8380 | 191 |
-| backend/src/SupportRoom.Application/Services/ILessonSlideNarrationResolver.cs | 2025 | 46 |
-| backend/src/SupportRoom.Application/Services/ILessonConfigService.cs | 23873 | 487 |
-| backend/src/SupportRoom.Application/Services/IVoiceQuestionService.cs | 8569 | 171 |
-| backend/src/SupportRoom.Application/Services/IKnowledgeQnAService.cs | 11818 | 276 |
-| backend/src/SupportRoom.Application/Services/IKnowledgeQnAConflictService.cs | 1951 | 46 |
-| backend/src/SupportRoom.Application/Services/DocumentChunkTextAnalyzer.cs | 1249 | 33 |
-| backend/src/SupportRoom.Application/Common/IAuthorizationGuard.cs | 4565 | 115 |
-| backend/src/SupportRoom.Application/Exceptions/GeneralException.cs `[R3, new to manifest]` | 2000 | 38 |
-| backend/src/SupportRoom.Application/Dto/KnowledgeCategoryDto.cs | 546 | 20 |
-| backend/src/SupportRoom.Application/Dto/KnowledgeQnADto.cs | 1050 | 34 |
-| backend/src/SupportRoom.Application/Dto/LessonSlideNarrationDto.cs | 544 | 13 |
-| backend/src/SupportRoom.Application/Dto/MoveDocumentScopeDto.cs `[R3, new to manifest]` | 439 | 10 |
-| backend/src/SupportRoom.Application/Dto/DtoLimits.cs | 2178 | 41 |
-| backend/src/SupportRoom.Application/ViewModel/KnowledgeCategoryViewModel.cs | 694 | 20 |
-| backend/src/SupportRoom.Application/ViewModel/DocumentChunkViewModel.cs | 748 | 16 |
-| backend/src/SupportRoom.Application/ViewModel/DocumentResourceViewModel.cs | 1405 | 26 |
-| backend/src/SupportRoom.Application/ViewModel/KnowledgeQnAViewModel.cs | 2061 | 51 |
-| backend/src/SupportRoom.Providers.Knowledge/IKnowledgeIndexProvider.cs | 3917 | 72 |
-| backend/src/SupportRoom.Providers.Knowledge/PineconeKnowledgeIndexProvider.cs | 9333 | 246 |
-| backend/src/SupportRoom.Providers.VoiceQuestion/IVoiceQuestionProvider.cs | 3520 | 74 |
-| backend/src/SupportRoom.Providers.VoiceQuestion/RagVoiceQuestionProvider.cs | 22445 | 325 |
-| backend/src/SupportRoom.Api/Controllers/KnowledgeCategoriesController.cs | 1635 | 45 |
-| backend/src/SupportRoom.Api/Controllers/DocumentsController.cs `[R3]` | 4150 | 113 |
-| backend/src/SupportRoom.Api/Controllers/LessonController.cs | 5335 | 119 |
-| backend/src/SupportRoom.Api/Controllers/KnowledgeQnAController.cs | 1059 | 31 |
-| backend/src/SupportRoom.Api/Controllers/QnaQueueController.cs | 744 | 20 |
-| backend/src/SupportRoom.Api/Controllers/KnowledgeQnAConflictsController.cs | 1163 | 26 |
-| backend/src/SupportRoom.Api/BackgroundJobHostedService.cs | 3118 | 76 |
-| backend/src/SupportRoom.Api/Configurations/AuthenticationConfiguration.cs | 4053 | 81 |
-| backend/src/SupportRoom.Api/Configurations/ServiceConfiguration.cs | 5886 | 98 |
-| backend/tests/SupportRoom.Application.Tests/CompanyIsolationTests.cs | 11485 | 252 |
-| backend/tests/SupportRoom.Application.Tests/DocumentResourceServiceTests.cs `[R3]` | 18300 | 460 |
-| backend/tests/SupportRoom.Application.Tests/Fakes/ServiceTestFakes.cs `[R3]` | 24163 | 450 |
-| frontend/docs/API_CONTRACT.md `[R3, new to manifest]` | 8276 | 132 |
-| frontend/src/types/domain.ts `[R3]` | 20083 | 550 |
-| frontend/src/lib/api-client.ts `[R3]` | 24860 | 622 |
-| frontend/src/app/admin/categories/page.tsx | 4019 | 103 |
-| frontend/src/components/admin/CategoryTree.tsx | 5428 | 142 |
-| frontend/src/components/admin/CategoryMovePreviewDialog.tsx | 4921 | 129 |
-| frontend/src/components/admin/DocumentUploadList.tsx `[R3]` | 18546 | 422 |
-| frontend/src/components/admin/DeletedDocumentsList.tsx | 4274 | 101 |
-| frontend/src/app/admin/documents/[id]/chunks/page.tsx | 5339 | 103 |
-| frontend/src/app/admin/documents/page.tsx `[R3, new to manifest]` | 1747 | 34 |
-| frontend/src/app/admin/lessons/new/page.tsx `[R3]` | 11489 | 277 |
-| frontend/src/app/admin/lessons/[slug]/narrations/page.tsx | 7654 | 164 |
-| frontend/src/app/admin/qna-queue/page.tsx | 6112 | 137 |
-| frontend/src/components/admin/KnowledgeQnAAnswerDialog.tsx `[R3]` | 6898 | 181 |
-| frontend/src/app/admin/qna-conflicts/page.tsx | 4406 | 103 |
-| frontend/src/app/admin/lessons/[slug]/page.tsx `[R3]` | 25180 | 564 |
-| frontend/src/components/admin/AdminSessionProvider.tsx `[R3, new to manifest]` | 5979 | 159 |
-| frontend/src/components/admin/AdminGuard.tsx `[R3, new to manifest]` | 3956 | 102 |
-| frontend/src/components/admin/CompanySwitcher.tsx `[R3, new to manifest]` | 1614 | 41 |
-| frontend/src/components/admin/AdminLink.tsx `[R3, new to manifest]` | 1147 | 26 |
-| frontend/src/app/admin/layout.tsx `[R3, new to manifest]` | 1004 | 24 |
-| frontend/src/components/ui/select.tsx `[R3, new to manifest]` | 6655 | 201 |
-
-## Per-Task Results — Phase 7 (this round)
-
-**Phase 7 (Module G, 🔒 gate)** — 22/22 ✅ Verified (all 14 `[backend]` + all 8 `[frontend]` tasks) — see `## Verification Summary` above for the per-task detail, each checked against `design.md`'s DS-1..DS-12 and confirmed by direct code read, real unit tests, and (for the security-relevant rejection paths) live testing against the real running app.
-
-**Phase 1 (Module A) — the previously ⚠️ Partial task now closes**: "เพิ่ม validation TX-4/TX-5 สำหรับ `LessonConfig.CategoryId` และ `DocumentResource`" is now ✅ **Verified** — TX-5's code (`EnsureValidScope`'s category-Level-2 check) always existed and was correct, but was unreachable until Phase 7 wired the call site (`UploadAsync`/`MoveScopeAsync`). Confirmed reachable and correct both by the DS-12 unit tests and by a live `curl` test rejecting a real Level-1 category id with 400 "ต้องเลือกหมวดย่อย (ชั้นที่ 2) เท่านั้น". Phase 1 is now **15/15 ✅ Verified**, zero open items.
-
-**Bug 2 and Bug 3** — see `## Verification Summary` above; both ✅ Verified, first confirmation.
-
-## Design/requirement contract checks — Phase 7
-
-Field-by-field: Phase 7 declares **no** new/changed fields (DS-11) — confirmed by `dotnet ef migrations has-pending-model-changes` (clean) and by the migrations directory (no file newer than Phase 6's `AddKnowledgeQnA`). `MoveDocumentScopeDto` and `VectorDeleteJobPayload.Kind = Document` are DTO/payload-shape additions, not schema changes — `design.md` explicitly allows `PayloadJson` to be free-form (DM-10). No model in this module's `design.md` is missing from the codebase; no untracked model exists in the codebase that this module doesn't declare. `requirement.md`'s R3 ("เอกสารที่วางระดับหมวดต้องตอบได้ทุกบทเรียนในหมวดนั้น") is now genuinely satisfiable end-to-end for the first time — confirmed by the live category-scope rejection/acceptance tests above, not just by the presence of the field.
+Full per-task results, the file manifest (including a byte-diff against the Round 10 FULL baseline and a `Glob` for new files), the design/requirement contract checks, and the complete P11-01 third-re-check writeup are archived in [`review/phase-11.md`](review/phase-11.md) under **Round 12 — FULL (closes Phase 11)**, per this module's convention of moving a closed phase's full detail out of the live file. One non-blocking observation surfaced this round (EX-8's hard-floor count can transiently overcount by 1 in a narrow, self-healing, safe-direction edge case unrelated to P11-01) — recorded in Open Issues above and in the archive, not treated as blocking closure.
 
 ## Unverified Behaviour — undeployed phases
 
-This project has a real test suite (204 backend + 36 frontend tests as of this round), so this section stays scoped to rules a passing suite cannot itself exercise — not a blanket "no tests" disclaimer. Phases 2, 3, 4, 6's blocks are unchanged by this round (this round didn't touch their code, confirmed by the manifest diff) and stay here per convention until each phase is actually deployed.
+This project has a real test suite (289 backend tests in Round 12 — 238 `Application.Tests` + 41 `Providers.Tests` + 10 `Api.IntegrationTests` — and 69 frontend Vitest tests), so this section stays scoped to rules the suite cannot itself exercise. Existing undeployed-phase notes remain below until deployment as required by conventions §4.
+
+### Phase 11 (Module K) — closed in Round 12, still undeployed
+- The frontend create-PDF orchestration still has no component/integration test. Round 10/12 confirm the P11-02 fix by tracing `touchedAndNotExcludedIds` through step-4 flush, progress totals and retry state, not by an executed browser assertion.
+- `ProcessLessonIndexAsync` and `ProcessDocumentIndexAsync` implement the two-vector exclusion paths, but no automated test executes those private worker methods end to end against a knowledge provider; correctness was established by direct code inspection.
+- `LessonExcludedSlideReconciler.ReconcileAndLoad`'s dedup/hard-delete correctness (P11-01, closed this round) was established by direct code and test inspection — the regression tests seed the corruption state directly into the fake repository's backing store rather than exercising a live PostgreSQL unique-constraint race; the actual EF `Remove`-then-`SaveChanges` hard delete against a real database was not executed by this round.
+- An already-open learner tab retaining its original slide list while vectors disappear immediately (R4.7.10/Q-K2) is browser/session timing behaviour and was not exercised live in this round; it remains an explicitly accepted contract risk, not a defect.
+
+### Phase 8 (Module H) — new block, first time this section has covered this phase
+- **The shared filter bar's `status` wiring actually causing both tables to refetch** — confirmed by reading the `useEffect` dependency arrays in `DocumentUploadList.tsx`/`KnowledgeQnATable.tsx`, never driven by a running test that changes the status filter and asserts both tables re-fetch.
+- **KL-19/KL-20's four duplicate-outcome classification** is unit-tested for its *logic* (`DocumentResourceServiceTests.cs`), but the *upload dialog's* handling of the 409 response — `DocumentDuplicateDialog.tsx` picking the right message per combination, "อัปโหลดต่อไป" correctly resending with `checkDuplicate: false` — is verified by code reading only.
+- **KL-23/KL-26's Q&A duplicate gate UI** — the 409 catch in `KnowledgeQnAAnswerDialog.tsx`, the list state, "แก้ใบเดิมแทน" switching the same dialog to edit mode in place without a fetch — is unit-tested on the backend (`KnowledgeQnAServiceTests.cs`) but the frontend flow itself has zero test coverage.
+- **KL-14/KL-15/KL-16's edit/delete-from-library UI**, including the delete confirmation copy and the queue-question re-opening becoming visible after a refresh, is verified by reading `KnowledgeQnATable.tsx` and the backend's `DeleteAsync`/QQ-1 logic separately — no test drives an actual delete-then-reload-the-queue cycle end to end.
+
+### Phase 10 (Module J) — carried forward from Round 5, still accurate after the NR-13 fix
+- **NR-12's 4-step commit ordering, end-to-end** — the backend's per-endpoint behaviour at each step is unit-tested in isolation (`LessonConfigServiceTests.cs`), but the *frontend's* orchestration of the 4 steps in the correct order, with the correct resume-from-failure behaviour (including the now-fixed NR-13 step-1 display), is exercised by zero automated tests — verified this round by reading `PdfLessonContentPhase.tsx` directly, the same way the original NR-13 gap was found.
+- **NR-15/NR-16's client-only draft-state rules** (what counts as "touched", what counts as "empty after trim", silent-clear-on-replace) — correct by direct inspection of the relevant `useState`/computed-value logic, but never executed by a test.
+- **NR-13's per-step retry semantics** (steps 2/3/4 skip already-succeeded work on retry via the `xRef.current` guards) — verified correct by reading `commit()`'s guard conditions, not by driving an actual failure-then-retry sequence through a test.
 
 ### Phase 2 (Module B)
 - KS-7 ("when the two prompt blocks conflict, the model must yield to block 1") and KS-8 (ban on copying Q&A text verbatim) — the prompt text sent to the model is verified correct by inspection (`RagVoiceQuestionProvider.BuildAnswerPrompt`), but whether the model actually obeys these instructions in a live call is not, and cannot be, exercised by an automated test.
@@ -184,29 +58,43 @@ This project has a real test suite (204 backend + 36 frontend tests as of this r
 - KS-9/R5.5 ("the model reports a conflict, and it is a genuine one") — the code path that records a reported conflict is unit-tested for its own logic (validation, try/catch isolation), but whether the model's own judgment of "conflicting" is sound is a prompt/model-quality question `requirement.md` itself says is out of scope for code to guarantee (R5.5's stated limitation).
 
 ### Phase 7 (Module G)
-- **DS-3's cross-company category-id rejection**, specifically: proven correct at the architecture level (the unchanged, already-verified `KnowledgeCategory.HasQueryFilter` scopes `Get(id)` to the caller's company) and proven live with a globally-nonexistent id (which behaves identically to a cross-company id under that filter, since both simply fail to resolve inside the caller's scoped query) — but not proven with a genuine second company's real category id, because the local dev seed data has exactly one company. The DS-12 unit tests for this case use `FakeKnowledgeCategoryRepository`, which is a flat in-memory list with no `CompanyId` filtering at all, so those specific tests prove "doesn't exist"/"is Level 1" but not "belongs to another company" as a distinct case. See the Open Issues row above — not blocking, since the runtime protection is the same unchanged mechanism already verified correct in the Phase 1 FULL round.
-- **Bug 2's owner-login auto-redirect**, specifically the client-side `router.replace` effect actually firing and landing the browser on the dashboard: verified by a full render-cycle code trace and by confirming live (via the real backend) that the exact single-company data condition this fix targets is true for the given test account — but not by literally driving a browser this round (no browser/computer-use tool was available in this session's toolset). The user's own reported manual browser test (watched it happen) is the closest thing to a browser-level confirmation on record; this round adds the code-correctness and live-data layers underneath it, not a duplicate click-test.
+- **DS-3's cross-company category-id rejection**, specifically: proven correct at the architecture level (the unchanged, already-verified `KnowledgeCategory.HasQueryFilter` scopes `Get(id)` to the caller's company) and proven live with a globally-nonexistent id — but not proven with a genuine second company's real category id, because the local dev seed data has exactly one company. See the Open Issues row above — not blocking, since the runtime protection is the same unchanged mechanism already verified correct in the Phase 1 FULL round.
+- **Bug 2's owner-login auto-redirect** — verified by a full render-cycle code trace and by confirming live (via the real backend) that the exact single-company data condition this fix targets is true for the given test account, but not by literally driving a browser this round.
 
-## Issues Found — Phase 7
+## Issues Found — Round 12
 
-None. All 22 Phase 7 tasks, both bug fixes, and the now-closed Phase 1 TX-5 item are ✅ Verified. The one non-blocking observation (DS-3's fake-repository test-coverage gap for the cross-company case) is recorded in `## Open Issues — all phases` as an optional hardening suggestion, not a defect requiring a fix-and-recheck cycle.
+None blocking. P11-01 is closed after its third re-check (the project-owner-approved shared-reconciler architecture, verified by direct code and test inspection rather than taken on trust). One non-blocking observation was recorded: EX-8's hard-floor exclusion count in `ToggleAsync` can transiently overcount by 1 within a single request when a *different* page of the same lesson still has an un-reconciled legacy duplicate pair, because the reconciler's hard-deletes haven't committed yet when the count query runs. This is safe-direction only (over-conservative, never permissive), self-heals the first time any endpoint touches the lesson, and is filed as optional hardening in Open Issues above, not as a blocking Issue.
 
-## Review Outcome — Phase 7
+## Review Outcome — Round 12
 
-**Accepted.** This was a FULL round (first-ever for Phase 7) and every item in scope — all 22 `plan.md` tasks, Bug 2, Bug 3, and the now-reachable Phase 1 TX-5 item — came back ✅ Verified, with real evidence (direct code read, 14 new real unit tests, an independent re-run of the whole automated-check suite on both sides, and live testing against the actual running application for the security-relevant rejection paths and the owner-login data condition). Per `.claude/shared/conventions.md` §6, a FULL round with every task ✅ Verified is eligible for the autonomous no-pause exception — but this session's own agent instructions are explicit that manual mode always asks even on an all-✅ FULL round, and nothing here indicated an explicit "run this whole pipeline unattended" request, so this is presented to the user as a normal accept/reject decision rather than self-accepted.
+**Accepted — Phase 11 closes.** 37/37 ✅ Verified, 0 ⚠️ Partial, 0 ❌ Failed, on a genuine FULL round. All 37 Phase 11 checkboxes in `plan.md` are now `[x]`. This was a FULL round with an all-✅ result, so per the autonomous-mode exception (`.claude/shared/conventions.md` §6) this outcome does not require pausing for a user decision when running unattended; in manual mode, present this summary and let the user confirm acceptance explicitly.
 
-- **Phase 7 is now eligible for `devops`** on round-mode grounds (this was FULL) — but, like every other gated phase in this module, it still carries its own `🔒 Security gate` and `security` has not audited any phase in this module yet. `devops` cannot ship it until that runs.
-- **Phase 1 is now 15/15 ✅ Verified, zero open items** — eligible for `devops` (Round 1 was already FULL; Phase 1 carries no gate).
-- **Phases 2, 3, 4, 5, 6 are unchanged by this round** (confirmed via the manifest diff — none of their code was touched) — their status stands exactly as `review/phase-1-6.md` left it: Phase 2 still has the non-blocking R-2 latency item; Phase 3 is 21/21 ✅ but its last round was TARGETED, so it still needs a FULL round before `devops` eligibility on mode grounds (independent of the `security` blocker); Phases 4, 5, 6 remain fully ✅ Verified from their FULL Round 1.
-- **Module-wide**: 139/140 `plan.md` tasks now `[x]` across all 7 phases (118 from Phases 1–6 + 22 from Phase 7); the one remaining unchecked task is the Phase 2 R-2 latency measurement, which stays unchecked because it's legitimately blocked on a real deployment with traffic, not because anything failed verification — zero ❌/⚠️ items anywhere in the module. The only thing blocking every gated phase from `devops` is the still-unrun `security` audit.
+Phase 11 is now deploy-eligible on QA-mode grounds (FULL round required before `devops`, now satisfied). The only remaining blocker before `devops` is the standing `🔒 Security gate`, which has not run for this phase yet — see Open Issues above. Per the explicit Module K → Module L dependency in `plan.md`/`design.md`, **Phase 12 (Module L — Lesson trash, restore & permanent purge) may now start.**
 
 ## Archived rounds
 
-- Phases 1–6 (knowledge-base) — Round 1 (FULL) + Round 2 (TARGETED), closed by Phase 7's round becoming current → `review/phase-1-6.md`
-- Phase 3 (knowledge-base) — Round 1 (FULL) findings on the cross-company leak, superseded by Round 2's (TARGETED) closure → `review/phase-3.md`
+- Phases 1–6 — Round 1 FULL + Round 2 TARGETED → review/phase-1-6.md
+- Phase 3 — superseded Round 1 finding → review/phase-3.md
+- Phase 7 — Round 3 FULL → review/phase-7.md
+- Phase 9 — Round 4 FULL → review/phase-9.md
+- Phase 10 — Round 5 FULL (superseded by Round 7, then Round 8) → review/phase-10.md
+- Phase 8 — Round 6 FULL (superseded by Round 7, then Round 8) → review/phase-8.md
+- Phase 8 + Phase 10 — Round 7 TARGETED, covered together (superseded by Round 8 FULL) → full text in review/phase-10.md's `## Round 7` section; review/phase-8.md points to it
+- Phase 8 + Phase 10 — Round 8 FULL, closing both → full text in `review/phase-10.md` under `## Round 8`
+- Phase 11 — Round 9 FULL, 34/37 Partial (superseded by Round 10 FULL) → `review/phase-11.md`
+- Phase 11 — Round 10 FULL, 36/37 Partial (superseded by Round 11 TARGETED) → `review/phase-11.md`
+- Phase 11 — Round 11 TARGETED, 36/37 Partial, P11-01 failed re-check 2 (superseded by Round 12 FULL) → `review/phase-11.md`
+- Phase 11 — Round 12 FULL, 37/37 ✅ — **phase closed** → `review/phase-11.md`
 
 ## Change Log
 
-- 2026-08-20 — First-ever QA round for this module, **FULL**, covering all 6 phases (118 tasks) from scratch. Found a cross-company data leak/IDOR (Phase 3) and a half-built requirement (R3 document-category-scope). Sent back to the user per the hard-stop rule. *(Full entry archived to `review/phase-1-6.md`.)*
-- 2026-08-20 — **TARGETED** re-check (Round 2) of the Phase 3 cross-company leak/IDOR fix. Confirmed genuinely closed by direct code read, a new real-`ApplicationDbContext` regression test, and independent re-runs of build/test/typecheck/lint/build. Phase 3 now 21/21 ✅ Verified. *(Full entry archived to `review/phase-1-6.md`.)*
-- 2026-08-20 — **FULL** round (Round 3) on **Phase 7** (Document scope assignment — R3 write path, Module G, 🔒 gate), the module's newest phase, plus first-time confirmation of two bugs found and fixed during today's manual testing: an owner-with-one-company login dead end (`AdminSessionProvider.tsx`) and a Select-needs-two-clicks bug (`DocumentUploadList.tsx` + `KnowledgeQnAAnswerDialog.tsx`, the latter a Phase 6 regression check). All 22 `plan.md` Phase 7 tasks ✅ Verified by direct code read, 14 new real unit tests (204/204 backend, up from 190), and live testing against the actual running application (login, `GET /api/companies`, all 6 DS-3 rejection cases hit directly via `curl` with a real JWT). The previously ⚠️ Partial Phase 1 TX-5 item closes now that Phase 7 wired its only call site — Phase 1 is 15/15 ✅. Backend: build 0/0, test 204/204, `has-pending-model-changes` clean (confirms DS-11's no-migration claim). Frontend: typecheck/lint clean, test 36/36 (unchanged — no new frontend test task in Phase 7), build clean, 21 routes. File-manifest diff (content-based, not mtime) confirmed exactly the expected 10 files changed plus `MoveDocumentScopeDto.cs` newly created — nothing else in the codebase moved. Archived Round 1/2's Phase 1–6 detail to `review/phase-1-6.md`, carrying the R3 issue's closure note forward and keeping Phases 2/3/6's `Unverified Behaviour` blocks in this file since none of the six phases have deployed yet. Presented to the user as a plain accept/reject decision (all-✅ FULL round, manual mode) — see `## Review Outcome` above.
+- 2026-08-20 — Round 2 TARGETED Phase 3 re-check; archived with Phases 1–6.
+- 2026-08-20 — Round 3 FULL Phase 7; archived in review/phase-7.md.
+- 2026-08-26 — Round 4 FULL Phase 9; archived in review/phase-9.md.
+- 2026-08-26 — Round 5 FULL Phase 10; archived in review/phase-10.md.
+- 2026-08-26 — Round 6 FULL Phase 8, first documented round for the phase. Inspected all 37 tasks against R7, KL-1..KL-26, DM-3/DM-15/MG-H1, implementation, migrations, security-sensitive query paths, and tests. Checked 36 tasks; left the shared layout/filter task unchecked because R7.3 indexing-status filtering is missing. Recorded Important P8-01 and Important P8-02. Frontend lint/typecheck/test/build passed; backend Release build and 269 tests passed; EF reported no pending model changes. No Critical tenant-isolation or SQL-injection finding. Result parked without dispatch per user instruction. Archived to review/phase-8.md, superseded by Round 7.
+- 2026-08-26 — **Round 7 TARGETED, re-checking P8-01 (Phase 8), P8-02 (Phase 8), and NR-13 (Phase 10) fixes found already implemented in the working tree.** All three confirmed genuinely fixed by direct code inspection: DocumentLibraryFilterBar.tsx now has a working IndexingStatus filter wired to both tables (P8-01); CompanyIsolationTests.cs gained two real-ApplicationDbContext two-company tests proving R-16 for both DocumentResource and KnowledgeQnA GetAllInCompany (P8-02); PdfLessonContentPhase.tsx now renders the step-1 commit error outside the commitStarted gate (NR-13). Checked blast radius (every Phase 8/10 task touching the same files) and the shared-code watchlist (auth config, EF context, api-client.ts, shared components) — no regressions, one incidental-but-correct fix found and recorded (SlidesEmbed.tsx's double API-base-URL prefix, a learning-session-module concern, no knowledge-base checkbox). Ticked Phase 8's KL-1 layout task and Phase 10's implement-NR-13 task; closed the P8-01/P8-02/NR-13 Open Issues rows. Phase 8 now 37/37 [x], Phase 10 now 21/21 [x]. Automated checks re-run project-wide: frontend typecheck/lint clean, test 69/69, build clean (24 routes); backend build 0/0 (Release), test 271/271 (+2 from P8-02), EF has-pending-model-changes clean. Recorded both phases as accepted, pending one FULL round before devops eligibility (TARGETED rounds don't confer deploy eligibility) — Security gate on both remains independently open and unaudited. Archived Round 6's Phase 8 content verbatim to review/phase-8.md.
+- 2026-08-26 — Round 9 FULL Phase 11 archived verbatim to `review/phase-11.md`; superseded by Round 10.
+- 2026-08-26 — Round 10 FULL Phase 11 archived verbatim to `review/phase-11.md`; superseded by Round 11 TARGETED.
+- 2026-08-26 — **Round 11 TARGETED, P11-01 failed re-check 2.** Verified both changed entry points and both new tests against EX-4/EX-8/EX-9/DM-17. `ApplyExcludedSlidesAsync` now cleans every duplicate group correctly, but direct restore still soft-deletes only one selected row and leaves a live sibling, so the page remains excluded after a successful response; the new toggle test explicitly asserts that incorrect state. Named tests pass 2/2, but no FULL expansion ran after the prerequisite failed. Result remains **36/37 ✅, 1/37 ⚠️ Partial**; Phase 11/12 remain blocked and the two-failed-re-check ceiling routes the next decision to the project owner/user. Archived verbatim to `review/phase-11.md`, superseded by Round 12.
+- 2026-08-26 — **Round 12 FULL, Phase 11 / Module K — closes the phase.** Third re-check of P11-01, on an architecture the project owner approved directly past the two-failed-re-check ceiling: `LessonExcludedSlideReconciler.ReconcileAndLoad` (new shared helper) collapses every `(LessonId, SlideObjectId)` duplicate group to one representative via real EF hard-deletes, called by both `ApplyExcludedSlidesAsync` and `ToggleAsync` before any per-page logic, committed in the same transaction as the rest of each method — verified genuinely (not on trust): traced the exact two-live-duplicate restore scenario that failed twice before, confirmed no premature commit, and confirmed the regression test asserts the corrected end state. Re-verified all other 36 Phase 11 tasks from scratch. Automated checks project-wide: frontend typecheck/lint clean, test 69/69, build 19/19 routes; backend build 0/0 (Release), test 289/289 (+2 vs Round 10), `has-pending-model-changes` clean. Result **37/37 ✅ Verified, 0 Partial, 0 Failed**. Ticked the last Phase 11 checkbox (EX-9) in `plan.md`. Recorded one non-blocking observation (EX-8 hard-floor count transient overcount, self-healing, safe-direction) in Open Issues. **Phase 11 closed; Phase 12 (Module L) may now start; Security gate remains open and independently unaudited for both.** Archived Round 12's full detail to `review/phase-11.md`.

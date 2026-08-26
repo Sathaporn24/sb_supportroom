@@ -30,6 +30,13 @@ public static class GeneralException
     public static HttpStatusCodeException Forbidden(string messageTh)
         => new(HttpStatusCode.Forbidden, ApiErrorCode.Forbidden, messageTh);
 
+    /// <summary>KL-21 - the request is well-formed but conflicts with existing data (duplicate
+    /// content/name on upload). <paramref name="details"/> carries the structured payload the
+    /// caller needs to act on it (DuplicateDocumentDto) - unlike every other factory here, this one
+    /// is meant to be read programmatically by the frontend, not just displayed as messageTh.</summary>
+    public static HttpStatusCodeException Conflict(string messageTh, object? details = null)
+        => new(HttpStatusCode.Conflict, ApiErrorCode.Conflict, messageTh, details);
+
     public static HttpStatusCodeException UpstreamError(string messageTh)
         => new(HttpStatusCode.BadGateway, ApiErrorCode.UpstreamError, messageTh);
 

@@ -6,6 +6,7 @@ import { PlusIcon } from "lucide-react";
 import { CategoryFormDialog } from "@/components/admin/CategoryFormDialog";
 import { CategoryTree, CategoryTreeSkeleton } from "@/components/admin/CategoryTree";
 import { CreateTrainingLinkModal } from "@/components/admin/CreateTrainingLinkModal";
+import { LessonTrashList } from "@/components/admin/LessonTrashList";
 import { OnboardingChecklist } from "@/components/admin/OnboardingChecklist";
 import { TrainingLinksTable } from "@/components/admin/TrainingLinksTable";
 import { useAdminSession } from "@/components/admin/AdminSessionProvider";
@@ -19,7 +20,7 @@ import * as api from "@/lib/api-client";
 import { ApiClientError } from "@/lib/api-client";
 import type { KnowledgeCategory, LessonConfig, LessonConfigInput, TrainingLink } from "@/types/domain";
 
-type LessonTab = "manage" | "links";
+type LessonTab = "manage" | "links" | "trash";
 
 function toLessonInput(lesson: LessonConfig, isActive: boolean): LessonConfigInput {
   return {
@@ -41,7 +42,8 @@ export default function LessonsPage() {
   const searchParams = useSearchParams();
   const { user, activeCompanyId } = useAdminSession();
   const companyId = activeCompanyId ?? user?.companyId ?? null;
-  const activeTab: LessonTab = searchParams.get("tab") === "links" ? "links" : "manage";
+  const activeTab: LessonTab =
+    searchParams.get("tab") === "links" ? "links" : searchParams.get("tab") === "trash" ? "trash" : "manage";
 
   const [lessons, setLessons] = useState<LessonConfig[] | null>(null);
   const [categories, setCategories] = useState<KnowledgeCategory[] | null>(null);
@@ -49,6 +51,9 @@ export default function LessonsPage() {
   const [origin, setOrigin] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busyLessonId, setBusyLessonId] = useState<string | null>(null);
+  // LT-3/LT-4 - archiving here or restoring from the trash tab both change the other list, so
+  // this is how the trash tab is told to reload without lifting its whole state up.
+  const [trashRefreshToken, setTrashRefreshToken] = useState(0);
   const [categoryDialogOpen, setCategoryDialogOpen] = useState(false);
   const [editingParent, setEditingParent] = useState<KnowledgeCategory | null>(null);
   const [selectedLesson, setSelectedLesson] = useState<LessonConfig | null>(null);
@@ -77,7 +82,7 @@ export default function LessonsPage() {
   }, [reload]);
 
   function handleTabChange(value: string) {
-    const nextTab: LessonTab = value === "links" ? "links" : "manage";
+    const nextTab: LessonTab = value === "links" ? "links" : value === "trash" ? "trash" : "manage";
     const params = new URLSearchParams(searchParams.toString());
     if (nextTab === "manage") params.delete("tab");
     else params.set("tab", nextTab);
@@ -128,6 +133,26 @@ export default function LessonsPage() {
       setLessons((current) => current?.map((item) => (item.id === saved.id ? saved : item)) ?? current);
     } catch (caught) {
       setError(caught instanceof ApiClientError ? caught.response.error.message : "บันทึกสถานะบทเรียนไม่สำเร็จ");
+    } finally {
+      setBusyLessonId(null);
+    }
+  }
+
+  /** LT-3 - archiving revokes every TrainingLink of this lesson immediately; the confirmation
+   * copy says so, since it's the one irreversible-ish part of an otherwise reversible action. */
+  async function handleArchiveLesson(lesson: LessonConfig) {
+    const confirmed = window.confirm(
+      `ต้องการย้ายบทเรียน "${lesson.title}" ไปถังขยะใช่หรือไม่? ลิงก์การสอนทั้งหมดของบทเรียนนี้จะถูกยกเลิกทันที`,
+    );
+    if (!confirmed) return;
+    setBusyLessonId(lesson.id);
+    setError(null);
+    try {
+      await api.archiveLesson(lesson.id);
+      setLessons((current) => current?.filter((item) => item.id !== lesson.id) ?? current);
+      setTrashRefreshToken((token) => token + 1);
+    } catch (caught) {
+      setError(caught instanceof ApiClientError ? caught.response.error.message : "ย้ายบทเรียนไปถังขยะไม่สำเร็จ");
     } finally {
       setBusyLessonId(null);
     }
@@ -188,6 +213,7 @@ export default function LessonsPage() {
           <TabsList>
             <TabsTrigger value="manage" data-testid="lessons-tab-manage">จัดการบทเรียน</TabsTrigger>
             <TabsTrigger value="links" data-testid="lessons-tab-links">ประวัติการสร้างลิงก์</TabsTrigger>
+            <TabsTrigger value="trash" data-testid="lessons-tab-trash">ถังขยะ</TabsTrigger>
           </TabsList>
 
           <TabsContent value="manage" className="pt-4">
@@ -198,10 +224,12 @@ export default function LessonsPage() {
                 categories={categories}
                 lessons={lessons}
                 busyLessonId={busyLessonId}
+                role={user?.role ?? "cs"}
                 onEditParent={openEditCategoryDialog}
                 onDeleteParent={(parent) => void handleDeleteParent(parent)}
                 onToggleLesson={(lesson, checked) => void handleToggleLesson(lesson, checked)}
                 onCreateLink={setSelectedLesson}
+                onArchiveLesson={(lesson) => void handleArchiveLesson(lesson)}
               />
             )}
           </TabsContent>
@@ -214,6 +242,14 @@ export default function LessonsPage() {
             ) : (
               <TrainingLinksTable links={links} origin={origin} />
             )}
+          </TabsContent>
+
+          <TabsContent value="trash" className="pt-4">
+            <LessonTrashList
+              role={user?.role ?? "cs"}
+              refreshToken={trashRefreshToken}
+              onLessonRestored={() => void reload()}
+            />
           </TabsContent>
         </Tabs>
       )}

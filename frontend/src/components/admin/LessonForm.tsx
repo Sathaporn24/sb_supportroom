@@ -5,10 +5,17 @@ import { useRouter } from "next/navigation";
 import { InfoIcon, XIcon } from "lucide-react";
 import * as api from "@/lib/api-client";
 import { ApiClientError } from "@/lib/api-client";
-import type { ContentSourceType, KnowledgeCategory, LessonConfig, LessonConfigInput, SlideConfig } from "@/types/domain";
+import type {
+  ContentSourceType,
+  KnowledgeCategory,
+  LessonConfig,
+  LessonConfigInput,
+  PdfPreviewSessionResponse,
+  SlideConfig,
+} from "@/types/domain";
 import { AdminLink } from "@/components/admin/AdminLink";
 import { CategoryMovePreviewDialog } from "@/components/admin/CategoryMovePreviewDialog";
-import { DocumentUploadList } from "@/components/admin/DocumentUploadList";
+import { PdfLessonContentPhase } from "@/components/admin/PdfLessonContentPhase";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -20,7 +27,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
 import { FieldError } from "@/components/ui/field";
@@ -33,6 +40,16 @@ import { Spinner } from "@/components/ui/spinner";
 import { formatDateTimeTh } from "@/utils/format";
 
 export type LessonFormState = LessonConfigInput;
+
+/** EX-10 - names both counts that a PDF replace clears, dropping whichever clause is 0 so the
+ * message never reads "0 หน้า" (design.md EX-10). Guaranteed at least one is > 0: the caller only
+ * opens this dialog when narrationCount > 0 || excludedCount > 0. */
+function describePdfReplaceClearedCounts(narrationCount: number, excludedCount: number): string {
+  const clauses: string[] = [];
+  if (narrationCount > 0) clauses.push(`บทพูดที่แก้ไว้ ${narrationCount} หน้า`);
+  if (excludedCount > 0) clauses.push(`หน้าที่ตัดออกไว้ ${excludedCount} หน้า`);
+  return clauses.join(" และ ");
+}
 
 function slugify(value: string): string {
   return value
@@ -111,8 +128,20 @@ export function LessonForm(props: LessonFormProps) {
   const [savedAt, setSavedAt] = useState<string | null>(null);
 
   const [pendingCategoryChange, setPendingCategoryChange] = useState(false);
-  const [pendingPdfReplace, setPendingPdfReplace] = useState<{ file: File; narrationCount: number } | null>(null);
+  const [pendingPdfReplace, setPendingPdfReplace] = useState<{
+    file: File;
+    narrationCount: number;
+    excludedCount: number;
+  } | null>(null);
   const [pdfReplaceError, setPdfReplaceError] = useState<string | null>(null);
+  const [documentCount, setDocumentCount] = useState<number | null>(null);
+
+  // Module J/NR-10..NR-17 - mode="create" + contentSourceType "pdf" only. Selecting a file gets a
+  // preview session (nothing persisted yet) instead of handlePdfUpload's immediate upload;
+  // confirming "สร้าง" opens the content-management phase below instead of saving right away.
+  const [previewSession, setPreviewSession] = useState<PdfPreviewSessionResponse | null>(null);
+  const [previewFile, setPreviewFile] = useState<File | null>(null);
+  const [contentPhaseOpen, setContentPhaseOpen] = useState(false);
 
   const categories = props.categories;
   const loadError = props.loadError ?? null;
@@ -124,6 +153,15 @@ export function LessonForm(props: LessonFormProps) {
       setForm((prev) => (prev.categoryId ? prev : { ...prev, categoryId: defaultCategory.id }));
     }
   }, [props.mode, categories]);
+
+  // UC-6 - read-only count of documents attached to this lesson via ScopeType="lesson"; only
+  // meaningful once the lesson exists (has an id), so create mode never fetches this.
+  useEffect(() => {
+    if (!isEdit || !lesson) return;
+    void api.listDocuments({ scopeType: "lesson", scopeId: lesson.id }).then(({ documents }) => {
+      setDocumentCount(documents.length);
+    });
+  }, [isEdit, lesson]);
 
   const slugTaken = useMemo(() => {
     if (props.mode !== "create") return false;
@@ -184,16 +222,15 @@ export function LessonForm(props: LessonFormProps) {
     }
   }
 
+  /** NR-17 - edit mode only: create mode never calls this anymore (see
+   * handlePdfPreviewSelected/PdfLessonContentPhase for R4.6's create flow). */
   async function handlePdfUpload(file: File) {
     setUploading(true);
     setStatus("กำลังอัปโหลด PDF...");
     try {
-      // No LessonConfig.Id yet in create mode - the lesson row doesn't exist until Save, so it
-      // lands in the company-wide library and pdfDocumentResourceId below is what attaches it.
-      const { document } = await api.uploadDocument(
-        file,
-        isEdit ? { scopeType: "lesson", scopeId: lesson?.id } : { scopeType: "company" },
-      );
+      // NR-14 - scope is always "lesson" now, in both modes (was hardcoded "company" here for
+      // create mode before Module J, back when the lesson row didn't exist yet at upload time).
+      const { document } = await api.uploadDocument(file, { scopeType: "lesson", scopeId: lesson?.id });
       const content = await api.previewPdfLessonContent(document.id);
       const existingBySlideId = new Map(form.slideConfigs.map((s) => [s.slideObjectId, s]));
       const nextSlideConfigs: SlideConfig[] = content.slides.map((slide) => ({
@@ -229,10 +266,10 @@ export function LessonForm(props: LessonFormProps) {
   async function handlePdfFileSelected(file: File) {
     if (isEdit && lesson?.contentSourceType === "pdf" && lesson.pdfDocumentResourceId) {
       try {
-        const { count } = await api.getLessonNarrationCount(lesson.id);
-        if (count > 0) {
+        const { count, excludedCount } = await api.getLessonNarrationCount(lesson.id);
+        if (count > 0 || excludedCount > 0) {
           setPdfReplaceError(null);
-          setPendingPdfReplace({ file, narrationCount: count });
+          setPendingPdfReplace({ file, narrationCount: count, excludedCount });
           return;
         }
       } catch (err) {
@@ -250,6 +287,33 @@ export function LessonForm(props: LessonFormProps) {
     await handlePdfUpload(file);
   }
 
+  /** NR-10/NR-12/NR-17 - create mode only: selecting a file gets a preview session (nothing
+   * persisted, R4.6.1) instead of handlePdfUpload's immediate upload. Errors here are the only
+   * result of this step - the file itself, and any narration edits, live client-side until the
+   * content-management phase's confirm step commits everything (NR-12). */
+  async function handlePdfPreviewSelected(file: File) {
+    setUploading(true);
+    setStatus("กำลังอ่านไฟล์ PDF...");
+    try {
+      const session = await api.createPdfPreviewSession(file);
+      setPreviewSession(session);
+      setPreviewFile(file);
+      setPdfFileName(file.name);
+      setForm((prev) => {
+        const title = prev.title || session.title;
+        return { ...prev, title, slug: slugTouched ? prev.slug : slugify(title) };
+      });
+      setStatus(`อ่านไฟล์สำเร็จ พบ ${session.pageCount} หน้า`);
+    } catch (err) {
+      setPreviewSession(null);
+      setPreviewFile(null);
+      setPdfFileName(null);
+      setStatus(err instanceof ApiClientError ? err.response.error.message : "อ่านไฟล์ PDF ไม่สำเร็จ");
+    } finally {
+      setUploading(false);
+    }
+  }
+
   function handleClearPdf() {
     setForm((prev) => ({
       ...prev,
@@ -257,12 +321,20 @@ export function LessonForm(props: LessonFormProps) {
       slideConfigs: [],
     }));
     setPdfFileName(null);
+    setPreviewSession(null);
+    setPreviewFile(null);
     if (pdfInputRef.current) {
       pdfInputRef.current.value = "";
     }
   }
 
+  /** NR-9/R4.6.9 - Google Slides keeps saving immediately, unchanged. PDF opens the
+   * content-management phase instead (R4.6.2): nothing is saved here anymore. */
   async function handleCreate() {
+    if (form.contentSourceType === "pdf") {
+      setContentPhaseOpen(true);
+      return;
+    }
     setSaving(true);
     setStatus(null);
     try {
@@ -323,6 +395,10 @@ export function LessonForm(props: LessonFormProps) {
     }));
   }
 
+  function toggleSlideHasVideo(slideObjectId: string, hasVideo: boolean) {
+    updateSlideDuration(slideObjectId, hasVideo ? 0 : null);
+  }
+
   const subcategories = categories
     .filter((c) => c.level === 2)
     .sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name, "th"));
@@ -335,7 +411,7 @@ export function LessonForm(props: LessonFormProps) {
     !slugTaken &&
     form.categoryId.length > 0 &&
     form.title.trim().length > 0 &&
-    (form.contentSourceType === "google_slides" || Boolean(form.pdfDocumentResourceId));
+    (form.contentSourceType === "google_slides" || previewSession !== null);
 
   const syncButtonContent = isEdit && syncing ? (
     <>
@@ -423,7 +499,9 @@ export function LessonForm(props: LessonFormProps) {
 
   const pdfField = (
     <div className="flex flex-col gap-2">
-      <Label htmlFor="pdf-file">ไฟล์ PDF ({form.slideConfigs.length} หน้าที่อ่านได้แล้ว)</Label>
+      <Label htmlFor="pdf-file">
+        ไฟล์ PDF ({isEdit ? form.slideConfigs.length : (previewSession?.pageCount ?? 0)} หน้าที่อ่านได้แล้ว)
+      </Label>
       {pdfFileName ? (
         <div className="flex h-8 w-full min-w-0 items-center justify-between gap-2 rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm">
           <span className="truncate">{pdfFileName}</span>
@@ -444,10 +522,10 @@ export function LessonForm(props: LessonFormProps) {
           ref={pdfInputRef}
           type="file"
           accept="application/pdf"
-          disabled={isEdit ? uploading : uploading}
+          disabled={uploading}
           onChange={(e) => {
             const file = e.target.files?.[0];
-            if (file) void (isEdit ? handlePdfFileSelected(file) : handlePdfUpload(file));
+            if (file) void (isEdit ? handlePdfFileSelected(file) : handlePdfPreviewSelected(file));
             e.target.value = "";
           }}
           className="h-auto py-1.5"
@@ -490,6 +568,23 @@ export function LessonForm(props: LessonFormProps) {
       {isEdit ? "เปิดใช้งานบทเรียนนี้ (พร้อมให้สร้างลิงก์การสอน)" : "เปิดใช้งานบทเรียนนี้ทันที (พร้อมให้สร้างลิงก์การสอน)"}
     </Label>
   );
+
+  if (!isEdit && contentPhaseOpen && previewSession && previewFile) {
+    return (
+      <PdfLessonContentPhase
+        previewSession={previewSession}
+        file={previewFile}
+        formSnapshot={{
+          slug: form.slug,
+          categoryId: form.categoryId,
+          title: form.title,
+          description: form.description,
+          isActive: form.isActive,
+        }}
+        onBack={() => setContentPhaseOpen(false)}
+      />
+    );
+  }
 
   if (!isEdit) {
     return (
@@ -676,26 +771,21 @@ export function LessonForm(props: LessonFormProps) {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-xs tracking-wide text-muted-foreground uppercase">เอกสารประกอบ</CardTitle>
-          <p className="mt-1 text-xs text-muted-foreground">
-            เอกสารในนี้จะถูกใช้ตอบคำถามเฉพาะบทเรียนนี้เท่านั้น — ถ้าต้องการให้ใช้ได้ทุกบทเรียน ให้อัปโหลดที่{" "}
-            <AdminLink href="/admin/documents" className="text-primary hover:underline" data-testid="lesson-editor-documents-link">
-              คลังเอกสารกลาง
-            </AdminLink>{" "}
-            แทน
-          </p>
-        </CardHeader>
-        <CardContent>
-          {lesson && (
-            <DocumentUploadList
-              fixedScope={{ scopeType: "lesson", scopeId: lesson.id }}
-              primaryDocumentId={form.contentSourceType === "pdf" ? form.pdfDocumentResourceId : undefined}
-            />
-          )}
-        </CardContent>
-      </Card>
+      {/* UC-6/UC-8 - read-only summary of documents attached to this lesson (ScopeType="lesson").
+          The upload/delete/move UI that used to live here was consolidated into the knowledge
+          library page (UC-1/UC-2) - this line deliberately has no button or table of its own. */}
+      {lesson && (
+        <p className="text-sm text-muted-foreground" data-testid="lesson-editor-document-summary">
+          เอกสารประกอบของบทเรียนนี้: {documentCount ?? "…"} รายการ ·{" "}
+          <AdminLink
+            href={`/admin/documents?scopeType=lesson&scopeId=${encodeURIComponent(lesson.id)}`}
+            className="text-primary hover:underline"
+            data-testid="lesson-editor-document-summary-link"
+          >
+            ดูในคลังความรู้
+          </AdminLink>
+        </p>
+      )}
 
       <section className="flex flex-col gap-3">
         <p className="text-xs tracking-wide text-muted-foreground uppercase">
@@ -715,20 +805,28 @@ export function LessonForm(props: LessonFormProps) {
               <p className="text-xs font-medium text-muted-foreground">
                 Slide {index + 1} · {slide.slideObjectId}
               </p>
-              <Label htmlFor={`slide-duration-${slide.slideObjectId}`} className="font-normal">
-                ความยาววิดีโอในสไลด์นี้ (ms, ใส่ 0 ถ้าไม่มีวิดีโอ)
-                <Input
-                  id={`slide-duration-${slide.slideObjectId}`}
-                  type="number"
-                  min={0}
-                  value={slide.videoDurationMs ?? 0}
-                  onChange={(e) =>
-                    updateSlideDuration(slide.slideObjectId, Math.max(0, Number(e.target.value) || 0) || null)
-                  }
-                  className="w-32"
-                  data-testid={`lesson-editor-slide-duration-${slide.slideObjectId}`}
+              <Label className="font-normal">
+                <Checkbox
+                  checked={slide.videoDurationMs !== null}
+                  onCheckedChange={(checked) => toggleSlideHasVideo(slide.slideObjectId, checked === true)}
+                  data-testid={`lesson-editor-slide-has-video-${slide.slideObjectId}`}
                 />
+                สไลด์นี้มีวิดีโอ
               </Label>
+              {slide.videoDurationMs !== null && (
+                <Label htmlFor={`slide-duration-${slide.slideObjectId}`} className="font-normal">
+                  ความยาววิดีโอ (ms)
+                  <Input
+                    id={`slide-duration-${slide.slideObjectId}`}
+                    type="number"
+                    min={0}
+                    value={slide.videoDurationMs}
+                    onChange={(e) => updateSlideDuration(slide.slideObjectId, Math.max(0, Number(e.target.value) || 0))}
+                    className="w-32"
+                    data-testid={`lesson-editor-slide-duration-${slide.slideObjectId}`}
+                  />
+                </Label>
+              )}
             </CardContent>
           </Card>
         ))}
@@ -762,7 +860,8 @@ export function LessonForm(props: LessonFormProps) {
           <AlertDialogHeader>
             <AlertDialogTitle>แทนที่ไฟล์ PDF เดิม?</AlertDialogTitle>
             <AlertDialogDescription>
-              บทพูดที่แก้ไว้ {pendingPdfReplace?.narrationCount ?? 0} หน้าจะถูกลบทั้งหมด เพราะเลขหน้าของไฟล์ใหม่อาจไม่ตรงกับไฟล์เดิม
+              {describePdfReplaceClearedCounts(pendingPdfReplace?.narrationCount ?? 0, pendingPdfReplace?.excludedCount ?? 0)}{" "}
+              จะถูกล้างทั้งหมด เพราะเลขหน้าของไฟล์ใหม่อาจไม่ตรงกับไฟล์เดิม
               — ทุกหน้าจะกลับไปใช้ข้อความที่ดึงได้จากไฟล์ใหม่แทน
             </AlertDialogDescription>
           </AlertDialogHeader>

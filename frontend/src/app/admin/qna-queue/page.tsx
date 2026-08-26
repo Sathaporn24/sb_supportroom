@@ -128,6 +128,7 @@ export default function QnaQueuePage() {
       )}
 
       <KnowledgeQnAAnswerDialog
+        mode="create"
         open={dialogOpen}
         items={selectedItems}
         onClose={() => setDialogOpen(false)}

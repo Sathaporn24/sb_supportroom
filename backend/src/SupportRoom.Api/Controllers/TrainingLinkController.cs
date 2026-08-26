@@ -48,7 +48,7 @@ public sealed class TrainingLinkController : ControllerBase
         var entity = _service.GetEntityByToken(token);
         guard.EnsureCanAccessCompany(entity.CompanyId);
         var link = _service.GetById(entity.Id);
-        return Ok(new { link, lessonTitle = GetLessonTitle(link.LessonSlug) });
+        return Ok(new { link, lessonTitle = GetLessonTitle(entity.LessonId) });
     }
 
     /// <summary>What the join screen loads before anyone has typed a name - the lesson title is
@@ -59,7 +59,7 @@ public sealed class TrainingLinkController : ControllerBase
     {
         var entity = _service.GetEntityByToken(token);
         var link = _service.GetPublicByToken(token);
-        return Ok(new { link, lessonTitle = GetLessonTitle(entity.LessonSlug) });
+        return Ok(new { link, lessonTitle = GetLessonTitle(entity.LessonId) });
     }
 
     [HttpGet("{id}/by-id")]
@@ -72,15 +72,19 @@ public sealed class TrainingLinkController : ControllerBase
         [FromServices] ILearningSessionService learningSessionService)
         => Ok(new { learningSessions = learningSessionService.GetByTrainingLinkId(id) });
 
-    private string GetLessonTitle(string lessonSlug)
+    /// <summary>R9/LT-19 - looks the lesson up by id including a trashed one (GetBySlug's normal
+    /// filter would 404 that too, indistinguishable from a permanently purged lesson). A lesson
+    /// that genuinely no longer exists at all (hard-deleted by purge) falls back to the fixed
+    /// "บทเรียนที่ถูกลบ" label rather than dereferencing a parent that is gone for good.</summary>
+    private string GetLessonTitle(string lessonId)
     {
         try
         {
-            return _lessonService.GetBySlug(lessonSlug).Title;
+            return _lessonService.GetByIdIncludingDeleted(lessonId).Title;
         }
         catch
         {
-            return lessonSlug;
+            return "บทเรียนที่ถูกลบ";
         }
     }
 }

@@ -34,6 +34,38 @@ export type LessonConfig = {
   updatedAt: string;
 };
 
+// ─── Lesson trash, restore & permanent purge (R9/Module L, LT-1..LT-24) ──────────────────────
+// A trashed lesson is never a LessonConfig with extra flags on the wire - LT-7 makes it strictly
+// read-only (no slideConfigs/pdfDocumentResourceId reach this screen), so it gets its own shape.
+
+/** LT-9's four rendered urgency states. `red_today` is the ≤24h case with its own copy
+ * ("จะถูกลบถาวรภายในวันนี้") - still red, but distinguished from the plain ≤7-day red. */
+export type LessonTrashUrgency = "neutral" | "yellow" | "red" | "red_today";
+
+/** LT-1's two visible-in-trash states - `active` and `purged` never appear in this list (the
+ * first is filtered out by GetTrash, the second is a hard-deleted row). */
+export type LessonPurgeState = "trash" | "purging";
+
+/** Mirrors LessonTrashItemViewModel - GET /api/lessons/trash. */
+export type LessonTrashItem = {
+  id: string;
+  slug: string;
+  title: string;
+  categoryId: string;
+  deletedAt: string;
+  /** deletedAt + 60 days (R9, O-18 defers a per-company value). */
+  scheduledPurgeAt: string;
+  remainingDays: number;
+  urgency: LessonTrashUrgency;
+  purgeState: LessonPurgeState;
+};
+
+/** POST /api/lessons/{id}/permanent-delete body (LT-10) - server does the trim + ordinal-exact
+ * compare against the lesson's own title; this is not a checkbox or a generic confirm. */
+export type RequestLessonPermanentDeleteInput = {
+  confirmationTitle: string;
+};
+
 /** Anonymous lesson payload: excludes source URLs, provider ids and document ids. Pacing fields
  * are declared directly as `number` (not `Pick<LessonConfig, ...>`) because they come straight
  * from the owning `Company`'s pacing settings (LP-1/LP-7) - lessons have no pacing values of
@@ -53,12 +85,19 @@ export type CompanyLessonPacing = {
 };
 
 // presentationId is always derived server-side from slidesSourceUrl - CS never sets it directly.
-export type LessonConfigInput = Omit<LessonConfig, "id" | "createdAt" | "updatedAt" | "presentationId">;
+export type LessonConfigInput = Omit<LessonConfig, "id" | "createdAt" | "updatedAt" | "presentationId"> & {
+  /** EX-9 (R4.7) - PDF page ids to exclude, pdf-sourced lessons only. undefined/omitted = leave
+   * existing exclusions untouched (every non-content-phase save falls in this case); `[]` = no
+   * page excluded; populated = replace the whole set, never an incremental add/remove. */
+  excludedSlideObjectIds?: string[];
+};
 
 // ─── PDF narration overrides (R4/NR-1..NR-9) ──────────────────────────────────────────────────
 // contentSourceType = "pdf" only - Google Slides has no override path (R4, NR-9).
 
-/** Mirrors LessonNarrationSlideViewModel - one PDF page's resolved narration. */
+/** Mirrors LessonNarrationSlideViewModel - one PDF page's resolved narration. `index` keeps its
+ * original meaning (the real file page order, never re-sorted - EX-3(ข)) even for an excluded
+ * page, unlike lessonIndex below. */
 export type LessonNarrationSlide = {
   slideObjectId: string;
   index: number;
@@ -68,6 +107,12 @@ export type LessonNarrationSlide = {
   /** true when a LessonSlideNarration row exists for this page - tells a CS-authored page apart
    * from one still showing the extracted prefill. */
   isOverridden: boolean;
+  /** EX-3(ข)/EX-11 (R4.7) - true when a non-deleted LessonExcludedSlide row exists for this page:
+   * the AI no longer teaches or answers from it, but its narration text/row is left untouched. */
+  isExcluded: boolean;
+  /** EX-3(ข) - 0-based position among the pages that remain (what the teaching side numbers 1..M
+   * from). null when isExcluded is true - an excluded page has no position in the lesson. */
+  lessonIndex: number | null;
 };
 
 /** Mirrors LessonNarrationsViewModel - GET /api/lessons/{id}/narrations response. */
@@ -77,6 +122,36 @@ export type LessonNarrations = {
    * PDF): a warning, not an error - narration can still be saved normally, CS just has to type
    * every page by hand. */
   isLikelyScanned: boolean;
+};
+
+/** Mirrors the response of GET /api/lessons/{id}/narrations/count (EX-10, R4.7) - what NR-3's
+ * PDF-replace warning in LessonForm.tsx reads before letting CS confirm. */
+export type LessonNarrationCount = {
+  count: number;
+  excludedCount: number;
+};
+
+// ─── PDF preview sessions (Module J / NR-10..NR-13) ───────────────────────────────────────────
+// A file that has not been uploaded anywhere yet - lives only in the backend's IMemoryCache
+// until the create-lesson flow confirms (NR-12). Used only by mode="create" + contentSourceType
+// "pdf" (NR-17); mode="edit" keeps using handlePdfUpload/previewPdfLessonContent unchanged.
+
+/** Mirrors PdfPreviewSlideViewModel - same shape as LessonNarrationSlide minus isOverridden,
+ * which has no meaning yet: nothing has been persisted for a file that only exists in memory. */
+export type PdfPreviewSlide = {
+  slideObjectId: string;
+  index: number;
+  narrationText: string;
+};
+
+/** Mirrors PdfPreviewSessionViewModel - response of POST /api/lessons/pdf-preview/session. */
+export type PdfPreviewSessionResponse = {
+  previewId: string;
+  title: string;
+  pageCount: number;
+  /** NR-5 - same formula as LessonNarrations.isLikelyScanned, computed on the in-memory file. */
+  isLikelyScanned: boolean;
+  slides: PdfPreviewSlide[];
 };
 
 /** A single resolved slide as returned live by SlidesContentProvider (no admin-only fields). */
@@ -340,6 +415,39 @@ export type DocumentResource = {
   hasPendingVectorDelete: boolean;
 };
 
+/**
+ * Mirrors UploadDocumentDto (design.md KL-21/KL-18) - the multipart POST /api/documents request.
+ * `checkDuplicate` defaults to `false` (existing behaviour, unchanged) - the library page's
+ * upload form is the only caller in the whole system that ever sends `true` (KL-21).
+ */
+export type UploadDocumentDto = DocumentScope & {
+  checkDuplicate?: boolean;
+};
+
+/**
+ * One row of a 409 Conflict body from POST /api/documents when checkDuplicate=true finds a match
+ * (KL-21/KL-22) - deliberately narrow: never includes ContentHash (KL-18) or any field beyond
+ * what CS needs to recognise the other document (KL-22's scope label reuses KL-6's scopeLabel()).
+ * Mirrors DuplicateDocumentEntryViewModel - field is `createdAt` (design.md KL-21 corrected from
+ * "createDate" to "createdAt" on 2026-08-25), matching the actual ApiErrorBody.details payload
+ * the backend sends.
+ */
+export type DuplicateDocumentDto = {
+  id: string;
+  fileName: string;
+  scopeType: KnowledgeScopeType;
+  scopeId?: string;
+  createdAt: string;
+};
+
+/** Mirrors DuplicateDocumentDto (backend) - the value of ApiErrorResponse.error.details on a 409
+ * from POST /api/documents (KL-21). Hash and file-name duplicates are reported separately because
+ * KL-20 requires telling the four duplicate cases apart on screen. */
+export type DuplicateDocumentsResponse = {
+  duplicateByHash: DuplicateDocumentDto[];
+  duplicateByFileName: DuplicateDocumentDto[];
+};
+
 /** Mirrors DocumentChunkViewModel (DI-7) - one row of GET /api/documents/{id}/chunks, exactly
  * what the knowledge store received for this document, never re-parsed on the fly. */
 export type DocumentChunk = {
@@ -506,12 +614,41 @@ export type CreateKnowledgeQnAInput = {
   scopeId?: string;
   /** QQ-7 - one Q&A can close several queue questions at once; at least one is required. */
   sessionQuestionIds: string[];
+  /** Mirrors CreateKnowledgeQnADto.ConfirmDuplicate (design.md KL-23, mati Q-H2) - defaults to
+   * `false` server-side. `true` skips the pre-save duplicate check (KL-23/KL-26's "ยืนยันบันทึกซ้ำ")
+   * and always succeeds, even when a matching Question already exists. */
+  confirmDuplicate?: boolean;
 };
 
 export type UpdateKnowledgeQnAInput = {
   question: string;
   answer: string;
 };
+
+/**
+ * Mirrors DuplicateQnAResponse (design.md KL-23/KL-26) - the value of ApiErrorResponse.error.details
+ * on a 409 from POST /api/knowledge-qna when the Question (trimmed, whitespace-collapsed,
+ * case-insensitive) already matches a non-deleted Q&A of this company. A list, not a single row,
+ * because "ยืนยันบันทึกซ้ำ" can make several rows share the same Question over time. Reuses
+ * KnowledgeQnA verbatim (KL-23 rule ⑥) - never a second shape for the same data.
+ */
+export type DuplicateQnAResponse = {
+  duplicateByQuestion: KnowledgeQnA[];
+};
+
+/**
+ * Mirrors the query GET /api/documents and GET /api/knowledge-qna both accept (design.md
+ * KL-2..KL-5, KL-8/KL-9, KL-11..KL-13) - the two endpoints interpret every field identically, so
+ * one shape covers both. `scopeType` omitted = every scope (KL-2's "all" default); `q` under 2
+ * characters after trim is treated as "not searching", never an error (KL-12).
+ */
+export type KnowledgeQnAFilter = {
+  scopeType?: KnowledgeScopeType;
+  scopeId?: string;
+  status?: DocumentIndexingStatus;
+  q?: string;
+};
+
 
 /**
  * Mirrors KnowledgeQnAQueueItemViewModel - one row of GET /api/qna-queue (P8/R5.1). A

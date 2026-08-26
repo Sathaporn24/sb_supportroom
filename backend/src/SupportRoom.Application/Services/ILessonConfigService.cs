@@ -8,6 +8,7 @@ using SupportRoom.Application.Dto;
 using SupportRoom.Application.Exceptions;
 using SupportRoom.Application.ViewModel;
 using SupportRoom.Domain;
+using SupportRoom.Domain.Common;
 using SupportRoom.Domain.Configuration;
 using SupportRoom.Domain.Entities;
 using SupportRoom.Domain.Enums;
@@ -43,19 +44,55 @@ public sealed class LearnerLessonTeachingContentViewModel
     public required IReadOnlyList<TeachingSlideViewModel> Slides { get; init; }
 }
 
+/// <summary>NR-10 - same shape as LessonNarrationSlideViewModel minus IsOverridden, which has no
+/// meaning yet: nothing has been persisted for a file that only exists in a preview session.</summary>
+public sealed class PdfPreviewSlideViewModel
+{
+    public required string SlideObjectId { get; init; }
+    public required int Index { get; init; }
+    public required string NarrationText { get; init; }
+}
+
+/// <summary>NR-10/NR-5 - response of POST /api/lessons/pdf-preview/session.</summary>
+public sealed class PdfPreviewSessionViewModel
+{
+    public required string PreviewId { get; init; }
+    public required string Title { get; init; }
+    public required int PageCount { get; init; }
+    public required bool IsLikelyScanned { get; init; }
+    public required IReadOnlyList<PdfPreviewSlideViewModel> Slides { get; init; }
+}
+
 public interface ILessonConfigService
 {
     IReadOnlyList<LessonConfigViewModel> GetAll();
     LessonConfigViewModel GetBySlug(string slug);
+
+    /// <summary>R9/LT-6 - the PDF-page image endpoint's lesson lookup. Must still find a trashed
+    /// lesson (unlike GetBySlug/GetAll) for the same reason GetTeachingContentByLinkAsync does -
+    /// the caller (LessonController.GetPdfPage) has already passed
+    /// ITrainingLinkService.GetEntityByTokenForContentAccess before calling this.</summary>
+    LessonConfigViewModel GetByIdIncludingDeleted(string id);
 
     /// <summary>Upsert by slug - mirrors lessons/route.ts's POST (re-resolves presentationId server-side on every save).</summary>
     Task<LessonConfigViewModel> SaveAsync(LessonConfigDto input);
     Task<LessonConfigViewModel> MoveCategoryAsync(string id, string categoryId);
     Task<LessonTeachingContentViewModel> GetTeachingContentBySlugAsync(string slug);
 
+    /// <summary>R9/LT-5/LT-6 - the trash-aware sibling of GetTeachingContentBySlugAsync, for
+    /// recipient-side callers (learner content, question-answering) that have already resolved a
+    /// legitimate access grant via ITrainingLinkService.GetEntityByTokenForContentAccess. Loads by
+    /// id via GetIncludingDeleted rather than by slug, since the normal query filter behind
+    /// GetBySlug hides a trashed lesson entirely.</summary>
+    Task<LessonTeachingContentViewModel> GetTeachingContentByIdIncludingDeletedAsync(string lessonId);
+
     /// <summary>Learner-side variant. Adds the link token to any PDF page URLs after the link has
-    /// resolved company context, so later anonymous image requests can repeat the same safe lookup.</summary>
-    Task<LearnerLessonTeachingContentViewModel> GetTeachingContentByLinkAsync(string token);
+    /// resolved company context, so later anonymous image requests can repeat the same safe lookup.
+    ///
+    /// R9/LT-5/LT-6 - learnerKey is required so a revoked link's content is reachable only by a
+    /// learner whose (token, learnerKey) is bound to that link's own IN_PROGRESS session - see
+    /// ITrainingLinkService.GetEntityByTokenForContentAccess.</summary>
+    Task<LearnerLessonTeachingContentViewModel> GetTeachingContentByLinkAsync(string token, string? learnerKey);
 
     /// <summary>Preview a PDF already uploaded via /api/documents, before saving the lesson -
     /// mirrors POST /api/slides/resolve + GET /api/slides/content collapsed into one call, since
@@ -67,6 +104,40 @@ public interface ILessonConfigService
     /// on a cache miss/expiry, never persisted as a durable copy, same precedent as everything
     /// else here.</summary>
     Task<byte[]> RenderPdfPageAsync(string documentId, int pageNumber);
+
+    /// <summary>NR-10 - the only way to get draft text and page images from a file that has not
+    /// been persisted anywhere yet (no DocumentResource, no BackgroundJob). Parses fileStream
+    /// entirely in memory and stashes its bytes (plus the caller's CompanyId, for NR-11) under a
+    /// fresh previewId - nothing is written to PostgreSQL, object storage, or Pinecone here.</summary>
+    Task<PdfPreviewSessionViewModel> CreatePdfPreviewSessionAsync(Stream fileStream, string fileName);
+
+    /// <summary>NR-10/NR-11 - 1-based pageNumber. Throws the exact same GeneralException.NotFound
+    /// whether previewId never existed, already expired, or belongs to another company - see
+    /// NR-11 for why those three cases must be indistinguishable to the caller.</summary>
+    Task<byte[]> RenderPdfPreviewPageAsync(string previewId, int pageNumber);
+
+    /// <summary>R9/LT-1..LT-3 - moves an active lesson to the trash: one transaction that creates
+    /// the lesson_purge job (60 days out), marks the lesson trashed, and revokes every one of its
+    /// TrainingLinks. owner/admin only (LT-2) - cs gets 403. Idempotent: calling this again on an
+    /// already-trashed lesson naturally 404s (the active-only query filter hides it), never
+    /// creates a second job.</summary>
+    Task<LessonConfigViewModel> ArchiveAsync(string id);
+
+    /// <summary>R9/LT-1/LT-4/LT-21 - restores a trashed lesson back to active and cancels its
+    /// pending purge job, conditionally: only while PurgeStartedAt is still null. Never re-indexes
+    /// (archive never touched vectors/bytes) and never restores TrainingLinks (LT-4 - a new link
+    /// must be issued). Throws Conflict if the worker already started purging.</summary>
+    Task<LessonConfigViewModel> RestoreAsync(string id);
+
+    /// <summary>R9/LT-7/LT-9 - every trashed lesson of this company with its countdown/urgency
+    /// computed at read time.</summary>
+    IReadOnlyList<LessonTrashItemViewModel> GetTrash();
+
+    /// <summary>R9/LT-2/LT-10 - owner-only manual permanent delete. confirmationTitle must match
+    /// the trashed lesson's real title (server-trimmed, ordinal-exact). On success, accelerates
+    /// the lesson's existing purge job to run immediately rather than deleting inline or creating
+    /// a second job - the caller gets 202, not a completed deletion.</summary>
+    Task RequestPermanentDeleteAsync(string id, string confirmationTitle);
 }
 
 public sealed class LessonConfigService(
@@ -77,13 +148,16 @@ public sealed class LessonConfigService(
     IKnowledgeIndexingService knowledgeIndexingService,
     IDocumentStorageProvider documentStorageProvider,
     IMemoryCache memoryCache,
-    ILessonSlideNarrationResolver narrationResolver)
+    ILessonSlideNarrationResolver narrationResolver,
+    IAuthorizationGuard guard,
+    ICurrentUser currentUser)
     : ServiceBase<ILessonConfigService>(unitOfWork, serviceProvider, logger), ILessonConfigService
 {
     private readonly ILessonConfigRepository _repository = unitOfWork.GetRepository<ILessonConfigRepository>();
     private readonly IDocumentResourceRepository _documentResourceRepository = unitOfWork.GetRepository<IDocumentResourceRepository>();
     private readonly IKnowledgeCategoryRepository _knowledgeCategoryRepository = unitOfWork.GetRepository<IKnowledgeCategoryRepository>();
     private readonly ILessonSlideNarrationRepository _narrationRepository = unitOfWork.GetRepository<ILessonSlideNarrationRepository>();
+    private readonly ILessonExcludedSlideRepository _excludedSlideRepository = unitOfWork.GetRepository<ILessonExcludedSlideRepository>();
     private readonly ICompanyRepository _companyRepository = unitOfWork.GetRepository<ICompanyRepository>();
 
     public IReadOnlyList<LessonConfigViewModel> GetAll()
@@ -92,6 +166,12 @@ public sealed class LessonConfigService(
     public LessonConfigViewModel GetBySlug(string slug)
     {
         var entity = _repository.GetBySlug(slug) ?? throw GeneralException.NotFound("บทเรียน");
+        return entity.Adapt<LessonConfigViewModel>();
+    }
+
+    public LessonConfigViewModel GetByIdIncludingDeleted(string id)
+    {
+        var entity = _repository.GetIncludingDeleted(CurrentCompanyId, id) ?? throw GeneralException.NotFound("บทเรียน");
         return entity.Adapt<LessonConfigViewModel>();
     }
 
@@ -197,6 +277,17 @@ public sealed class LessonConfigService(
         if (!isNew && previousPdfDocumentResourceId != input.PdfDocumentResourceId)
         {
             _narrationRepository.DeleteByLessonId(entity.Id);
+            _excludedSlideRepository.DeleteByLessonId(entity.Id); // EX-10
+        }
+
+        // EX-9 - null/omitted leaves the lesson's existing exclusions untouched (every ordinary
+        // edit falls into this case); any value (including []) replaces the whole set. Must run
+        // before UnitOfWork.Commit() below so the write lands in the same transaction as the
+        // lesson save, and before the whole-deck reindex further down so that reindex sees the
+        // final exclusion state.
+        if (input.ExcludedSlideObjectIds is not null)
+        {
+            await ApplyExcludedSlidesAsync(entity, input.ExcludedSlideObjectIds);
         }
 
         UnitOfWork.Commit();
@@ -230,7 +321,19 @@ public sealed class LessonConfigService(
             {
                 var pdfContent = await BuildPdfContentAsync(entity.PdfDocumentResourceId);
                 var resolvedSlides = await narrationResolver.ResolveAsync(entity.Id, pdfContent.Slides);
-                await knowledgeIndexingService.IndexLessonAsync(KnowledgeNamespaces.For(CurrentCompanyId, input.Slug), resolvedSlides);
+
+                // EX-1 (consumer #3) - excluded pages never enter this namespace at all; this runs
+                // after UnitOfWork.Commit() above, so it always sees the exclusion state this
+                // request just wrote (EX-9's ordering requirement).
+                var excludedIds = _excludedSlideRepository.GetByLessonId(entity.Id)
+                    .Where(x => !x.IsDelete)
+                    .Select(x => x.SlideObjectId)
+                    .ToHashSet();
+                var slidesToIndex = excludedIds.Count == 0
+                    ? resolvedSlides
+                    : resolvedSlides.Where(s => !excludedIds.Contains(s.SlideObjectId)).ToList();
+
+                await knowledgeIndexingService.IndexLessonAsync(KnowledgeNamespaces.For(CurrentCompanyId, input.Slug), slidesToIndex);
             }
             catch (Exception ex)
             {
@@ -253,6 +356,203 @@ public sealed class LessonConfigService(
         return Task.FromResult(lesson.Adapt<LessonConfigViewModel>());
     }
 
+    // ---- R9/Module L - trash/restore/permanent-delete (LT-1..LT-10) ---------------------------
+
+    public Task<LessonConfigViewModel> ArchiveAsync(string id)
+    {
+        EnsureCanArchiveOrRestore();
+
+        // The active-only query filter means a lesson already in the trash simply is not found
+        // here - a repeated archive call 404s rather than creating a second job (LT-1).
+        var lesson = _repository.Get(id) ?? throw GeneralException.NotFound("บทเรียน");
+
+        var now = DateTime.UtcNow;
+        var jobId = IdGenerator.GenerateId("job");
+        var jobRepository = UnitOfWork.GetRepository<IBackgroundJobRepository>();
+        jobRepository.Add(new BackgroundJob
+        {
+            Id = jobId,
+            CompanyId = CurrentCompanyId,
+            CreateBy = CurrentUserId,
+            CreateDate = now,
+            JobType = BackgroundJobType.LessonPurge,
+            TargetId = lesson.Id,
+            Status = BackgroundJobStatus.Pending,
+            AttemptCount = 0,
+            NextAttemptAt = now.AddDays(LessonTrashPolicy.RetentionDays),
+        });
+
+        // LT-3 - trash the lesson and revoke every one of its links in the same transaction.
+        // Nothing else (document/Q&A/vector/narration/session/question) is touched here.
+        lesson.IsDelete = true;
+        lesson.DeletedAt = now;
+        lesson.DeleteBy = CurrentUserId;
+        lesson.PurgeJobId = jobId;
+        lesson.PurgeStartedAt = null;
+        _repository.Update(lesson);
+
+        var linkRepository = UnitOfWork.GetRepository<ITrainingLinkRepository>();
+        foreach (var link in linkRepository.GetByLessonId(lesson.Id).Where(l => !l.IsDelete).ToList())
+        {
+            link.IsDelete = true;
+            link.DeletedAt = now;
+            link.DeleteBy = CurrentUserId;
+            linkRepository.Update(link);
+        }
+
+        UnitOfWork.Commit();
+
+        Logger.LogInformation("Lesson archived: {LessonId} purgeJob={JobId} scheduledPurgeAt={ScheduledPurgeAt}", lesson.Id, jobId, lesson.DeletedAt.Value.AddDays(LessonTrashPolicy.RetentionDays));
+
+        return Task.FromResult(lesson.Adapt<LessonConfigViewModel>());
+    }
+
+    public Task<LessonConfigViewModel> RestoreAsync(string id)
+    {
+        EnsureCanArchiveOrRestore();
+
+        var lesson = _repository.GetIncludingDeleted(CurrentCompanyId, id) ?? throw GeneralException.NotFound("บทเรียนในถัง");
+        if (!lesson.IsDelete)
+        {
+            // Already active - LT-1's idempotency rule: a repeated restore on the same state
+            // reads as NotFound (the trash-only lookup no longer finds it), not a silent success.
+            throw GeneralException.NotFound("บทเรียนในถัง");
+        }
+
+        var purgeJobId = lesson.PurgeJobId;
+        var now = DateTime.UtcNow;
+        var restored = _repository.TryRestore(CurrentCompanyId, id, CurrentUserId, now);
+        if (!restored)
+        {
+            // LT-4 - the worker won the claim race first (PurgeStartedAt is already set).
+            throw GeneralException.Conflict("บทเรียนนี้เริ่มลบถาวรแล้ว ไม่สามารถกู้คืนได้");
+        }
+
+        // TryRestore ran as raw SQL, which EF's change tracker does not see - `lesson` (already
+        // tracked from GetIncludingDeleted above) must be updated by hand to match, or a caller
+        // re-reading it through the same tracked instance (Get() -> DbSet.Find() -> identity map)
+        // would see stale pre-restore values instead of what was actually just written.
+        lesson.IsDelete = false;
+        lesson.DeletedAt = null;
+        lesson.DeleteBy = null;
+        lesson.PurgeJobId = null;
+        lesson.PurgeStartedAt = null;
+        lesson.UpdateBy = CurrentUserId;
+        lesson.UpdateDate = now;
+
+        if (!string.IsNullOrEmpty(purgeJobId))
+        {
+            var jobRepository = UnitOfWork.GetRepository<IBackgroundJobRepository>();
+            // Best-effort bookkeeping only - TryRestore above already cleared LessonConfig's own
+            // PurgeJobId, so even if this never runs (a crash between the two calls), the worker's
+            // own LT-11 generation check treats a mismatched/cleared PurgeJobId as no-op-succeeded
+            // the next time this job (if it ever runs again) is claimed.
+            jobRepository.CancelPendingLessonPurge(CurrentCompanyId, id, purgeJobId);
+        }
+
+        Logger.LogInformation("Lesson restored: {LessonId}", id);
+
+        return Task.FromResult(lesson.Adapt<LessonConfigViewModel>());
+    }
+
+    public IReadOnlyList<LessonTrashItemViewModel> GetTrash()
+    {
+        var now = DateTime.UtcNow;
+        return _repository.GetTrash(CurrentCompanyId)
+            .OrderBy(x => x.DeletedAt)
+            .ToList()
+            .Select(x => BuildTrashItemViewModel(x, now))
+            .ToList();
+    }
+
+    private static LessonTrashItemViewModel BuildTrashItemViewModel(LessonConfig lesson, DateTime now)
+    {
+        var deletedAt = lesson.DeletedAt ?? lesson.CreateDate; // DeletedAt is always set once IsDelete=true (DM-2 invariant)
+        var scheduledPurgeAt = deletedAt.AddDays(LessonTrashPolicy.RetentionDays);
+        var remaining = scheduledPurgeAt - now;
+        var remainingDays = Math.Max(0, (int)Math.Floor(remaining.TotalDays));
+
+        // LT-9 thresholds, evaluated against the real remaining timespan (not the rounded day
+        // count) so the boundary at exactly 7x24h/14x24h lands on the right side.
+        var urgency = remaining.TotalHours > 14 * 24
+            ? LessonTrashUrgency.Neutral
+            : remaining.TotalHours > 7 * 24
+                ? LessonTrashUrgency.Yellow
+                : remaining.TotalHours > 24
+                    ? LessonTrashUrgency.Red
+                    : LessonTrashUrgency.RedToday;
+
+        return new LessonTrashItemViewModel
+        {
+            Id = lesson.Id,
+            Slug = lesson.Slug,
+            Title = lesson.Title,
+            CategoryId = lesson.CategoryId,
+            DeletedAt = deletedAt.ToString("O", System.Globalization.CultureInfo.InvariantCulture),
+            ScheduledPurgeAt = scheduledPurgeAt.ToString("O", System.Globalization.CultureInfo.InvariantCulture),
+            RemainingDays = remainingDays,
+            Urgency = urgency,
+            PurgeState = lesson.PurgeStartedAt is not null ? LessonPurgeState.Purging : LessonPurgeState.Trash,
+        };
+    }
+
+    public Task RequestPermanentDeleteAsync(string id, string confirmationTitle)
+    {
+        // LT-2 - owner only, no exception for admin/cs.
+        guard.EnsureOwner();
+
+        var lesson = _repository.GetIncludingDeleted(CurrentCompanyId, id) ?? throw GeneralException.NotFound("บทเรียนในถัง");
+        if (!lesson.IsDelete)
+        {
+            throw GeneralException.NotFound("บทเรียนในถัง");
+        }
+        if (lesson.PurgeStartedAt is not null)
+        {
+            // Already purging - nothing left to accelerate, and there is no "undo" from here.
+            throw GeneralException.Conflict("บทเรียนนี้กำลังถูกลบถาวรอยู่แล้ว");
+        }
+
+        // LT-10 - server-side trim + ordinal-exact compare. Case-insensitive or client-only
+        // validation would defeat the point of a typed confirmation.
+        var trimmedInput = (confirmationTitle ?? string.Empty).Trim();
+        if (!string.Equals(trimmedInput, lesson.Title.Trim(), StringComparison.Ordinal))
+        {
+            throw GeneralException.ValidationError("ชื่อบทเรียนที่พิมพ์ไม่ตรงกับชื่อบทเรียนจริง");
+        }
+
+        if (string.IsNullOrEmpty(lesson.PurgeJobId))
+        {
+            // Should never happen - ArchiveAsync always creates the job in the same transaction
+            // that sets IsDelete=true. Defensive only.
+            throw GeneralException.ConfigError("ไม่พบงานลบถาวรของบทเรียนนี้");
+        }
+
+        var jobRepository = UnitOfWork.GetRepository<IBackgroundJobRepository>();
+        // LT-10 - accelerates the EXISTING job to run now; never deletes inline, never creates a
+        // second job. If the worker has already claimed it in the instant since the check above,
+        // this simply has no effect (the job is no longer Pending) - the deletion proceeds via the
+        // claim that already won, not this one.
+        jobRepository.AccelerateLessonPurge(CurrentCompanyId, id, lesson.PurgeJobId);
+        UnitOfWork.Commit();
+
+        Logger.LogInformation("Lesson permanent delete requested: {LessonId} job={JobId}", id, lesson.PurgeJobId);
+
+        return Task.CompletedTask;
+    }
+
+    /// <summary>LT-2 - archive/restore are owner or admin only; cs gets 403. Owner must still have
+    /// a selected company context (CurrentCompanyId throws otherwise) and passes
+    /// EnsureCanAccessCompany the same as admin - the role check below is on top of that, not
+    /// instead of it.</summary>
+    private void EnsureCanArchiveOrRestore()
+    {
+        guard.EnsureCanAccessCompany(CurrentCompanyId);
+        if (currentUser.Role == AdminRole.Cs)
+        {
+            throw GeneralException.Forbidden("เฉพาะ admin หรือ owner เท่านั้นที่จัดการถังบทเรียนได้");
+        }
+    }
+
     private static void ValidateSlug(string slug)
     {
         if (slug.StartsWith("kbcat-", StringComparison.OrdinalIgnoreCase)
@@ -271,10 +571,117 @@ public sealed class LessonConfigService(
         }
     }
 
+    /// <summary>EX-9 - replaces the lesson's whole exclusion set with excludedSlideObjectIds
+    /// (an empty list clears it to none). Must run before UnitOfWork.Commit() in SaveAsync so the
+    /// write below lands in the same transaction as everything else.
+    ///
+    /// Reconciles against whatever rows this lesson already has (soft-deleted included) instead of
+    /// blindly soft-deleting the whole set and inserting fresh rows every call - a retried save
+    /// (the same excludedSlideObjectIds resubmitted after a timed-out response, for example) must
+    /// land on the same rows, not add a second (LessonId, SlideObjectId) row on top of the one the
+    /// first attempt already committed. Two live rows for the same page is exactly what later makes
+    /// ILessonExcludedSlideRepository.GetOne(...).SingleOrDefault() throw instead of toggling
+    /// (P11-01 - design.md EX-4).</summary>
+    private async Task ApplyExcludedSlidesAsync(LessonConfig lesson, IReadOnlyList<string> excludedSlideObjectIds)
+    {
+        var distinctIds = excludedSlideObjectIds.Distinct().ToHashSet();
+
+        if (distinctIds.Count > 0)
+        {
+            if (lesson.ContentSourceType != LessonContentSourceType.Pdf || string.IsNullOrEmpty(lesson.PdfDocumentResourceId))
+            {
+                throw GeneralException.ValidationError("ตัดหน้าออกได้เฉพาะบทเรียนที่ใช้ไฟล์ PDF เท่านั้น");
+            }
+
+            var baseContent = await BuildPdfContentAsync(lesson.PdfDocumentResourceId);
+            var validIds = baseContent.Slides.Select(s => s.SlideObjectId).ToHashSet();
+            foreach (var slideObjectId in distinctIds)
+            {
+                // EX-12(ข) - the same page-must-exist check EX-4 does: this value is used the exact
+                // same way, to build a vector id a later job deletes for real.
+                if (!validIds.Contains(slideObjectId))
+                {
+                    throw GeneralException.NotFound("หน้าเอกสาร");
+                }
+            }
+
+            // EX-8 - hard floor, no confirm flag: at least one page must remain.
+            if (baseContent.Slides.Count - distinctIds.Count < 1)
+            {
+                throw GeneralException.ValidationError("บทเรียนต้องเหลืออย่างน้อย 1 หน้า - ตัดหน้าสุดท้ายไม่ได้");
+            }
+        }
+
+        // P11-01 - LessonExcludedSlideReconciler.ReconcileAndLoad collapses any legacy duplicate
+        // (LessonId, SlideObjectId) group down to one row, regardless of whether this call's
+        // distinctIds even mentions that SlideObjectId - a legacy duplicate on a page nobody is
+        // touching in this save must still get cleaned up here, since EX-4's toggle endpoint runs
+        // the exact same reconciliation independently (ILessonExcludedSlideService.ToggleAsync).
+        var now = DateTime.UtcNow;
+        var existingBySlideObjectId = LessonExcludedSlideReconciler.ReconcileAndLoad(_excludedSlideRepository, lesson.Id);
+
+        foreach (var slideObjectId in distinctIds)
+        {
+            if (existingBySlideObjectId.TryGetValue(slideObjectId, out var existing))
+            {
+                if (existing.IsDelete)
+                {
+                    existing.IsDelete = false;
+                    existing.DeletedAt = null;
+                    existing.DeleteBy = null;
+                    existing.UpdateBy = CurrentUserId;
+                    existing.UpdateDate = now;
+                    _excludedSlideRepository.Update(existing);
+                }
+                // else: already excluded and live - idempotent no-op, leave the row untouched.
+            }
+            else
+            {
+                _excludedSlideRepository.Add(new LessonExcludedSlide
+                {
+                    Id = IdGenerator.GenerateId("exsl"),
+                    CompanyId = CurrentCompanyId,
+                    LessonId = lesson.Id,
+                    SlideObjectId = slideObjectId,
+                    CreateBy = CurrentUserId,
+                    CreateDate = now,
+                });
+            }
+        }
+
+        // "มีค่า" means replace the whole set (EX-9) - anything currently live that is not in the
+        // replacement set gets soft-deleted, including when distinctIds is empty (clears all).
+        foreach (var (slideObjectId, row) in existingBySlideObjectId)
+        {
+            if (!row.IsDelete && !distinctIds.Contains(slideObjectId))
+            {
+                row.IsDelete = true;
+                row.DeletedAt = now;
+                row.DeleteBy = CurrentUserId;
+                _excludedSlideRepository.Update(row);
+            }
+        }
+    }
+
     public async Task<LessonTeachingContentViewModel> GetTeachingContentBySlugAsync(string slug)
     {
-        var lesson = _repository.GetBySlug(slug);
-        if (lesson is null || !lesson.IsActive)
+        // Normal admin/back-office lookup, filtered: a trashed lesson simply is not found here
+        // (LT-7) - the recipient-side path that CAN still see one under R9/LT-5/LT-6 goes through
+        // GetTeachingContentByLinkAsync, which loads the lesson via GetIncludingDeleted instead.
+        var lesson = _repository.GetBySlug(slug) ?? throw GeneralException.NotFound("บทเรียนนี้ หรือยังไม่เปิดใช้งาน");
+        return await BuildTeachingContentAsync(lesson);
+    }
+
+    public async Task<LessonTeachingContentViewModel> GetTeachingContentByIdIncludingDeletedAsync(string lessonId)
+    {
+        var lesson = _repository.GetIncludingDeleted(CurrentCompanyId, lessonId)
+            ?? throw GeneralException.NotFound("บทเรียนนี้ หรือยังไม่เปิดใช้งาน");
+        return await BuildTeachingContentAsync(lesson);
+    }
+
+    private async Task<LessonTeachingContentViewModel> BuildTeachingContentAsync(LessonConfig lesson)
+    {
+        if (!lesson.IsActive)
         {
             throw GeneralException.NotFound("บทเรียนนี้ หรือยังไม่เปิดใช้งาน");
         }
@@ -283,13 +690,21 @@ public sealed class LessonConfigService(
             ? await GetPdfContentAsync(lesson)
             : await GetGoogleSlidesContentAsync(lesson);
 
+        // EX-1 (consumer #1)/EX-3(ก) - an excluded page disappears from the list entirely and
+        // every remaining page's Index is renumbered 0..M-1 in file order, never left as a gap.
+        // Only meaningful for a PDF lesson - a Google Slides lesson never has exclusion rows.
+        var excludedIds = lesson.ContentSourceType == LessonContentSourceType.Pdf
+            ? _excludedSlideRepository.GetByLessonId(lesson.Id).Where(x => !x.IsDelete).Select(x => x.SlideObjectId).ToHashSet()
+            : [];
+
         var durationBySlide = lesson.SlideConfigs.ToDictionary(s => s.SlideObjectId, s => s.VideoDurationMs ?? 0);
         var slides = content.Slides
+            .Where(s => !excludedIds.Contains(s.SlideObjectId))
             .OrderBy(s => s.Index)
-            .Select(s => new TeachingSlideViewModel
+            .Select((s, i) => new TeachingSlideViewModel
             {
                 SlideObjectId = s.SlideObjectId,
-                Index = s.Index,
+                Index = i,
                 SpeakerNotes = s.SpeakerNotes,
                 SlideUrl = s.SlideUrl,
                 VideoDurationMs = durationBySlide.GetValueOrDefault(s.SlideObjectId, 0),
@@ -304,10 +719,15 @@ public sealed class LessonConfigService(
         };
     }
 
-    public async Task<LearnerLessonTeachingContentViewModel> GetTeachingContentByLinkAsync(string token)
+    public async Task<LearnerLessonTeachingContentViewModel> GetTeachingContentByLinkAsync(string token, string? learnerKey)
     {
-        var link = ServiceProvider.GetRequiredService<ITrainingLinkService>().GetEntityByToken(token);
-        var content = await GetTeachingContentBySlugAsync(link.LessonSlug);
+        var link = ServiceProvider.GetRequiredService<ITrainingLinkService>().GetEntityByTokenForContentAccess(token, learnerKey);
+
+        // R9/LT-5/LT-6 - the trash-aware lookup: the normal query filter behind GetBySlug hides a
+        // trashed lesson, but a learner whose (token, learnerKey) just passed the gate above is
+        // exactly the case that must still see it (an IN_PROGRESS session on a revoked link, or
+        // any session on a link that isn't revoked at all).
+        var content = await GetTeachingContentByIdIncludingDeletedAsync(link.LessonId);
 
         // LP-1/LP-4 - pacing is a company-level default with no per-lesson override anymore
         // (N1/N2/N3, 2026-08-22) - read straight off Company.Default*Ms. This is the one place in
@@ -450,6 +870,95 @@ public sealed class LessonConfigService(
             using var pdfStream = new MemoryStream(bytes, writable: false);
             return PdfSlidesRenderer.RenderPagePng(pdfStream, pageNumber);
         }) ?? throw GeneralException.NotFound("ไฟล์ PDF");
+    }
+
+    /// <summary>Cache key format shared by CreatePdfPreviewSessionAsync/RenderPdfPreviewPageAsync -
+    /// the one and only place preview session bytes live (NR-10 forbids a second cache mechanism).</summary>
+    private static string PdfPreviewCacheKey(string previewId) => $"pdf-preview:{previewId}";
+
+    /// <summary>NR-11 - CompanyId is stored alongside the bytes precisely because IMemoryCache has
+    /// no HasQueryFilter equivalent; every read has to check it by hand.</summary>
+    private sealed class PdfPreviewCacheEntry
+    {
+        public required byte[] Bytes { get; init; }
+        public required string CompanyId { get; init; }
+        public required int PageCount { get; init; }
+    }
+
+    public async Task<PdfPreviewSessionViewModel> CreatePdfPreviewSessionAsync(Stream fileStream, string fileName)
+    {
+        using var buffer = new MemoryStream();
+        await fileStream.CopyToAsync(buffer);
+        var bytes = buffer.ToArray();
+
+        var previewId = IdGenerator.GenerateId("pdfprev");
+        SlidesLessonContent content;
+        try
+        {
+            using var pdfStream = new MemoryStream(bytes, writable: false);
+            content = PdfSlidesRenderer.BuildContent(pdfStream, previewId, fileName);
+        }
+        catch (Exception ex)
+        {
+            // Gate reason (1) - an unparseable/non-PDF upload must fail clean as a 4xx here, not
+            // as an opaque 500 or a crashed worker process (there is no worker in this path).
+            Logger.LogWarning(ex, "PDF preview build failed for {FileName}", fileName);
+            throw GeneralException.ValidationError($"ไฟล์ \"{fileName}\" อ่านเป็น PDF ไม่ได้ - แหล่งเนื้อหาแบบ PDF ต้องเป็นไฟล์ .pdf เท่านั้น");
+        }
+
+        memoryCache.Set(
+            PdfPreviewCacheKey(previewId),
+            new PdfPreviewCacheEntry { Bytes = bytes, CompanyId = CurrentCompanyId, PageCount = content.Slides.Count },
+            new MemoryCacheEntryOptions { SlidingExpiration = TimeSpan.FromMinutes(10) });
+
+        // NR-5 - same formula as LessonSlideNarrationService.GetAllAsync, byte for byte.
+        var isLikelyScanned = content.Slides.Count > 0
+            && content.Slides.All(s => string.IsNullOrWhiteSpace(s.SpeakerNotes));
+
+        var slides = content.Slides
+            .OrderBy(s => s.Index)
+            .Select(s => new PdfPreviewSlideViewModel
+            {
+                SlideObjectId = s.SlideObjectId,
+                Index = s.Index,
+                NarrationText = s.SpeakerNotes,
+            })
+            .ToList();
+
+        return new PdfPreviewSessionViewModel
+        {
+            PreviewId = previewId,
+            Title = content.Title,
+            PageCount = content.Slides.Count,
+            IsLikelyScanned = isLikelyScanned,
+            Slides = slides,
+        };
+    }
+
+    public Task<byte[]> RenderPdfPreviewPageAsync(string previewId, int pageNumber)
+    {
+        if (pageNumber < 1)
+        {
+            throw GeneralException.ValidationError("เลขหน้าต้องเริ่มจาก 1");
+        }
+
+        // NR-11 - a missing entry (never created, or expired) and a CompanyId mismatch (someone
+        // else's previewId) both throw the exact same NotFound below. Do not split this into two
+        // branches with different messages - that difference is exactly what would let a caller
+        // tell the two cases apart.
+        var entry = memoryCache.Get<PdfPreviewCacheEntry>(PdfPreviewCacheKey(previewId));
+        if (entry is null || !string.Equals(entry.CompanyId, CurrentCompanyId, StringComparison.Ordinal))
+        {
+            throw GeneralException.NotFound("ไฟล์ตัวอย่าง PDF");
+        }
+
+        if (pageNumber > entry.PageCount)
+        {
+            throw GeneralException.NotFound($"หน้า {pageNumber} (เอกสารนี้มี {entry.PageCount} หน้า)");
+        }
+
+        using var pdfStream = new MemoryStream(entry.Bytes, writable: false);
+        return Task.FromResult(PdfSlidesRenderer.RenderPagePng(pdfStream, pageNumber));
     }
 
     /// <summary>

@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using System.Text.Json;
 using Microsoft.Extensions.Logging.Abstractions;
 using SupportRoom.Application.Common;
@@ -5,6 +6,7 @@ using SupportRoom.Application.Dto;
 using SupportRoom.Application.Exceptions;
 using SupportRoom.Application.Services;
 using SupportRoom.Application.Tests.Fakes;
+using SupportRoom.Application.ViewModel;
 using SupportRoom.Domain.Configuration;
 using SupportRoom.Domain.Entities;
 using SupportRoom.Domain.Enums;
@@ -215,17 +217,18 @@ public class DocumentResourceServiceTests
     }
 
     [Fact]
-    public void GetByScope_DefaultsToCompany_WhenNoQuerySent()
+    public void GetByScope_ReturnsEveryScope_WhenNoQuerySent()
     {
-        // DS-4 - omitting scopeType/scopeId entirely must keep the old central-library-screen
-        // behaviour: company scope, not an error.
+        // KL-2 - omitting scopeType/scopeId entirely now means every scope of this company, not
+        // just "company" scope (that was DS-4's old default, superseded by KL-2).
         SeedDocument("doc-standalone", lessonId: null);
         SeedDocument("doc-attached", lessonId: "lesson-x");
 
         var list = _service.GetByScope(null, null);
 
-        Assert.Single(list);
-        Assert.Equal("doc-standalone", list[0].Id);
+        Assert.Equal(2, list.Count);
+        Assert.Contains(list, x => x.Id == "doc-standalone");
+        Assert.Contains(list, x => x.Id == "doc-attached");
     }
 
     [Fact]
@@ -453,5 +456,132 @@ public class DocumentResourceServiceTests
 
         Assert.Equal(KnowledgeScopeType.Lesson, result.ScopeType);
         Assert.Equal("lesson-login-pdf", result.ScopeId);
+    }
+
+    private static string Sha256Hex(byte[] content) => Convert.ToHexStringLower(SHA256.HashData(content));
+
+    private DocumentResource SeedDocumentWithHash(string id, string companyId, string fileName, string? contentHash)
+    {
+        var doc = new DocumentResource
+        {
+            Id = id,
+            CompanyId = companyId,
+            ScopeType = "company",
+            FileName = fileName,
+            ContentType = "application/pdf",
+            SizeBytes = 3,
+            ObsBucket = "mock-bucket",
+            ObsKey = $"documents/{id}/{fileName}",
+            IndexingStatus = "indexed",
+            ContentHash = contentHash,
+        };
+        _documents.Items.Add(doc);
+        return doc;
+    }
+
+    // Security gate reason (4) - the 409 payload leaks fileName/scope/createdAt of the matched
+    // row, so a duplicate check that hopped companies would be a cross-tenant existence oracle.
+    // A single-company test could pass even with that isolation broken (R-16) - this one cannot.
+    [Fact]
+    public async Task UploadAsync_CheckDuplicate_DoesNotWarnAcrossCompanies_ForByteIdenticalContent()
+    {
+        var content = new byte[] { 9, 9, 9, 1, 2 };
+        SeedDocumentWithHash("doc-other-company", TestFixtures.OtherCompanyId, "other-company-file.pdf", Sha256Hex(content));
+
+        var result = await _service.UploadAsync(new UploadDocumentDto
+        {
+            Content = content,
+            FileName = "my-file.pdf", // different name so the filename check alone can't also fire
+            ContentType = "application/pdf",
+            ScopeType = KnowledgeScopeType.Company,
+            CheckDuplicate = true,
+        });
+
+        Assert.NotNull(result);
+        Assert.Equal(2, _documents.Items.Count); // upload went through - no cross-company match
+    }
+
+    // KL-19/KL-20 - all four outcomes must be reported distinctly, never collapsed into one
+    // generic "duplicate".
+    [Fact]
+    public async Task UploadAsync_CheckDuplicate_ReportsNameAndContentDuplicatesSeparately()
+    {
+        var existingContent = new byte[] { 5, 5, 5 };
+        SeedDocumentWithHash("doc-existing", TestFixtures.CompanyId, "manual.pdf", Sha256Hex(existingContent));
+
+        // (a) name + content both duplicate - the exact same file re-uploaded.
+        var exBoth = await Assert.ThrowsAsync<HttpStatusCodeException>(() => _service.UploadAsync(new UploadDocumentDto
+        {
+            Content = existingContent,
+            FileName = "manual.pdf",
+            ContentType = "application/pdf",
+            ScopeType = KnowledgeScopeType.Company,
+            CheckDuplicate = true,
+        }));
+        Assert.Equal(409, (int)exBoth.StatusCode);
+        var detailsBoth = Assert.IsType<DuplicateDocumentDto>(exBoth.Details);
+        Assert.Single(detailsBoth.DuplicateByHash);
+        Assert.Single(detailsBoth.DuplicateByFileName);
+
+        // (b) content duplicate, name differs - the same file renamed.
+        var exContentOnly = await Assert.ThrowsAsync<HttpStatusCodeException>(() => _service.UploadAsync(new UploadDocumentDto
+        {
+            Content = existingContent,
+            FileName = "renamed.pdf",
+            ContentType = "application/pdf",
+            ScopeType = KnowledgeScopeType.Company,
+            CheckDuplicate = true,
+        }));
+        var detailsContentOnly = Assert.IsType<DuplicateDocumentDto>(exContentOnly.Details);
+        Assert.Single(detailsContentOnly.DuplicateByHash);
+        Assert.Empty(detailsContentOnly.DuplicateByFileName);
+
+        // (c) name duplicate, content differs - a new version of the same file.
+        var exNameOnly = await Assert.ThrowsAsync<HttpStatusCodeException>(() => _service.UploadAsync(new UploadDocumentDto
+        {
+            Content = [7, 7, 7],
+            FileName = "manual.pdf",
+            ContentType = "application/pdf",
+            ScopeType = KnowledgeScopeType.Company,
+            CheckDuplicate = true,
+        }));
+        var detailsNameOnly = Assert.IsType<DuplicateDocumentDto>(exNameOnly.Details);
+        Assert.Empty(detailsNameOnly.DuplicateByHash);
+        Assert.Single(detailsNameOnly.DuplicateByFileName);
+
+        // (d) neither duplicate - upload succeeds normally.
+        var okResult = await _service.UploadAsync(new UploadDocumentDto
+        {
+            Content = [8, 8, 8],
+            FileName = "brand-new.pdf",
+            ContentType = "application/pdf",
+            ScopeType = KnowledgeScopeType.Company,
+            CheckDuplicate = true,
+        });
+        Assert.NotNull(okResult);
+
+        // Nothing was written by (a)/(b)/(c) - only the pre-seeded row plus (d)'s successful upload.
+        Assert.Equal(2, _documents.Items.Count);
+    }
+
+    // KL-19 - ContentHash = null must never be treated as equal to another null, guarded
+    // explicitly in code rather than relying on SQL's NULL = NULL semantics.
+    [Fact]
+    public async Task UploadAsync_CheckDuplicate_NeverMatchesRowsWithNullContentHash()
+    {
+        SeedDocumentWithHash("doc-pre-mgh1-a", TestFixtures.CompanyId, "old-a.pdf", contentHash: null);
+        SeedDocumentWithHash("doc-pre-mgh1-b", TestFixtures.CompanyId, "old-b.pdf", contentHash: null);
+
+        var result = await _service.UploadAsync(new UploadDocumentDto
+        {
+            Content = [3, 3, 3],
+            FileName = "brand-new-name.pdf",
+            ContentType = "application/pdf",
+            ScopeType = KnowledgeScopeType.Company,
+            CheckDuplicate = true,
+        });
+
+        Assert.NotNull(result);
+        Assert.Equal(3, _documents.Items.Count); // upload went through - no false-positive match
     }
 }

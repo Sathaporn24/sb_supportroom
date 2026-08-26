@@ -37,30 +37,32 @@ public sealed class LearningSessionController : ControllerBase
         [FromServices] ITrainingLinkService trainingLinkService)
     {
         var state = _service.GetResumeState(token, learnerKey);
-        var lessonSlug = trainingLinkService.GetEntityByToken(token).LessonSlug;
+        var lessonId = trainingLinkService.GetEntityByToken(token).LessonId;
         return Ok(new
         {
             link = state.Link,
             // Bundled so the join screen makes one request instead of two - it cannot render
             // anything without the lesson title anyway.
-            lessonTitle = GetLessonTitle(lessonConfigService, lessonSlug),
+            lessonTitle = GetLessonTitle(lessonConfigService, lessonId),
             resumable = state.Resumable,
             lastEnded = state.LastEnded,
             linkExpired = state.LinkExpired,
         });
     }
 
-    /// <summary>A lesson that has been deleted must not take the join screen down with it - the
-    /// slug is a usable last resort. Mirrors TrainingLinkController.GetLessonTitle.</summary>
-    private static string GetLessonTitle(ILessonConfigService lessonConfigService, string lessonSlug)
+    /// <summary>R9/LT-19 - looks the lesson up by id including a trashed one (GetBySlug's normal
+    /// filter would 404 that too, indistinguishable from a permanently purged lesson). Only a
+    /// lesson that genuinely no longer exists (hard-deleted by purge) falls back to the fixed
+    /// "บทเรียนที่ถูกลบ" label. Mirrors TrainingLinkController.GetLessonTitle.</summary>
+    private static string GetLessonTitle(ILessonConfigService lessonConfigService, string lessonId)
     {
         try
         {
-            return lessonConfigService.GetBySlug(lessonSlug).Title;
+            return lessonConfigService.GetByIdIncludingDeleted(lessonId).Title;
         }
         catch
         {
-            return lessonSlug;
+            return "บทเรียนที่ถูกลบ";
         }
     }
 

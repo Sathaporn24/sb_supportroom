@@ -124,6 +124,64 @@ public class CompanyIsolationTests : IDisposable
         _db.SaveChanges();
     }
 
+    private static DocumentResource ActiveDocument(string companyId, string id) => new()
+    {
+        Id = id,
+        CompanyId = companyId,
+        ScopeType = KnowledgeScopeType.Company,
+        ScopeId = null,
+        FileName = $"{id}.pdf",
+        ContentType = "application/pdf",
+        SizeBytes = 1024,
+        ObsBucket = "documents",
+        ObsKey = $"documents/{id}/{id}.pdf",
+        IndexingStatus = DocumentIndexingStatus.Indexed,
+        IndexedChunkCount = 3,
+        IsDelete = false,
+        CreateDate = DateTime.UtcNow,
+    };
+
+    /// <summary>Both companies have a non-deleted document - the shape GetAllInCompany() (Module H,
+    /// R7) is supposed to keep separate purely via the EF global query filter.</summary>
+    private void SeedActiveDocumentsForBothCompanies()
+    {
+        _db.DocumentResource.AddRange(ActiveDocument(CompanyA, "doc-active-a"), ActiveDocument(CompanyB, "doc-active-b"));
+        _db.SaveChanges();
+    }
+
+    private static KnowledgeQnA QnA(string companyId, string id) => new()
+    {
+        Id = id,
+        CompanyId = companyId,
+        Question = $"คำถามของ {companyId}",
+        Answer = $"คำตอบของ {companyId}",
+        ScopeType = KnowledgeScopeType.Company,
+        ScopeId = null,
+        VectorId = id,
+        IndexingStatus = DocumentIndexingStatus.Indexed,
+        IsDelete = false,
+        CreateDate = DateTime.UtcNow,
+    };
+
+    private static LessonExcludedSlide ExcludedSlide(string companyId, string lessonId, string slideObjectId) => new()
+    {
+        Id = $"exsl-{companyId}-{slideObjectId}",
+        CompanyId = companyId,
+        LessonId = lessonId,
+        SlideObjectId = slideObjectId,
+        IsDelete = true,
+        DeletedAt = DateTime.UtcNow,
+        CreateDate = DateTime.UtcNow,
+    };
+
+    /// <summary>Both companies have a Q&amp;A entry - same shape as SeedActiveDocumentsForBothCompanies,
+    /// for KnowledgeQnARepository.GetAllInCompany() (Module H, R7).</summary>
+    private void SeedQnAForBothCompanies()
+    {
+        _db.KnowledgeQnA.AddRange(QnA(CompanyA, "qna-a"), QnA(CompanyB, "qna-b"));
+        _db.SaveChanges();
+    }
+
     [Fact]
     public void AQueryOnlyEverSeesItsOwnCompanysRows()
     {
@@ -244,6 +302,68 @@ public class CompanyIsolationTests : IDisposable
         Assert.Single(deletedForA);
         Assert.Equal("doc-a", deletedForA[0].Id);
         Assert.DoesNotContain(deletedForA, d => d.CompanyId == CompanyB);
+    }
+
+    [Fact]
+    public void DocumentResourceGetAllInCompanyOnlyEverSeesItsOwnCompanysDocuments()
+    {
+        // Module H / R7: GetAllInCompany() is FindBy(_ => true) - isolation is left entirely to
+        // the EF global query filter, so this has to run against a real DbContext to mean
+        // anything. Proves both directions: A never sees B's rows and B never sees A's.
+        SeedActiveDocumentsForBothCompanies();
+        var repository = new DocumentResourceRepository(_db);
+
+        _companyContext.Resolve(CompanyA);
+        var fromA = repository.GetAllInCompany().ToList();
+        Assert.Single(fromA);
+        Assert.Equal("doc-active-a", fromA[0].Id);
+        Assert.DoesNotContain(fromA, d => d.CompanyId == CompanyB);
+
+        _companyContext.Resolve(CompanyB);
+        var fromB = repository.GetAllInCompany().ToList();
+        Assert.Single(fromB);
+        Assert.Equal("doc-active-b", fromB[0].Id);
+        Assert.DoesNotContain(fromB, d => d.CompanyId == CompanyA);
+    }
+
+    [Fact]
+    public void KnowledgeQnAGetAllInCompanyOnlyEverSeesItsOwnCompanysQnA()
+    {
+        // Same guarantee as DocumentResourceGetAllInCompanyOnlyEverSeesItsOwnCompanysDocuments,
+        // for KnowledgeQnARepository.GetAllInCompany() (Module H / R7, design.md R-16).
+        SeedQnAForBothCompanies();
+        var repository = new KnowledgeQnARepository(_db);
+
+        _companyContext.Resolve(CompanyA);
+        var fromA = repository.GetAllInCompany().ToList();
+        Assert.Single(fromA);
+        Assert.Equal("qna-a", fromA[0].Id);
+        Assert.DoesNotContain(fromA, q => q.CompanyId == CompanyB);
+
+        _companyContext.Resolve(CompanyB);
+        var fromB = repository.GetAllInCompany().ToList();
+        Assert.Single(fromB);
+        Assert.Equal("qna-b", fromB[0].Id);
+        Assert.DoesNotContain(fromB, q => q.CompanyId == CompanyA);
+    }
+
+    [Fact]
+    public void LessonExcludedSlideRepository_GetByLessonIdKeepsTheCompanyPredicateWhenItBypassesTheSoftDeleteFilter()
+    {
+        // Module K / DM-17: IgnoreQueryFilters() is needed to find a previously restored page,
+        // but it removes the CompanyId predicate too. Both companies deliberately use the same
+        // lesson id here to prove the repository itself, rather than its callers, restores it.
+        _db.LessonExcludedSlide.AddRange(
+            ExcludedSlide(CompanyA, "lesson-shared", "pdf-page-1"),
+            ExcludedSlide(CompanyB, "lesson-shared", "pdf-page-1"));
+        _db.SaveChanges();
+        _companyContext.Resolve(CompanyA);
+
+        var repository = new LessonExcludedSlideRepository(_db, _companyContext);
+        var rows = repository.GetByLessonId("lesson-shared").ToList();
+
+        var row = Assert.Single(rows);
+        Assert.Equal(CompanyA, row.CompanyId);
     }
 
     [Fact]

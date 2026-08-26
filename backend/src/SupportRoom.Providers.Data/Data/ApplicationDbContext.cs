@@ -36,9 +36,11 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     public DbSet<BackgroundJob> BackgroundJob => Set<BackgroundJob>();
     public DbSet<DocumentChunk> DocumentChunk => Set<DocumentChunk>();
     public DbSet<LessonSlideNarration> LessonSlideNarration => Set<LessonSlideNarration>();
+    public DbSet<LessonExcludedSlide> LessonExcludedSlide => Set<LessonExcludedSlide>();
     public DbSet<KnowledgeQnA> KnowledgeQnA => Set<KnowledgeQnA>();
     public DbSet<KnowledgeQnASource> KnowledgeQnASource => Set<KnowledgeQnASource>();
     public DbSet<KnowledgeQnAConflict> KnowledgeQnAConflict => Set<KnowledgeQnAConflict>();
+    public DbSet<SessionQuestionReviewExclusion> SessionQuestionReviewExclusion => Set<SessionQuestionReviewExclusion>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -108,14 +110,23 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             // company onboarded unable to use the obvious names.
             entity.HasIndex(x => new { x.CompanyId, x.Slug }).IsUnique();
             entity.HasIndex(x => x.CategoryId);
+            // R9/MG-L1 - the normal list and the trash tab's list are the same shape of query
+            // (company + trash flag), and the purge worker/preflight scan by DeletedAt too.
+            entity.HasIndex(x => new { x.CompanyId, x.IsDelete, x.DeletedAt });
             entity.OwnsMany(x => x.SlideConfigs, owned => owned.ToJson());
-            entity.HasQueryFilter(x => x.CompanyId == companyContext.CompanyId);
+            // R9 - a trashed lesson must disappear from every normal list/get/save the moment it
+            // is archived (LT-7). Reading the trash tab bypasses this via IgnoreQueryFilters() in
+            // ILessonConfigRepository's trash-specific methods only (LT-23).
+            entity.HasQueryFilter(x => x.CompanyId == companyContext.CompanyId && !x.IsDelete);
         });
 
         builder.Entity<DocumentResource>(entity =>
         {
             entity.HasKey(x => x.Id);
             entity.HasIndex(x => new { x.CompanyId, x.ScopeType, x.ScopeId });
+            // R7.5/KL-19 - the duplicate-detection query hits this on every CS upload, not a spare
+            // index. Not unique: "duplicate" is a warning, not a constraint (KL-21).
+            entity.HasIndex(x => new { x.CompanyId, x.ContentHash });
             entity.HasQueryFilter(x => x.CompanyId == companyContext.CompanyId && !x.IsDelete);
         });
 
@@ -163,6 +174,16 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             entity.HasQueryFilter(x => x.CompanyId == companyContext.CompanyId && !x.IsDelete);
         });
 
+        builder.Entity<LessonExcludedSlide>(entity =>
+        {
+            entity.HasKey(x => x.Id);
+            // ไม่ IsUnique: soft delete ทำให้แถวที่ถูกลบยังกินคีย์อยู่ กติกา "หน้าละหนึ่งแถว"
+            // บังคับที่ service layer (EX-4) ด้วยเหตุผลเดียวกับ LessonSlideNarration/TX-3
+            entity.HasIndex(x => new { x.LessonId, x.SlideObjectId });
+            entity.HasIndex(x => x.CompanyId);
+            entity.HasQueryFilter(x => x.CompanyId == companyContext.CompanyId && !x.IsDelete);
+        });
+
         builder.Entity<KnowledgeQnA>(entity =>
         {
             entity.HasKey(x => x.Id);
@@ -185,6 +206,17 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             entity.HasKey(x => x.Id);
             entity.HasIndex(x => x.QnAId);
             entity.HasIndex(x => new { x.CompanyId, x.ResolvedAt });
+            entity.HasQueryFilter(x => x.CompanyId == companyContext.CompanyId && !x.IsDelete);
+        });
+
+        builder.Entity<SessionQuestionReviewExclusion>(entity =>
+        {
+            entity.HasKey(x => x.Id);
+            // One question can only ever be permanently excluded once - this is also what makes
+            // ISessionQuestionReviewExclusionRepository.AddMissingForLesson idempotent on retry
+            // (LT-16): a re-run of the same insert just hits this constraint and is a no-op.
+            entity.HasIndex(x => new { x.CompanyId, x.SessionQuestionId }).IsUnique();
+            entity.HasIndex(x => new { x.CompanyId, x.LessonId });
             entity.HasQueryFilter(x => x.CompanyId == companyContext.CompanyId && !x.IsDelete);
         });
     }

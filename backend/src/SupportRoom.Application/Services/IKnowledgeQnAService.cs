@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text.Json;
 using Mapster;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using SupportRoom.Application.Common;
 using SupportRoom.Application.Dto;
@@ -20,6 +21,16 @@ public interface IKnowledgeQnAService
     /// session and lesson.</summary>
     IReadOnlyList<KnowledgeQnAQueueItemViewModel> GetQueue();
 
+    /// <summary>KL-8/KL-9 - the library view's Q&A table, same shape and semantics as
+    /// IDocumentResourceService.GetByScope (KL-2..KL-5, KL-11..KL-13). Explicitly authenticated
+    /// inside the implementation (KL-10) - not left to the query filter alone, same reasoning as
+    /// GetChunks (DI-7).</summary>
+    IReadOnlyList<KnowledgeQnAViewModel> GetAll(KnowledgeQnAFilter filter);
+
+    /// <summary>KL-23/Q-H2 - pre-save gate: throws GeneralException.Conflict (409, details =
+    /// DuplicateQnAResponse) before any write when an existing, non-deleted Q&A of this company
+    /// already has the same Question (trim + whitespace-collapse + case-insensitive). Unconditional
+    /// on every create unless input.ConfirmDuplicate is true.</summary>
     Task<KnowledgeQnAViewModel> CreateAsync(CreateKnowledgeQnADto input);
     Task<KnowledgeQnAViewModel> UpdateAsync(string id, UpdateKnowledgeQnADto input);
     Task DeleteAsync(string id);
@@ -36,6 +47,7 @@ public sealed class KnowledgeQnAService(
     IUnitOfWork unitOfWork,
     IServiceProvider serviceProvider,
     ILogger<IKnowledgeQnAService> logger,
+    IAuthorizationGuard guard,
     IKnowledgeNamespaceResolver namespaceResolver)
     : ServiceBase<IKnowledgeQnAService>(unitOfWork, serviceProvider, logger), IKnowledgeQnAService
 {
@@ -44,6 +56,8 @@ public sealed class KnowledgeQnAService(
     private readonly ISessionQuestionRepository _sessionQuestionRepository = unitOfWork.GetRepository<ISessionQuestionRepository>();
     private readonly ILearningSessionRepository _learningSessionRepository = unitOfWork.GetRepository<ILearningSessionRepository>();
     private readonly ITrainingLinkRepository _trainingLinkRepository = unitOfWork.GetRepository<ITrainingLinkRepository>();
+    private readonly ILessonConfigRepository _lessonConfigRepository = unitOfWork.GetRepository<ILessonConfigRepository>();
+    private readonly ISessionQuestionReviewExclusionRepository _reviewExclusionRepository = unitOfWork.GetRepository<ISessionQuestionReviewExclusionRepository>();
 
     public IReadOnlyList<KnowledgeQnAQueueItemViewModel> GetQueue()
     {
@@ -57,10 +71,27 @@ public sealed class KnowledgeQnAService(
         }
 
         var candidateIds = candidates.Select(c => c.Id).ToList();
-        var alreadyAnswered = _sourceRepository.GetBySessionQuestionIds(candidateIds)
+
+        // R9/LT-16 - a permanently-purged lesson's questions must never reappear in the queue,
+        // regardless of whether a KnowledgeQnASource happens to exist for them (a purged lesson's
+        // own Q&A/source rows are hard-deleted, but a question could in principle still match one
+        // from ANOTHER lesson's Q&A written before purge - the exclusion tombstone is what makes
+        // this permanent instead of accidental). Checked first, before the ordinary "already
+        // answered" check below.
+        var permanentlyExcluded = _reviewExclusionRepository.GetBySessionQuestionIds(candidateIds)
+            .Select(x => x.SessionQuestionId)
+            .ToHashSet();
+        var candidatesAfterExclusion = candidates.Where(c => !permanentlyExcluded.Contains(c.Id)).ToList();
+        if (candidatesAfterExclusion.Count == 0)
+        {
+            return [];
+        }
+
+        var remainingIds = candidatesAfterExclusion.Select(c => c.Id).ToList();
+        var alreadyAnswered = _sourceRepository.GetBySessionQuestionIds(remainingIds)
             .Select(s => s.SessionQuestionId)
             .ToHashSet();
-        var open = candidates.Where(c => !alreadyAnswered.Contains(c.Id)).ToList();
+        var open = candidatesAfterExclusion.Where(c => !alreadyAnswered.Contains(c.Id)).ToList();
         if (open.Count == 0)
         {
             return [];
@@ -75,6 +106,32 @@ public sealed class KnowledgeQnAService(
         var linkIds = sessions.Values.Select(s => s.TrainingLinkId).Distinct().ToList();
         var links = _trainingLinkRepository.FindBy(l => linkIds.Contains(l.Id)).ToList()
             .ToDictionary(l => l.Id);
+
+        // R9/LT-8 - derive candidate -> session -> link -> lesson and drop anything whose lesson is
+        // currently trashed. Checked against GetTrash specifically (not "missing from the active
+        // set") so a lesson the caller genuinely has no row for at all - which should never happen
+        // in production, since every link is created against a real lesson - is not silently
+        // treated the same as trashed.
+        var lessonIds = links.Values.Select(l => l.LessonId).Distinct().ToList();
+        var trashedLessonIds = lessonIds.Count == 0
+            ? []
+            : _lessonConfigRepository.GetTrash(CurrentCompanyId).Where(l => lessonIds.Contains(l.Id)).Select(l => l.Id).ToHashSet();
+        open = open.Where(q =>
+        {
+            if (!sessions.TryGetValue(q.SessionId, out var session))
+            {
+                return true; // orphaned session reference - not this method's problem to hide, unchanged behavior
+            }
+            if (!links.TryGetValue(session.TrainingLinkId, out var link))
+            {
+                return true; // same as above
+            }
+            return !trashedLessonIds.Contains(link.LessonId);
+        }).ToList();
+        if (open.Count == 0)
+        {
+            return [];
+        }
 
         return open
             .OrderBy(q => q.CreateDate)
@@ -104,13 +161,58 @@ public sealed class KnowledgeQnAService(
             .ToList();
     }
 
+    public IReadOnlyList<KnowledgeQnAViewModel> GetAll(KnowledgeQnAFilter filter)
+    {
+        // KL-10 - explicit, not left to the query filter alone: this is the second endpoint in the
+        // system (after DI-7's chunks) that returns the knowledge base's actual text content.
+        guard.EnsureAuthenticated();
+
+        var query = ResolveScopeQuery(filter.ScopeType, filter.ScopeId);
+
+        if (!string.IsNullOrEmpty(filter.Status))
+        {
+            query = query.Where(x => x.IndexingStatus == filter.Status);
+        }
+
+        var normalizedQuery = KnowledgeLibrarySearch.Normalize(filter.Q);
+        if (normalizedQuery is not null)
+        {
+            // KL-11 - Question or Answer matches; EF.Functions.ILike keeps this parameterized.
+            var pattern = $"%{normalizedQuery}%";
+            query = query.Where(x => EF.Functions.ILike(x.Question, pattern) || EF.Functions.ILike(x.Answer, pattern));
+        }
+
+        return query.OrderByDescending(x => x.CreateDate).ToList().Select(x => x.Adapt<KnowledgeQnAViewModel>()).ToList();
+    }
+
+    private IQueryable<KnowledgeQnA> ResolveScopeQuery(string? scopeType, string? scopeId)
+    {
+        // KL-2 (via KL-9's "same shape as documents") - no scopeType sent = every scope.
+        if (string.IsNullOrEmpty(scopeType))
+        {
+            return _repository.GetAllInCompany();
+        }
+
+        // KL-5 - a category filter also surfaces the Q&A of every lesson under it.
+        if (scopeType == KnowledgeScopeType.Category && !string.IsNullOrEmpty(scopeId))
+        {
+            var lessonIdsInCategory = _lessonConfigRepository.GetByCategoryId(scopeId).Select(l => l.Id);
+            return _repository.FindBy(x =>
+                (x.ScopeType == KnowledgeScopeType.Category && x.ScopeId == scopeId)
+                || (x.ScopeType == KnowledgeScopeType.Lesson && lessonIdsInCategory.Contains(x.ScopeId)));
+        }
+
+        return _repository.GetByScope(scopeType, scopeId);
+    }
+
     public Task<KnowledgeQnAViewModel> CreateAsync(CreateKnowledgeQnADto input)
     {
         var question = NormalizeQuestion(input.Question);
         var answer = NormalizeAnswer(input.Answer);
 
         // KS-2/TX-5 - the single resolver validates the scope pair (and, for "category", that it
-        // is a Level-2 leaf) before anything is written.
+        // is a Level-2 leaf) before anything is written. 400/404 must win over 409, so this and
+        // the SessionQuestionIds checks below run before the duplicate gate (Q-H2 fixed order).
         namespaceResolver.EnsureValidScope(CurrentCompanyId, input.ScopeType, input.ScopeId);
 
         if (input.SessionQuestionIds.Count == 0)
@@ -126,6 +228,26 @@ public sealed class KnowledgeQnAService(
         if (missing.Count > 0)
         {
             throw GeneralException.NotFound($"คำถาม ({string.Join(", ", missing)})");
+        }
+
+        // KL-23/Q-H2 - pre-save gate, unconditional unless ConfirmDuplicate: computed before any
+        // write (no row, no KnowledgeQnASource, no queue close, no queued job, no Commit). A 409
+        // here must leave the database exactly as it was.
+        if (!input.ConfirmDuplicate)
+        {
+            var duplicates = FindDuplicateQuestions(question);
+            if (duplicates.Count > 0)
+            {
+                throw GeneralException.Conflict(
+                    "พบคำถามที่ซ้ำกับที่มีอยู่แล้วในคลัง",
+                    new DuplicateQnAResponse
+                    {
+                        DuplicateByQuestion = duplicates
+                            .OrderByDescending(x => x.CreateDate)
+                            .Select(x => x.Adapt<KnowledgeQnAViewModel>())
+                            .ToList(),
+                    });
+            }
         }
 
         // DM-6: "id ใน Pinecone = Id ของแถวนี้ตรงๆ" - VectorId and Id must be identical, generated
@@ -166,6 +288,22 @@ public sealed class KnowledgeQnAService(
 
         return Task.FromResult(entity.Adapt<KnowledgeQnAViewModel>());
     }
+
+    /// <summary>KL-23 - scoped to CurrentCompanyId explicitly in the predicate (same
+    /// defence-in-depth reasoning as DocumentResourceService's KL-19/KL-20 checks), Question only,
+    /// scope-agnostic. Whitespace-collapse happens in memory rather than via SQL regex, for the
+    /// same fakes-testability reason documented on DocumentResourceService.FindDuplicates.</summary>
+    private List<KnowledgeQnA> FindDuplicateQuestions(string normalizedQuestion)
+    {
+        var collapsed = CollapseWhitespace(normalizedQuestion);
+        return _repository.FindBy(x => x.CompanyId == CurrentCompanyId)
+            .ToList()
+            .Where(x => string.Equals(CollapseWhitespace(x.Question), collapsed, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+    }
+
+    private static string CollapseWhitespace(string value)
+        => System.Text.RegularExpressions.Regex.Replace(value, @"\s+", " ");
 
     public Task<KnowledgeQnAViewModel> UpdateAsync(string id, UpdateKnowledgeQnADto input)
     {

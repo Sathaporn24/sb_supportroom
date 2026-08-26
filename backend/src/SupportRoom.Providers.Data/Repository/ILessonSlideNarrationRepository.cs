@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using SupportRoom.Domain.Entities;
 using SupportRoom.Providers.Data.Common;
 using SupportRoom.Providers.Data.Data;
@@ -14,6 +15,12 @@ public interface ILessonSlideNarrationRepository : IRepositoryBase<LessonSlideNa
     /// longer be trusted to line up with). Returns the count deleted, so the caller can report it
     /// back for the pre-confirm warning (NR-3).</summary>
     int DeleteByLessonId(string lessonId);
+
+    /// <summary>R9/LT-19 - every narration row of this lesson, soft-deleted included, for purge's
+    /// hard-delete step. IgnoreQueryFilters() only exists to see past the `!IsDelete` half of the
+    /// query filter - CompanyId is reapplied explicitly (LT-23). Caller hard-deletes each row via
+    /// Delete() itself, same pattern as ILessonExcludedSlideRepository.GetByLessonId's consumers.</summary>
+    IQueryable<LessonSlideNarration> GetAllByLessonIdIncludingDeleted(string companyId, string lessonId);
 }
 
 public sealed class LessonSlideNarrationRepository(ApplicationDbContext dbContext)
@@ -37,4 +44,8 @@ public sealed class LessonSlideNarrationRepository(ApplicationDbContext dbContex
         }
         return rows.Count;
     }
+
+    public IQueryable<LessonSlideNarration> GetAllByLessonIdIncludingDeleted(string companyId, string lessonId)
+        => Context.LessonSlideNarration.IgnoreQueryFilters()
+            .Where(x => x.CompanyId == companyId && x.LessonId == lessonId);
 }

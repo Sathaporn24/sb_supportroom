@@ -8,8 +8,13 @@ namespace SupportRoom.Application.Exceptions;
 /// the HTTP status to reply with. GeneralException is the only place that should construct
 /// this (see .claude/skills/dotnet-layered-backend/SKILL.md).
 /// </summary>
-public class HttpStatusCodeException(HttpStatusCode statusCode, string code, string message) : Exception(message)
+public class HttpStatusCodeException(HttpStatusCode statusCode, string code, string message, object? details = null) : Exception(message)
 {
     public HttpStatusCode StatusCode { get; } = statusCode;
     public string Code { get; } = code;
+
+    /// <summary>KL-21 - the 409 duplicate-document payload rides here (ApiErrorBody.Details already
+    /// had this field, nothing needed it until now). Null for every other exception this project
+    /// throws today.</summary>
+    public object? Details { get; } = details;
 }

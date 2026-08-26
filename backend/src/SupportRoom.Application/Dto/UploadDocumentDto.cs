@@ -12,4 +12,9 @@ public sealed class UploadDocumentDto
     public required string ScopeType { get; init; }
 
     public string? ScopeId { get; init; }
+
+    /// <summary>KL-21 - opt-in, defaults false. False preserves the old upload behaviour byte for
+    /// byte (including handlePdfUpload/UC-5, which never sends this) - true means "check KL-19/
+    /// KL-20 before writing anything and 409 on a match" instead of uploading straight through.</summary>
+    public bool CheckDuplicate { get; init; }
 }

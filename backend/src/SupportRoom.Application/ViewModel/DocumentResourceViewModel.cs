@@ -24,3 +24,21 @@ public sealed class DocumentResourceViewModel
     /// clears - shown so an admin doesn't assume "deleted" already means "unsearchable".</summary>
     public required bool HasPendingVectorDelete { get; init; }
 }
+
+/// <summary>KL-21 - the 409 Conflict payload when UploadDocumentDto.CheckDuplicate finds a match.
+/// Both lists carry only the fields KL-21 allows out (id/fileName/scopeType/scopeId/createDate) -
+/// no ContentHash, no other metadata.</summary>
+public sealed class DuplicateDocumentDto
+{
+    public required IReadOnlyList<DuplicateDocumentEntryViewModel> DuplicateByHash { get; init; }
+    public required IReadOnlyList<DuplicateDocumentEntryViewModel> DuplicateByFileName { get; init; }
+}
+
+public sealed class DuplicateDocumentEntryViewModel
+{
+    public required string Id { get; init; }
+    public required string FileName { get; init; }
+    public required string ScopeType { get; init; }
+    public string? ScopeId { get; init; }
+    public required string CreatedAt { get; init; }
+}

@@ -49,6 +49,7 @@ public static class ServiceConfiguration
         services.AddScoped<IBackgroundJobProcessor, BackgroundJobProcessor>();
         services.AddScoped<ILessonSlideNarrationResolver, LessonSlideNarrationResolver>();
         services.AddScoped<ILessonSlideNarrationService, LessonSlideNarrationService>();
+        services.AddScoped<ILessonExcludedSlideService, LessonExcludedSlideService>();
         services.AddScoped<IKnowledgeQnAService, KnowledgeQnAService>();
         services.AddScoped<IKnowledgeQnAConflictService, KnowledgeQnAConflictService>();
 

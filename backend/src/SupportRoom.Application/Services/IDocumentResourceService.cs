@@ -1,5 +1,7 @@
 using System.Globalization;
+using System.Security.Cryptography;
 using System.Text.Json;
+using Microsoft.EntityFrameworkCore;
 using SupportRoom.Domain.Common;
 using Microsoft.Extensions.Logging;
 using SupportRoom.Application.Common;
@@ -20,10 +22,11 @@ public interface IDocumentResourceService
 {
     Task<DocumentResourceViewModel> UploadAsync(UploadDocumentDto input);
 
-    /// <summary>DS-4 - replaces GetByLessonSlug/GetStandalone with the one method every scope
-    /// funnels through. scopeType == null means "no query sent" == company (unchanged behaviour
-    /// of the central library screen).</summary>
-    IReadOnlyList<DocumentResourceViewModel> GetByScope(string? scopeType, string? scopeId);
+    /// <summary>DS-4/KL-2 - replaces GetByLessonSlug/GetStandalone with the one method every scope
+    /// funnels through. scopeType == null means "no query sent" == every scope of this company
+    /// (KL-2 - superseded DS-4's old "== company" default). status/q are KL-11..KL-13's optional
+    /// content filters, AND'd with the scope filter and with each other.</summary>
+    IReadOnlyList<DocumentResourceViewModel> GetByScope(string? scopeType, string? scopeId, string? status = null, string? q = null);
 
     IReadOnlyList<DocumentResourceViewModel> GetDeleted();
 
@@ -77,6 +80,28 @@ public sealed class DocumentResourceService(
         // could ever delete it again.
         namespaceResolver.EnsureValidScope(CurrentCompanyId, input.ScopeType, input.ScopeId);
 
+        // KL-18 - the exact same byte buffer that is about to go to storage, computed before any
+        // DB row exists. Every upload path gets a hash, checkDuplicate or not (KL-21) - only
+        // whether we ACT on a match is opt-in.
+        var contentHash = ComputeContentHash(input.Content);
+
+        if (input.CheckDuplicate)
+        {
+            var (byHash, byFileName) = FindDuplicates(contentHash, input.FileName);
+            if (byHash.Count > 0 || byFileName.Count > 0)
+            {
+                // KL-21 - nothing is written when a match is found: no DB row, no storage object,
+                // no index job. The caller resubmits with CheckDuplicate=false to upload anyway.
+                throw GeneralException.Conflict(
+                    "พบเอกสารที่อาจซ้ำกับที่มีอยู่แล้วในคลัง",
+                    new DuplicateDocumentDto
+                    {
+                        DuplicateByHash = byHash.Select(MapDuplicateEntry).ToList(),
+                        DuplicateByFileName = byFileName.Select(MapDuplicateEntry).ToList(),
+                    });
+            }
+        }
+
         var id = IdGenerator.GenerateId("doc");
         var obsKey = $"documents/{id}/{input.FileName}";
 
@@ -100,6 +125,7 @@ public sealed class DocumentResourceService(
             IndexedChunkCount = 0,
             CreateBy = CurrentUserId,
             CreateDate = DateTime.UtcNow,
+            ContentHash = contentHash,
         };
         _repository.Add(entity);
         UnitOfWork.Commit();
@@ -129,16 +155,109 @@ public sealed class DocumentResourceService(
         return BuildViewModel(entity, latestJob: null, hasPendingVectorDelete: false);
     }
 
-    public IReadOnlyList<DocumentResourceViewModel> GetByScope(string? scopeType, string? scopeId)
+    public IReadOnlyList<DocumentResourceViewModel> GetByScope(string? scopeType, string? scopeId, string? status = null, string? q = null)
     {
-        // DS-4 - no query sent at all keeps the central library screen's old behaviour: company
-        // scope. This is not the same case as ScopeType == "company" sent explicitly with a
-        // stray ScopeId, which EnsureValidScope would reject on the write path - reads never
-        // reject, they just resolve what was asked.
-        var effectiveScopeType = string.IsNullOrEmpty(scopeType) ? KnowledgeScopeType.Company : scopeType;
-        var documents = _repository.GetByScope(effectiveScopeType, scopeId).OrderByDescending(x => x.CreateDate).ToList();
+        var query = ResolveScopeQuery(scopeType, scopeId);
+
+        if (!string.IsNullOrEmpty(status))
+        {
+            query = query.Where(x => x.IndexingStatus == status);
+        }
+
+        var documents = query.OrderByDescending(x => x.CreateDate).ToList();
+
+        // KL-11/KL-12 - content search happens after materializing the scope+status result: the
+        // FileName/DocumentChunk.Text match itself is computed via a couple of targeted queries
+        // (FindDocumentIdsMatchingContent), then intersected here rather than folded into one
+        // giant query, because chunks live in a different table with no navigation property.
+        var normalizedQuery = KnowledgeLibrarySearch.Normalize(q);
+        if (normalizedQuery is not null)
+        {
+            var matchingIds = FindDocumentIdsMatchingContent(normalizedQuery);
+            documents = documents.Where(x => matchingIds.Contains(x.Id)).ToList();
+        }
+
         return BuildViewModels(documents);
     }
+
+    private IQueryable<DocumentResource> ResolveScopeQuery(string? scopeType, string? scopeId)
+    {
+        // KL-2 - no scopeType sent at all now means every scope of this company, replacing DS-4's
+        // old "== company" default.
+        if (string.IsNullOrEmpty(scopeType))
+        {
+            return _repository.GetAllInCompany();
+        }
+
+        // KL-5 - filtering by a category also has to surface the documents of every lesson that
+        // belongs to it (LessonConfig.CategoryId == scopeId), or CS filtering to a category would
+        // see it as empty even though lessons under it hold documents. Retrieval (KS-3) is
+        // unaffected - this is visibility only.
+        if (scopeType == KnowledgeScopeType.Category && !string.IsNullOrEmpty(scopeId))
+        {
+            var lessonIdsInCategory = _lessonConfigRepository.GetByCategoryId(scopeId).Select(l => l.Id);
+            return _repository.FindBy(x =>
+                (x.ScopeType == KnowledgeScopeType.Category && x.ScopeId == scopeId)
+                || (x.ScopeType == KnowledgeScopeType.Lesson && lessonIdsInCategory.Contains(x.ScopeId)));
+        }
+
+        // KL-3 - reads never reject an unrecognized scopeType; the repository's exact-match filter
+        // just resolves to an empty list.
+        return _repository.GetByScope(scopeType, scopeId);
+    }
+
+    /// <summary>KL-11 - a document matches when its FileName matches or any of its
+    /// DocumentChunk.Text rows match, de-duplicated to one entry per document
+    /// ("DISTINCT ระดับเอกสาร ไม่ใช่ระดับ chunk"). EF.Functions.ILike keeps this parameterized -
+    /// never string-built SQL.</summary>
+    private HashSet<string> FindDocumentIdsMatchingContent(string normalizedQuery)
+    {
+        var pattern = $"%{normalizedQuery}%";
+        var idsByFileName = _repository.FindBy(x => EF.Functions.ILike(x.FileName, pattern))
+            .Select(x => x.Id)
+            .ToList();
+        var idsByChunkText = _chunkRepository.FindBy(x => EF.Functions.ILike(x.Text, pattern))
+            .Select(x => x.DocumentId)
+            .Distinct()
+            .ToList();
+        return idsByFileName.Concat(idsByChunkText).ToHashSet();
+    }
+
+    /// <summary>KL-19/KL-20 - both checks are scoped to CurrentCompanyId explicitly in the
+    /// predicate, not left to the repository's own query filter alone (same defence-in-depth
+    /// reasoning as GetDeleted() - see IDocumentResourceRepository.cs). KL-20's filename match is
+    /// deliberately done as an in-memory case-insensitive comparison rather than
+    /// EF.Functions.ILike: this keeps the check runnable against the fakes-based unit tests this
+    /// project's Application.Tests use everywhere else (EF.Functions.ILike has no LINQ-to-Objects
+    /// implementation and throws when evaluated outside a real EF Core provider), and at this
+    /// module's stated per-company scale (O-11 - tens to low hundreds of rows) materializing the
+    /// company's documents once is not a meaningful cost.</summary>
+    private (List<DocumentResource> ByHash, List<DocumentResource> ByFileName) FindDuplicates(string contentHash, string fileName)
+    {
+        var companyDocuments = _repository.FindBy(x => x.CompanyId == CurrentCompanyId).ToList();
+
+        var byHash = companyDocuments
+            .Where(x => x.ContentHash is not null && x.ContentHash == contentHash)
+            .ToList();
+
+        var trimmedName = fileName.Trim();
+        var byFileName = companyDocuments
+            .Where(x => string.Equals(x.FileName.Trim(), trimmedName, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+        return (byHash, byFileName);
+    }
+
+    private static string ComputeContentHash(byte[] content) => Convert.ToHexStringLower(SHA256.HashData(content));
+
+    private static DuplicateDocumentEntryViewModel MapDuplicateEntry(DocumentResource entity) => new()
+    {
+        Id = entity.Id,
+        FileName = entity.FileName,
+        ScopeType = entity.ScopeType,
+        ScopeId = entity.ScopeId,
+        CreatedAt = entity.CreateDate.ToString("O", CultureInfo.InvariantCulture),
+    };
 
     public IReadOnlyList<DocumentResourceViewModel> GetDeleted()
     {

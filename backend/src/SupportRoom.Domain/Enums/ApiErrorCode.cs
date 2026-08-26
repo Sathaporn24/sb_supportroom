@@ -16,6 +16,7 @@ public static class ApiErrorCode
     public const string NotFound = "NOT_FOUND";
     public const string Unauthorized = "UNAUTHORIZED";
     public const string Forbidden = "FORBIDDEN";
+    public const string Conflict = "CONFLICT";
     public const string UpstreamError = "UPSTREAM_ERROR";
     public const string ConfigError = "CONFIG_ERROR";
     public const string RateLimited = "RATE_LIMITED";

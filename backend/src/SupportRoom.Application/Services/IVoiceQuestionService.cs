@@ -56,13 +56,17 @@ public sealed class VoiceQuestionService(
         {
             throw GeneralException.ValidationError("การเรียนนี้จบแล้ว กรุณากดเรียนอีกครั้งก่อนถามคำถามใหม่");
         }
-        var link = ServiceProvider.GetRequiredService<ITrainingLinkService>().GetEntityByToken(token);
+        // R9/LT-5/LT-6 - a revoked link may only keep answering questions for the session it is
+        // already bound to (checked again just above by GetEntityByLearnerKey/session.Status).
+        var link = ServiceProvider.GetRequiredService<ITrainingLinkService>().GetEntityByTokenForContentAccess(token, learnerKey);
 
         // Resolve slides through the single content-source-agnostic path so questions work for
         // BOTH Google-Slides and PDF lessons - this used to require lesson.PresentationId and call
         // the Slides provider directly, which 404'd every PDF-sourced lesson.
+        // R9/LT-5/LT-6 - trash-aware: GetTeachingContentBySlugAsync's query filter would 404 a
+        // trashed lesson even for the legitimately still-IN_PROGRESS session just validated above.
         var lessonService = ServiceProvider.GetRequiredService<ILessonConfigService>();
-        var content = await lessonService.GetTeachingContentBySlugAsync(link.LessonSlug);
+        var content = await lessonService.GetTeachingContentByIdIncludingDeletedAsync(link.LessonId);
 
         return new ResolvedContext(session, link, content);
     }

@@ -10,6 +10,7 @@ export type ApiErrorCode =
   | "NOT_FOUND"
   | "UNAUTHORIZED"
   | "FORBIDDEN"
+  | "CONFLICT"
   | "UPSTREAM_ERROR"
   | "CONFIG_ERROR"
   | "RATE_LIMITED"

@@ -13,8 +13,73 @@
 > **ไม่มีการเปลี่ยน Data Model และไม่มี migration ใหม่** — Phase 1–6 ที่ implement ไปแล้วไม่ต้องแก้
 > ย้อนหลัง ยกเว้น wire contract ของ `/api/documents` ที่เปลี่ยนพร้อมกันในเฟสเดียว (R-15) ·
 > **พร้อมส่งต่อ `project-manager` เพื่อวาง Phase 7**
+>
+> **amendment 2026-08-25 — R7/R8 (Module H / Module I) + ยกเลิก DS-8/Q-C**: `business-analyst`
+> ปิด CR-1 ครบเมื่อ 2026-08-24 · ข้อเสนอเดิม (ยุบ scope) **ตกไป** และ **R3 + KS-1..KS-11 คงเดิม
+> ทั้งชุด ไม่ถูกแตะแม้ข้อเดียว** (CR-1.g) · สิ่งที่เข้ามาแทนคือ **R7** (หน้าคลังรวม) และ **R8**
+> (อัปโหลดเหลือที่เดียว) ซึ่งเป็นงาน **การมองเห็น/การจัดระเบียบล้วน** · contract ใหม่ 2 ชุด
+> (`## Knowledge Library View Rules` KL-1..KL-18 · `## Upload Consolidation Rules` UC-1..UC-10) ·
+> **Data Model ไม่เปลี่ยนแม้แต่ฟิลด์เดียวในรอบนั้น และไม่มี migration ใหม่** — ยกเว้น R7.5
+> ที่ค้างรอมติ **Q-H1** ไว้ **ซึ่งเคาะแล้วในรอบถัดมา (ดูย่อหน้าล่างสุด)** · DS-8/Q-C
+> (โหมด `fixedScope`) **ถูกยกเลิกตามมติ CR-1.j** ดู DS-8 ที่แก้แล้ว
+>
+> **amendment 2026-08-25 (รอบที่สองของวัน) — ✅ `Q-H1` เคาะแล้ว = ทาง B · R7.5 เป็น contract แล้ว**:
+> เจ้าของโปรเจกต์เลือก **ทาง B** — เพิ่ม `DocumentResource.ContentHash` (`string?`) + index
+> `(CompanyId, ContentHash)` · **additive ล้วน ไม่ backfill ไม่แตะข้อมูลเดิมแม้แถวเดียว** ·
+> เกิด migration ใหม่ **1 ใบ** (`MG-H1` = `AddDocumentContentHash` · generate ตอน implement
+> เท่านั้น) · contract ของ R7.5 เขียนครบที่ **KL-18..KL-24** · **ไม่มีคำถามค้างในโมดูลนี้แล้ว —
+> `project-manager` วาง phase ของ Module H/I ได้ทั้งก้อน ไม่ต้องกันงาน R7.5 ออกไว้อีก**
+>
+> **amendment 2026-08-25 (รอบล่าสุดของวัน) — ✅ `Q-H2` เคาะแล้ว = ทาง (ข) · KL-23 กลายเป็น
+> "ด่านก่อนบันทึก"**: เจ้าของโปรเจกต์เลือก **rework** ให้การตรวจ Q&A ซ้ำเกิด **ก่อน** ที่
+> `CreateAsync` จะเขียนอะไรลงฐานข้อมูล (แบบเดียวกับ KL-21) แล้วคืน **409/`CONFLICT`** ให้ CS เลือก
+> "ยืนยันบันทึกซ้ำ" (`confirmDuplicate: true`) หรือ "แก้ใบเดิมแทน" (dialog สลับเป็น `mode: "edit"`
+> ในที่เดิม **ไม่ลิงก์ข้ามหน้า**) · contract เต็มอยู่ที่ **KL-23 (หลังบ้าน) + KL-26 (UI)** ·
+> **ไม่มีฟิลด์ใหม่ ไม่มี migration ใหม่ Data Model ไม่ถูกแตะแม้ฟิลด์เดียว** — สิ่งที่ breaking คือ
+> **wire contract ของ `POST /api/knowledge-qna` เท่านั้น** (caller เดียว) · **ต้องรื้อโค้ด Phase 8
+> ที่เพิ่ง implement เสร็จ: `CreateAsync` · `CreateKnowledgeQnADto` · response shape · dialog
+> ทาง create · test 3 ตัว** — การวาง task เป็นของ `project-manager`
+>
+> **amendment 2026-08-26 — CR-2 / R4.6 (เฟสจัดการเนื้อหาก่อนสร้างบทเรียน PDF) · Module J ใหม่**:
+> `business-analyst` ปิด CR-2 เมื่อ 2026-08-26 (R4.6.1–R4.6.10) · **Data Model ไม่ถูกแตะแม้ฟิลด์เดียว
+> ไม่มี migration ใหม่ ไม่มี checkbox ใน `plan.md` ถูกแตะ** · contract ที่เปลี่ยนอยู่ใน
+> `## PDF Narration Rules` ทั้งหมด: **NR-1/NR-2/NR-3/NR-5/NR-6/NR-8 ถูก amend เฉพาะจุด** และ
+> **NR-10..NR-19 เป็นของใหม่** ครอบเคส "ยังไม่มี `LessonId`" ที่ R4.6.4 บังคับ ·
+> **มติ CR-2.h ที่เจ้าของโปรเจกต์มอบให้ `system-analyst` ตัดสิน: เอกสาร PDF ตัวสไลด์เข้าคลังด้วย
+> `ScopeType = "lesson"` ตอน commit** (เลิก hardcode `company` ของโหมดสร้าง) — เหตุผลเต็มที่ **NR-14** ·
+> **UC-5 ถูก amend**: คำว่า "ห้ามแตะ `handlePdfUpload`" ถูก R4.6 supersede อย่างเป็นทางการแล้ว
+> (`requirement.md` กล่อง 📌 ใต้ R8.3) — `qa-engineer` ต้องไม่รายงานการแก้ฟังก์ชันนี้เป็นการละเมิด R8.3
+> · **✅ `Q-J1` และ `Q-J2` เคาะแล้วเมื่อ 2026-08-26 — ไม่มีคำถามค้างใน Module J แล้ว**:
+> **`Q-J1` = "ไม่ขัด — แตะชั่วคราวได้"** (R4.6.5 คำว่า "ไม่มี state ที่ฝั่ง server เลย" หมายถึงห้าม
+> state ที่ *persist และกลับมาทำต่อได้* ไม่ใช่ห้าม byte แตะโปรเซส → preview session ในหน่วยความจำ
+> ของ **NR-10** ยืนตามที่เขียนไว้) · **`Q-J2` = "ใส่ทั้งสองที่"** (**NR-18** อยู่ในขอบเขต
+> **ห้ามตัด**) · **ทั้งสองข้อเจ้าของโปรเจกต์เลือกทางที่ `system-analyst` เสนอไว้ตรงตัว จึงไม่มี
+> contract / Data Model / ข้อความ NR ข้อไหนต้องแก้แม้คำเดียว** — ดูมติเต็มที่
+> `## Unresolved Open Questions` · **ไม่มีอะไรบล็อก `project-manager` หรือ engineer แล้ว**
+>
+> **amendment 2026-08-26 (รอบที่สามของวัน) — CR-3 / R4.7 (ตัดหน้าออกจากบทเรียน PDF) · Module K ใหม่
+> · ⚠️ รอบนี้ Data Model *ถูกแตะ* — ตารางใหม่ 1 ใบ + migration ใหม่ 1 ใบ**:
+> `business-analyst` ปิด CR-3 เมื่อ 2026-08-26 (R4.7.1–R4.7.12) · **`DM-17 · LessonExcludedSlide`
+> เป็นตารางใหม่ (`MG-K1`) — additive ล้วน ไม่แตะตาราง/คอลัมน์/แถวเดิมแม้ใบเดียว** (มติ **Q-K1**) ·
+> contract ใหม่ทั้งชุดอยู่ที่ **`## Page Exclusion Rules (R4.7)` (EX-1..EX-12)** และ
+> **NR-1/NR-2/NR-3/NR-4/NR-5/NR-6/NR-7/NR-8/NR-12/NR-13/NR-15/NR-16/NR-17/NR-18 ถูก amend เฉพาะจุด**
+> · **ข้อสรุปสำคัญที่สุดสองข้อของรอบนี้ อ่านก่อนแตะโค้ด**: (1) **R4.7.6 ไม่ขัดกับ NR-4** —
+> `SlideObjectId` (`pdf-page-N`, ผูกเลขหน้าดิบ) กับ `Index` (ลำดับที่คนเห็น) เป็นคนละฟิลด์อยู่แล้ว
+> ตั้งแต่ `PdfSlidesRenderer.BuildContent` การเรียงเลขใหม่จึงแตะเฉพาะ `Index` และ **id ไม่ขยับ**
+> ซึ่งเป็นเหตุผลที่ R4.7.8 (บทพูดเดิมคืนมา) ได้มาฟรี · (2) **หน้าหนึ่งของเด็คมี vector สองชุด
+> ไม่ใช่ชุดเดียว** (`pdf-page-N` ของบทพูด + `{documentId}-page-N` ของเอกสารเด็ค ตาม NR-8/CR-2.h) —
+> **ถอดชุดเดียว = R4.7.3(ข) ล้มทันที** · **มติ Q-K2/Q-K3/Q-K4 อยู่ที่ตาราง "การตัดสินใจที่ผู้ใช้
+> ยืนยันแล้ว"** · **Module K ติด 🔒 Security gate** · **ห้ามเริ่ม Module K ก่อน Module J
+> ปิดรอบ QA แบบ FULL** (R-26)
+>
+> **amendment 2026-08-26 (รอบที่สี่) — CR-4 / R9 ยืนยันแล้ว**: เพิ่ม **Module L — Lesson trash,
+> restore & permanent purge 🔒** · เจ้าของโปรเจกต์ยืนยัน Data Model และ lifecycle contract ครบ
+> หลังเคาะ edge case 5 จุด: session เดิมเรียนจนจบ · คำถามซ่อนตอนอยู่ในถังและกลับเมื่อ restore ·
+> PDF ที่ใช้ร่วมไม่ถูกลบจนเหลือผู้ใช้รายสุดท้าย · purge รอ `IN_PROGRESS` แม้เกิน 60 วัน ·
+> retention ต่อบริษัทเป็น **known deferred ยังไม่ทำรอบนี้** · migration **MG-L1 เป็น additive**
+> แต่การเติม `!IsDelete` ใน query filter ของ `LessonConfig` เป็น behavioral change ที่ต้องตรวจจริง
 
-**โมดูล:** `knowledge-base` · **ที่มา:** `_docs/module/knowledge-base/requirement.md` (R1–R6, P1–P9)
+**โมดูล:** `knowledge-base` · **ที่มา:** `_docs/module/knowledge-base/requirement.md` (R1–R9, P1–P9)
 **Stack ที่ตรวจแล้ว:** ASP.NET Core .NET 10 + EF Core/PostgreSQL + Pinecone + Next.js 15
 (ตาม root `CLAUDE.md` — โปรเจกต์นี้ไม่ได้ใช้ Prisma กฎ `schema.prisma` ใน conventions §7
 ให้อ่านเทียบเป็น entity + EF migration ของจริง)
@@ -75,9 +140,61 @@ R4 ข้อ 5 (แก้บทพูดแล้วต้องมีผลก�
 | R6.3 | ดูข้อความที่แปลงได้ตลอด | **ทำได้ แต่มีทางเลือกที่ต้องเคาะ** | เก็บ chunk ลง DB vs re-parse ตอนดู (Q5) — กระทบ schema โดยตรง |
 | R6.4 | สถานะล้มเหลวบอกสาเหตุ | **ทำได้ตรงไปตรงมา** | คอลัมน์ `FailureReason` + `static class` const ตาม convention เดิม |
 | P9 | ไม่มี UI สร้างบทเรียน | **ทำได้ แต่รอเคาะ scope** | ผูกกับ R1.1 ตามที่ requirement ระบุ (Q4) |
+| **R7.1** | เห็นทุก scope ในหน้าเดียว ไม่ต้องสลับ filter ก่อน | **ทำได้ ไม่ต้องเพิ่ม dependency** | ตรวจโค้ดจริง 2026-08-25: `DocumentResourceService.GetByScope` แปลง scope ว่างเป็น `company` เสมอ และ `IDocumentResourceRepository.GetByScope` เป็น `FindBy(ScopeType == x && ScopeId == y)` ตายตัว → ต้องเพิ่ม**โหมดไม่กรอง** (KL-2) · **แก้ DS-4 ในรอบนี้** · ไม่แตะ retrieval แม้แต่บรรทัดเดียว |
+| **R7.2** | เห็น Q&A รวมในหน้าเดียวกับเอกสาร | **ทำได้ แต่ต้องเพิ่มทางอ่านใหม่ทั้งเส้น** | `IKnowledgeQnAService` วันนี้มีแค่ `GetQueue()` (คิวคำถามที่**ยังไม่มี**คำตอบ) — **ไม่มีเมธอด/endpoint ไหนอ่านรายการ `KnowledgeQnA` ที่มีอยู่แล้วเลย** ยืนยันจาก `IKnowledgeQnAService.cs:17-26` และ `KnowledgeQnAController.cs` ที่มีแค่ `POST`/`PUT`/`DELETE` → ต้องเพิ่ม `GET /api/knowledge-qna` + repository method (KL-8..KL-10) · **ไม่มีฟิลด์ใหม่** ViewModel เดิมพอ |
+| **R7.3** | กรองตามหมวด / scope / สถานะ index | **ทำได้ตรงไปตรงมา** | filter วันนี้มีแค่ "ทั้งบริษัท / หมวด" (`DocumentUploadList.tsx:255-280`) ไม่มี lesson ไม่มี "ทั้งหมด" ไม่มีสถานะ · ทั้งเอกสารและ Q&A มี `IndexingStatus` ชุดเดียวกันอยู่แล้ว (DM-3/DM-6) · **กติกาที่ engineer เดาเองไม่ได้คือ "กรองหมวด" กินถึงเอกสารของบทเรียนในหมวดนั้นไหม → KL-5 เคาะแล้วว่ากิน** |
+| **R7.4** | ค้นด้วยคำที่อยู่ในเนื้อหา | **ทำได้ ไม่ต้องแตะ vector และไม่ต้องเสียค่า embedding** | ข้อความจริงถูกเก็บลง DB อยู่แล้วตามมติ **Q5** (`DocumentChunk.Text`, DM-4) → `ILIKE` บน PostgreSQL พอ (KL-11..KL-13) · **ปฏิเสธทางที่ยืม vector**: semantic search คืน "ใกล้เคียง" ไม่ใช่ "มีคำนี้อยู่" ซึ่งผิดเจตนา R7.4 ตรงๆ และต้องจ่ายค่า embed ทุกครั้งที่ CS พิมพ์ · **ข้อจำกัดที่ต้องบอก CS**: เอกสารที่ index ไม่สำเร็จไม่มี chunk เลย → ค้นได้จากชื่อไฟล์เท่านั้น (KL-13) |
+| **R7.5** | เตือนเมื่อชื่อหรือเนื้อหาซ้ำ | **✅ ทำได้ · เป็น contract แล้ว (Q-H1 = ทาง B, 2026-08-25)** | **นี่คือจุดเดียวของ R7/R8 ทั้งชุดที่แตะ schema** · "ชื่อซ้ำ" เทียบ `FileName` ได้เลยไม่ต้องเพิ่มอะไร · "เนื้อหาซ้ำ" ใช้ลายนิ้วมือของไฟล์ **`DocumentResource.ContentHash` (`string?` + index `(CompanyId, ContentHash)`)** เพราะไม่มีอะไรในตารางวันนี้เทียบเนื้อหาได้ (`SizeBytes` เท่ากันไม่ได้แปลว่าไฟล์เดียวกัน) · **additive ล้วน ไม่ backfill** → เอกสารที่อัปไปแล้วก่อน MG-H1 มี `ContentHash = null` และ **จะไม่ถูกจับว่าเนื้อหาซ้ำตลอดไป — เป็นราคาที่ยอมรับแล้ว ไม่ใช่บั๊ก** (R-20 · KL-22) · Q&A คำถามซ้ำเป๊ะเตือนได้โดยไม่ต้องมีฟิลด์ใหม่ · กติกาเต็มที่ KL-18..KL-24 |
+| **R7.6** | แก้ไข/ลบ Q&A ที่มีอยู่แล้วจากหน้ารวม | **ทำได้ · หลังบ้านเสร็จไปแล้ว (retroactive) · เหลือ UI ล้วน** | ✅ ยืนยันด้วยโค้ดจริง 2026-08-25: `IKnowledgeQnAService.UpdateAsync`/`DeleteAsync` (`IKnowledgeQnAService.cs:24-25`), `PUT`/`DELETE /api/knowledge-qna/{id}` (`KnowledgeQnAController.cs:21-30`), `updateKnowledgeQnA`/`deleteKnowledgeQnA` (`api-client.ts:643-654`) — **สามชั้นนี้ทำไปแล้วโดยข้ามรอบออกแบบ เอกสารรอบนี้รับรองย้อนหลัง ไม่ใช่สั่งทำใหม่** · ⚠️ **แต่ "ทำแล้ว" ไม่ใช่ทั้งข้อ**: grep ทั้ง `frontend/src/app` และ `frontend/src/components` แล้ว **ไม่มี call site เลยแม้แต่จุดเดียว** → ฝั่ง UI ยังเป็นงานเต็มใบ (KL-14..KL-17) |
+| **R8.1** | จุดอัปโหลด "เอกสารประกอบ" เหลือที่เดียว | **ทำได้ · เป็นงานลบเป็นหลัก** | ลบการ์ดใน `LessonForm.tsx:679-698` + ลบโหมด `fixedScope` ออกจาก `DocumentUploadList` ทั้งชุด (UC-1..UC-4) · **ไม่แตะ data model และไม่ย้ายเอกสารเดิมแม้แถวเดียว** (R8.2) |
+| **R8.3** | ห้ามลบทางอัป PDF ตัวสไลด์ไปด้วย | **ขอบเขตห้ามข้าม ไม่ใช่ฟีเจอร์** | `handlePdfUpload` อยู่คนละที่กับการ์ดที่ถูกลบ (`LessonForm.tsx:187`, ถูกเรียกที่บรรทัด 243/250/450) · UC-5 เขียนที่อยู่จริงไว้เพราะ `requirement.md` ยังชี้ path เก่าก่อน refactor |
+| **R4.6.1** | เลือกไฟล์ = พรีวิวเบา ๆ (จำนวนหน้า + ชื่อ) โดยไม่อัปโหลด/ไม่สร้างแถว/ไม่ index | **ทำได้ แต่ต้องมี endpoint ใหม่ 1 ตัว — ไม่ใช่งานฟรี** | ✅ ตรวจโค้ดจริง 2026-08-26: วันนี้จำนวนหน้า/ชื่อมาจาก `previewPdfLessonContent(documentId)` ซึ่ง**บังคับให้ต้องอัปโหลดก่อน** (`LessonController.PreviewPdf` รับ `documentId` เท่านั้น และ `RenderPdfPageAsync`/`BuildPdfContentAsync` อ่านไฟล์ผ่าน `GetPdfBytesAsync` → ต้องมีแถว `DocumentResource` + `ObsKey`) · **แต่ตัว renderer ไม่ต้องการแถว DB เลย** — `PdfSlidesRenderer.BuildContent(Stream, documentId, fallbackTitle)` และ `RenderPagePng(Stream, n)` รับ stream ล้วน (`documentId` ใช้ประกอบ marker `pdf-page:{id}:{n}` เท่านั้น) → เปิดทาง parse จาก byte ที่ยังไม่ persist ได้ตรง ๆ (NR-10) |
+| **R4.6.2** | กด "สร้าง" ไม่ commit อะไร เปิดเฟสจัดการเนื้อหาแทน | **ทำได้ตรงไปตรงมา (frontend ล้วน)** | `canCreate` (`LessonForm.tsx:335-341`) วันนี้บังคับว่าต้องมี `form.pdfDocumentResourceId` ก่อนกดสร้างได้ → เปลี่ยนเงื่อนไขเป็น "มี preview session สำเร็จ" (NR-12) · `handleCreate` (บรรทัด 264) เปลี่ยนจาก `saveLesson` เป็นเปิดเฟส |
+| **R4.6.3** | ต้องเห็น **ภาพสไลด์จริง** คู่บทพูดร่างทีละหน้า (ข้อบังคับ) | **ทำได้ ใช้ตัว render เดิม แต่ต้องเปลี่ยนกุญแจจาก `documentId` เป็น preview session** | `PdfSlidesRenderer.RenderPagePng` ที่ `RenderPdfPageAsync` ใช้อยู่ **ใช้ซ้ำได้ 100%** — ที่ต้องเปลี่ยนคือแหล่ง byte เท่านั้น · endpoint ภาพหน้า PDF ที่มีวันนี้มีตัวเดียวและเป็น **learner-side ผูก link token** (`LessonController:69-89`) ใช้กับฝั่ง admin ไม่ได้เลย → ต้องมี endpoint ใหม่ (NR-10/NR-18) · **ต้นทุนจริงอยู่ที่ CPU/RAM ไม่ใช่ที่ dependency**: PDFium render ที่ `RenderDpi` เดิม × จำนวนหน้า ต่อ 1 เฟสรีวิว + byte ของไฟล์ที่ค้างในหน่วยความจำระหว่างเฟส (ดู R-22) |
+| **R4.6.4** | ใช้ UI/logic แก้บทพูดตัวเดิม (NR-1/NR-2) กับบทเรียนที่ยังไม่มี `LessonId` | **ทำได้ โดย "ไม่แตะฝั่ง server ของ NR-2 เลย"** | ✅ นี่คือช่องว่างที่ใหญ่ที่สุดของ CR นี้ และคำตอบที่ถูกที่สุดคือ **ไม่ย้ายกติกาเดิมไปอยู่ที่ client** — draft อยู่ในเบราว์เซอร์ตาม R4.6.5 แล้ว **flush ผ่าน `PUT /api/lessons/{id}/narrations/{slideObjectId}` ตัวเดิมทีละหน้า หลัง**บทเรียนถูกสร้างและผูกไฟล์แล้ว → `LessonSlideNarrationService.SaveAsync` (`EnsurePdfSource` + การเทียบ prefill) **ไม่ต้องแก้แม้บรรทัดเดียว** · กติกาเต็มที่ NR-11/NR-12 |
+| **R4.6.5** | ก่อนยืนยัน ไม่มี state ฝั่ง server | **ทำได้ — ✅ `Q-J1` เคาะแล้ว 2026-08-26: "ไม่ขัด — แตะชั่วคราวได้"** (การตีความข้างล่างนี้เป็นมติที่ยืนยันแล้ว ไม่ใช่ข้อเสนอที่รอคำตอบ) | ผลที่เจ้าของโปรเจกต์ยอมรับทั้งสองข้อ (ปิดแท็บ = เริ่มใหม่ · ไม่มีค่า embedding) **เป็นจริง 100% ในทางที่เลือก** เพราะไม่มีแถว DB ไม่มีไฟล์ใน object storage ไม่มี vector ไม่มีงานในคิว · **แต่ byte ของไฟล์ต้องผ่าน process ของ server จริง** เพื่อ parse/render (R4.6.1/R4.6.3 ทำไม่ได้เลยถ้าไม่ผ่าน) → NR-10 ให้อยู่ใน `IMemoryCache` แบบ sliding 10 นาที ซึ่ง**ไม่มีใครกลับมาทำต่อจากเดิมได้** = ตรงกับ R4.6.5(ก) พอดี |
+| **R4.6.6** | "ยืนยันการสร้าง" เป็นจุด commit จุดเดียว | **ทำได้ ไม่ต้องมี endpoint commit ใหม่ — แต่ commit ไม่ใช่ atomic และห้ามแกล้งว่าเป็น** | `IDocumentResourceService.UploadAsync` เรียก `UnitOfWork.Commit()` **เองถึง 3 ครั้งภายในเมธอด** (บรรทัด 131/144/149) และ `LessonConfigService.SaveAsync` commit เองอีก → **ห่อทั้ง flow ในทรานแซกชันเดียวไม่ได้โดยไม่รื้อสองเมธอดนั้น ซึ่งอยู่นอกขอบเขต CR นี้** · ทางที่เลือกคือ **client เรียง endpoint เดิม 4 ขั้น + สัญญาความล้มเหลวต่อขั้นที่เขียนไว้ครบ** (NR-12/NR-13) |
+| **R4.6.7** | ยืนยันโดยไม่แก้ได้ แต่ต้องเตือนก่อน | **ทำได้ตรงไปตรงมา (frontend ล้วน)** | นับจาก draft ในเบราว์เซอร์ ไม่ต้องถาม server (NR-15) |
+| **R4.6.8** | เปลี่ยนไฟล์กลางเฟส = ล้าง draft เงียบ ๆ | **ทำได้ตรงไปตรงมา (frontend ล้วน)** | ไม่มีอะไร persist ให้ต้องเตือน · **จงใจต่างจาก NR-3** ซึ่งพูดถึงแถวในฐานข้อมูลที่จะเสียไปจริง (NR-16) |
+| **R4.6.9** | ขอบเขต: สร้างบทเรียน PDF ใหม่เท่านั้น | **ทำได้ และเป็นข้อที่พลาดง่ายที่สุด** | โหมดแก้ (`isEdit`) ต้องคง `handlePdfFileSelected` + dialog NR-3 เดิม**ทุกตัวอักษร** · Google Slides ไม่แตะ (NR-9 ยังปฏิเสธที่ server) · กติกาเต็มที่ NR-17 |
+| **R4.6.10** | ไม่ตามเก็บ orphan เดิม | **ไม่มีงาน — แต่ต้องมีคำตัดสินเป็นลายลักษณ์อักษร** | ไม่มี migration ไม่มีสคริปต์ backfill · **เอกสารเดิมที่ scope `company` และเป็น `PdfDocumentResourceId` ของบทเรียนอยู่ ก็ไม่ถูกย้ายเช่นกัน** (คนละกองกับ orphan แต่คำตัดสินเดียวกัน) → NR-14 ท้ายข้อ + O-14 |
+| **R4.7.1** | ตัดหน้าได้เฉพาะบทเรียน PDF | **ทำได้ตรงไปตรงมา** | เส้นแบ่งเดิมของ NR-9 ใช้ซ้ำได้ทั้งดุ้น — `EnsurePdfSource` ปฏิเสธ `google_slides` ที่ฝั่ง server อยู่แล้ว (EX-2) |
+| **R4.7.2** | ตัดได้ทั้งเฟสสร้าง (Module J) และหน้าแก้บทพูด | **ทำได้ แต่เป็นสองกลไกคนละชนิด ไม่ใช่ endpoint เดียวใช้สองที่** | หน้าแก้บทพูด = toggle ยิง server ทันที (EX-4) · เฟสสร้าง = **draft ในเบราว์เซอร์ล้วน** ตาม R4.6.5 แล้วส่งพร้อมขั้นที่ 3 ของ NR-12 (EX-9) — ระหว่างเฟสยังไม่มี `LessonId` และยังนับจำนวนหน้าจริงฝั่ง server ไม่ได้จนกว่าไฟล์จะผูกกับบทเรียน |
+| **R4.7.3** | หน้าที่ตัดหายทั้งฝั่งสอนและฝั่งตอบ | **ทำได้ แต่ "ฝั่งตอบ" มี vector สองชุด ไม่ใช่ชุดเดียว** | ⚠️ **นี่คือ blast radius ที่เจ้าของโปรเจกต์กังวลเอง และมันจริง**: หน้าเดียวกันอยู่ใน Pinecone สองใบ — `pdf-page-N` (`sourceType=slide`, NR-7) กับ `{documentId}-page-N` (`sourceType=document`, `PdfTextExtractor` → `ChunkId = "page-{Number}"`) ซึ่ง NR-8/CR-2.h ระบุเองว่าอยู่ **namespace เดียวกัน**หลัง NR-14 · ถอดชุดเดียวแล้ว AI ยังตอบจากหน้านั้นได้ และถ้าเป็นเด็คเก่าที่ scope `company` (O-14) มันตอบได้**ทั้งบริษัท** · กติกาเต็มที่ EX-5/EX-6 |
+| **R4.7.4** | "ใช้ตอบไม่ได้" = ถอด vector จริงแบบ R6.1 | **ทำได้ ไม่ต้องสร้างกลไกใหม่เลยแม้ชิ้นเดียว** | `DeleteVectorsAsync` (DM-13) มีแล้วและ `ProcessLessonIndexAsync` เรียกใช้อยู่แล้วสำหรับหน้าที่บทพูดว่าง · ฝั่งเอกสารใช้ `DocumentChunk.VectorId` + **`.NamespaceKey`** (คอลัมน์นี้ถูกใส่ไว้เพื่อเคส "ลบจาก namespace ที่มันอยู่จริง" พอดี → เด็คเก่าที่ scope `company` ถูกครอบฟรี) + **`.Text`** ที่ทำให้เอาหน้ากลับได้โดย **ไม่ต้อง parse ไฟล์ใหม่ และจ่าย embedding แค่หน้าเดียว ไม่ใช่ทั้งเด็ค** · **granularity ต่างจาก R6.1** (chunk เดียวในเอกสารที่ยัง active ≠ ทั้งเอกสารที่ถูกลบ) จึงต้องมี `VectorDeleteTargetKind` ของตัวเอง — kind `Document` วันนี้มี guard `stillDeleted` ที่ใช้กับเคสนี้ไม่ได้ (EX-6) |
+| **R4.7.5** | ตัด/เอากลับ = re-index เองอัตโนมัติ | **ทำได้ ใช้คิวเดิมทั้งหมด** | `BackgroundJob` + `lesson_index` ของ NR-6 ตัวเดิม ไม่มี job type ใหม่ฝั่งบทพูด · ฝั่งเอกสารเพิ่ม kind ของ payload เดิม (EX-6) |
+| **R4.7.6** | เลขที่คนเห็นเรียงใหม่ 1–9 | **ทำได้ และ ✅ ไม่ขัดกับ NR-4** | `SlideObjectId = "pdf-page-{page.Number}"` กับ `Index = page.Number - 1` เป็นคนละฟิลด์ตั้งแต่ `PdfSlidesRenderer.BuildContent:83-84` → เรียงใหม่แตะเฉพาะ `Index` ส่วน id ไม่ขยับ **ซึ่งเป็นเงื่อนไขที่ทำให้ R4.7.8 ได้มาฟรี** · ⚠️ **กับดักที่ต้องแก้พร้อมกัน**: วันนี้มีสองที่คำนวณ *เลขหน้าของไฟล์* จาก *ลำดับที่แสดง* (`narrations/page.tsx:143` และ `PdfLessonContentPhase.tsx:309` → `slide.index + 1`) — **ภาพสไลด์จะเพี้ยนทันทีโดย typecheck/lint/build/test ผ่านหมด** (EX-3) |
+| **R4.7.7** | เอาหน้ากลับได้เสมอ ไม่มีหมดอายุ | **ทำได้ตรงไปตรงมา** | soft delete แถวของ DM-17 (ไม่ hard delete) → เอากลับ = ปลด `IsDelete` แถวเดิม ได้ประวัติใครตัด/ใครเอากลับมาฟรี (EX-4) |
+| **R4.7.8** | บทพูดของหน้าที่ตัดต้องถูกเก็บไว้ | **ได้มาฟรี ไม่ต้องเขียนอะไรเพิ่มเลย** | exclusion อยู่คนละตารางกับบทพูด และ id ไม่ขยับ → `LessonSlideNarration` ของหน้านั้นไม่ถูกแตะเลยทั้งตอนตัดและตอนเอากลับ · **ยังอยู่ใต้ NR-2 เต็มที่**: การตัดหน้าที่ไม่เคยแก้บทพูดยังต้องไม่สร้างแถวบทพูด (EX-7) |
+| **R4.7.9** | ต้องเหลืออย่างน้อย 1 หน้า | **ทำได้ แต่ต้องบังคับที่ server ไม่ใช่ที่ UI** | ต้องรู้จำนวนหน้าจริงของไฟล์ → มาจาก `PreviewPdfAsync` (cache เดิม) ไม่ใช่จากค่าที่ client ส่งมา (EX-8) |
+| **R4.7.10** | คนที่เรียนอยู่ไม่สะดุด | **ได้มาฟรีในแท็บที่เปิดค้าง — และ ✅ `Q-K2` เคาะขอบที่เหลือแล้ว** | สไลด์ทั้งชุดอยู่ใน `slidesRef.current` ของเบราว์เซอร์ตั้งแต่เข้าห้อง การตัดกลางคันไม่แตะแท็บนั้นเลย · **รีเฟรช/เข้าใหม่ = ได้ชุดใหม่ทันที (มติ Q-K2 = รับได้ ไม่ทำ snapshot ต่อ session)** ตรงกับพฤติกรรมที่ `LearningSession.cs:65-68` เขียนรองรับไว้เองอยู่แล้ว · **และ vector ถูกถอดทันที ไม่รอ session ค้าง** → ถามเรื่องหน้าที่ถูกตัดได้ `not_found` แม้ AI ยังสอนหน้านั้นอยู่ในแท็บเก่า (มติ Q-K2 ครึ่งหลัง · R-25) |
+| **R4.7.11** | อัปไฟล์ทับล้างรายการที่ตัด + นับรวมใน NR-3 | **ทำได้ ใช้ trigger เดิมของ NR-3** | `DeleteByLessonId` แบบเดียวกับบทพูด ในทรานแซกชันเดียวกัน · endpoint นับหน้าเปลี่ยนรูป response จาก `{ count }` เป็น `{ count, excludedCount }` (`LessonController.cs:136-138`) = **breaking แต่มี caller เดียว** (EX-10) |
+| **R4.7.12** | สิทธิ์ `cs` + `admin` | **ได้มาฟรี** | ระดับเดียวกับ endpoint บทพูดวันนี้เป๊ะ ไม่มี role ใหม่ ไม่มีขั้นอนุมัติ · **แต่ไม่ใช่เหตุผลให้ข้ามการ validate `slideObjectId`** — ดู 🔒 ของ Module K |
+| **R8.4** | หน้าแก้บทเรียนต้องยังบอกได้ว่ามีเอกสารอะไรผูกอยู่ | **ทำได้ ไม่ต้องมี endpoint ใหม่** | ใช้ `listDocuments({scopeType:"lesson", scopeId})` ที่มีอยู่แล้วอ่านมานับ + ลิงก์ deep-link ไปหน้าคลังที่กรองไว้ให้แล้ว (UC-6..UC-8) · **ห้ามเอาเครื่องอัปโหลดกลับมาในรูปอื่น** |
+| **R9.1–R9.3** | เข้าถัง · revoke link · กู้คืนโดยไม่คืนลิงก์เก่า | **ทำได้ด้วย entity เดิมเป็นหลัก แต่ต้องแยก public-link policy** | `LessonConfig.IsDelete/DeletedAt/DeleteBy` และ `TrainingLink.IsDelete/DeletedAt/DeleteBy` มีคอลัมน์อยู่แล้ว · ต้องเปลี่ยน setter + query filter และแยก “ห้ามเริ่ม session ใหม่” ออกจาก “session เดิมที่ยัง `IN_PROGRESS` ใช้ต่อได้” (LT-1..LT-8) |
+| **R9.4–R9.6** | retention 60 วัน · countdown · owner-only permanent delete | **ทำได้ด้วย durable job เดิม + 2 nullable columns** | `BackgroundJob.NextAttemptAt` รองรับงานอนาคตอยู่แล้ว · `LessonConfig.PurgeJobId/PurgeStartedAt` ปิด race ระหว่าง restore/manual purge/auto purge และทำให้ retry job เดิมได้ (DM-2 · LT-9..LT-14) |
+| **R9.7** | ลบเนื้อหา ไฟล์ บทพูด เอกสาร/Q&A และ vector ถาวร | **ทำได้ แต่ต้องเป็น orchestration แบบ idempotent** | ใช้ `DeleteNamespaceAsync`, `DeleteVectorsAsync` และ `IDocumentStorageProvider.DeleteAsync` เดิม · hard-delete DB เป็นขั้นสุดท้ายเท่านั้น · PDF ที่มีบทเรียนอื่นอ้างยังต้องคงไว้ (LT-15..LT-19) |
+| **R9.8** | เก็บประวัติ แต่คำถามไม่กลับ active review queue | **ต้องมีตารางใหม่หนึ่งใบ** | ซ่อนชั่วคราวระหว่างอยู่ในถังแบบ derive จาก `LessonConfig.IsDelete`; ตอน purge สร้าง `SessionQuestionReviewExclusion` ก่อนลบ parent เพื่อให้ suppression อยู่ต่อหลัง `LessonConfig` หาย (DM-18 · LT-20..LT-22) |
+| **R9.9** | company isolation ทุกเส้น รวม worker | **ทำได้ แต่ติด 🔒 Security gate** | trash repository ต้อง `IgnoreQueryFilters()` เฉพาะจุดแล้วใส่ `CompanyId` กลับเอง · purge worker ต้อง resolve company จาก job ก่อน query อื่นทุกครั้ง รูปเดียวกับ DI-4 แต่เป็น destructive flow (LT-23) |
 
 **ไม่มีข้อไหนที่อยู่นอก stack ปัจจุบัน และไม่มีข้อไหนที่ต้องเพิ่ม dependency** — ยืนยันตามที่
-`requirement.md` คาดไว้
+`requirement.md` คาดไว้ · **R7/R8 (2026-08-25) ยืนยันซ้ำอีกครั้ง: ไม่มี dependency ใหม่
+ไม่มี service ภายนอกใหม่** · **migration ใหม่มีใบเดียวทั้ง R7/R8 คือ `MG-H1`
+(`AddDocumentContentHash`) ซึ่งเกิดจากมติ Q-H1 = ทาง B และเป็น additive ล้วน** —
+SHA-256 ใช้ `System.Security.Cryptography.SHA256` ใน .NET เอง **ไม่ใช่ dependency ใหม่**
+
+**R4.7 (2026-08-26) ยืนยันซ้ำอีกครั้งว่าไม่มี dependency ใหม่และไม่มี service ภายนอกใหม่ — แต่
+*มี* migration ใหม่ 1 ใบ คือ `MG-K1` (`AddLessonExcludedSlides`)** ซึ่งต่างจากรอบ CR-2 ที่ไม่แตะ
+Data Model เลย · เป็น **additive ล้วน**: ตารางใหม่ 1 ใบ ไม่มีคอลัมน์ใหม่บนตารางเดิม ไม่มี backfill
+ไม่มี `UPDATE` ไม่แตะข้อมูลเดิมแม้แถวเดียว ไม่แตะ Pinecone · `Down()` = drop table
+**ย้อนกลับได้สมบูรณ์ 100%** เพราะไม่มีอะไรอื่นพึ่งตารางนี้
+
+**R9 (2026-08-26) ทำได้ด้วย dependency เดิมทั้งหมด** — ใช้ PostgreSQL/EF Core, durable
+`BackgroundJob`, Pinecone delete และ document storage provider ที่มีอยู่แล้ว · migration `MG-L1`
+เพิ่ม 2 nullable columns บน `LessonConfig` + ตาราง suppression หนึ่งใบ + indexes โดยไม่มี backfill
+และไม่แตะ Pinecone ตอน migrate · **สิ่งที่ breaking เป็นพฤติกรรม ไม่ใช่ shape ของข้อมูลเดิม**:
+query ปกติจะไม่เห็น `LessonConfig.IsDelete = true` อีกต่อไป และ public learner endpoints ต้องแยก
+การเริ่ม session ใหม่ออกจากการใช้ session เดิมที่มี credential ครบ
 
 ### การตัดสินใจที่ผู้ใช้ยืนยันแล้ว
 
@@ -99,8 +216,33 @@ agent ปลายทางอ่านตารางนี้เพื่อ�
 | ชื่อ entity ของ "ลิงก์" | **`TrainingLink` ตามโค้ดจริง ไม่ rename** | มติ Q2 เดิมใน `learning-session/design.md` ที่จะ rename เป็น `LessonLink` — **ยกเลิกแล้ว ห้ามอ้างอิง** | 2026-08-18 |
 | เอกสารที่อัปไปแล้วย้าย scope ได้ไหม (Q-A) | **ย้ายได้ — `PATCH /api/documents/{id}/scope`** (DS-5..DS-7) เติม call site ให้ KS-4 ที่เขียนไว้ตั้งแต่ต้นแต่ไม่เคยมีใครเรียก | ทางเลือก "อัปผิดแล้วต้องลบทิ้งอัปใหม่" ซึ่งทำให้เสียประวัติเอกสารและ `DocumentChunk` ทั้งชุด | 2026-08-20 |
 | `UploadDocumentDto` คง `LessonSlug` ไว้คู่กับ scope ใหม่ไหม (Q-B) | **ลบ `LessonSlug` ทิ้ง ใช้ `ScopeType`/`ScopeId` อย่างเดียว** (DS-1) | ความเข้ากันได้ย้อนหลังของ wire contract — ยอมแลกเพราะมี caller แค่ 3 จุดในโปรเจกต์ ไม่มี client ภายนอก · เหตุผลเดียวกับที่ DM-3 ลบ `LessonId` ทั้งใบ: สองช่องทางที่แปลว่า scope เหมือนกันต้องตรวจซ้ำทุก call site และไม่มีอะไรบังคับได้ | 2026-08-20 |
-| หน้าบทเรียนควรมี scope picker ด้วยไหม (Q-C) | **ไม่มี — คงเป็น `lesson` ของบทเรียนนั้นเสมอ** (DS-8) | การอัปเอกสารของหมวดอื่น/บริษัทจากหน้าบทเรียน ซึ่งเปิดทางให้วางผิดที่โดยไม่มีเหตุผลทางธุรกิจรองรับ | 2026-08-20 |
+| ~~หน้าบทเรียนควรมี scope picker ด้วยไหม (Q-C)~~ | ~~**ไม่มี — คงเป็น `lesson` ของบทเรียนนั้นเสมอ** (DS-8)~~ **❌ มติกลับทิศแล้ว 2026-08-24 (CR-1.j) — ห้ามอ้างอิงแถวนี้เป็นมติที่ใช้ได้** | เก็บไว้เป็นบันทึกว่าเคยตัดสินอะไรและถูกกลับเพราะอะไร · มติที่ใช้จริงวันนี้อยู่แถวถัดไป | ~~2026-08-20~~ |
+| **การ์ด "เอกสารประกอบ" ในหน้าแก้บทเรียนจะเก็บไว้ หรือลบทิ้ง (CR-1.j)** | **ลบทิ้งไปเลย** — เหลือจุดอัปโหลดเอกสารประกอบที่เดียวคือหน้าคลังรวม (R8.1 · UC-1..UC-4) · **โหมด `fixedScope` ของ `DocumentUploadList` ถูกยกเลิกทั้งโหมด** | ทางเลือก "แทนด้วยทางลัดที่พาไปหน้าคลังพร้อมกรอง scope ไว้แล้ว" (เจ้าของโปรเจกต์ไม่เลือก) · **และตัด DS-8 เดิมทิ้งไปด้วย** — ตั้งแต่นี้ไม่มีเครื่องอัปโหลดตัวที่สองในระบบ | 2026-08-24 |
+| ปัญหาจริงของ CR-1 คือเรื่อง retrieval หรือเรื่องการมองเห็น (CR-1.g) | **เรื่องการมองเห็น/จัดเก็บล้วน "ไม่ใช่เรื่องคำตอบ"** → **R3 + KS-1..KS-11 คงเดิมทั้งชุด ห้ามแตะ** | ทั้งทางที่ scope จะหลวมลง (ข้อเสนอเดิมของ CR-1 — ยุบเหลือกองเดียว) และทางที่จะแคบลง (ตัดระดับ "ทั้งบริษัท" ทิ้ง) · **ใครเสนอเรื่องนี้อีก ให้อ่านแถวนี้ก่อน ไม่ต้องวิเคราะห์ใหม่** | 2026-08-24 |
+| หน้าคลังรวมต้องทำอะไรได้บ้าง (CR-1.h) | **เลือกครบทั้ง 4 ข้อ** — เห็นทั้งคลังในหน้าเดียว · กรองหมวด/scope/สถานะ · ค้นด้วยคำในเนื้อหา · เตือนเมื่อซ้ำ (R7.1–R7.5) | ทางเลือก "ทำทีละข้อแล้วค่อยดู" — เจ้าของโปรเจกต์เลือกทั้งชุด | 2026-08-24 |
+| Q&A ที่เขียนผิดไปแล้วแก้/ลบได้จากหน้ารวมไหม (R7.6) | **"ใช่ เพิ่มเข้าไปเลย"** — แก้และลบทีละรายการจากหน้ารวม (KL-14..KL-17) | แก้เป็นชุด (bulk) · audit trail ของการแก้แต่ละครั้ง — **ทั้งสองอย่างอยู่นอกขอบเขตโดยเจตนา** ตามที่ `requirement.md` R7.6 เขียนกำกับไว้เอง | 2026-08-24 |
 | งานนี้เข้า phase ไหน (Q-F) | **Phase 7 ใหม่ พร้อม 🔒 Security gate** (Module G) | การยัดกลับเข้า Phase 1 ซึ่งไม่ติด gate และ QA ปิดไปเกือบหมดแล้ว — จะทำให้สถานะ verify ของ Phase 1 กำกวม | 2026-08-20 |
+| **R7.5 จะรู้ได้อย่างไรว่า "เนื้อหาซ้ำ" (Q-H1)** | **ทาง B — เพิ่ม `DocumentResource.ContentHash`** (`string?`, SHA-256 hex, คำนวณตอนอัปโหลด) + index `(CompanyId, ContentHash)` · **additive ล้วน ไม่ backfill** · กติกาเต็มที่ KL-18..KL-24 · migration `MG-H1` | **ทาง A (เตือนเฉพาะชื่อไฟล์ซ้ำ)** ซึ่งไม่มี schema change แต่จับไฟล์เดิมที่ถูกเปลี่ยนชื่อไม่ได้ = ทำ CR-1.h ได้ไม่ครบ · **และตัดการ backfill hash ของเอกสารเก่าทิ้งพร้อมกัน** (ต้องดาวน์โหลดไฟล์เก่าทุกใบจาก object storage มาคำนวณใหม่ — ไม่คุ้ม) → เอกสารก่อน `MG-H1` จะไม่ถูกจับว่าเนื้อหาซ้ำตลอดไป **โดยเจตนา** | 2026-08-25 |
+| **คำเตือน Q&A ซ้ำเป็นคำเตือนหลังบันทึก หรือด่านก่อนบันทึก (Q-H2)** | **ทาง (ข) — ด่านก่อนบันทึก แบบเดียวกับ KL-21** · เจอซ้ำ = ไม่เขียนอะไรเลย คืน 409/`CONFLICT` + `DuplicateQnAResponse` · CS "ยืนยันบันทึกซ้ำ" ด้วย `confirmDuplicate: true` ได้เสมอ หรือ "แก้ใบเดิมแทน" ในที่เดิม · **การตรวจ unconditional ไม่มีธง `CheckDuplicate`** (ไม่มี caller ที่ต้องเงียบแบบ UC-5) · กติกาเต็มที่ KL-23 + KL-26 | **ทาง (ก) (คำเตือนหลังบันทึก + ลิงก์ `/admin/documents?q=`)** ซึ่งถูกกว่าและตรงกับโค้ดที่ ship ไปแล้ว แต่ยอมให้ Q&A ซ้ำถูกเขียน + embed + ปิดคำถามในคิวไปแล้วทุกครั้ง · **และตัดสิ่งเหล่านี้ทิ้งพร้อมกัน**: `DuplicateWarning` · `KnowledgeQnACreateResultViewModel` · prop `onEditExisting` · การเพิ่ม `q` เข้า URL param ของหน้าคลัง · **ราคาที่รับแล้วโดยรู้ตัว: rework `CreateAsync` + DTO + response shape + dialog ทาง create ของงานที่เพิ่ง implement เสร็จ** และ **O-13** (ยังผูกคำถามในคิวเข้ากับ Q&A เดิมไม่ได้ ต้องสร้างใบใหม่) | 2026-08-25 |
+| **เลือกไฟล์ PDF ในหน้าสร้างบทเรียน = เกิดอะไรขึ้นทันที (CR-2.a/CR-2.b/CR-2.c)** | **ไม่เกิดอะไรที่ server เลย** — client-side ล้วนจนกดยืนยัน · ปิดแท็บ = เริ่มใหม่จากเลือกไฟล์ · ทิ้งเฟส = ไม่มีค่า embedding | ระบบ draft/กู้คืน ทั้งชุด · กลไกกันต้นทุน embedding แยก · **และตัดพฤติกรรมวันนี้ทิ้ง**: `handlePdfUpload` ที่อัปไฟล์ + สร้าง `DocumentResource` scope `company` ตอน*เลือก*ไฟล์ | 2026-08-26 |
+| **UI แก้บทพูดในเฟสรีวิว = ตัวเดิมหรือของใหม่ (CR-2.d)** | **ตัวเดียวกัน ใช้ซ้ำ (NR-1/NR-2)** — CS เห็นหน้าตาเดียวกันทั้งตอนสร้างและตอนแก้ | หน้าจอ/endpoint แก้บทพูดชุดที่สองที่ขนานกับของเดิม · **ผลที่ตามมา: กติกาฝั่ง server ของ NR-2 ห้ามถูกคัดลอกไปทำซ้ำที่ client** (NR-11/NR-12) | 2026-08-26 |
+| **ยืนยันโดยไม่แก้บทพูดเลย (CR-2.e)** | **ได้ แต่ต้องเตือนก่อนและให้ยืนยันซ้ำ** (NR-15) | การบังคับให้เลื่อนดูครบทุกหน้า · การบังคับให้แก้อย่างน้อย 1 หน้า | 2026-08-26 |
+| **เปลี่ยนไฟล์ PDF กลางเฟส ก่อนยืนยันครั้งแรก (CR-2.f)** | **ล้าง draft เงียบ ๆ ไม่ต้องเตือน** (NR-16) | dialog เตือน+นับหน้าแบบ NR-3 — **จงใจไม่เอามาใช้ที่นี่** เพราะยังไม่มีแถวในฐานข้อมูลจะเสีย | 2026-08-26 |
+| **เฟสนี้ใช้กับกรณีไหน (CR-2.g)** | **สร้างบทเรียน PDF ใหม่เท่านั้น** (NR-17) | การแทนที่ไฟล์ของบทเรียนที่มีอยู่แล้ว (**คง NR-3 เดิมทุกประการ**) · บทเรียน Google Slides (คง NR-9) | 2026-08-26 |
+| **ต้องเห็นภาพสไลด์จริงไหม (CR-2.i)** | **ต้องมี เป็นข้อบังคับ** — หน้าที่เป็นรูปเกือบทั้งหน้าตัดสินไม่ได้ว่าบทพูดต้องขยายความอะไรถ้าไม่เห็นรูป | ทางที่ถูกกว่าทั้งหมด (เลขหน้า + ข้อความล้วน) · **`system-analyst` ไม่มีสิทธิ์เสนอตัดข้อนี้** | 2026-08-26 |
+| **ตามเก็บเอกสาร orphan ที่เกิดไปแล้ว (CR-2.j)** | **ปล่อยไว้ แก้แค่ของใหม่** (R4.6.10) | งาน cleanup/backfill ทั้งหมดในขอบเขตนี้ · **รวมถึงการย้าย scope ของเด็คเก่าที่ scope `company` อยู่** (O-14) | 2026-08-26 |
+| **R8.3 "ห้ามแตะ `handlePdfUpload`" ถูก supersede ไหม (CR-2.m)** | **ใช่ — R4.6 แทนที่เจตนา ไม่ใช่การละเมิด** · การละเมิด R8.3 ที่ยังนับมีอย่างเดียวคือ **ลบเส้นทางอัป PDF ตัวสไลด์ทิ้งจนสร้างบทเรียน PDF ไม่ได้** | การอ่าน UC-5 เดิมว่า "ห้ามแก้ตลอดกาล" — **`qa-engineer` ต้องไม่รายงานการแก้ฟังก์ชันนี้ตาม R4.6 เป็น ❌** | 2026-08-26 |
+| **⚙️ `ScopeType` ของเอกสาร PDF ตัวสไลด์ตอน commit (CR-2.h)** | **`lesson` — มติของ `system-analyst` ตามที่เจ้าของโปรเจกต์มอบให้ตัดสิน** (ไม่ใช่คำถามเชิงธุรกิจ) · เหตุผลเต็ม + เคสขอบที่ NR-14 | การคง `company` ต่อไป (ซึ่งทำให้ข้อความของเด็คตอบคำถาม**ทุกบทเรียนของบริษัท** ผ่าน `kb-global` โดยไม่มีใครขอ) · **และตัดการย้ายเด็คเก่าทิ้งไปพร้อมกัน** — ของเก่าอยู่ `company` ต่อไปตลอด (O-14) · **หมายเหตุ: ข้อนี้ทำให้ R8.2 ("R8 เป็นเรื่อง UI ล้วน") ยังจริงสำหรับ R8 แต่ไม่จริงสำหรับ R4.6** — ค่า `ScopeType` ที่*เขียนใหม่*เปลี่ยน ไม่ใช่ schema และไม่ใช่ข้อมูลเดิม | 2026-08-26 |
+| **โครงข้อมูลของ "หน้าที่ถูกตัด" (Q-K1)** | **ตารางใหม่ `LessonExcludedSlide` (DM-17) รูปเดียวกับ `LessonSlideNarration`** — เจ้าของโปรเจกต์เลือกด้วยเหตุผลเรื่องความทนทาน/ประวัติ: อยู่รอดการเปลี่ยนชื่อ-ย้ายหมวด · ไม่หายเงียบ ๆ ตอนเซฟบทเรียนเรื่องอื่น · รู้ว่าใครตัด/เอากลับเมื่อไหร่ | **ธง `IsExcluded` ใน `SlideConfigs` (jsonb เดิม)** — ตกไปเพราะ `LessonConfigService.SaveAsync` เขียนทับ `SlideConfigs` ทั้งก้อนจาก client ทุกครั้ง (บรรทัด 214) → กดบันทึกบทเรียนจากหน้าจอที่ไม่ได้ส่งค่ากลับมา = **รายการที่ตัดไว้หายเงียบ ๆ ไม่มี error ไม่มี log** · **และตัดคอลัมน์ `ExcludedSlideObjectIds` บน `LessonConfig` ทิ้งด้วย** (ยังต้อง migration เท่ากันแต่ไม่มี audit) · **ใครกำลังจะเพิ่มธงลง `SlideConfig`/`LessonSlideNarration` แปลว่าอ่านมตินี้ผิด ให้หยุด** | 2026-08-26 |
+| **คนกำลังเรียนอยู่แล้วรีเฟรช/เข้าลิงก์ใหม่ (Q-K2)** | **รับได้ — ได้ชุดหน้าใหม่ทันที ไม่ล็อกชุดหน้าต่อ session** · ตรงกับพฤติกรรมวันนี้ที่เด็คถูกแก้กลางคันได้อยู่แล้ว (`LearningSession.cs:65-68` เขียนรองรับไว้เอง) | **การ snapshot ชุดหน้าไว้ต่อ `LearningSession`** (คอลัมน์ใหม่ + งาน sync ต่อ session) — **ห้าม implement โดยไม่ amend ก่อน** · R4.7.10 จึงหมายถึง "ไม่สะดุดในแท็บที่เปิดค้าง" ไม่ใช่ "ล็อกชุดหน้าตลอดอายุ session" | 2026-08-26 |
+| **ถามเรื่องหน้าที่เพิ่งถูกตัด ระหว่างที่แท็บเก่ายังสอนหน้านั้นอยู่ (Q-K2 ครึ่งหลัง)** | **ตอบ "ไม่พบข้อมูล" (`not_found`) ทันที — ถอด vector เดี๋ยวนั้น ไม่รอ session ที่ค้างอยู่** ตรงตามเจตนา R4.7.3/R4.7.4 | **การหน่วงการลบ vector จนกว่าจะไม่มีคนเรียนค้าง** — เจ้าของโปรเจกต์ปฏิเสธทางที่ซับซ้อนกว่านี้ชัดเจน · **ผลที่ยอมรับแล้วโดยรู้ตัว: มีหน้าต่างเวลาที่ AI ยัง*สอน*หน้านั้นอยู่แต่*ตอบ*เรื่องนั้นไม่ได้** (R-25) — `qa-engineer` ต้องไม่รายงานเป็น ❌ | 2026-08-26 |
+| **หน้าแก้บทพูดแสดงหน้าที่ถูกตัดอย่างไร (Q-K3)** | **แสดงทุกหน้าเรียงตามไฟล์** · หน้าที่ถูกตัด = การ์ดสีจาง + badge + ปุ่ม "เอากลับ" · **ช่องบทพูดเป็น read-only จนกว่าจะเอาหน้ากลับ** · หน้าที่ยังอยู่แสดงเลข **1–9** ตาม R4.7.6 ส่วนหน้าที่ถูกตัดแสดง **"หน้าที่ 7 ของไฟล์"** (เลขหน้าจริงของไฟล์ ไม่ใช่ลำดับที่เรียงใหม่) | **การซ่อนหน้าที่ถูกตัดออกจากรายการหลักไปไว้กล่องแยก** · **และการปล่อยให้พิมพ์บทพูดของหน้าที่ถูกตัดได้ตามปกติ** — ตกไปทั้งคู่ · กติกาเต็มที่ EX-11/EX-12 | 2026-08-26 |
+| **ลำดับงานกับ Module J (Q-K4)** | **แยกเป็น Module K และเริ่มเมื่อ Module J ปิดรอบ QA แบบ FULL แล้วเท่านั้น** | **การยุบ R4.7 เข้า Module J แล้ว QA รอบ FULL ทีเดียวรวมกัน** (ทิ้งผล TARGETED 21/21 ของ J และทำให้แยกไม่ออกว่าอะไรพัง) · **และการทำ K ขนานไปกับการปิดรอบของ J** (ชนเงื่อนไข R-24 ตรง ๆ — ไฟล์เดียวกัน เขียนทับกันโดย build ผ่านหมด) · ข้อบังคับเต็มที่ **R-26** | 2026-08-26 |
+| **คนกำลังเรียนตอนเข้าถัง (Q-L1)** | **ห้าม join/restart ใหม่ แต่ session ที่เริ่มแล้วและยัง `IN_PROGRESS` เรียน/ถาม/จบต่อได้** | การตัดทุก request ทันที · การเปิดให้ learner ใหม่เข้าด้วยลิงก์เดิม | 2026-08-26 |
+| **คำถามระหว่างบทเรียนอยู่ในถัง (Q-L2)** | **ซ่อนจาก active review queue ทันที และกลับมาเมื่อ restore** · ถ้า purge ให้ exclusion ถาวร | การปล่อยคิวทำงานตามปกติจนถึงวัน purge | 2026-08-26 |
+| **PDF ตัวสไลด์ถูกหลายบทเรียนอ้าง (Q-L3)** | **เก็บ `DocumentResource`/bytes/vector ไว้จนกว่าจะลบบทเรียนผู้ใช้รายสุดท้าย** | ลบแล้วทำบทเรียนอื่นพัง · block purge ทั้งบทเรียนเพราะ anomaly นี้ | 2026-08-26 |
+| **ครบ retention แต่ยังมี `IN_PROGRESS` (Q-L4)** | **รอ session จบก่อน แม้ทำให้ purge เกิน 60 วัน** · job ตรวจใหม่ทุก 1 ชั่วโมง | บังคับจบ session ที่ cutoff · hard cutoff 60 วัน | 2026-08-26 |
+| **ตั้ง retention ต่อบริษัท (Q-L5)** | **ทิศทางอนาคตยืนยันแล้ว แต่ยังไม่ทำรอบนี้**: default 60 · 1–365 วัน · `owner`/`admin` แก้ · `cs` อ่าน | การเพิ่ม `Company.LessonTrashRetentionDays`/settings/API/UI ใน Module L รอบนี้ | 2026-08-26 |
 | เอกสารหนึ่งใบอยู่หลายหมวดพร้อมกัน (Q-G) | **ไม่ทำ — `ScopeId` ช่องเดียวต่อไป** บันทึกเป็น O-9 deferred ที่รู้ตัว | ตารางเชื่อม many-to-many และการรื้อ `EnsureValidScope`/`Resolve`/`vector_delete` ทั้งชุด · **ถ้าวันหนึ่งต้องการจริง ต้อง amend ก่อน — retrofit แพงกว่าทำตั้งแต่ต้นมาก** | 2026-08-20 |
 
 ---
@@ -197,6 +339,34 @@ public sealed class KnowledgeCategory : IEntityMaster<string>, ICompanyScoped
 และตอนสร้างเมนู · index เดิม `(CompanyId, Slug) IsUnique` และ `OwnsMany(SlideConfigs).ToJson()`
 **คงไว้ทั้งหมด ห้ามแตะ**
 
+> **amend 2026-08-26 — R9 / Module L (schema ที่เจ้าของโปรเจกต์ยืนยันแล้ว):** ใช้คอลัมน์
+> `DeleteBy`/`IsDelete`/`DeletedAt` ที่มีอยู่แล้วเป็นสถานะถังจริงครั้งแรกบน `LessonConfig` และเพิ่ม
+> nullable columns สองตัวเพื่อกัน race ของ durable purge job · ไม่เพิ่ม enum/state column ซ้ำ
+
+```csharp
+    // คอลัมน์เดิม เปลี่ยน init -> set เท่านั้น ไม่มี schema migration สำหรับสามบรรทัดนี้
+    public string? DeleteBy { get; set; }
+    public bool IsDelete { get; set; }
+    public DateTime? DeletedAt { get; set; }
+
+    /// <summary>BackgroundJob.Id ของ lesson_purge งานเดียวที่สร้างตอนเข้าถังรอบล่าสุด
+    /// null เมื่อ active/restored · logical FK ไม่มี database FK ตาม pattern ของ module นี้
+    /// ใช้เป็น generation token ด้วย: job เก่าจากรอบก่อนต้อง no-op ถ้า id ไม่ตรง</summary>
+    public string? PurgeJobId { get; set; }
+
+    /// <summary>null ระหว่างที่ยัง restore ได้ · worker ตั้งเป็น UTC now ด้วย conditional update
+    /// ก่อนเริ่มลบภายนอก · มีค่าแล้ว restore ต้องถูกปฏิเสธ และ job id เดิม retry ต่อแบบ idempotent</summary>
+    public DateTime? PurgeStartedAt { get; set; }
+```
+
+**state invariant:** active = `!IsDelete` + ทั้งสี่ช่องลบเป็น null · trash = `IsDelete` +
+`DeletedAt`/`PurgeJobId` มีค่า + `PurgeStartedAt = null` · purging = รูป trash แต่
+`PurgeStartedAt` มีค่า · purged = hard-delete แถว · `PurgeJobId` ห้ามเปลี่ยนระหว่าง retry
+
+**index ใหม่:** `(CompanyId, IsDelete, DeletedAt)` สำหรับ normal/trash list และตรวจ retention ·
+query filter เปลี่ยนเป็น `CompanyId == current && !IsDelete` ตาม DM-15 · การอ่านถังต้องผ่าน
+repository เฉพาะที่ re-apply `CompanyId` หลัง `IgnoreQueryFilters()` เท่านั้น (LT-23)
+
 ### DM-3 · `DocumentResource` (แก้ของเดิม — **breaking**)
 
 ```csharp
@@ -234,8 +404,21 @@ public sealed class DocumentResource : IEntityMaster<string>, ICompanyScoped
     /// นี่คือค่าที่ CS เห็น ห้ามใส่ข้อความ error ดิบหรือชื่อ provider ลงคอลัมน์นี้
     /// รายละเอียดภายในไปอยู่ที่ BackgroundJob.LastErrorDetail ซึ่งไม่เคยออก API</summary>
     public string? FailureReason { get; set; }
+
+    /// <summary>R7.5 (มติ Q-H1 = ทาง B, 2026-08-25) - ลายนิ้วมือของไฟล์สำหรับ "เตือนเนื้อหาซ้ำ"
+    /// SHA-256 ของ byte ทั้งไฟล์ เก็บเป็น hex ตัวพิมพ์เล็ก 64 ตัว (ไม่มี prefix ไม่มีขีดคั่น)
+    /// คำนวณครั้งเดียวตอนอัปโหลด แล้วไม่แตะอีกเลย (KL-18)
+    /// null ได้ 2 กรณีเท่านั้น: (1) แถวที่อัปก่อน MG-H1 - จงใจไม่ backfill
+    /// (2) ไม่มี - ทุกการอัปโหลดหลัง MG-H1 ต้องมีค่าเสมอ
+    /// null ห้ามถูกนับว่าซ้ำกับอะไรทั้งสิ้น รวมถึงกับ null ด้วยกันเอง (KL-19)</summary>
+    public string? ContentHash { get; init; }
 }
 ```
+
+**`ContentHash` เป็น `init` ไม่ใช่ `set` โดยตั้งใจ** — เนื้อหาไฟล์ของแถวหนึ่งไม่เคยเปลี่ยนตลอดอายุแถว
+การย้าย scope (DS-5), การ soft delete/กู้คืน (R6.1) และการ re-index ไม่แตะเนื้อหาไฟล์เลยสักกรณี ·
+อัปไฟล์ใหม่ = **แถวใหม่** (มี hash ของตัวเอง) ไม่ใช่การเขียนทับแถวเดิม · ถ้ามีใครต้องเปลี่ยนเป็น `set`
+แปลว่ากำลังจะทำอย่างอื่นที่ไม่ได้อยู่ใน contract นี้ — **ให้หยุดแล้วตีกลับมาที่ `system-analyst`**
 
 **คอลัมน์ `LessonId` ถูกลบทั้งใบ** — เหตุผลที่ไม่เก็บไว้แล้วเพิ่ม `CategoryId` ข้างๆ: สองคอลัมน์
 nullable ที่มีกติกา "ต้องมีค่าไม่เกินหนึ่งอัน" ต้องถูกตรวจซ้ำที่ทุก call site และไม่มีอะไรบังคับได้
@@ -244,6 +427,13 @@ nullable ที่มีกติกา "ต้องมีค่าไม่เ
 
 **`LessonConfig.PdfDocumentResourceId` ไม่เกี่ยวข้องกับ `ScopeType` และไม่เปลี่ยน** — มันคือ
 "บทเรียนนี้ใช้ไฟล์ไหนเป็นเนื้อหาสอน" คนละเรื่องกับ "ไฟล์นี้ตอบคำถามในขอบเขตไหน"
+
+> **เพิ่ม 2026-08-26 (มติ CR-2.h) — `ScopeType` ของเด็คสไลด์เอง ไม่ใช่การเปลี่ยน schema**:
+> ตั้งแต่ Module J ไป เอกสาร PDF ที่เป็น**ตัวสไลด์ของบทเรียน** ถูกสร้างด้วย
+> `ScopeType = "lesson"` / `ScopeId = LessonConfig.Id` ทั้งโหมดสร้างและโหมดแก้ (เลิก hardcode
+> `company` ของโหมดสร้าง) · **ไม่มีคอลัมน์ใหม่ ไม่มี migration ไม่มี backfill และไม่มีแถวเดิมถูกแตะ** —
+> นี่คือการเปลี่ยน**ค่าที่เขียนใหม่** ไม่ใช่รูปของตาราง · แถวเก่าที่ scope `company` อยู่ **คงอยู่อย่างนั้น
+> ตลอดไปโดยเจตนา** (O-14) · กติกาเต็ม + เคสขอบที่ **NR-14**
 
 ### DM-4 · `DocumentChunk` (ตารางใหม่) — R6.1 + R6.3
 
@@ -346,6 +536,12 @@ public sealed class LessonSlideNarration : IEntityMaster<string>, ICompanyScoped
     public required string NarrationText { get; set; }
 }
 ```
+
+> **เพิ่ม 2026-08-26 (R4.6) — เฟสจัดการเนื้อหาก่อนสร้างบทเรียนไม่สร้างแถวของตารางนี้เลย**:
+> บทพูดที่ CS พิมพ์ระหว่างเฟสรีวิวอยู่ในเบราว์เซอร์ล้วน (R4.6.5) แถวแรกของบทเรียนใหม่เกิดได้เร็วสุด
+> ที่**ขั้นที่ 4 ของ NR-12** คือหลังจากมี `LessonId` และผูกไฟล์แล้ว · **ไม่มีฟิลด์ใหม่และไม่มีสถานะ
+> "draft" ในตารางนี้** — ใครกำลังจะเพิ่ม `IsDraft`/`SessionId`/`PreviewId` ลง entity นี้ แปลว่าอ่าน
+> R4.6.5 ผิด ให้หยุดแล้วตีกลับมาที่ `system-analyst`
 
 ### DM-6 · `KnowledgeQnA` (ตารางใหม่) — R5
 
@@ -592,6 +788,7 @@ public static class BackgroundJobType
     public const string LessonIndex = "lesson_index";
     public const string QnaIndex = "qna_index";
     public const string VectorDelete = "vector_delete";
+    public const string LessonPurge = "lesson_purge"; // R9 / Module L
 }
 
 // SupportRoom.Domain/Enums/BackgroundJobStatus.cs — ใหม่
@@ -601,6 +798,13 @@ public static class BackgroundJobStatus
     public const string Running = "running";
     public const string Succeeded = "succeeded";
     public const string Failed = "failed";
+    public const string Canceled = "canceled"; // restore ก่อน purge เริ่ม; ClaimNext ไม่หยิบค่านี้
+}
+
+// SupportRoom.Domain/Enums/QuestionReviewExclusionReason.cs — ใหม่ (R9.8)
+public static class QuestionReviewExclusionReason
+{
+    public const string LessonPermanentlyDeleted = "lesson_permanently_deleted";
 }
 ```
 
@@ -676,6 +880,7 @@ public DbSet<LessonSlideNarration> LessonSlideNarration => Set<LessonSlideNarrat
 public DbSet<KnowledgeQnA> KnowledgeQnA => Set<KnowledgeQnA>();
 public DbSet<KnowledgeQnASource> KnowledgeQnASource => Set<KnowledgeQnASource>();
 public DbSet<KnowledgeQnAConflict> KnowledgeQnAConflict => Set<KnowledgeQnAConflict>();
+public DbSet<SessionQuestionReviewExclusion> SessionQuestionReviewExclusion => Set<SessionQuestionReviewExclusion>();
 public DbSet<BackgroundJob> BackgroundJob => Set<BackgroundJob>();
 
 builder.Entity<KnowledgeCategory>(entity =>
@@ -691,9 +896,10 @@ builder.Entity<LessonConfig>(entity =>
 {
     entity.HasKey(x => x.Id);
     entity.HasIndex(x => new { x.CompanyId, x.Slug }).IsUnique();   // เดิม ห้ามแตะ
-    entity.HasIndex(x => x.CategoryId);                             // ใหม่
+    entity.HasIndex(x => x.CategoryId);                             // เดิมจาก Module A
+    entity.HasIndex(x => new { x.CompanyId, x.IsDelete, x.DeletedAt }); // R9 / MG-L1
     entity.OwnsMany(x => x.SlideConfigs, owned => owned.ToJson());  // เดิม ห้ามแตะ
-    entity.HasQueryFilter(x => x.CompanyId == companyContext.CompanyId);
+    entity.HasQueryFilter(x => x.CompanyId == companyContext.CompanyId && !x.IsDelete); // R9
 });
 
 builder.Entity<DocumentResource>(entity =>
@@ -701,6 +907,9 @@ builder.Entity<DocumentResource>(entity =>
     entity.HasKey(x => x.Id);
     // เดิม HasIndex(x => x.LessonId) - ลบทิ้งพร้อมคอลัมน์
     entity.HasIndex(x => new { x.CompanyId, x.ScopeType, x.ScopeId });
+    // R7.5/KL-19 - คิวรีจับซ้ำยิงทุกครั้งที่ CS กำลังจะอัปโหลด ไม่ใช่ index ของแถม
+    // ไม่ IsUnique: "ซ้ำ" เป็นการเตือน ไม่ใช่ข้อห้าม - CS ยืนยันอัปซ้ำได้เสมอ (KL-21)
+    entity.HasIndex(x => new { x.CompanyId, x.ContentHash });
     entity.HasQueryFilter(x => x.CompanyId == companyContext.CompanyId && !x.IsDelete);
 });
 
@@ -746,6 +955,15 @@ builder.Entity<KnowledgeQnAConflict>(entity =>
     entity.HasQueryFilter(x => x.CompanyId == companyContext.CompanyId && !x.IsDelete);
 });
 
+builder.Entity<SessionQuestionReviewExclusion>(entity =>
+{
+    entity.HasKey(x => x.Id);
+    // หนึ่งคำถามผูกกับบทเรียนเดียว จึงมี permanent exclusion ได้สูงสุดหนึ่งแถว
+    entity.HasIndex(x => new { x.CompanyId, x.SessionQuestionId }).IsUnique();
+    entity.HasIndex(x => new { x.CompanyId, x.LessonId });
+    entity.HasQueryFilter(x => x.CompanyId == companyContext.CompanyId && !x.IsDelete);
+});
+
 builder.Entity<BackgroundJob>(entity =>
 {
     entity.HasKey(x => x.Id);
@@ -769,10 +987,11 @@ builder.Entity<SessionQuestion>(entity =>
 });
 ```
 
-⚠️ **`HasQueryFilter` ของตารางใหม่ทุกใบมี `&& !x.IsDelete`** ซึ่ง `TrainingLink`/`LearningSession`/
-`SessionQuestion`/`ChatMessage`/`LessonConfig` **ไม่มี** — เจตนา ไม่ใช่ความไม่สม่ำเสมอที่ต้อง "แก้ให้ตรงกัน":
-R6.1 คือจุดแรกในโปรเจกต์ที่ soft delete มีความหมายจริง การไล่เติม filter ให้ entity เดิมที่โค้ดลบจริง
-มาตลอดจะเปลี่ยนพฤติกรรมของ module อื่นโดยไม่มีใครขอ (ดู `## Unresolved Open Questions` ข้อ O-3)
+⚠️ **`HasQueryFilter` ของตารางใหม่ทุกใบและ `LessonConfig` มี `&& !x.IsDelete`** ส่วน
+`TrainingLink`/`LearningSession`/`SessionQuestion` **ยังไม่มีโดยเจตนา**: R9 ทำให้ soft delete ของ
+`LessonConfig` มีความหมายจริงและต้องซ่อนจากรายการปกติ แต่ `TrainingLink` ที่ revoked ยังต้องอยู่ใน
+รายงานประวัติ และ session/question ต้องอยู่ตลอดตาม R9.8 · ห้ามไล่เติม filter ให้สามตารางนั้นเพื่อ
+“ความสม่ำเสมอ” เพราะจะทำให้ history หาย (แก้ O-3 แล้วในรอบ CR-4)
 
 ### DM-16 · Repository
 
@@ -788,8 +1007,124 @@ R6.1 คือจุดแรกในโปรเจกต์ที่ soft del
 | `IDocumentResourceRepository` | **แก้** | `GetByLessonId` → `GetByScope(scopeType, scopeId)` · `GetStandalone` → เลิกใช้ (แทนด้วย `GetByScope(company, null)`) · เพิ่ม `GetDeleted()` สำหรับหน้ากู้คืน |
 | `ILessonConfigRepository` | **แก้** | เพิ่ม `GetByCategoryId(categoryId)` · `CountByCategoryId(categoryId)` (ใช้ตอนจะลบหมวด TX-6) |
 | `ISessionQuestionRepository` | **แก้** | เพิ่ม `GetReviewQueue(...)` — คิวข้ามการเรียน/ข้ามบทเรียน (P8/R5.1) · **ไม่แก้ entity** |
+| `ILessonConfigRepository` (R9 amend) | **แก้เพิ่ม** | `GetTrash(companyId)` · `GetIncludingDeleted(companyId, lessonId)` · `TryClaimPurge(companyId, lessonId, purgeJobId, now)` เป็น conditional update ที่สำเร็จเฉพาะ `IsDelete && PurgeJobId == jobId && PurgeStartedAt == null` · ทุกเมธอดที่ `IgnoreQueryFilters()` ต้องมี `CompanyId` ใน predicate เดียวกัน |
+| `ISessionQuestionReviewExclusionRepository` | **ใหม่** | `GetBySessionQuestionIds(ids)` แบบ batch · `AddMissingForLesson(lessonId, ids)` idempotent ตาม unique index · ไม่มี delete/restore production path |
+| `ITrainingLinkRepository` (R9 amend) | **แก้เพิ่ม** | `GetByLessonId(lessonId)` สำหรับ revoke/history · `GetByToken` ยัง bypass tenant filter ได้เฉพาะ public credential resolution แต่ service ต้องแยก new-session กับ existing-session ตาม LT-5/LT-6 |
+| `IBackgroundJobRepository` (R9 amend) | **แก้เพิ่ม** | `CancelPendingLessonPurge(companyId, lessonId, purgeJobId)` และ `AccelerateLessonPurge(...)`; ทั้งสองต้อง match company + target + job id ห้าม update ด้วย target id ล้วน |
 
 ทุกตัวที่เพิ่ม/แก้ต้องลงทะเบียนใน `UnitOfWork.Register` (ลืม = resolve ไม่ได้ตอน runtime)
+
+> **เพิ่ม 2026-08-26 (R4.7 · มติ Q-K1)** — `ILessonExcludedSlideRepository` (**ใหม่**):
+> `GetByLessonId(lessonId)` · `GetOne(lessonId, slideObjectId)` · `DeleteByLessonId(lessonId)` (soft,
+> คืนจำนวนที่ลบ — R4.7.11 ต้องเอาไปเตือนก่อนตาม NR-3) · **รูปเดียวกับ
+> `ILessonSlideNarrationRepository` ทุกเมธอด โดยตั้งใจ** เพราะสองตารางนี้ถูกจัดการคู่กันเสมอ
+> (ตัด/เอากลับ ↔ บทพูด · อัปไฟล์ทับล้างทั้งคู่) · **ต้องลงทะเบียนใน `UnitOfWork.Register`**
+> · ⚠️ `GetOne` **ต้องหาแถวที่ถูก soft delete ไปแล้วเจอด้วย** (ใช้ตอน "ตัดหน้าเดิมซ้ำหลังเอากลับ"
+> ตาม EX-4) — ถ้า query filter บังไว้ ให้เพิ่มเมธอดที่ `IgnoreQueryFilters()` **พร้อม XML doc
+> อธิบายว่าทำไม** ตามแบบแผนของ `GetByToken`/`ClaimNext` **และต้องกรอง `CompanyId` ด้วยมือในนั้น**
+
+### DM-17 · `LessonExcludedSlide` (ตารางใหม่) — R4.7 · ✅ มติ Q-K1 (เจ้าของโปรเจกต์เคาะ 2026-08-26)
+
+```csharp
+using SupportRoom.Domain.Common;
+
+namespace SupportRoom.Domain.Entities;
+
+/// <summary>
+/// หน้าของบทเรียน PDF ที่ CS ตัดออกจากบทเรียน (R4.7) - "มีแถวที่ยังไม่ถูก soft delete" = หน้านั้น
+/// ถูกตัดอยู่ตอนนี้ · เอาหน้ากลับ = soft delete แถว **ไม่ใช่ hard delete** เพราะ R4.7.7 ให้ตัด/เอากลับ
+/// ได้ไม่จำกัดครั้ง และประวัติว่าใครตัดเมื่อไหร่/ใครเอากลับเมื่อไหร่คือเหตุผลหนึ่งที่ Q-K1 เลือกทางนี้
+///
+/// ทำไมเป็นตารางแยก ไม่ใช่ธงใน SlideConfigs (มติ Q-K1): LessonConfigService.SaveAsync เขียนทับ
+/// SlideConfigs ทั้งก้อนจากค่าที่ client ส่งมาทุกครั้ง - ธงที่อยู่ในนั้นจะหายเงียบ ๆ ตอนใครสักคน
+/// กดบันทึกบทเรียนเรื่องอื่น โดยไม่มี error ไม่มี log
+///
+/// ใช้กับ ContentSourceType = "pdf" เท่านั้น (R4.7.1) - Google Slides จัดการหน้าที่ต้นทาง (NR-9)
+/// </summary>
+public sealed class LessonExcludedSlide : IEntityMaster<string>, ICompanyScoped
+{
+    public required string Id { get; init; }              // IdGenerator.GenerateId("exsl")
+    public required string CompanyId { get; init; }
+    public string? CreateBy { get; init; }
+    public DateTime CreateDate { get; init; }
+    public string? UpdateBy { get; set; }
+    public DateTime? UpdateDate { get; set; }
+    public string? DeleteBy { get; set; }
+    public bool IsDelete { get; set; }
+    public DateTime? DeletedAt { get; set; }
+
+    public required string LessonId { get; init; }
+
+    /// <summary>"pdf-page-N" ตามที่ PdfSlidesRenderer สร้าง (N = เลขหน้าจริงของไฟล์ เริ่มจาก 1)
+    /// ค่าเดียวกับ LessonSlideNarration.SlideObjectId เป๊ะ - นี่คือสิ่งที่ทำให้ R4.7.8 (บทพูดเดิม
+    /// คืนมาตรง ๆ) ได้มาฟรี
+    ///
+    /// ⚠️ ห้ามเก็บเลขหน้าที่คนเห็น (1-9 ตาม R4.7.6) เด็ดขาด ไม่ว่าจะเป็น int แยกหรือคอลัมน์เสริม -
+    /// ค่านั้นเปลี่ยนทุกครั้งที่มีการตัด/เอากลับหน้าอื่น แถวนี้จะชี้ผิดหน้าโดยไม่มี error
+    /// เหตุผลเดียวกับ NR-4 คำต่อคำ</summary>
+    public required string SlideObjectId { get; init; }
+}
+```
+
+**`OnModelCreating` (เพิ่มเข้า DM-15 ตอน implement — คัดลอกจาก `LessonSlideNarration` ทั้งบล็อก):**
+
+```csharp
+builder.Entity<LessonExcludedSlide>(entity =>
+{
+    entity.HasKey(x => x.Id);
+    // ไม่ IsUnique: soft delete ทำให้แถวที่ถูกลบยังกินคีย์อยู่ กติกา "หน้าละหนึ่งแถว"
+    // บังคับที่ service layer (EX-4) ด้วยเหตุผลเดียวกับ LessonSlideNarration/TX-3
+    entity.HasIndex(x => new { x.LessonId, x.SlideObjectId });
+    entity.HasIndex(x => x.CompanyId);
+    entity.HasQueryFilter(x => x.CompanyId == companyContext.CompanyId && !x.IsDelete);
+});
+```
+
+พร้อม `public DbSet<LessonExcludedSlide> LessonExcludedSlide => Set<LessonExcludedSlide>();`
+
+> **ไม่มีฟิลด์อื่นในตารางนี้และห้ามเติม** — ใครกำลังจะเพิ่ม `Reason`/`ExcludedByRole`/`SortOrder`/
+> `IsSkipTeachingOnly` แปลว่ากำลังทำสิ่งที่ CR-3.13 ปฏิเสธไปแล้ว (โดยเฉพาะข้อสุดท้าย: **ระบบนี้มี
+> สถานะเดียวคือ "ตัด" ไม่ใช่สองสถานะ** — ดู O-17) ให้หยุดแล้วตีกลับมาที่ `system-analyst`
+
+### DM-18 · `SessionQuestionReviewExclusion` (ตารางใหม่) — R9.8 · ✅ มติ Q-L2
+
+```csharp
+using SupportRoom.Domain.Common;
+
+namespace SupportRoom.Domain.Entities;
+
+/// <summary>
+/// permanent tombstone ที่บอกว่าคำถามในอดีตห้ามกลับเข้า active review queue หลังบทเรียน
+/// ถูก purge แล้ว · ไม่ใส่คอลัมน์บน SessionQuestion เพราะ entity นั้นเป็นของ learning-session
+/// และ requirement นี้ต้องเก็บคำถามเดิมไว้ครบ
+/// </summary>
+public sealed class SessionQuestionReviewExclusion : IEntityMaster<string>, ICompanyScoped
+{
+    public required string Id { get; init; } // IdGenerator.GenerateId("qex")
+    public required string CompanyId { get; init; }
+    public string? CreateBy { get; init; }    // null ได้เมื่อ auto purge
+    public DateTime CreateDate { get; init; }
+    public string? UpdateBy { get; set; }
+    public DateTime? UpdateDate { get; set; }
+    public string? DeleteBy { get; set; }
+    public bool IsDelete { get; set; }
+    public DateTime? DeletedAt { get; set; }
+
+    /// <summary>logical FK -> SessionQuestion.Id; แถวคำถามต้องคงอยู่เพื่อ history</summary>
+    public required string SessionQuestionId { get; init; }
+
+    /// <summary>id ของ LessonConfig ที่ถูก hard-delete แล้ว; ไม่มี FK โดยเจตนา</summary>
+    public required string LessonId { get; init; }
+
+    /// <summary>ค่าจาก QuestionReviewExclusionReason; รอบนี้มีค่าเดียว</summary>
+    public required string Reason { get; init; }
+}
+```
+
+**ห้ามใช้ `KnowledgeQnASource` เป็น tombstone แทน** — purge ต้องลบ Q&A/source ตาม R9.7 และ
+source อาจมาจากคำถามของบทเรียนอื่น · ตารางนี้สร้างให้ **ทุก `SessionQuestion` ของ lesson ที่ purge**
+ก่อนแตะ Q&A/source แล้วคิว QQ-1 ต้องตัด id ที่พบในตารางนี้ออกเป็นขั้นแรก · unique index
+`(CompanyId, SessionQuestionId)` ทำให้ retry job สร้างซ้ำเป็น no-op ได้
 
 ---
 
@@ -829,19 +1164,74 @@ R6.1 คือจุดแรกในโปรเจกต์ที่ soft del
 
 ---
 
-## PDF Narration Rules (R4) — contract
+## PDF Narration Rules (R4 · R4.6) — contract
+
+> **amendment 2026-08-26 (CR-2 / R4.6)** — NR-1..NR-9 ทั้งชุดเขียนขึ้นตอนที่ "แก้บทพูด" เกิดได้
+> เฉพาะกับบทเรียนที่**มีอยู่แล้ว** · R4.6.4 บังคับให้ใช้ UI/logic เดิมกับบทเรียนที่**ยังไม่มี
+> `LessonId`** จึงต้องบอกให้ชัดว่าข้อไหนเปลี่ยนอะไร: **NR-1/NR-2/NR-3/NR-5/NR-6/NR-8 ถูก amend
+> เฉพาะจุด (ครึ่งที่เหลือของทุกข้อยังบังคับใช้เหมือนเดิมทุกตัวอักษร)** และ **NR-10..NR-19 เป็นของใหม่
+> ทั้งชุด ครอบเฟสจัดการเนื้อหาก่อนสร้าง** · **ทางที่เลือกโดยตั้งใจ: ไม่ย้ายกติกาของ NR-1/NR-2 ไปอยู่ที่
+> client และไม่สร้าง endpoint บันทึกบทพูดตัวที่สอง** — draft อยู่ในเบราว์เซอร์จนกดยืนยัน แล้ว flush
+> ผ่าน endpoint เดิมทีละหน้า *หลัง* บทเรียนเกิดขึ้นแล้ว ทำให้ `LessonSlideNarrationService`
+> **ไม่ต้องแก้แม้บรรทัดเดียว**
 
 | # | กติกา |
 |---|---|
-| **NR-1** | **ลำดับการ resolve บทพูดต่อหน้า** (ใช้ทั้งตอนสอนและตอน index): มีแถว `LessonSlideNarration` ของ `(LessonId, SlideObjectId)` นั้น → ใช้ `NarrationText` · ไม่มี → ใช้ `PdfSlidesRenderer.BuildContent(...).SpeakerNotes` ของหน้านั้นตามเดิม · **ไม่มีเงื่อนไขที่สาม** |
-| **NR-2** | **เซฟเฉพาะที่แก้จริง (R4.1)** — endpoint บันทึกบทพูดรับทีละหน้า และต้องเทียบกับ prefill ก่อน: ข้อความที่ส่งมา (trim แล้ว) **เท่ากับ** ข้อความที่ระบบดึงได้ → **ลบแถวถ้ามี แล้วไม่สร้างแถวใหม่** · ต่างกัน → upsert แถว · ส่งค่าว่างมา → ลบแถว · ห้ามมี code path ใดที่เขียนทุกหน้าลง DB พร้อมกัน |
-| **NR-3** | **อัปโหลด PDF ใหม่ = ล้างบทพูดทั้งหมดของบทเรียนนั้น (R4.3)** — trigger คือ `LessonConfig.PdfDocumentResourceId` **เปลี่ยนค่า** (ไม่ใช่การเซฟทั่วไป) · ก่อนเซฟ ต้องคืนจำนวนแถวที่จะถูกลบให้ยืนยันก่อน ("บทพูดที่แก้ไว้ N หน้าจะถูกลบทั้งหมด") · ยืนยันแล้วจึง soft delete ทุกแถวของบทเรียนนั้นในทรานแซกชันเดียวกับการเซฟ |
-| **NR-4** | **ห้ามพยายามจับคู่หน้าเก่ากับหน้าใหม่** — `pdf-page-N` ผูกกับเลขหน้าล้วน แทรกหน้าเดียวทุกหน้าถัดไปเลื่อนผิดโดยไม่มี error · ถ้ามีใครเสนอ heuristic จับคู่ ให้ตีกลับมาที่ `system-analyst` ก่อน อย่า implement |
-| **NR-5** | **ตรวจไฟล์สแกน (R4.4)** — ตอนเปิดหน้าแก้บทพูด ถ้า **ทุกหน้า** ได้ `SpeakerNotes` ว่างหลัง trim → ตอบกลับพร้อม flag `isLikelyScanned = true` และ UI ขึ้นคำเตือนว่าต้องพิมพ์บทพูดเองทุกหน้า · **เป็นคำเตือน ไม่ใช่ error** — บันทึกบทพูดต่อได้ตามปกติ · ไม่ทำ OCR |
-| **NR-6** | **แก้บทพูดแล้วต้อง re-index หน้านั้น (R4.5)** — บันทึก/ลบแถวสำเร็จ → enqueue `BackgroundJob` ชนิด `lesson_index` ที่ `TargetId = LessonId` และ `PayloadJson = {"slideObjectIds":["pdf-page-7"]}` · worker upsert เฉพาะ chunk ที่ระบุ (chunk id ของบทเรียน = `SlideObjectId` อยู่แล้ว) **ห้าม re-embed ทั้งเด็ค** |
-| **NR-7** | **บทเรียน PDF ต้องถูก index เข้า namespace ของตัวเอง** — วันนี้ไม่เคยเกิดขึ้นเลย เพราะ `ILessonConfigService.SaveAsync` เรียก `IndexLessonAsync` ใน `if (!string.IsNullOrEmpty(presentationId))` · แก้เป็น: `ContentSourceType = "google_slides"` → เส้นทางเดิมทุกประการ · `= "pdf"` → build content จาก `PdfSlidesRenderer` ผ่าน NR-1 แล้ว index ด้วย `KnowledgeNamespaces.For(companyId, slug)` เหมือนกัน · **ถ้าไม่ทำข้อนี้ NR-6 ไม่มีอะไรให้ re-index และ R4.5 เป็นโมฆะ** |
-| **NR-8** | บทเรียน PDF จะมีข้อความจากไฟล์เดียวกันสองเส้นทาง (บทพูดจาก `PdfSlidesRenderer` ที่เก็บหน้าว่างไว้ · คำตอบจาก `PdfTextExtractor` ผ่านเอกสารแนบที่ตัดหน้าว่างทิ้ง) · **เฟสนี้ไม่รวมสองตัวแปลงเข้าด้วยกัน** — ยอมรับว่าซ้ำ แต่ต้องแยก `sourceType` ให้ถูก (`slide` vs `document`) เพื่อให้ KS-7 ยังบอกได้ว่าอันไหนคืออันไหน · การรวมตัวแปลงเป็นงานคนละรอบ (O-4) |
-| **NR-9** | Google Slides **ไม่มีช่องแก้บทพูดในระบบ** — endpoint บันทึกบทพูดต้องปฏิเสธบทเรียนที่ `ContentSourceType = "google_slides"` ที่ฝั่ง server ด้วย ไม่ใช่แค่ซ่อนปุ่มใน UI |
+| **NR-1** | **ลำดับการ resolve บทพูดต่อหน้า** (ใช้ทั้งตอนสอนและตอน index): มีแถว `LessonSlideNarration` ของ `(LessonId, SlideObjectId)` นั้น → ใช้ `NarrationText` · ไม่มี → ใช้ `PdfSlidesRenderer.BuildContent(...).SpeakerNotes` ของหน้านั้นตามเดิม · **ไม่มีเงื่อนไขที่สาม** · ⚠️ **เพิ่ม 2026-08-26 (R4.6.4)**: ระหว่างเฟสจัดการเนื้อหา (ยังไม่มี `LessonId`) **ข้อนี้ไม่ถูกเรียกและไม่ถูกทำเลียนแบบ** — สิ่งที่ CS เห็นบนจอคือ `draft[slideObjectId] ?? prefill ของ preview session` ซึ่งเป็น **state ในเบราว์เซอร์ ไม่ใช่การ resolve จากฐานข้อมูล** · `ILessonSlideNarrationResolver` **ห้ามถูกเรียกด้วย lessonId ปลอม/ว่าง/`previewId` เด็ดขาด** (query filter จะ match ศูนย์แถวและคืน prefill เฉย ๆ ซึ่งดูเหมือนทำงานได้ — กับดักชนิดเดียวกับ DI-4) · ⚠️ **เพิ่ม 2026-08-26 (R4.7)**: **`ILessonSlideNarrationResolver` ไม่ต้องแก้แม้บรรทัดเดียวอีกครั้ง — การกรองหน้าที่ถูกตัดเกิดที่ *ฝั่งผู้บริโภค* ไม่ใช่ในตัว resolver** (EX-1) · เหตุผล: resolver มีผู้เรียกสามรายที่ต้องการชุดหน้าคนละแบบ — ฝั่งสอน/ฝั่ง index ต้องการเฉพาะหน้าที่เหลือ ส่วน **หน้าแก้บทพูดต้องการครบทุกหน้ารวมหน้าที่ถูกตัด** (มติ Q-K3) · ถ้าใครยัดการกรองลงไปใน resolver หน้าแก้บทพูดจะมองไม่เห็นหน้าที่ตัดไว้ = **ไม่มีทางกดเอากลับ** ซึ่งฆ่า R4.7.7 ทั้งข้อ |
+| **NR-2** | **เซฟเฉพาะที่แก้จริง (R4.1)** — endpoint บันทึกบทพูดรับทีละหน้า และต้องเทียบกับ prefill ก่อน: ข้อความที่ส่งมา (trim แล้ว) **เท่ากับ** ข้อความที่ระบบดึงได้ → **ลบแถวถ้ามี แล้วไม่สร้างแถวใหม่** · ต่างกัน → upsert แถว · ส่งค่าว่างมา → ลบแถว · ห้ามมี code path ใดที่เขียนทุกหน้าลง DB พร้อมกัน · ⚠️ **เพิ่ม 2026-08-26 (R4.6.4/R4.6.6)**: **การเทียบ prefill ยังเป็นหน้าที่ของ server เท่านั้น แม้ในเส้นทางของเฟสใหม่** — ตอน flush (NR-12 ขั้น 4) client ส่งเฉพาะหน้าที่ CS **แตะ** (dirty) แต่ **ไม่ใช่ผู้ตัดสินว่า "เปลี่ยนจริง" หรือไม่**: ถ้า CS พิมพ์แล้วลบกลับจนเท่า prefill เดิม server จะไม่สร้างแถวให้เอง ซึ่งถูกต้องแล้ว **ห้ามเพิ่มการเทียบซ้ำที่ client เพื่อ "ประหยัด request"** (กติกาเดียวที่มีสองที่คือกติกาที่จะเพี้ยนกันวันหนึ่ง) · prefill ที่ทั้งสองฝั่งเห็น **เท่ากันโดยโครงสร้าง** เพราะเป็น `PdfSlidesRenderer.BuildContent` ตัวเดียวกันบน byte ชุดเดียวกัน (NR-10 ท้ายข้อ) · **การส่งทีละหน้า N ครั้งคือพฤติกรรมที่ต้องการ ไม่ใช่ของชั่วคราวที่รอ batch endpoint** · ⚠️ **เพิ่ม 2026-08-26 (R4.7.8 · มติ Q-K3)**: **`SaveAsync` ต้องปฏิเสธหน้าที่ถูกตัดอยู่** — `GeneralException.ValidationError("หน้านี้ถูกตัดออกจากบทเรียนแล้ว - เอาหน้ากลับก่อนจึงจะแก้บทพูดได้")` ที่ฝั่ง server ไม่ใช่แค่ทำ read-only ใน UI (EX-12) · **แต่กติกา "เซฟเฉพาะที่แก้จริง" ยังบังคับใช้เต็มที่กับการตัดหน้า**: การตัดหน้าที่ CS ไม่เคยแก้บทพูด **ห้ามสร้างแถว `LessonSlideNarration` ขึ้นมาเพื่อ "เก็บไว้ให้"** — R4.7.8 พูดถึงบทพูดที่ CS แก้ไว้จริงเท่านั้น การแช่ข้อความ prefill ลง DB ยังเป็นสิ่งที่ R4.1 ห้ามอยู่เหมือนเดิมทุกตัวอักษร (EX-7) |
+| **NR-3** | **อัปโหลด PDF ใหม่ = ล้างบทพูดทั้งหมดของบทเรียนนั้น (R4.3)** — trigger คือ `LessonConfig.PdfDocumentResourceId` **เปลี่ยนค่า** (ไม่ใช่การเซฟทั่วไป) · ก่อนเซฟ ต้องคืนจำนวนแถวที่จะถูกลบให้ยืนยันก่อน ("บทพูดที่แก้ไว้ N หน้าจะถูกลบทั้งหมด") · ยืนยันแล้วจึง soft delete ทุกแถวของบทเรียนนั้นในทรานแซกชันเดียวกับการเซฟ · ⚠️ **เพิ่ม 2026-08-26 (R4.6.8/R4.6.9)**: ข้อนี้ **ไม่ครอบการเปลี่ยนไฟล์ระหว่างเฟสจัดการเนื้อหา** (ยังไม่มีบทเรียน ไม่มีแถวจะเสีย → NR-16 ล้างเงียบ ๆ) · และ **ยังบังคับใช้เต็มที่กับการแทนที่ไฟล์ของบทเรียนที่มีอยู่แล้วทุกกรณี** — `handlePdfFileSelected` + dialog นับหน้าในโหมด `isEdit` **ห้ามถูกลบหรือถูกกลืนเข้าเฟสใหม่** (R4.6.9 เจ้าของโปรเจกต์ไม่เลือกข้อนั้นโดยชัดเจน) · **⛔ กับดักที่ต้องอ่านก่อน implement NR-12**: ขั้นที่ 3 ของ NR-12 (เซฟบทเรียนโดยผูก `PdfDocumentResourceId` ครั้งแรก) **เข้าเงื่อนไข trigger ของข้อนี้เต็ม ๆ** — `SaveAsync` เช็ก `!isNew && previousPdfDocumentResourceId != input.PdfDocumentResourceId` และในขั้นนี้ `isNew = false` (แถวถูกสร้างในขั้นที่ 2 แล้ว) กับ `previous = null ≠ docId` → **`DeleteByLessonId` ถูกเรียกจริง** · ไม่มีผลเสีย **เฉพาะเมื่อลำดับของ NR-12 ถูกเคารพ** (ตอนนั้นยังไม่มีแถวบทพูดเลย) · **ถ้าใครสลับให้ flush บทพูดก่อนขั้นที่ 3 บทพูดที่เพิ่งเซฟจะถูกลบทิ้งเงียบ ๆ ทั้งชุด ไม่มี error ไม่มี log** — นี่คือเหตุผลที่ NR-12 ระบุลำดับเป็นข้อบังคับ ไม่ใช่คำแนะนำ · ⚠️ **เพิ่ม 2026-08-26 (R4.7.11)**: **trigger เดียวกันนี้ต้องล้าง `LessonExcludedSlide` ของบทเรียนนั้นด้วย ในทรานแซกชันเดียวกัน** (`_excludedSlideRepository.DeleteByLessonId(entity.Id)` วางต่อจาก `_narrationRepository.DeleteByLessonId(entity.Id)` บรรทัดติดกัน) — เหตุผลเดียวกับบทพูดคำต่อคำ: `pdf-page-N` ผูกเลขหน้าดิบ ไฟล์ใหม่จับคู่หน้าเก่าไม่ได้ (NR-4) · **และต้องนับรวมในกล่องเตือนก่อนยืนยัน ไม่ใช่ผลข้างเคียงเงียบ ๆ**: `GET /api/lessons/{id}/narrations/count` เปลี่ยน response จาก `{ count }` เป็น **`{ count, excludedCount }`** — **breaking แต่มี caller เดียว** (`LessonForm.tsx` โหมด `isEdit`) และต้องแก้ TS type คู่กันตามกฎสถาปัตยกรรมข้อ 7 · ข้อความต้องบอกทั้งสองจำนวนและต้องไม่ขึ้นครึ่งเดียว (EX-10) |
+| **NR-4** | **ห้ามพยายามจับคู่หน้าเก่ากับหน้าใหม่** — `pdf-page-N` ผูกกับเลขหน้าล้วน แทรกหน้าเดียวทุกหน้าถัดไปเลื่อนผิดโดยไม่มี error · ถ้ามีใครเสนอ heuristic จับคู่ ให้ตีกลับมาที่ `system-analyst` ก่อน อย่า implement · ⚠️ **เพิ่ม 2026-08-26 (R4.7.6) — ข้อนี้ไม่ถูกผ่อนแม้ตัวอักษรเดียว แต่มีข้อห้ามใหม่ต่อท้าย** · **R4.7.6 ไม่ขัดกับข้อนี้**: `SlideObjectId` (`pdf-page-N`) กับ `Index` เป็นคนละฟิลด์ตั้งแต่ `PdfSlidesRenderer.BuildContent:83-84` การเรียงเลขใหม่แตะเฉพาะ `Index` **id ไม่ขยับ ไฟล์ไม่เปลี่ยน จึงไม่มีการจับคู่หน้าใด ๆ เกิดขึ้น** — และการที่ id ไม่ขยับคือเหตุผลเดียวที่ R4.7.8 ทำงานได้ · **ข้อห้ามใหม่ที่มีน้ำหนักเท่ากับข้อเดิม: ห้ามคำนวณเลขหน้าของไฟล์จากลำดับที่คนเห็น** (`index + 1`, ตำแหน่งใน array, ลำดับที่ render) ทุกที่ที่ต้องการเลขหน้าจริงต้องแปลงจาก `slideObjectId` (`pdf-page-N` → N) เท่านั้น · **มีสองที่ในโค้ดวันนี้ที่ผูกไว้แบบนั้นอยู่**: `frontend/src/app/admin/lessons/[slug]/narrations/page.tsx:143` และ `frontend/src/components/admin/PdfLessonContentPhase.tsx:309` (ทั้งคู่ส่ง `slide.index + 1` เป็นเลขหน้าให้ endpoint ภาพสไลด์) · **ตรวจแล้ว: วันนี้ยังถูกต้อง และจะยังถูกต้องต่อไปหลัง R4.7.6 เพราะ EX-3 บังคับให้ payload ฝั่ง admin คง `index` เป็นลำดับหน้าจริงของไฟล์ไว้เหมือนเดิม** — **แต่ยังต้องแก้ทั้งสองที่อยู่ดี** เพราะมันคือสายชนวนที่แปลง "การเรียงเลขใหม่" ให้กลายเป็น **ภาพสไลด์เป็นคนละหน้ากับบทพูดที่อยู่ข้าง ๆ โดย typecheck/lint/build/test ผ่านหมด ไม่มี error ไม่มี log** ทันทีที่ใครสักคนตีความ R4.7.6 ว่าให้เรียง `index` ใหม่ทุก payload · เลขหน้าไฟล์ต้องมาจาก `slideObjectId` ซึ่ง**เป็นจริงเสมอไม่ว่าใครจะเรียงอะไรใหม่** (EX-3) |
+| **NR-5** | **ตรวจไฟล์สแกน (R4.4)** — ตอนเปิดหน้าแก้บทพูด ถ้า **ทุกหน้า** ได้ `SpeakerNotes` ว่างหลัง trim → ตอบกลับพร้อม flag `isLikelyScanned = true` และ UI ขึ้นคำเตือนว่าต้องพิมพ์บทพูดเองทุกหน้า · **เป็นคำเตือน ไม่ใช่ error** — บันทึกบทพูดต่อได้ตามปกติ · ไม่ทำ OCR · ⚠️ **เพิ่ม 2026-08-26 (R4.6.3)**: ข้อนี้มี **ผู้ผลิตค่าสองที่ตั้งแต่นี้ไป** — `LessonSlideNarrationService.GetAllAsync` (ของเดิม) และ **response ของ preview session (NR-10)** · สูตรต้องเป็นสูตรเดียวกันเป๊ะ (`Slides.Count > 0 && Slides.All(s => IsNullOrWhiteSpace(s.SpeakerNotes))`) · **ในเฟสจัดการเนื้อหา คำเตือนนี้ต้องขึ้นทันทีที่เข้าเฟส ไม่ใช่ตอนกดยืนยัน** — ประเด็นทั้งหมดของ R4.4 คือ CS ต้องรู้ก่อนลงมือ ไม่ใช่รู้ตอนจบ · ⚠️ **เพิ่ม 2026-08-26 (R4.7)**: **สูตรคิดจากทุกหน้าของไฟล์เหมือนเดิมทุกตัวอักษร ห้ามเปลี่ยนเป็น "เฉพาะหน้าที่เหลือ"** — `isLikelyScanned` เป็นคำบอกสถานะของ *ไฟล์* ไม่ใช่ของ *บทเรียน* · ถ้าใครกรองหน้าที่ถูกตัดออกก่อนคำนวณ จะได้พฤติกรรมประหลาดที่ "ตัดหน้าที่มีข้อความทิ้งไป 1 หน้า แล้วบทเรียนกลายเป็นไฟล์สแกนขึ้นมาเฉย ๆ" · **สูตรยังต้องเหมือนกันเป๊ะทั้งสองผู้ผลิตค่าตามที่ข้อนี้บังคับไว้อยู่แล้ว** |
+| **NR-6** | **แก้บทพูดแล้วต้อง re-index หน้านั้น (R4.5)** — บันทึก/ลบแถวสำเร็จ → enqueue `BackgroundJob` ชนิด `lesson_index` ที่ `TargetId = LessonId` และ `PayloadJson = {"slideObjectIds":["pdf-page-7"]}` · worker upsert เฉพาะ chunk ที่ระบุ (chunk id ของบทเรียน = `SlideObjectId` อยู่แล้ว) **ห้าม re-embed ทั้งเด็ค** · ⚠️ **เพิ่ม 2026-08-26 (R4.6.5/R4.6.6)**: **ระหว่างเฟสจัดการเนื้อหาไม่มีการ enqueue อะไรเลย** (ไม่มี `LessonId` ให้ใส่ `TargetId` และไม่มีอะไรให้ index — นี่คือที่มาของ R4.6.5(ข) "ทิ้งเฟสไป = ไม่มีค่า embedding") · ตอน flush ของ NR-12 ขั้นที่ 4 ข้อนี้ทำงานตามปกติทุกหน้าที่เปลี่ยนจริง → **จะมีงาน `lesson_index` เกิดขึ้น 1 งานต่อหน้าที่แก้ ต่อจากการ index ทั้งเด็คแบบ inline ของ NR-7 ในขั้นที่ 3** · **ความซ้ำนี้ยอมรับแล้วโดยรู้ตัว ห้าม "ปรับปรุง" ด้วยการรวบเป็นงานเดียวหรือข้ามงานใดทิ้ง** (ดู R-23 สำหรับหน้าต่างเวลาที่ index ยังเป็นข้อความ prefill อยู่ไม่กี่วินาที) · ⚠️ **เพิ่ม 2026-08-26 (R4.7.5) — กับดักที่ทำให้ R4.7.4 ล้มเงียบ ๆ ถ้าอ่านข้ามข้อนี้**: `ProcessLessonIndexAsync` วันนี้กรองด้วย `payload.SlideObjectIds.Where(resolvedById.ContainsKey)` (`IBackgroundJobProcessor.cs:426`) · **ถ้ากรองหน้าที่ถูกตัดออกจาก resolved list ตามธรรมชาติ id ของหน้านั้นจะไม่อยู่ใน `resolvedById` → ถูกดรอปทิ้งทั้งใบ → vector ไม่เคยถูกลบ และงานขึ้น `succeeded` ตามปกติ** — ไม่มี error ไม่มี log ไม่มีอะไรจับได้ · **ข้อบังคับ: หน้าที่ถูกตัดต้องเข้า `toDelete` เสมอ ไม่ใช่หายไปจาก list** (EX-5) · **ห้ามแก้ด้วยการเลิกกรองหน้าที่ถูกตัดออกจาก resolver** (จะทำให้ฝั่งสอนกลับมาสอนหน้านั้น) — ต้องแยกสองอย่างนี้ออกจากกันให้ชัด: *ฝั่งสอนกรองทิ้ง* กับ *ฝั่ง index ลบทิ้ง* ไม่ใช่เรื่องเดียวกัน |
+| **NR-7** | **บทเรียน PDF ต้องถูก index เข้า namespace ของตัวเอง** — วันนี้ไม่เคยเกิดขึ้นเลย เพราะ `ILessonConfigService.SaveAsync` เรียก `IndexLessonAsync` ใน `if (!string.IsNullOrEmpty(presentationId))` · แก้เป็น: `ContentSourceType = "google_slides"` → เส้นทางเดิมทุกประการ · `= "pdf"` → build content จาก `PdfSlidesRenderer` ผ่าน NR-1 แล้ว index ด้วย `KnowledgeNamespaces.For(companyId, slug)` เหมือนกัน · **ถ้าไม่ทำข้อนี้ NR-6 ไม่มีอะไรให้ re-index และ R4.5 เป็นโมฆะ** · ⚠️ **เพิ่ม 2026-08-26 (R4.7.3)**: **การ index ทั้งเด็คแบบ inline ใน `SaveAsync` ต้องข้ามหน้าที่ถูกตัด** — กรองหลังจาก `narrationResolver.ResolveAsync` และ **หลังจาก** exclusion ของคำขอนั้นถูกเขียนลง DB แล้ว (ดูลำดับบังคับที่ NR-12 ขั้น 3 / EX-9) · **ไม่ใช่การ index แล้วค่อยลบ**: หน้าที่ถูกตัดตั้งแต่ก่อนบทเรียนเกิด **ต้องไม่เคยถูก embed เลยแม้ครั้งเดียว** ซึ่งเป็นทั้งเรื่องต้นทุน (R4.6.5(ข) ในเจตนาเดียวกัน) และเรื่องความถูกต้อง (ไม่มีหน้าต่างเวลาที่ vector ของหน้าที่ถูกตัดมีอยู่จริงในคลัง) |
+| **NR-8** | บทเรียน PDF จะมีข้อความจากไฟล์เดียวกันสองเส้นทาง (บทพูดจาก `PdfSlidesRenderer` ที่เก็บหน้าว่างไว้ · คำตอบจาก `PdfTextExtractor` ผ่านเอกสารแนบที่ตัดหน้าว่างทิ้ง) · **เฟสนี้ไม่รวมสองตัวแปลงเข้าด้วยกัน** — ยอมรับว่าซ้ำ แต่ต้องแยก `sourceType` ให้ถูก (`slide` vs `document`) เพื่อให้ KS-7 ยังบอกได้ว่าอันไหนคืออันไหน · การรวมตัวแปลงเป็นงานคนละรอบ (O-4) · ⚠️ **เพิ่ม 2026-08-26 (มติ CR-2.h)**: เมื่อเด็คถูกอัปด้วย `ScopeType = "lesson"` (NR-14) **สำเนาทั้งสองชุดไปอยู่ใน namespace เดียวกัน** คือ `KnowledgeNamespaces.For(companyId, slug)` — ต่างจากวันนี้ที่สำเนา `document` ของเด็คที่สร้างจากหน้าสร้างใหม่ไปอยู่ `kb-global` · **`sourceType` ยังเป็นสิ่งเดียวที่แยกสองชุดออกจากกัน จึงยิ่งขาดไม่ได้** (KS-6/KS-7) · **ผลที่ต้องรู้และยอมรับ: top-k ของ namespace บทเรียนจะมีข้อความหน้าเดียวกันสองรูปแบบแข่งกันเอง** = ความหลากหลายของผลลัพธ์ลดลง (R-21) · **ห้ามแก้ด้วยการข้ามไม่ index เอกสารเด็ค หรือกรอง `sourceType` ทิ้งตอน retrieval** — ทั้งสองทางแตะพฤติกรรมการตอบที่ CR-1.g สั่งห้าม และของจริงต้องแก้ที่ O-4 · ⚠️ **เพิ่ม 2026-08-26 (R4.7.3/R4.7.4) — ข้อนี้คือหัวใจของ blast radius ที่เจ้าของโปรเจกต์กังวลเอง**: ความซ้ำที่ข้อนี้ยอมรับไว้ แปลว่า **หน้าหนึ่งของเด็คมี vector สองใบ ไม่ใช่ใบเดียว** — `pdf-page-7` (`sourceType=slide`, namespace ของบทเรียน) และ `{documentId}-page-7` (`sourceType=document`, `PdfTextExtractor.cs:49` สร้าง `ChunkId = "page-{Number}"` จากเลขหน้าจริง) · **การตัดหน้าต้องถอดทั้งสองใบ ถอดใบเดียว = R4.7.3(ข) ล้มทันทีและไม่มีอะไรจับได้นอกจากคนไปลองถาม** · **สำหรับบทเรียนที่สร้างก่อน Module J ซึ่งเด็คยัง scope `company` (O-14) ใบที่สองอยู่ใน `kb-global` แปลว่าเนื้อหาหน้าที่ถูกตัดยังตอบคำถามของทุกบทเรียนในบริษัทได้** — `DocumentChunk.NamespaceKey` ครอบเคสนี้ให้ฟรีเพราะมันเก็บ namespace ที่ chunk นั้น **อยู่จริง** ไม่ใช่ที่มัน**ควรอยู่วันนี้** · กติกาเต็มที่ EX-5/EX-6 |
+| **NR-9** | Google Slides **ไม่มีช่องแก้บทพูดในระบบ** — endpoint บันทึกบทพูดต้องปฏิเสธบทเรียนที่ `ContentSourceType = "google_slides"` ที่ฝั่ง server ด้วย ไม่ใช่แค่ซ่อนปุ่มใน UI · ⚠️ **ยืนยันซ้ำ 2026-08-26 (R4.6.9)**: เฟสจัดการเนื้อหา **ไม่โผล่เลย**ตอนสร้างบทเรียน Google Slides — กด "สร้าง" แล้ว `saveLesson` ทันทีเหมือนวันนี้ทุกตัวอักษร |
+
+### NR-10..NR-19 — เฟสจัดการเนื้อหาก่อนสร้างบทเรียน PDF (R4.6) · เพิ่ม 2026-08-26
+
+| # | กติกา |
+|---|---|
+| **NR-10** | **preview session — ทางเดียวที่ได้ทั้งข้อความร่างและภาพสไลด์จากไฟล์ที่ยังไม่ persist (R4.6.1/R4.6.3)** · **endpoint ใหม่ 2 ตัว ทั้งคู่เป็น admin-auth ปกติ ห้าม `[AllowAnonymous]`**: (1) `POST /api/lessons/pdf-preview/session` รับ multipart field `file` เดียว · `[RequestSizeLimit(30 * 1024 * 1024)]` **ค่าเดียวกับ `DocumentsController` เป๊ะ ห้ามตั้งค่าใหม่** · ทำงาน: `PdfSlidesRenderer.BuildContent(stream, previewId, file.FileName)` ในหน่วยความจำ แล้วคืน `{ previewId, title, pageCount, isLikelyScanned, slides: [{ slideObjectId, index, narrationText }] }` — **รูปของ `slides` ต้องตรงกับ `LessonNarrationSlideViewModel` ทุกฟิลด์ที่ใช้ร่วมกัน** (`IsOverridden` ไม่มีในเฟสนี้ ให้ละไป ไม่ใช่ส่ง `false` ปลอม) (2) `GET /api/lessons/pdf-preview/{previewId}/pages/{pageNumber:int}` คืน `image/png` จาก `PdfSlidesRenderer.RenderPagePng(stream, pageNumber)` · **การเก็บ**: `previewId = IdGenerator.GenerateId("pdfprev")` · byte ทั้งไฟล์ + `CompanyId` ของผู้เรียก เก็บใน `IMemoryCache` คีย์ `pdf-preview:{previewId}` แบบ `SlidingExpiration = TimeSpan.FromMinutes(10)` — **รูปเดียวกับ `pdf-bytes:{documentId}` ที่ `GetPdfBytesAsync` ใช้อยู่แล้ว ห้ามสร้างกลไก cache ที่สอง** · **ห้ามเขียนอะไรลง PostgreSQL, object storage, Pinecone หรือ `BackgroundJob` ในสองเส้นทางนี้เด็ดขาด** · **ไม่มี endpoint ลบ session** — หมดอายุเองทางเดียว (ใครกำลังจะเพิ่ม `DELETE` ให้หยุด: มันเป็นทางเดียวที่ id ที่หลุดออกไปจะกลายเป็นเครื่องมือลบของคนอื่นได้ และไม่มี requirement ข้อไหนขอ) · **prefill ที่ออกจาก endpoint นี้ = prefill ที่ NR-2 จะเทียบตอน flush โดยโครงสร้าง** เพราะเป็นเมธอดเดียวกันบน byte ชุดเดียวกัน (deterministic) — **ห้าม "ปรับปรุง" ข้อความในเส้นทางใดเส้นทางหนึ่งฝ่ายเดียว** |
+| **NR-11** | **company isolation ของ preview session ต้องเขียนด้วยมือ — EF query filter เอื้อมไม่ถึง (🔒)** · ทุกครั้งที่อ่าน `pdf-preview:{previewId}` ต้องเทียบ `CompanyId` ที่เก็บไว้ในรายการกับ `CurrentCompanyId` **ก่อน**ใช้ byte แม้แต่ไบต์เดียว · ไม่ตรง หรือไม่มีรายการ (หมดอายุ) → **`GeneralException.NotFound` ทั้งสองกรณี ห้ามแยกข้อความให้เดาได้ว่า id นี้มีอยู่จริงแต่เป็นของบริษัทอื่น** · เหตุผลเดียวกับที่ `KnowledgeNamespaces` ย้ำเรื่อง namespace key: ของที่อยู่นอก PostgreSQL ไม่มี `HasQueryFilter` มาช่วย · **`previewId` ห้ามถูกใช้แทน `documentId` ที่ endpoint ใดของระบบ และ `documentId` ห้ามใช้กับ endpoint ของ NR-10** — สอง id space นี้ต้องไม่ปนกัน (คนละอายุ คนละกฎสิทธิ์) |
+| **NR-12** | **ลำดับของ "ยืนยันการสร้าง" — 4 ขั้น เรียงตามนี้เท่านั้น (R4.6.6)** · client เรียก endpoint ที่**มีอยู่แล้วทั้งหมด** ไม่มี endpoint commit ตัวใหม่ · **ลำดับนี้ถูกบังคับด้วยข้อจำกัดที่ตรวจจากโค้ดแล้ว ไม่ใช่รสนิยม**: `EnsureValidScope` ต้องมี lesson id จริงก่อน (NR-14) → บทเรียนต้องเกิดก่อนเอกสาร · `EnsurePdfSource` ต้องมี `PdfDocumentResourceId` แล้ว → บทพูด flush ได้หลังผูกไฟล์เท่านั้น · **ขั้น 1** `POST /api/lessons` สร้างบทเรียน (`contentSourceType = "pdf"` · `pdfDocumentResourceId = undefined` · `slideConfigs` จาก preview session · `isActive` ตามที่ CS เลือกในฟอร์ม) → ได้ `lesson.id` · **NR-7 ไม่ทำงานในขั้นนี้** เพราะ `PdfDocumentResourceId` ว่าง (ตรวจโค้ดแล้ว: `SaveAsync` เข้าเงื่อนไข `!string.IsNullOrEmpty(entity.PdfDocumentResourceId)`) = ยังไม่มีการ index อะไร · **ขั้น 2** `POST /api/documents` ด้วย **ไฟล์จริงจากเบราว์เซอร์** (ไม่ใช่ `previewId`) + `scopeType: "lesson"`, `scopeId: lesson.id` (NR-14) · `checkDuplicate` = **`false`** — เด็คของบทเรียนไม่ใช่เอกสารที่ CS กำลังจัดคลัง และ KL-21 เป็น opt-in อยู่แล้ว · **ขั้น 3** `POST /api/lessons` อีกครั้ง โดยคราวนี้ใส่ `pdfDocumentResourceId` ที่ได้จากขั้น 2 → **นี่คือจุดที่ NR-7 index ทั้งเด็คแบบ inline** · **ขั้น 4** flush บทพูด: `PUT /api/lessons/{id}/narrations/{slideObjectId}` **ทีละหน้า เฉพาะหน้าที่ CS แตะ** (NR-2) · **⛔ ห้ามสลับลำดับ 3↔4 เด็ดขาด** — ขั้น 3 ทำให้ NR-3 เรียก `DeleteByLessonId` (ดู NR-3 ท้ายข้อ) ซึ่งจะลบบทพูดที่ flush ไปแล้วทิ้งเงียบ ๆ · **ต้องมี progress bar ตามที่ CR-2.a รับไว้** (จำนวนขั้น = 3 + จำนวนหน้าที่แก้) · **สำเร็จครบทั้ง 4 ขั้น → `router.push` ไปหน้าแก้บทเรียนของ slug นั้น** เหมือน `handleCreate` วันนี้ · ⚠️ **เพิ่ม 2026-08-26 (R4.7.2) — ยัง 4 ขั้นเท่าเดิม ห้ามเพิ่มขั้นที่ 5**: หน้าที่ CS ตัดระหว่างเฟสเป็น draft ในเบราว์เซอร์ล้วนตาม R4.6.5 แล้วเดินทางไปกับ **ขั้นที่ 3** ในฟิลด์ใหม่ `excludedSlideObjectIds: string[]` ของ `POST /api/lessons` · **เหตุผลที่ต้องเป็นขั้น 3 ไม่ใช่ขั้น 1 และไม่ใช่ขั้นใหม่ต่อท้าย**: ขั้น 1 ยังไม่มี `PdfDocumentResourceId` → server นับจำนวนหน้าจริงไม่ได้ → **บังคับ R4.7.9 (เหลืออย่างน้อย 1 หน้า) ไม่ได้ และ validate `pdf-page-N` ว่ามีอยู่จริงไม่ได้** ส่วนขั้นต่อท้ายจะแปลว่า NR-7 ใน**ขั้น 3 index หน้าที่ถูกตัดไปแล้วก่อนหน้านั้น** · **⛔ กับดักลำดับ *ภายใน* ขั้นที่ 3 ที่ต้องอ่านคู่กับกับดักของ NR-3**: คำขอเดียวกันนี้เข้าเงื่อนไข trigger ของ NR-3 เต็ม ๆ (`previous = null ≠ docId`) ซึ่งตอนนี้เรียก `DeleteByLessonId` **ของทั้งบทพูดและ exclusion** → **ลำดับใน `SaveAsync` ต้องเป็น: (ก) NR-3 ล้างก่อน → (ข) เขียน `excludedSlideObjectIds` → (ค) NR-7 index ทั้งเด็คโดยข้ามหน้าที่ถูกตัด** · **สลับ (ก) กับ (ข) เมื่อไหร่ หน้าที่ CS ตัดไว้ทั้งเฟสจะถูกล้างทิ้งเงียบ ๆ ไม่มี error ไม่มี log** — เป็นกับดักตัวเดียวกับที่ข้อนี้เขียนเตือนเรื่องบทพูดไว้แล้วคำต่อคำ (EX-9) · **ฟิลด์นี้เป็น optional และ `null` = "ไม่แตะของเดิม" ส่วน `[]` = "ไม่มีหน้าไหนถูกตัด"** — โหมดแก้บทเรียนที่ไม่ได้ส่งฟิลด์นี้มา **ห้ามถูกตีความว่าสั่งล้าง** (EX-9 ท้ายข้อ) |
+| **NR-13** | **ล้มเหลวกลางทางของ NR-12 — ครบทุกขั้น ไม่เหลือให้ engineer ตัดสิน** · ระบบนี้ commit เป็น atomic ไม่ได้ (`UploadAsync` commit เอง 3 ครั้ง · `SaveAsync` commit เอง) จึงต้องบอกให้ชัดว่าแต่ละความล้มเหลว **ทิ้งอะไรไว้ · CS เห็นอะไร · กดต่ออะไรได้**: **ล้มที่ขั้น 1** → ไม่มีอะไรเกิดขึ้นทั้งระบบ · แสดง error ของ server ตรง ๆ (slug ซ้ำ/ผิด TX-7, หมวดผิด TX-4) · **CS อยู่ในเฟสเดิม แก้ฟอร์มแล้วกดยืนยันซ้ำได้ draft ทุกหน้าต้องยังอยู่ครบ** · **ล้มที่ขั้น 2** → มีบทเรียนที่ยังไม่มีไฟล์ · **ห้ามย้ายบทเรียนเข้าถังหรือลบทิ้งเองโดยอัตโนมัติ** (ตั้งแต่ Module L การเข้า trash เป็นคำสั่งที่ผู้ใช้ยืนยันโดยชัดแจ้งตาม LT-2; ความล้มเหลวของ workflow สร้างบทเรียนไม่ใช่คำสั่งนั้น) · UI ต้องบอกตรง ๆ ว่า "บทเรียนถูกสร้างแล้ว แต่อัปไฟล์ไม่สำเร็จ" + ปุ่ม **"ลองอัปไฟล์อีกครั้ง"** ที่ทำต่อจากขั้น 2 (ไฟล์และ draft ยังอยู่ในเบราว์เซอร์ครบ **นี่คือเหตุผลเชิงปฏิบัติที่ R4.6.5 ให้ client ถือของไว้**) · **ล้มที่ขั้น 3** → บทเรียน + เอกสารมีแล้วแต่ยังไม่ผูกกัน · ปุ่ม "ลองอีกครั้ง" ทำต่อจากขั้น 3 **ห้ามอัปไฟล์ใหม่ซ้ำ** (จะได้เอกสารสองใบและจ่าย embedding สองรอบ) · **ล้มที่ขั้น 4 หน้าที่ k** → บทเรียนใช้งานได้จริงแล้ว บทพูดเซฟไปบางหน้า · UI บอกจำนวนหน้าที่สำเร็จ/ไม่สำเร็จ + ปุ่มลองซ้ำเฉพาะหน้าที่เหลือ · **และต้องมีทางออกที่ปลอดภัยเสมอ: ลิงก์ "ไปหน้าแก้บทพูด" (`/admin/lessons/{slug}/narrations`) ซึ่งแสดงสถานะจริงที่เซฟไปแล้ว** — เฟสนี้ห้ามเป็นทางตันที่ CS ต้องเริ่มใหม่ทั้งหมดเมื่อของถูกสร้างไปแล้วครึ่งทาง · **ทุกกรณีข้างบน: ห้ามลบเอกสารที่อัปสำเร็จไปแล้วโดยอัตโนมัติ** (DI-14 บล็อกการลบเอกสารที่เป็น `PdfDocumentResourceId` อยู่แล้ว และการลบเองจะขัดกับมันทันที) · ⚠️ **เพิ่ม 2026-08-26 (R4.7.2)**: **ล้มที่ขั้น 3** → นอกจากไฟล์ยังไม่ผูกแล้ว **หน้าที่ CS ตัดไว้ก็ยังไม่ถูกเขียนเลยสักหน้า** (ทั้งสองอย่างอยู่ในคำขอเดียวกัน) · ปุ่ม "ลองอีกครั้ง" ที่ทำต่อจากขั้น 3 **ต้องส่ง `excludedSlideObjectIds` ไปด้วยทุกครั้ง ไม่ใช่เฉพาะรอบแรก** — draft ยังอยู่ในเบราว์เซอร์ครบตาม R4.6.5 · **ล้มที่ขั้น 4** → บทเรียนใช้งานได้จริงแล้วและ **หน้าที่ถูกตัดถูกตัดไปเรียบร้อยแล้ว** (เกิดในขั้น 3) — ลิงก์ทางออก "ไปหน้าแก้บทพูด" จะแสดงสถานะจริงรวมหน้าที่ถูกตัดด้วย ซึ่งถูกต้องแล้ว **ห้ามพยายาม "ย้อน" การตัดให้อัตโนมัติ** |
+| **NR-14** | **✅ มติ CR-2.h — เอกสาร PDF ตัวสไลด์เข้าคลังด้วย `ScopeType = "lesson"` ทุกกรณีตั้งแต่ Module J ไป** (`ScopeId = LessonConfig.Id`) · **เหตุผลที่เลือก `lesson` ไม่ใช่ `company`**: (1) ข้อจำกัดเดิมหมดไปจริง — คอมเมนต์ที่ `LessonForm.tsx:190-191` เขียนเองว่าเหตุผลเดียวของ `company` คือ "โหมดสร้างยังไม่มี lesson id" ซึ่ง NR-12 ขั้น 1 แก้ไปแล้ว (2) `company` แปลว่า **"เอกสารนี้ตอบคำถามได้ทุกบทเรียนของบริษัท"** ตาม KS-1/KS-3 — เนื้อหาเด็คของบทเรียนหนึ่งไปตอบคำถามของบทเรียนอื่นทั้งบริษัทคือผลที่**ไม่มีใครขอ** และขัดกับ R3 ทั้งข้อ (3) โหมดแก้ใช้ `lesson` อยู่แล้ว → คงไว้แบบเดิมจะได้ระบบที่ scope ของไฟล์ขึ้นอยู่กับ**หน้าจอที่สร้างมัน** ซึ่งคือกับดักเดียวกับที่ DM-3/DS-1 ตัด `LessonId`/`LessonSlug` ทิ้งเพื่อกันไว้ (4) หน้าคลังรวมอ่านออกทันทีว่าไฟล์นี้เป็นของบทเรียนไหน (KL-6) และ badge "ใช้เป็นสไลด์หลัก" (KL-7) กับตัวนับของ UC-6 (`scopeType: "lesson"`) **ทำงานได้เองโดยไม่ต้องแก้อะไรเพิ่ม** ซึ่งกับ `company` จะไม่เกิด · **สิ่งที่ต้องทำตามมา ไม่มีข้อยกเว้น**: `EnsureValidScope` จะปฏิเสธถ้า `ScopeId` ไม่ใช่ `LessonConfig.Id` ที่มีจริงในบริษัทนี้ (KS-2/DS-3) → **ยิ่งบังคับลำดับของ NR-12 ว่าบทเรียนต้องเกิดก่อนเอกสาร** · **`PdfDocumentResourceId` ยังไม่เกี่ยวกับ `ScopeType`** ตาม DM-3 (ไฟล์เดียวกันเป็นทั้ง "เนื้อหาสอน" และ "ความรู้ที่ตอบได้" ได้พร้อมกัน) · **ไม่มี migration ไม่มี backfill ไม่มีแถวเดิมถูกแตะ** — **เอกสารเด็คที่มีอยู่แล้วและ scope `company` อยู่ (ทุกใบที่สร้างจากหน้าสร้างใหม่ก่อน Module J) คงอยู่อย่างนั้นตลอดไปโดยเจตนา** ตามแนวเดียวกับ R4.6.10 (แก้แค่ของใหม่) → **ทางแก้ทีละใบมีอยู่แล้วและใช้ได้เลยถ้าวันหนึ่งอยากย้าย: `PATCH /api/documents/{id}/scope` (DS-5/DS-6/DS-7) ซึ่งจัดการ vector ให้ถูกต้องอยู่แล้ว** · **ห้ามเขียนสคริปต์/migration ย้ายเป็นชุดในรอบนี้** (O-14) |
+| **NR-15** | **เตือนก่อนยืนยันโดยไม่แก้บทพูด (R4.6.7)** — คำนวณจาก draft ในเบราว์เซอร์ล้วน **ห้ามยิง server เพื่อถาม** · เตือนเมื่อเข้าเงื่อนไขใดก็ได้: (ก) ไม่มีหน้าไหนถูกแตะเลย (ข) มีหน้าที่ข้อความว่างหลัง trim (รวมเคสไฟล์สแกนตาม NR-5) · ข้อความต้องบอก **จำนวน** ไม่ใช่คำเตือนลอย ๆ ("ยังไม่ได้ตรวจบทพูด N หน้า" / "มี N หน้าที่บทพูดว่าง") แล้วให้กดยืนยันซ้ำ · **ยืนยันซ้ำแล้วต้องผ่านได้เสมอ ไม่มีทางไหนที่ระบบปฏิเสธถาวร** (รูปเดียวกับ `confirmDuplicate` ของ KL-23/KL-26) · **ห้ามบังคับให้เลื่อนดูครบทุกหน้า และห้ามนับ "เลื่อนผ่าน" เป็นการตรวจ** — R4.6.7 ตัดข้อนี้ทิ้งชัด ๆ · ⚠️ **เพิ่ม 2026-08-26 (R4.7)**: **หน้าที่ถูกตัดต้องไม่ถูกนับในเงื่อนไขใดของข้อนี้** — ทั้ง (ก) "ยังไม่ได้ตรวจบทพูด N หน้า" และ (ข) "มี N หน้าที่บทพูดว่าง" · เหตุผล: การตัดหน้าคือ **การตัดสินใจของ CS ที่ชัดเจนกว่าการแก้บทพูดเสียอีก** การเตือนว่า "ยังไม่ได้ตรวจ" หน้าที่เขาเพิ่งตัดทิ้งไปเองคือคำเตือนที่ผิดความจริง และจะทำให้ CS เรียนรู้ที่จะกดผ่านคำเตือนนี้โดยไม่อ่าน ซึ่งทำลายประโยชน์ทั้งข้อ · **กรณีขอบที่ต้องได้ผลถูก: ตัดทุกหน้าที่บทพูดว่างออกจนหมด → ไม่ต้องเตือนข้อ (ข) เลย** |
+| **NR-16** | **เปลี่ยน/แทนที่ไฟล์ระหว่างอยู่ในเฟส (R4.6.8)** — ล้าง draft ทุกหน้า + ทิ้ง preview session เดิม (ไม่ต้องเรียกอะไร ปล่อยหมดอายุ) + สร้าง session ใหม่จากไฟล์ใหม่ · **เงียบ ๆ ไม่มี dialog ไม่มีการนับหน้า** เพราะยังไม่มีอะไร persist (R4.6.5) · **ยังอยู่ใต้ NR-4 เต็มที่: ห้ามพยายามจับคู่หน้าเก่ากับหน้าใหม่ ไม่ว่าจำนวนหน้าจะเท่ากันหรือไม่** — ใครเสนอ heuristic คงบทพูดข้ามไฟล์ ให้ตีกลับมาที่ `system-analyst` · ⚠️ **เพิ่ม 2026-08-26 (R4.7.11 ในเฟส)**: **ล้าง draft ของหน้าที่ตัดไว้ทิ้งด้วย เงียบ ๆ เหมือนกัน** — เหตุผลเดียวกันเป๊ะ (ยังไม่มีอะไร persist ตาม R4.6.5 จึงไม่มีอะไรจะเสียให้ต้องเตือน · และ `pdf-page-N` ของไฟล์ใหม่คนละหน้ากับของเก่าตาม NR-4) · **จงใจต่างจาก R4.7.11/NR-3 ที่ต้องเตือนและนับ** ด้วยเส้นแบ่งเดียวกับที่ R4.6.8 ใช้กับบทพูดอยู่แล้ว: มีแถวในฐานข้อมูลจะเสีย = เตือน · ยังไม่มีแถว = เงียบ |
+| **NR-17** | **ขอบเขตของเฟส — ข้อที่พลาดง่ายที่สุดในรอบนี้ (R4.6.9)** · เฟสนี้เกิดเฉพาะ **`mode="create"` + `contentSourceType === "pdf"`** เท่านั้น · **โหมดแก้บทเรียน (`isEdit`) ไม่เปลี่ยนพฤติกรรมแม้ตัวอักษรเดียว**: เลือกไฟล์ = อัปโหลดทันทีเหมือนวันนี้ · `handlePdfFileSelected` + dialog นับหน้าของ NR-3 คงไว้ครบ · ไม่มีเฟสรีวิวคร่อม · **Google Slides ไม่เกี่ยวทั้งสองโหมด** (NR-9) · **`handlePdfUpload` เดิมไม่ได้ถูกลบ** — มันยังเป็นทางของโหมดแก้ ที่เปลี่ยนคือ **โหมดสร้างเลิกเรียกมันตอนเลือกไฟล์** และ scope ของมันเป็น `lesson` ทั้งสองโหมดตาม NR-14 · **📌 R8.3/UC-5 ถูก R4.6 supersede อย่างเป็นทางการแล้ว** (`requirement.md` กล่อง 📌 · CR-2.m) — `qa-engineer` **ห้ามรายงานการแก้ `handlePdfUpload`/`handlePdfFileSelected`/`pdfField`/`canCreate` ตาม R4.6 ว่าเป็นการละเมิด R8.3** · การละเมิด R8.3 ที่ยังนับมีอย่างเดียว: **ลบเส้นทางอัป PDF ตัวสไลด์ทิ้งจนสร้างบทเรียน PDF ไม่ได้อีก** · ⚠️ **เพิ่ม 2026-08-26 (R4.7.2) — ขอบเขตของ *การตัดหน้า* กว้างกว่าขอบเขตของ *เฟส* หนึ่งที่ ห้ามสับสนกัน**: การตัดหน้าโผล่ **สองที่** คือเฟสจัดการเนื้อหา (`mode="create"` + `pdf`) และ **หน้าแก้บทพูดของบทเรียนที่สร้างแล้ว** (`/admin/lessons/[slug]/narrations`) · แต่ **หน้าแก้บทเรียน (`isEdit`, `LessonForm.tsx`) ยังไม่เปลี่ยนพฤติกรรมแม้ตัวอักษรเดียวเหมือนเดิม** — ไม่มีปุ่มตัดหน้าที่นั่น มีแค่กล่องเตือนของ NR-3 ที่เปลี่ยนข้อความเพราะต้องนับ `excludedCount` เพิ่ม (EX-10) · **Google Slides ไม่เกี่ยวทั้งสองที่** (R4.7.1/NR-9 — `EnsurePdfSource` ปฏิเสธที่ server อยู่แล้ว ห้ามพึ่งการซ่อนปุ่มอย่างเดียว) |
+| **NR-18** | **ภาพสไลด์ในหน้าแก้บทพูดเดิม (`/admin/lessons/[slug]/narrations`) — ผูกกับ `Q-J2`** · R4.6.4 บอกว่า CS ต้องเห็น **หน้าตาเดียวกัน** ทั้งตอนสร้างและตอนแก้ แต่หน้าเดิมวันนี้**ไม่มีภาพสไลด์เลย** (ตรวจแล้ว: การ์ด + `Textarea` + ปุ่มบันทึกเท่านั้น) · **ทางที่ออกแบบไว้ให้เลือกได้โดยไม่กระทบข้ออื่น**: แยก component ร่วม (เช่น `SlideNarrationEditorCard`) ที่รับ **`imageSrc: string`** แล้วให้ทั้งสองที่ใช้ตัวเดียวกัน — เฟสสร้างส่ง URL ของ NR-10 (2) · หน้าแก้ส่ง URL ของ **endpoint ใหม่ตัวที่สาม `GET /api/documents/{documentId}/pdf-pages/{pageNumber:int}`** (admin-auth, company scope มาจาก query filter ของ `_documentResourceRepository.Get` ตามปกติ, ใช้ `RenderPdfPageAsync` เดิมทั้งดุ้น ~10 บรรทัด) · **endpoint learner-side เดิมที่ผูก link token (`LessonController:69-89`) ห้ามถูกแก้ ห้ามถูกใช้จากฝั่ง admin และห้ามถูกเปิดให้ไม่มี token** · **ถ้า `Q-J2` ตอบว่า "ใส่เฉพาะเฟสสร้าง" ให้ตัดข้อนี้ทั้งข้อ** (ไม่ต้องมี endpoint ตัวที่สาม, component ร่วมรับ `imageSrc?` เป็น optional) — **ไม่มีข้ออื่นใน NR-10..NR-19 ที่พึ่งข้อนี้** · ⚠️ **เพิ่ม 2026-08-26 (มติ Q-J2 = "ใส่ทั้งสองที่" เคาะแล้ว จึงเหลือทางเดียว · R4.7 · มติ Q-K3)**: component ร่วม (`SlideNarrationEditorCard`) ต้องรับเพิ่ม **`isExcluded: boolean` + `onToggleExcluded`** และเรนเดอร์การ์ดสีจาง + badge + ปุ่ม "เอากลับ" เมื่อถูกตัด · **`Textarea` ต้อง `readOnly` เมื่อ `isExcluded` เป็นจริง** (server ก็ปฏิเสธด้วยตาม NR-2 — สองชั้น ไม่ใช่ชั้นเดียว) · **และ `imageSrc` ที่ทั้งสองที่ส่งเข้ามาต้องเลิกคำนวณจาก `slide.index + 1`** เปลี่ยนเป็นแปลงจาก `slideObjectId` ตาม NR-4 ท้ายข้อ — **นี่คือจุดที่ทั้งสอง call site แก้พร้อมกันในไฟล์เดียว จึงเป็นจุดที่ *ต้อง* แก้ให้ครบทั้งคู่ ไม่ใช่แก้ที่เดียวแล้วอีกที่ค้าง** (EX-3/EX-11) |
+| **NR-19** | **ทิศทาง AI ช่วยร่างบทพูด — ข้อสังเกตแบบไม่บังคับ ห้ามให้มีผลกับการตัดสินใจใดในรอบนี้ (CR-2.l)** · สิ่งเดียวที่ควรรู้คือ **โครงข้อมูลที่เลือกไว้แล้วไม่ปิดทางอยู่แล้วโดยไม่ต้องทำอะไรเพิ่ม**: `LessonSlideNarration` เก็บ **เฉพาะค่าที่คนเคาะ** (NR-2/R4.1) ส่วน prefill ไม่เคยถูก persist → ถ้าวันหนึ่งมี "ร่างที่ AI เสนอ" มันเป็น **ผู้ผลิต prefill รายที่สอง** ซึ่งเสียบเข้าที่จุดเดียวคือ NR-1 เงื่อนไขที่สอง ไม่ต้องรื้อตาราง · **แต่ห้ามเตรียมอะไรล่วงหน้าในรอบนี้เด็ดขาด** — ไม่มีคอลัมน์ `AiDraftText`, ไม่มี `Source` enum, ไม่มีฟิลด์ใน DTO (`CLAUDE.md` Solution Design Rule ข้อ 7) · **ข้อสำคัญที่ต้องไม่ลืมตอนนั้น: ร่างจาก AI ที่ CS ไม่ได้แตะ ห้ามถูกเซฟลง DB** ไม่งั้นเป็นการแช่แข็งสำเนาแบบเดียวกับที่ R4.1 ห้ามไว้ — ตอนนั้นต้อง amend ก่อน (O-16) |
+
+---
+
+## Page Exclusion Rules (R4.7) — contract
+
+> **เพิ่ม 2026-08-26 (CR-3 / R4.7 · Module K)** — contract ชุดนี้ครอบ "ตัดหน้าออกจากบทเรียน PDF"
+> ทั้งหมด · อ่านคู่กับ **NR-1..NR-19 ที่ถูก amend ในรอบเดียวกัน** (NR-1/2/3/4/5/6/7/8/12/13/15/16/17/18)
+> — ข้อความในตารางนี้คือกติกาที่ **engineer ต้องไม่ต้องตัดสินอะไรเอง**
+>
+> **สามประโยคที่สรุปทั้งชุด ถ้าอ่านได้แค่นี้ให้อ่านสามข้อนี้:**
+> 1. **"ถูกตัด" คือแถวใน `LessonExcludedSlide` ที่ยังไม่ถูก soft delete — ไม่ใช่ธง ไม่ใช่การลบหน้า
+>    ไม่ใช่การเรียงเลขใหม่** · id ของหน้า (`pdf-page-N`) **ไม่เคยขยับ** ไม่ว่าจะตัดหรือเอากลับกี่รอบ
+> 2. **หน้าหนึ่งมี vector สองใบ ต้องถอดทั้งคู่** (EX-5 + EX-6) — ถอดใบเดียวคือความล้มเหลวชนิดที่
+>    ไม่มีอะไรจับได้นอกจากคนไปลองถาม
+> 3. **การเรียงเลข 1–9 เป็นเรื่องของสิ่งที่คนเห็นเท่านั้น** ห้ามให้มันไหลลงไปถึง id, chunk id,
+>    เลขหน้าที่ส่งให้ตัว render ภาพ หรือ payload ของงานเบื้องหลังใด ๆ (EX-3)
+
+| # | กติกา |
+|---|---|
+| **EX-1** | **นิยาม และ "ใครเป็นคนกรอง"** · หน้าที่ถูกตัด = มีแถว `LessonExcludedSlide` ของ `(LessonId, SlideObjectId)` ที่ `IsDelete = false` · **การกรองเกิดที่ฝั่งผู้บริโภคเท่านั้น ห้ามยัดลงใน `ILessonSlideNarrationResolver`** (NR-1) เพราะผู้เรียกสามรายต้องการชุดหน้าคนละแบบ · **รายชื่อผู้บริโภคทั้งหมด ครบถ้วน ไม่มีรายที่สี่**: (1) `GetTeachingContentBySlugAsync` (ฝั่งสอน — **กรองทิ้ง + เรียง `Index` ใหม่**) · (2) `GetTeachingContentByLinkAsync` (ได้ผลจาก (1) อยู่แล้ว ไม่ต้องกรองซ้ำ) · (3) `SaveAsync` เส้น NR-7 (index ทั้งเด็ค — **กรองทิ้ง**) · (4) `ProcessLessonIndexAsync` (**ไม่กรองทิ้ง แต่ส่งเข้า `toDelete`** ดู EX-5) · (5) `LessonSlideNarrationService.GetAllAsync` (หน้าแก้บทพูด — **ไม่กรองเลย คืนครบทุกหน้า** ดู EX-11) · **ใครเพิ่มผู้บริโภครายที่หกต้องกลับมาเติมข้อนี้ก่อน ห้ามเดาว่าควรกรองหรือไม่** |
+| **EX-2** | **ขอบเขตและสิทธิ์** · ใช้ได้เฉพาะ `ContentSourceType = "pdf"` ที่มี `PdfDocumentResourceId` แล้ว — ใช้ `EnsurePdfSource` ตัวเดิมของ `LessonSlideNarrationService` **ห้ามเขียน guard ตัวที่สอง** (R4.7.1/NR-9) · สิทธิ์ = `cs` + `admin` ระดับเดียวกับ endpoint บทพูดวันนี้เป๊ะ **ไม่มี role ใหม่ ไม่มีขั้นอนุมัติ** (R4.7.12) · **การปฏิเสธต้องเกิดที่ server ทุกกรณี ไม่ใช่การซ่อนปุ่มใน UI** |
+| **EX-3** | **การเรียงเลขที่คนเห็นใหม่ (R4.7.6) — ระบุทีละ payload ห้ามเหมารวม** · **(ก) ฝั่งสอน/ผู้เรียน (`TeachingSlideViewModel`)**: หน้าที่ถูกตัด **หายไปจาก list** และ `Index` ถูกคำนวณใหม่เป็น `0..M-1` ตามลำดับที่เหลือ → `SlidesEmbed.tsx` ที่แสดง `currentSlide.index + 1` และตัวนับ "จาก M" **ได้ 1–9 เองโดยไม่ต้องแก้ frontend** · `SlideUrl` ถูกสร้างจากเลขหน้าจริงตั้งแต่ใน `PdfSlidesRenderer` **ก่อน**การกรอง จึงยังชี้หน้าถูกอยู่แล้ว **ห้ามไปประกอบใหม่จาก `Index`** · **(ข) payload ฝั่ง admin (`LessonNarrationsViewModel`)**: **`Index` คงความหมายเดิมคือลำดับหน้าจริงของไฟล์ ห้ามเรียงใหม่** แล้ว **เพิ่มสองฟิลด์**: `IsExcluded: bool` และ `LessonIndex: int?` (ลำดับ 0-based ในกลุ่มที่เหลือ · **`null` เมื่อหน้านั้นถูกตัด** เพราะหน้าที่ไม่ได้อยู่ในบทเรียนไม่มีเลขในบทเรียน) · **(ค) preview session (NR-10)**: **ไม่เปลี่ยนแม้ฟิลด์เดียว** — ระหว่างเฟสยังไม่มี exclusion ฝั่ง server เลย (EX-9) การเรียงเลขที่ CS เห็นระหว่างเฟสคำนวณจาก draft ในเบราว์เซอร์ · **ข้อห้ามที่ครอบทุก payload: ห้ามคำนวณเลขหน้าของไฟล์จาก `Index`/ตำแหน่งใน array** ต้องแปลงจาก `slideObjectId` (`pdf-page-N` → N) ซึ่งเป็นจริงเสมอ (NR-4) — **แก้ที่ `narrations/page.tsx:143` และ `PdfLessonContentPhase.tsx:309` ทั้งสองที่ ไม่ใช่ที่เดียว** |
+| **EX-4** | **endpoint toggle — ตัวเดียว สองทิศทาง** · `PUT /api/lessons/{id}/slides/{slideObjectId}/excluded` body `{ "excluded": true \| false }` · admin-auth ปกติ **ห้าม `[AllowAnonymous]`** · **`excluded: true`** → มีแถวที่ยังไม่ลบอยู่แล้ว = **no-op เงียบ ๆ ตอบ 200 ไม่ต้อง error** (idempotent) · มีแถวที่ถูก soft delete ไว้ = **ปลด `IsDelete` แถวเดิมกลับมาใช้ ห้ามสร้างแถวใหม่** (นี่คือเหตุผลที่ index ไม่ IsUnique แต่ service ต้องบังคับ "หน้าละหนึ่งแถว" เอง แบบเดียวกับ NR-2/TX-3) · ไม่มีแถว = สร้างใหม่ · **`excluded: false`** → soft delete แถว (`IsDelete`/`DeletedAt`/`DeleteBy`) · ไม่มีแถวอยู่แล้ว = **no-op เงียบ ๆ** · **ทุกกรณีที่สถานะ *เปลี่ยนจริง* เท่านั้นจึง enqueue งานตาม EX-5/EX-6** — ไม่เปลี่ยนก็ไม่ต้อง enqueue (รูปเดียวกับ `changed` ใน `LessonSlideNarrationService.SaveAsync`) |
+| **EX-5** | **ถอด/คืน vector ชุดที่ 1 — บทพูดของบทเรียน (`pdf-page-N`)** · ใช้ job `lesson_index` **ตัวเดิมของ NR-6 ไม่มี job type ใหม่**: `TargetId = LessonId`, `PayloadJson = {"slideObjectIds":["pdf-page-7"]}` · **`ProcessLessonIndexAsync` ต้องแก้ตรงจุดเดียว**: หน้าที่ถูกตัด **ต้องเข้า `toDelete` เสมอ ห้ามถูกดรอปด้วย `.Where(resolvedById.ContainsKey)`** (ดูกับดักเต็มที่ NR-6) · **เอาหน้ากลับ** = งานเดียวกัน ผลลัพธ์กลับด้าน: resolve ผ่าน NR-1 ตามปกติ (ได้บทพูดที่ CS แก้ไว้เดิมคืนมาเองตาม R4.7.8) แล้ว upsert · **ไม่มีเส้นทางไหนที่ต้อง re-embed ทั้งเด็ค** |
+| **EX-6** | **ถอด/คืน vector ชุดที่ 2 — สำเนาเอกสารของเด็ค (`{documentId}-page-N`) · ข้อที่ลืมแล้ว R4.7.3(ข) ล้มทั้งข้อ** · แหล่งความจริงคือแถว `DocumentChunk` ของ `lesson.PdfDocumentResourceId` ที่ `ChunkKey == $"page-{N}"` (`PdfTextExtractor` สร้าง key นี้จากเลขหน้าจริง — **แปลงตรงจาก `pdf-page-N` ได้ ไม่ต้องเดา ไม่ต้อง parse ไฟล์**) · ⚠️ **หน้าว่างไม่มีแถว** เพราะ `PdfTextExtractor` ข้ามหน้าที่ไม่มีข้อความ (ต่างจาก `PdfSlidesRenderer` ที่เก็บครบ — NR-8) → **ไม่เจอแถว = ไม่มีอะไรต้องลบ ไม่ใช่ error** · **ตัดหน้า** → enqueue `vector_delete` ด้วย `VectorDeleteJobPayload` เดิม แต่ **`Kind` ค่าใหม่ `lesson_page` ใน `VectorDeleteTargetKind`** (`Document` ใช้ไม่ได้เพราะมี guard `stillDeleted` ที่ตรวจว่าเอกสารถูกลบไปแล้วจริงไหม — เอกสารเด็คยัง active อยู่ จึงจะ `return` ทิ้งงานทันที) · `NamespaceKey` = **`DocumentChunk.NamespaceKey` ของแถวนั้น ไม่ใช่ namespace ที่คำนวณสดจาก scope ปัจจุบัน** — นี่คือสิ่งที่ทำให้เด็คเก่าที่ scope `company` (O-14) ถูกถอดออกจาก `kb-global` ได้ถูกต้อง · **เอาหน้ากลับ** → embed `DocumentChunk.Text` ของแถวนั้นแล้ว upsert กลับด้วย `VectorId`/`NamespaceKey` เดิม (จ่าย embedding **หน้าเดียว**) · **แถว `DocumentChunk` ไม่ถูกแตะเลยทั้งสองทิศทาง** — มันบันทึก "สิ่งที่ extractor แปลงได้" ซึ่งไม่เปลี่ยนไปตามการตัดหน้า และ `Text` ที่เก็บไว้คือเหตุผลที่การเอากลับไม่ต้อง parse ไฟล์ใหม่ · **จุดบังคับที่สอง ห้ามข้าม**: `ProcessDocumentIndexAsync` เมื่อ index เอกสารที่เป็น `PdfDocumentResourceId` ของบทเรียนใด **ต้องสร้างแถว `DocumentChunk` ครบทุกหน้าตามเดิม แต่ตัดหน้าที่ถูกตัดออกจากชุดที่ส่งไป embed/upsert** — ไม่งั้น re-index รอบถัดไป (ย้าย scope DS-5 · กู้คืนเอกสาร DI-15 · อัปทับ) **vector ของหน้าที่ถูกตัดจะฟื้นขึ้นมาเงียบ ๆ** |
+| **EX-7** | **บทพูดไม่ถูกแตะเลย ทั้งตอนตัดและตอนเอากลับ (R4.7.8)** · `LessonSlideNarration` ของหน้านั้น **ห้ามถูกลบ ห้ามถูก soft delete ห้ามถูกแก้** — เอาหน้ากลับแล้วบทพูดเดิมคืนมาเองผ่าน NR-1 เพราะ `SlideObjectId` ไม่เคยขยับ · **และในทางกลับกัน: การตัดหน้าที่ CS ไม่เคยแก้บทพูด ห้ามสร้างแถวบทพูดขึ้นมา "เก็บ prefill ไว้ให้"** — ยังอยู่ใต้ NR-2/R4.1 เต็มที่ (แช่แข็งสำเนาที่แปลงพังไว้ถาวร คือสิ่งที่กติกาข้อนั้นมีไว้ห้าม) · **ผลที่ต้องยอมรับและถูกต้องแล้ว: ตัดหน้า → ปรับ `PdfSlidesRenderer` ให้ดีขึ้น → เอาหน้ากลับ แล้วได้ prefill เวอร์ชันใหม่ที่ดีกว่าเดิม** ไม่ใช่ของเก่า |
+| **EX-8** | **พื้นแข็ง: ต้องเหลืออย่างน้อย 1 หน้า (R4.7.9)** · ตรวจที่ **server ทุกเส้นทาง** ทั้ง EX-4 และ EX-9 · จำนวนหน้าทั้งหมดมาจาก `lessonConfigService.PreviewPdfAsync(...)` (cache เดิม) **ห้ามเชื่อค่าที่ client ส่งมา ห้ามใช้ `SlideConfigs.Count`** · เงื่อนไข: `pageCount - excludedCountAfterThisChange >= 1` ไม่ผ่าน → `GeneralException.ValidationError("บทเรียนต้องเหลืออย่างน้อย 1 หน้า - ตัดหน้าสุดท้ายไม่ได้")` · **เป็นข้อห้ามแข็ง ไม่ใช่คำเตือนที่กดผ่านได้ ห้ามมี `confirm` flag แบบ KL-23/NR-15** (R4.7.9 เขียนไว้ตรง ๆ) · **UI ต้องปิดปุ่มตัดของหน้าสุดท้ายที่เหลือด้วย** แต่นั่นเป็นชั้นที่สอง ไม่ใช่ชั้นเดียว |
+| **EX-9** | **การตัดหน้าในเฟสจัดการเนื้อหา (Module J) — ไม่มี state ฝั่ง server จนถึงขั้นที่ 3** · ระหว่างเฟส หน้าที่ถูกตัดเป็น **draft ในเบราว์เซอร์ล้วน** เหมือนบทพูด (R4.6.5) — **ห้ามยิง endpoint EX-4 ระหว่างเฟสเด็ดขาด** (ยังไม่มี `LessonId`) และ **ห้ามสร้าง endpoint ตัวที่สองสำหรับ preview session** · ตอนยืนยัน ค่าเดินทางไปกับ **ขั้นที่ 3 ของ NR-12** ในฟิลด์ `excludedSlideObjectIds: string[]` ของ `POST /api/lessons` · **ลำดับภายใน `SaveAsync` เป็นข้อบังคับ ไม่ใช่รสนิยม: (ก) NR-3 ล้างของเดิม → (ข) เขียน exclusion ชุดใหม่ → (ค) NR-7 index ทั้งเด็คโดยข้ามหน้าที่ถูกตัด** — สลับ (ก)(ข) = หน้าที่ CS ตัดทั้งเฟสหายเงียบ ๆ (ดู NR-12/NR-3) · **ความหมายของค่าที่ส่งมา ห้ามตีความเป็นอย่างอื่น**: `null`/ไม่ส่ง = **ไม่แตะของเดิม** (โหมดแก้บทเรียนทั่วไปตกอยู่ในกรณีนี้เสมอ) · `[]` = ไม่มีหน้าไหนถูกตัด · มีค่า = **แทนที่ทั้งชุด** (ไม่ใช่เพิ่มทีละหน้า) · ทุก `slideObjectId` ที่ส่งมาต้อง validate ตาม EX-12 และผ่านพื้นแข็ง EX-8 |
+| **EX-10** | **อัปโหลด PDF ทับใหม่ = ล้างรายการหน้าที่ตัดด้วย และต้องนับให้เห็น (R4.7.11)** · ใช้ trigger เดิมของ NR-3 (`PdfDocumentResourceId` เปลี่ยนค่า) และล้างในทรานแซกชันเดียวกัน · `GET /api/lessons/{id}/narrations/count` เปลี่ยนจาก `{ count }` เป็น **`{ count, excludedCount }`** — `ILessonSlideNarrationService.CountByLessonId` คืนคู่ค่าแทน `int` · **ข้อความในกล่องเตือนต้องบอกทั้งสองจำนวนและต้องไม่ขึ้นครึ่งเดียว** เช่น *"บทพูดที่แก้ไว้ N หน้า และหน้าที่ตัดออกไว้ M หน้า จะถูกล้างทั้งหมด"* · **ถ้าจำนวนใดเป็น 0 ให้ตัดวลีนั้นทิ้ง ห้ามขึ้น "0 หน้า"** · เป็น **breaking wire contract ที่มี caller เดียว** (`LessonForm.tsx` โหมด `isEdit`) → **ต้องแก้ TS type + call site ในเฟสเดียวกัน** ตามกฎสถาปัตยกรรมข้อ 7 และเหตุผลเดียวกับ R-15 |
+| **EX-11** | **หน้าแก้บทพูดแสดงอะไร (✅ มติ Q-K3)** · **แสดงทุกหน้าเรียงตามลำดับไฟล์ ไม่ซ่อน ไม่แยกกล่อง** · หน้าที่ยังอยู่ → เลขที่แสดงคือ `LessonIndex + 1` (**1–9** ตาม R4.7.6) + ปุ่ม "ตัดหน้านี้ออก" · หน้าที่ถูกตัด → **การ์ดสีจาง + badge "ตัดออกแล้ว" + ปุ่ม "เอากลับ"** และแสดง **"หน้าที่ N ของไฟล์"** โดย N มาจาก `slideObjectId` (**ไม่ใช่เลขในบทเรียน เพราะมันไม่มี** — `LessonIndex` เป็น `null`) · **ภาพสไลด์ยังต้องแสดงสำหรับหน้าที่ถูกตัด** ไม่งั้น CS ตัดสินใจไม่ได้ว่าจะเอากลับไหม · **ที่นี่คือที่เดียวที่ทำหน้าที่ "ที่ให้ CS เห็นว่าหน้าไหนถูกตัดไว้บ้าง" ตาม R4.7.7** — ห้ามสร้างหน้าจอที่สองมาทำเรื่องเดียวกัน · component ร่วมกับเฟสสร้างตาม NR-18 |
+| **EX-12** | **สองข้อห้ามฝั่ง server ที่ห้ามพึ่ง UI (🔒)** · **(ก) แก้บทพูดของหน้าที่ถูกตัดไม่ได้**: `LessonSlideNarrationService.SaveAsync` ต้องปฏิเสธด้วย `ValidationError` (NR-2) — UI ทำ `readOnly` เป็นชั้นที่สอง ไม่ใช่ชั้นเดียว · **(ข) `slideObjectId` ที่รับมาต้อง validate ว่าเป็นหน้าที่มีอยู่จริงของเด็คนี้ ก่อนเอาไปทำอะไรทั้งสิ้น**: ต้องอยู่ในชุดที่ `PreviewPdfAsync(lesson.PdfDocumentResourceId)` คืนมา ไม่อยู่ → `GeneralException.NotFound("หน้าเอกสาร")` แบบเดียวกับ `LessonSlideNarrationService.SaveAsync` วันนี้ · **เหตุผลที่ข้อนี้เป็นเรื่องความปลอดภัยไม่ใช่แค่ความสะอาด: ค่านี้ถูกใช้ประกอบ vector id ที่จะถูก *ลบจริง* ใน Pinecone ทั้งสองชุด (EX-5/EX-6)** — ค่าที่ไม่ถูก validate เปิดทางให้ลบ vector ของหน้าที่ไม่ได้ตั้งใจ และเนื่องจาก namespace มาจากแถว `DocumentChunk`/`lesson` ที่ผ่าน query filter แล้ว ความเสียหายจำกัดอยู่ในบริษัทเดียว **แต่ไม่จำกัดอยู่ในบทเรียนเดียวถ้า `LessonId` กับ `slideObjectId` ไม่ถูกตรวจคู่กัน** · **`qa-engineer`/`security` ต้องตรวจข้อนี้เป็นรายการแยก ไม่ใช่รวมกับการตรวจสิทธิ์ `cs`/`admin`** |
 
 ---
 
@@ -905,15 +1295,113 @@ R6.1 คือจุดแรกในโปรเจกต์ที่ soft del
 | **DS-1** | **upload รับ scope ตรงๆ ไม่อนุมานจาก `LessonSlug` อีกต่อไป** — `UploadDocumentDto` **ลบ `LessonSlug` ทิ้งทั้งฟิลด์** แล้วใช้ `public required string ScopeType { get; init; }` + `public string? ScopeId { get; init; }` (รูปเดียวกับ `KnowledgeQnADto` เป๊ะ) · `UploadDocumentRequest` (multipart form ใน `DocumentsController`) รับ field `scopeType`/`scopeId` แทน `lessonSlug` · **`ScopeId` เมื่อ `ScopeType = lesson` คือ `LessonConfig.Id` ไม่ใช่ `Slug`** เพื่อให้ผ่าน resolver ตัวเดียวกับทุก entity ตาม KS-1 (`LessonConfigViewModel.Id` ถูก expose อยู่แล้ว frontend มีค่านี้ในมือ) · **ห้ามคง `LessonSlug` ไว้คู่กัน** — เหตุผลเดียวกับที่ DM-3 ลบ `LessonId` ทั้งใบ: สองช่องทางที่แปลว่า scope เหมือนกันต้องตรวจซ้ำที่ทุก call site และไม่มีอะไรบังคับได้ |
 | **DS-2** | **`EnsureValidScope` ต้องถูกเรียกก่อนแตะ object storage** — `DocumentResourceService.UploadAsync` เรียก `namespaceResolver.EnsureValidScope(CurrentCompanyId, input.ScopeType, input.ScopeId)` **เป็นสิ่งแรกสุดของเมธอด ก่อน `storageProvider.UploadAsync`** ไม่ใช่หลัง · เหตุผล: ไฟล์ที่อัปเข้า storage สำเร็จแล้วแต่ validation ไม่ผ่านจะค้างอยู่โดยไม่มีแถวใน DB ชี้ถึง = ไม่มีใครลบมันได้อีกเลย · นี่คือ call site แรกของ KS-2 ฝั่งเอกสาร ซึ่ง Phase 2 เขียน resolver ทิ้งไว้รอ (`status.md` บันทึกไว้เองว่ายังไม่มีใครเรียก) |
 | **DS-3** | **กรณีที่ต้องปฏิเสธ ครบทั้ง 6 — ทั้งหมดมาจาก `EnsureValidScope` เดิม ห้ามเขียน validation ชุดที่สองซ้ำ**: `ScopeType` ว่าง/ไม่รู้จัก → 400 · `lesson` ที่ `ScopeId` ไม่มีในบริษัทนี้ → 404 · `category` ที่ชี้แถว `Level == 1` → 400 (TX-5) · `category` ที่ `ScopeId` ไม่มีจริง → 404 · `company` ที่**มี** `ScopeId` → 400 (KS-2 "ปฏิเสธ ไม่ใช่เพิกเฉย") · `lesson`/`category` ที่**ไม่มี** `ScopeId` → 400 |
-| **DS-4** | **หน้ารายการต้องเห็นเอกสารระดับหมวดได้** — `GET /api/documents?lessonSlug=` เปลี่ยนเป็น `GET /api/documents?scopeType=&scopeId=` · ไม่ส่ง query เลย = `company` (คงพฤติกรรมเดิมของหน้าคลังกลาง) · `IDocumentResourceService.GetByLessonSlug`/`GetStandalone` ยุบเหลือเมธอดเดียวที่รับ scope (repository `GetByScope` รองรับอยู่แล้ว ไม่ต้องแก้) · **ข้อนี้ขาดไม่ได้เด็ดขาด** — ถ้าอัปเข้าหมวดได้แต่ไม่มีหน้าไหนแสดง เอกสารจะหายจากสายตา CS ทันทีหลังอัปโหลด และเข้าไปดู chunk (DI-7) หรือลบ (DI-13) ไม่ได้เลย |
+| **DS-4** | ⚠️ **แก้ 2026-08-25 ที่ประโยค "ไม่ส่ง query เลย" — ส่วนที่เหลือของข้อนี้ยังบังคับใช้เหมือนเดิมทุกตัวอักษร · กติกาที่ใช้จริงวันนี้อยู่ที่ KL-2** · **หน้ารายการต้องเห็นเอกสารระดับหมวดได้** — `GET /api/documents?lessonSlug=` เปลี่ยนเป็น `GET /api/documents?scopeType=&scopeId=` · ~~ไม่ส่ง query เลย = `company` (คงพฤติกรรมเดิมของหน้าคลังกลาง)~~ **→ ไม่ส่ง query เลย = ทุก scope ของบริษัทนั้น (KL-2)** เพราะ R7.1 บอกตรงๆ ว่าการต้องสลับ filter ก่อนถึงจะเห็นครบคืออาการที่เจ้าของโปรเจกต์เรียกว่า "มองภาพรวมไม่เห็น" · `IDocumentResourceService.GetByLessonSlug`/`GetStandalone` ยุบเหลือเมธอดเดียวที่รับ scope (repository `GetByScope` รองรับอยู่แล้ว ไม่ต้องแก้) · **ข้อนี้ขาดไม่ได้เด็ดขาด** — ถ้าอัปเข้าหมวดได้แต่ไม่มีหน้าไหนแสดง เอกสารจะหายจากสายตา CS ทันทีหลังอัปโหลด และเข้าไปดู chunk (DI-7) หรือลบ (DI-13) ไม่ได้เลย |
 | **DS-5** | **ย้าย scope ของเอกสารที่อัปไปแล้ว** — `PATCH /api/documents/{id}/scope` body `{ scopeType, scopeId }` · ตรวจด้วย `EnsureValidScope` ชุดเดียวกับ DS-3 ทุกกรณี · นี่คือ call site แรกของ KS-4 ("เปลี่ยน scope = ย้ายบ้าน ไม่ใช่ update คอลัมน์") ซึ่งเป็น contract ที่เขียนไว้ตั้งแต่ต้นแต่ไม่เคยมีใครเรียก — ช่องว่างชนิดเดียวกับ KS-2 เป๊ะ |
 | **DS-6** | **การย้ายประกอบจาก job เดิม ห้ามเพิ่ม `BackgroundJobType` ใหม่** — ในทรานแซกชันเดียว: (1) อ่าน `DocumentChunk` ของเอกสารนั้น group ตาม `NamespaceKey` แล้วสร้าง `BackgroundJob` ชนิด `vector_delete` หนึ่งงานต่อกลุ่ม `PayloadJson` เป็น `VectorDeleteJobPayload` **รูปเดียวกับ DI-13 เป๊ะ** (2) soft delete แถว `DocumentChunk` ทั้งชุด (3) เขียน `ScopeType`/`ScopeId` ใหม่ + `IndexingStatus = pending` + `IndexedChunkCount = 0` + `FailureReason = null` + `UpdateBy`/`UpdateDate` (KS-4 สั่งให้สถานะกลับเป็น `pending` เพื่อให้ CS เห็นว่ากำลังย้าย) (4) enqueue `document_index` · **worker ไม่ต้องแก้แม้บรรทัดเดียว** เพราะ `ProcessDocumentIndexAsync` resolve namespace จาก entity ตอน process อยู่แล้ว จึงเข้า namespace ใหม่โดยอัตโนมัติ · ราคาคือค่า embedding อีกรอบ = เท่ากับ DI-15 (กู้คืน) ที่ `requirement.md` ยอมรับไว้แล้ว |
 | **DS-7** | **เคสขอบของการย้าย — ไม่เหลือข้อไหนให้ engineer ตัดสินเอง**: ย้ายไป scope เดิมเป๊ะ → ไม่ทำอะไร ไม่ enqueue job ใดๆ คืน 200 · เอกสารที่ไม่เคย index สำเร็จ (ไม่มี `DocumentChunk`) → **ไม่สร้าง `vector_delete`** แต่ยัง enqueue `document_index` (ตรงกับพฤติกรรมที่ Phase 4 ตั้งไว้แล้วตอนลบ) · เอกสารที่ถูก soft delete ไปแล้ว → ปฏิเสธ 404 ต้อง restore ก่อน **ห้ามย้ายของในถังกู้คืน** · เอกสารที่เป็น `LessonConfig.PdfDocumentResourceId` ของบทเรียนใดอยู่ → **ย้ายได้ ไม่บล็อก** (ต่างจาก DI-14 ที่บล็อกการ*ลบ*) เพราะ `PdfDocumentResourceId` คนละความหมายกับ `ScopeType` ตาม DM-3 ไฟล์ยังอยู่ บทเรียนยังสอนได้เหมือนเดิม · มีงาน `document_index` ค้างอยู่ตอนย้าย → **ไม่ต้องยกเลิกงานเดิม** (worker resolve namespace ตอน process จาก entity ที่ย้ายแล้ว และ DI-8 แทนที่ chunk ทั้งชุดเสมอ ส่วน vector เก่าใน namespace เดิมถูกจัดการโดย `vector_delete` ที่สร้างจาก `DocumentChunk` ณ ตอนย้าย) · สิทธิ์: เท่ากับ upload/delete เดิมทุกประการ (`owner`/`admin`/`cs` ของบริษัทนั้น) **ไม่มีกติกา role ใหม่** |
-| **DS-8** | **UI ตอนอัปโหลด** — `/admin/documents` เพิ่มตัวเลือกขอบเขต: RadioGroup "ทั้งบริษัท / เฉพาะหมวด" + `Select` หมวดที่ `level === 2` แสดงเป็น "หมวดแม่ › หมวดย่อย" เมื่อเลือก "เฉพาะหมวด" · **ลอกรูปจาก `KnowledgeQnAAnswerDialog.tsx` ตรงๆ ใช้ `listKnowledgeCategories()` เดิม ห้ามสร้าง pattern ที่สองสำหรับเรื่องเดียวกัน** · `DocumentUploadList` ที่ฝังอยู่ในหน้าบทเรียน (`/admin/lessons/[slug]`, `/admin/lessons/new`) **ไม่มี picker** — คงเป็น `lesson` ของบทเรียนนั้นเสมอ เพราะบริบทของหน้ากำหนดอยู่แล้ว (มติ Q-C) |
-| **DS-9** | **หน้าคลังต้องกรองตาม scope ได้ และแสดง scope ต่อแถว** — คอลัมน์ "ขอบเขต" บอก "ทั้งบริษัท" หรือชื่อหมวด ไม่งั้น CS แยกไม่ออกว่าไฟล์ไหนอยู่ระดับไหน (`DocumentResourceViewModel.ScopeType/ScopeId` มีให้อยู่แล้ว ไม่ต้องเพิ่มฟิลด์) · **หัวข้อหน้าเดิม "คลังเอกสาร (ใช้ได้ทุกบทเรียน)" ต้องแก้** เพราะไม่จริงอีกต่อไปเมื่อหน้านี้มีเอกสารระดับหมวดปนอยู่ |
+| **DS-8** | ⚠️ **แก้ 2026-08-25 — ครึ่งหลังของข้อนี้ถูกยกเลิกตามมติ CR-1.j** · **ครึ่งแรกยังบังคับใช้เต็มที่**: **UI ตอนอัปโหลด** — `/admin/documents` เพิ่มตัวเลือกขอบเขต: RadioGroup "ทั้งบริษัท / เฉพาะหมวด" + `Select` หมวดที่ `level === 2` แสดงเป็น "หมวดแม่ › หมวดย่อย" เมื่อเลือก "เฉพาะหมวด" · **ลอกรูปจาก `KnowledgeQnAAnswerDialog.tsx` ตรงๆ ใช้ `listKnowledgeCategories()` เดิม ห้ามสร้าง pattern ที่สองสำหรับเรื่องเดียวกัน** · ~~`DocumentUploadList` ที่ฝังอยู่ในหน้าบทเรียน (`/admin/lessons/[slug]`, `/admin/lessons/new`) **ไม่มี picker** — คงเป็น `lesson` ของบทเรียนนั้นเสมอ เพราะบริบทของหน้ากำหนดอยู่แล้ว (มติ Q-C)~~ **❌ ยกเลิกทั้งประโยค**: เจ้าของโปรเจกต์ตอบ CR-1.j ว่า **"ลบทิ้งไปเลย"** → ไม่มี `DocumentUploadList` ฝังในหน้าบทเรียนอีกต่อไป และ **โหมด `fixedScope` ถูกลบออกจาก component ทั้งโหมด ไม่ใช่แค่เลิกใช้** (UC-1..UC-4) · **ผลข้างเคียงที่ต้องรู้: `ScopeType = "lesson"` ยังใช้ได้และยังต้องมีต่อไป** (R8.2) แค่เลือกจากหน้าคลังรวมแทน — DS-8 ครึ่งแรกจึงต้องเพิ่มตัวเลือก "เฉพาะบทเรียน" เข้าไปใน picker ด้วย (KL-4) |
+| **DS-9** | **หน้าคลังต้องกรองตาม scope ได้ และแสดง scope ต่อแถว** — คอลัมน์ "ขอบเขต" บอก "ทั้งบริษัท" หรือชื่อหมวด ไม่งั้น CS แยกไม่ออกว่าไฟล์ไหนอยู่ระดับไหน (`DocumentResourceViewModel.ScopeType/ScopeId` มีให้อยู่แล้ว ไม่ต้องเพิ่มฟิลด์) · **หัวข้อหน้าเดิม "คลังเอกสาร (ใช้ได้ทุกบทเรียน)" ต้องแก้** เพราะไม่จริงอีกต่อไปเมื่อหน้านี้มีเอกสารระดับหมวดปนอยู่ · **เพิ่ม 2026-08-25**: filter ต้องมีตัวเลือก **"ทั้งหมด" และ "เฉพาะบทเรียน"** เพิ่มจากของเดิมที่มีแค่ "ทั้งบริษัท/หมวด" (KL-4) — ของเดิมที่ implement ไว้ตกสองตัวเลือกนี้เพราะตอนนั้นยังไม่มี R7.1 |
 | **DS-10** | **ห้ามแตะโค้ดนับของ TX-6/TX-10** — `IKnowledgeCategoryService` เรียก `GetByScope(Category, id)` ถูกต้องอยู่แล้วทั้งการบล็อกลบหมวดและ preview ย้ายหมวด · ตัวเลขจะกลายเป็นค่าจริงเองทันทีที่ DS-1 ทำงาน ไม่ต้องแก้อะไรเพิ่ม |
 | **DS-11** | **ไม่มี migration ใหม่ · ไม่มีฟิลด์ใหม่ · ข้อมูลเดิมไม่ถูกแตะแม้แถวเดียว** — ฝั่ง DB เป็น **additive ล้วน** เพราะ `ScopeType`/`ScopeId` มีอยู่แล้วตาม DM-3/MG-A2/MG-A5 · สิ่งที่ **breaking** คือ **wire contract** เท่านั้น (`lessonSlug` → `scopeType`/`scopeId` ทั้งขา upload และขา list) ซึ่งมี caller 3 จุดในโปรเจกต์นี้ (`DocumentUploadList.tsx`, `lessons/[slug]/page.tsx`, `lessons/new/page.tsx` ผ่าน `api-client.ts`) และไม่มี client ภายนอก · frontend/backend ต้องเปลี่ยนพร้อมกันในเฟสเดียว ห้ามปล่อยคร่อม |
 | **DS-12** | **test ที่ต้องมี (R-12)** — upload ที่ `scopeType = category` ผ่าน `EnsureValidScope` จริง (ไม่ใช่ mock ข้าม) · ครบทั้ง 6 กรณีปฏิเสธของ DS-3 · การย้ายตาม DS-6 สร้าง `vector_delete` payload ที่ `NamespaceKey`/`VectorIds` ถูกชุด แล้วตั้ง `IndexingStatus = pending` จริง · เคส "ย้ายไป scope เดิม = ไม่ enqueue อะไรเลย" และ "ไม่มี `DocumentChunk` = ไม่มี `vector_delete`" ตาม DS-7 |
+
+---
+
+## Knowledge Library View Rules (R7) — contract
+
+> **เพิ่ม 2026-08-25** จาก R7.1–R7.6 ที่เจ้าของโปรเจกต์เคาะเมื่อ 2026-08-24 (CR-1.h / R7.6) ·
+> **ขอบเขตของทั้งหัวข้อนี้คือ "สิ่งที่ CS มองเห็นและจัดการ" เท่านั้น** — `requirement.md` R7
+> ประกาศห้ามแตะพฤติกรรม retrieval ไว้ตรงๆ และ CR-1.g ยืนยันว่าคำตอบวันนี้ถูกต้องแล้ว ·
+> **ห้ามแก้ KS-1..KS-11, ห้ามแก้ namespace, ห้ามแก้ prompt, ห้ามแตะ `RagVoiceQuestionProvider`**
+> ถ้าใครกำลังจะแก้ไฟล์พวกนั้นเพราะข้อใดข้อหนึ่งข้างล่าง แปลว่าอ่านผิด ให้หยุดแล้วตีกลับมา
+>
+> **นี่คือการต่อยอด `/admin/documents` ที่มีอยู่แล้ว ไม่ใช่หน้าใหม่** — ตรวจโค้ดจริงแล้ว
+> 2026-08-25: `DocumentUploadList.tsx` ทำ scope picker ตอนอัปโหลด · filter ตาม scope ·
+> คอลัมน์ "ขอบเขต" ต่อแถว · ปุ่มย้าย scope · ปุ่มลบ ได้แล้วครบ **ห้ามเขียนใหม่ทับ**
+
+| # | กติกา |
+|---|---|
+| **KL-1** | **หน้าเดียว หนึ่งแถบเครื่องมือ สองตาราง** — `/admin/documents` คงเป็น route เดิม · ด้านบนเป็นแถบ filter+ค้นหา **ชุดเดียว** ที่คุมทั้งหน้า · ด้านล่างเป็นสองตารางแยกกัน: **"เอกสาร"** (`DocumentResource`) และ **"คำถาม-คำตอบ (Q&A)"** (`KnowledgeQnA`) · **เหตุผลที่ไม่ยุบเป็นตารางเดียว**: คอลัมน์ของสองชนิดนี้ไม่ทับกันเลย (ขนาดไฟล์/จำนวน chunk กับ คำถาม/คำตอบ) การยัดรวมจะได้ตารางที่ครึ่งหนึ่งของช่องว่างเปล่าเสมอ · **เหตุผลที่ยังนับเป็น "หน้าเดียว" ตาม R7.1**: CS ไม่ต้องสลับหน้าและไม่ต้องสลับ filter — เห็นทั้งสองกองพร้อมกันตั้งแต่โหลดหน้าเสร็จ |
+| **KL-2** | **ค่าเริ่มต้นของหน้าคือ "ทุก scope" ไม่ใช่ `company`** — `GET /api/documents` ที่**ไม่ส่ง `scopeType` มาเลย** ต้องคืนเอกสารของบริษัทนั้น**ทุก scope** (`lesson` + `category` + `company`) เรียงตาม `CreateDate` ลง · นี่คือการแก้ DS-4 เดิมที่แปลงค่าว่างเป็น `company` · **ทางเทคนิค**: `IDocumentResourceRepository` เพิ่มเมธอด `GetAllInCompany()` ที่เป็น `FindBy(_ => true)` (query filter ของ EF ใส่ `CompanyId` + `!IsDelete` ให้อยู่แล้ว) **ห้ามใช้ `IgnoreQueryFilters()` เด็ดขาด** — นั่นคือช่องรั่วข้ามบริษัทที่ `GetDeleted` เคยพลาดมาแล้วและต้องเติม `CompanyId` กลับเข้าไปเอง (ดูคอมเมนต์ที่ `IDocumentResourceRepository.cs:12-18`) · `DocumentResourceService.GetByScope(null, null)` เปลี่ยนไปเรียกเมธอดใหม่นี้ · **ส่ง `scopeType` มาเมื่อไหร่ พฤติกรรมเดิมทุกอย่างคงเดิมเป๊ะ** |
+| **KL-3** | **ฝั่ง "อ่าน" ไม่เคยปฏิเสธ scope ที่แปลก — ต่างจากฝั่งเขียน** — คงหลักการเดิมของ DS-4 ไว้ทั้งหมด: `EnsureValidScope` ใช้กับ **write path เท่านั้น** (upload/move) · ทางอ่านที่ได้ `scopeType` ไม่รู้จักให้คืนลิสต์ว่าง ไม่ใช่ 400 · **ห้ามเผลอเอา `EnsureValidScope` มาใส่ทางอ่านเพราะเห็นว่ามีอยู่แล้ว** |
+| **KL-4** | **ตัวเลือกใน filter มี 4 แบบ ไม่ใช่ 2** — "ทั้งหมด" (ค่าเริ่มต้น · KL-2) · "ทั้งบริษัท" · "เฉพาะหมวด" → `Select` หมวด `level === 2` · **"เฉพาะบทเรียน" → `Select` บทเรียน** (ใหม่ · ใช้ `listLessons()` ที่มีอยู่แล้ว `api-client.ts:153`) · ของเดิมมีแค่ "ทั้งบริษัท/หมวด" (`DocumentUploadList.tsx:255-280`) **ต่อยอด ห้ามเขียนใหม่** · ตัวเลือกชุดเดียวกันนี้ใช้กับทั้งตารางเอกสารและตาราง Q&A |
+| **KL-5** | **"กรองเฉพาะหมวด X" กินถึงของที่ผูกกับบทเรียนในหมวด X ด้วย** — คืนทั้ง (ก) แถวที่ `ScopeType = "category" && ScopeId = X` และ (ข) แถวที่ `ScopeType = "lesson"` ซึ่ง `LessonConfig.CategoryId = X` · เหตุผล: R1.1 บังคับว่าบทเรียนต้องมีหมวดเสมอ CS จึงคิดเป็นต้นไม้ ไม่ใช่เป็นสามกองแบน — ถ้ากรองหมวดแล้วไม่เห็นเอกสารของบทเรียนที่อยู่ในหมวดนั้น CS จะสรุปว่า "หมวดนี้ไม่มีอะไร" ทั้งที่มี · **⚠️ ข้อนี้เป็นเรื่องการมองเห็นล้วน ไม่ได้แปลว่าเอกสารของบทเรียนถูกใช้ตอบในระดับหมวด** — retrieval ยังเป็น KS-3 เดิมทุกตัวอักษร ห้ามตีความข้ามไป · UI ต้องแยกให้เห็นด้วยว่าแถวไหนเป็นของหมวดตรงๆ แถวไหนมาจากบทเรียน (คอลัมน์ "ขอบเขต" เดิมทำได้อยู่แล้ว) |
+| **KL-6** | **คอลัมน์ "ขอบเขต" ต้องอ่านออกทั้งสามระดับ** — วันนี้ `scopeLabel()` (`DocumentUploadList.tsx:119-129`) คืนคำว่า **"บทเรียนนี้"** สำหรับ `lesson` ซึ่งใช้ไม่ได้อีกแล้วเมื่อหน้าเดียวมีของหลายบทเรียนปนกัน → ต้องแสดง **ชื่อบทเรียนจริง** (map จาก `listLessons()`) · `category` แสดง "หมวดแม่ › หมวดย่อย" (เหมือนเดิม) · `company` แสดง "ทั้งบริษัท" (เหมือนเดิม) · ของที่ชี้ไปยัง id ที่หาไม่เจอแล้ว ให้แสดง "บทเรียนที่ถูกลบไปแล้ว"/"หมวดที่ถูกลบไปแล้ว" **ห้ามแสดง id ดิบ และห้ามซ่อนแถวนั้นทิ้ง** |
+| **KL-7** | **แถวที่เป็นไฟล์สไลด์ของบทเรียนต้องมีป้ายบอก** — เอกสารที่ `Id` ตรงกับ `LessonConfig.PdfDocumentResourceId` ของบทเรียนใดก็ตาม ต้องขึ้น badge "ใช้เป็นสไลด์ของบทเรียน &lt;ชื่อ&gt;" · เดิม badge นี้มีเฉพาะโหมด `fixedScope` ที่กำลังถูกลบ (`primaryDocumentId`, `DocumentUploadList.tsx:356-360`) — **ถ้าไม่ย้ายมา badge นี้จะหายไปจากระบบทั้งใบ** และ CS จะเห็นไฟล์สไลด์ปนอยู่ในคลังโดยไม่รู้ว่ามันคือตัวขับบทเรียน · ค่ามาจาก `listLessons()` ที่โหลดอยู่แล้วตาม KL-4/KL-6 **ไม่ต้องมี endpoint ใหม่** · การลบยังถูกบล็อกที่ server ตาม DI-14 เหมือนเดิม ป้ายนี้เป็นการ**บอกล่วงหน้า** ไม่ใช่การกั้นสิทธิ์ |
+| **KL-8** | **ทางอ่าน Q&A ที่ยังไม่มีในระบบ — `GET /api/knowledge-qna`** · คืน `KnowledgeQnAViewModel[]` ของบริษัทผู้เรียก เรียงตาม `CreateDate` ลง · รับ query เดียวกับเอกสาร (`scopeType`/`scopeId`/`status`/`q`) และตีความเหมือนกันทุกข้อ (KL-2..KL-5, KL-11..KL-13) · **ไม่ใช่ `GET /api/qna-queue`** — ตัวนั้นคืน `SessionQuestion` ที่**ยังไม่มี**คำตอบ (QQ-1) คนละตารางคนละความหมาย **ห้ามยุบสองอันนี้เข้าหากัน** |
+| **KL-9** | **`IKnowledgeQnAService` เพิ่ม `GetAll(KnowledgeQnAFilter filter)` และ `IKnowledgeQnARepository` เพิ่ม `GetAllInCompany()`** — รูปเดียวกับ KL-2 ทุกประการ (`FindBy(_ => true)` พึ่ง query filter, ห้าม `IgnoreQueryFilters()`) · `KnowledgeQnAViewModel` **ใช้ของเดิมทั้งใบ ห้ามเพิ่มฟิลด์** — `Id`/`Question`/`Answer`/`ScopeType`/`ScopeId`/`IndexingStatus`/`FailureReason`/`CreatedAt` พอสำหรับทุกอย่างในหน้านี้ |
+| **KL-10** | **`GET /api/knowledge-qna` ต้องเรียก `guard.EnsureAuthenticated()` ตรงๆ ใน service ไม่พึ่ง query filter อย่างเดียว** — เหตุผลเดียวกับ DI-7 คำต่อคำ (`IDocumentResourceService.GetChunks`, `DocumentsController.cs:79-81`): นี่เป็น endpoint ที่คืน**เนื้อความในคลังความรู้**ออกไปทั้งก้อน ไม่ใช่ metadata · สิทธิ์เท่ากับหน้าคลังเดิม (`owner`/`admin`/`cs` ของบริษัทนั้น) **ไม่มีกติกา role ใหม่** |
+| **KL-11** | **ค้นในเนื้อหา = ค้นในฐานข้อมูล ไม่ใช่ยืมทาง vector** — คำค้น `q` เทียบแบบ **ไม่สนตัวพิมพ์ใหญ่เล็ก และเป็นการค้นแบบ "มีคำนี้อยู่ข้างใน"** (`EF.Functions.ILike(x, $"%{q}%")` ซึ่ง EF แปลงเป็น parameter ให้เอง — **ห้ามต่อ SQL เป็นสตริงเองเด็ดขาด**) · **เอกสาร** ติดเมื่อ `FileName` ตรง **หรือ** มี `DocumentChunk.Text` แถวใดแถวหนึ่งของเอกสารนั้นตรง (`DISTINCT` ระดับเอกสาร ไม่ใช่ระดับ chunk) · **Q&A** ติดเมื่อ `Question` **หรือ** `Answer` ตรง · **ทำไมไม่ใช้ vector**: R7.4 ขอ "คำที่อยู่ในเนื้อหา" ซึ่งเป็นการค้นแบบตรงตัว ส่วน vector คืนของที่ "ความหมายใกล้เคียง" — คนละอย่าง และต้องจ่ายค่า embedding ทุกครั้งที่พิมพ์ · **ทำไมไม่ใช้ full-text search ของ Postgres**: ภาษาไทยไม่มีช่องว่างระหว่างคำ `to_tsvector` จึงตัดคำไม่ได้ ส่วน `ILIKE '%...%'` ทำงานถูกกับไทยโดยไม่ต้องมี dictionary |
+| **KL-12** | **`q` ที่ trim แล้วว่าง = ไม่ค้น** (คืนทั้งหมดตาม filter อื่น) · **ต่ำกว่า 2 ตัวอักษร = ไม่ค้น** และบอกที่หน้าจอว่าต้องพิมพ์อย่างน้อย 2 ตัว — ไม่ใช่คืน error · การค้นและ filter **ทำงานร่วมกันแบบ AND เสมอ** (กรองหมวด X + ค้นคำว่า "ใบเสร็จ" = ของในหมวด X ที่มีคำว่าใบเสร็จ) · **ไม่มี pagination ในรอบนี้** (ดู O-11) |
+| **KL-13** | **ต้องบอก CS ตรงๆ ว่าการค้นเนื้อหาไม่ครอบเอกสารที่ index ไม่สำเร็จ** — เอกสารที่ `IndexingStatus != "indexed"` ยังไม่มีแถว `DocumentChunk` เลย จึงค้นเจอได้จาก**ชื่อไฟล์เท่านั้น** · หน้าจอต้องมีข้อความกำกับช่องค้นหาข้อนี้ · **นี่ไม่ใช่บั๊ก แต่เป็นผลโดยตรงของมติ Q5** (ข้อความที่ CS เห็น = ข้อความที่ AI ได้รับจริง) ที่ห้ามแปลงสดตอนค้น — ถ้าไม่เขียนไว้ CS จะสรุปว่าไฟล์หายไปจากคลัง |
+| **KL-14** | **แก้ Q&A จากหน้ารวม (R7.6)** — ปุ่ม "แก้ไข" ต่อแถวเปิด dialog ที่มี `Question` / `Answer` / scope picker **ใช้ `KnowledgeQnAAnswerDialog.tsx` ที่มีอยู่แล้วเป็นฐาน ห้ามสร้าง pattern ที่สอง** · กด บันทึก = `updateKnowledgeQnA(id, ...)` (`api-client.ts:643`) ซึ่งต่อกับ `PUT /api/knowledge-qna/{id}` ที่ **implement เสร็จแล้วและเอกสารรอบนี้รับรองย้อนหลัง** · **ห้ามแตะ `IKnowledgeQnAService.UpdateAsync` ระหว่างทำ UI** — ถ้าพบว่าหลังบ้านขาดอะไร ให้ตีกลับมาที่ `system-analyst` ไม่ใช่แก้เอง |
+| **KL-15** | **ลบ Q&A จากหน้ารวม (R7.6)** — ปุ่ม "ลบ" ต่อแถว ต้องมีการยืนยันก่อน และข้อความยืนยัน **ต้องบอกผลที่ตามมาให้ครบ**: "คำถามที่ Q&A นี้เคยปิดไว้จะกลับเข้าคิวรีวิวอีกครั้ง" (QQ-5) และ "ข้อมูลจะถูกลบออกจากคลังความรู้ AI จะเลิกใช้ตอบ" · **ห้ามใช้ `window.confirm()` เปล่าๆ ที่บอกแค่ "ต้องการลบใช่หรือไม่"** เพราะการลบ Q&A มีผลข้างเคียงข้ามหน้าจอที่ CS มองไม่เห็น ต่างจากการลบเอกสาร |
+| **KL-16** | **ลบแล้วต้องเห็นผลที่คิวจริง ไม่ใช่เกิดเงียบๆ หลังบ้าน** (`requirement.md` R7.6 สั่งให้ตรวจข้อนี้ให้จบ) — หลังลบสำเร็จ ให้แสดงข้อความยืนยันพร้อม**ลิงก์ไป `/admin/qna-queue`** · **ไม่ต้องเขียนกลไกใหม่ใดๆ**: `DeleteAsync` soft-delete `KnowledgeQnASource` ทุกแถวในทรานแซกชันเดียวอยู่แล้ว และ `GetQueue()` คำนวณคิวจาก "คำถามที่ไม่มี Q&A ปิดอยู่" สดทุกครั้ง (QQ-1) → คำถามกลับเข้าคิวเองทันทีที่ refresh · **สิ่งที่ต้องยืนยันตอน QA คือพฤติกรรมนี้เกิดจริง end-to-end ไม่ใช่แค่มีโค้ด** |
+| **KL-17** | **ขอบเขตของ R7.6 ที่ห้ามขยาย** — **⚠️ เพิ่ม 2026-08-25: ข้อนี้ครอบ "แก้/ลบ" เท่านั้น ไม่เคยครอบ "สร้าง" เพราะหน้านี้ไม่เคยมีการสร้างให้จำกัดตั้งแต่แรก — การห้ามสร้างเขียนแยกไว้ที่ KL-25 อ่านคู่กันเสมอ** · แก้/ลบ **ทีละรายการเท่านั้น** · **ไม่มี** bulk · **ไม่มี** audit trail ของการแก้แต่ละครั้ง (R5.6 ขอแค่รู้ว่าใครเขียน/เมื่อไหร่ ซึ่ง `CreateBy`/`CreateDate`/`UpdateBy`/`UpdateDate` มีอยู่แล้ว) · **ไม่มี** การกู้คืน Q&A ที่ลบไปแล้ว (soft delete มีจริงแต่ไม่มี UI — ต่างจากเอกสารที่มี `DeletedDocumentsList` เพราะ R6.1 ขอไว้ ส่วน Q&A ไม่มีใครขอ) · สิทธิ์แก้/ลบของคนอื่นในบริษัทเดียวกันเป็นไปตาม **QQ-9/O-1 เดิม ไม่เปลี่ยน** |
+| **KL-18** | **✅ R7.5 เป็น contract แล้ว — มติ Q-H1 = ทาง B (เจ้าของโปรเจกต์เคาะ 2026-08-25)** · **ลายนิ้วมือของไฟล์คือ `DocumentResource.ContentHash`** (DM-3): **SHA-256 ของ byte ทั้งไฟล์ · hex ตัวพิมพ์เล็ก 64 ตัว · ไม่มี prefix ไม่มีขีดคั่น** · คำนวณ **ที่ backend เท่านั้น** ใน `IDocumentResourceService.UploadAsync` จาก `input.Content` **ก้อนเดียวกับที่กำลังจะส่งเข้า storage** และ **ก่อน** ที่จะเขียนแถวลง DB · ห้ามให้ client ส่ง hash มาเอง (client คำนวณผิด/โกหกได้ และ hash ที่ไม่ตรงกับไฟล์จริงคือข้อมูลเน่าที่ไม่มีทางตรวจเจอทีหลัง) · **คำนวณครั้งเดียวตลอดอายุแถว** — ห้าม recompute ตอนย้าย scope (DS-5), ตอน soft delete/กู้คืน (R6.1), ตอน re-index หรือตอนแก้ metadata ใดๆ · **ทุกทางอัปโหลดต้องได้ hash เหมือนกันหมด ไม่มีข้อยกเว้น** รวมถึงไฟล์ PDF ตัวสไลด์ที่มาทาง `handlePdfUpload` (UC-5) เพราะการเก็บค่าเป็นคนละเรื่องกับการเตือน (KL-21) · **`ContentHash` ห้ามออก API** — ไม่เพิ่มลง `DocumentResourceViewModel` และไม่โผล่ใน response ไหนเลย มันเป็นค่าที่ใช้ภายในเพื่อเทียบเท่านั้น |
+| **KL-19** | **นิยาม "เนื้อหาซ้ำ" ที่โค้ดตัดสินได้** — แถว `DocumentResource` สองแถวซ้ำกันเมื่อ **`CompanyId` เดียวกัน และ `ContentHash` เท่ากันเป๊ะ (byte-for-byte)** · **`ContentHash = null` ไม่เคยซ้ำกับอะไรเลย รวมถึงกับ `null` ด้วยกันเอง** — ต้องกันด้วยเงื่อนไขในโค้ดตรงๆ (`hash != null &&`) ไม่ใช่พึ่งพฤติกรรม `NULL = NULL` ของ SQL ซึ่งอ่านแล้วเดาไม่ออก · แถวที่ถูก soft delete ไปแล้ว **ไม่นับ** (query filter ของ `DocumentResource` มี `!IsDelete` อยู่แล้ว **ห้ามใส่ `IgnoreQueryFilters()` เพื่อ "ให้ครบ"**) · **ห้ามเทียบข้ามบริษัทเด็ดขาด** — คนละบริษัทอัปไฟล์เดียวกันเป็นเรื่องปกติ และการบอกว่า "ไฟล์นี้มีอยู่แล้ว" คือการรั่วข้อมูลข้ามบริษัท · **scope ไม่เกี่ยว** — ไฟล์เดียวกันที่อยู่คนละ scope ก็ยังนับว่าซ้ำและต้องเตือน (นี่คือเคสที่ R7.5 ต้องการจับที่สุด: ไฟล์เดิมถูกอัปซ้ำเข้าไปในหลายบทเรียน) · **⚠️ แก้ 2026-08-25 — การเทียบ `ContentHash` ทำ "ในหน่วยความจำหลัง materialize เอกสารของบริษัทนั้น" ไม่ใช่เป็นเงื่อนไข `Where` ที่ระดับคิวรี** ถ้อยคำเดิม ("คิวรีนี้ใช้ index `(CompanyId, ContentHash)`") ไม่ตรงกับโค้ดที่ ship แล้ว และ **โค้ดถูก เอกสารผิด** เพราะ KL-20 ต้อง materialize เอกสารของบริษัทนั้นอยู่แล้วโดยเลี่ยงไม่ได้ (ดูเหตุผลสามข้อใน KL-20) → เทียบ hash บนลิสต์ก้อนเดียวกันนั้น**ฟรี** ส่วนการแยกไปเป็นอีกคิวรีคือการ**เพิ่ม** round-trip โดยไม่ได้อะไรกลับมา · **`index (CompanyId, ContentHash)` ตาม DM-15/MG-H1 ยังอยู่ ห้ามลบ** — มัน ship ไปกับ MG-H1 แล้ว การ drop ต้องมี migration ใหม่เพื่อประโยชน์เป็นศูนย์ และมันคือ index ที่ถูกต้องทันทีที่ปริมาณทะลุเส้น ~500 รายการต่อบริษัทของ O-11 แล้วต้องย้ายการเทียบกลับไปที่ระดับคิวรี · **เงื่อนไข `CompanyId` ต้องเขียนไว้ใน predicate ตรง ๆ ด้วย ไม่ฝากไว้กับ query filter อย่างเดียว** (defence-in-depth เหตุผลเดียวกับ `GetDeleted` ที่เคยพลาด) |
+| **KL-20** | **"ชื่อซ้ำ" เป็นการตรวจคนละตัวกับ "เนื้อหาซ้ำ" และต้องทำทั้งคู่** — ซ้ำเมื่อ `CompanyId` เดียวกัน และ `FileName` เท่ากันหลัง **trim + เทียบแบบไม่สนตัวพิมพ์ใหญ่เล็ก** · **⚠️ แก้ 2026-08-25 — เทียบด้วย `string.Equals(..., StringComparison.OrdinalIgnoreCase)` ในหน่วยความจำ ห้ามใช้ `EF.Functions.ILike`** (ถ้อยคำเดิมสั่ง `ILike` แบบเทียบเต็มสตริง — **นั่นคือของที่ผิด** ไม่ใช่โค้ดที่ ship มา) · **สามเหตุผล เรียงตามน้ำหนัก ต้องอ่านให้ครบก่อนคิดจะแก้กลับ**: (1) **`ILike` ให้ผลผิดจริง ไม่ใช่แค่ทำ test ยาก** — `ILike` ตีความ `_` และ `%` ที่อยู่ใน**ชื่อไฟล์**เป็น wildcard แม้จะไม่ได้ใส่ `%` ครอบ ดังนั้น `report_2026.pdf` (รูปชื่อไฟล์ที่พบบ่อยที่สุดรูปหนึ่ง) จะไปแมตช์ `report-2026.pdf` / `reportX2026.pdf` เป็น **false positive** ทั้งที่ข้อนี้สั่งว่า "เทียบเต็มสตริง" · การทำให้ถูกต้องด้วย `ILike` ต้อง escape `_`/`%`/`\` เองก่อนทุกครั้ง ซึ่งเป็นโค้ดที่พลาดง่ายกว่าการเทียบสตริงตรง ๆ อย่างเทียบไม่ได้ (2) **KL-23 ทำที่ระดับ SQL ไม่ได้อยู่แล้ว** — "ยุบช่องว่างติดกันให้เหลือช่องเดียว" ต้องใช้ `regexp_replace` ซึ่ง contract ไม่เคยอนุญาต การบังคับ `ILike` ที่ KL-20 จึงได้แค่ pattern ที่ไม่สม่ำเสมอกับข้อข้าง ๆ (3) **`Application.Tests` ของโปรเจกต์นี้ใช้ fake repository แบบ in-memory ทั้งหมด** — `EF.Functions.ILike` ไม่มี LINQ-to-Objects implementation และ throw เมื่อ evaluate นอก EF provider จริง → test สี่ตัวที่ `plan.md` บังคับไว้ในเฟสนี้ (รวมตัวที่พิสูจน์ว่าไม่เตือนข้ามบริษัท ซึ่งเป็นข้อ (4) ของเหตุผล 🔒 gate) จะเขียนให้ยิงผ่าน service path จริงไม่ได้เลย · **ราคาที่จ่ายและรับแล้วโดยรู้ตัว**: เอกสารของบริษัทนั้นถูกดึงขึ้นมาทั้งชุดก่อนเทียบ ซึ่งเป็น pattern เดียวกับ `GetAllInCompany()` ที่ KL-2/KL-9 สั่งให้ใช้ทุกครั้งที่โหลดหน้าคลังอยู่แล้ว **ไม่ใช่ pattern ใหม่** และอยู่ในกรอบขนาดเดียวกับที่ O-11 รับไว้แล้ว (หลักสิบ–หลักร้อยต่อบริษัท) · ยิ่งกว่านั้น คิวรีนี้วิ่งเฉพาะตอน `CheckDuplicate = true` ซึ่งมีที่เดียวในระบบคือฟอร์มอัปโหลดหน้าคลัง (KL-21) **ไม่ใช่ทุก upload** · **เส้นที่ต้องกลับมา amend: เส้นเดียวกับ O-11 (~500 รายการต่อบริษัท)** — ถึงตรงนั้นให้ย้ายการเทียบ hash กลับไปที่ระดับคิวรีบน index ของ KL-19 ก่อน แล้วค่อยจัดการชื่อไฟล์ (ต้อง escape `_`/`%` ให้ครบตามข้อ (1)) **ห้าม engineer หรือ QA แก้กลับเป็น `ILike` เองก่อนถึงเส้นนั้น — ถ้าเห็นโค้ดเป็น in-memory แล้วคิดว่าเป็นของที่ตกหล่น ให้อ่านข้อนี้ซ้ำ นี่คือของที่ตั้งใจ** · **ข้อนี้ไม่แตะ KL-11**: การค้นเนื้อหายังเป็น `EF.Functions.ILike` จริงที่ระดับคิวรีทุกตัวอักษร (ตรงนั้น `%...%` เป็น wildcard ที่ต้องการจริง และ `DocumentChunk.Text` ดึงขึ้น memory ทั้งบริษัทไม่ได้) · ไม่นับแถวที่ถูกลบไปแล้ว เหมือน KL-19 · **สองการตรวจนี้ให้ผลต่างกันได้ 4 แบบ และทุกแบบต้องรายงานตามจริง**: ชื่อ+เนื้อหาซ้ำทั้งคู่ (ไฟล์เดิมเป๊ะ) · เนื้อหาซ้ำแต่ชื่อต่าง (**ไฟล์เดิมที่ถูกเปลี่ยนชื่อ — เคสที่ทาง A จับไม่ได้และเป็นเหตุผลทั้งหมดที่เลือกทาง B**) · ชื่อซ้ำแต่เนื้อหาต่าง (**เอกสารเวอร์ชันใหม่ — เคสที่พบบ่อยที่สุดในชีวิตจริง**) · ไม่ซ้ำเลย · **ห้ามยุบสองอันนี้เป็นข้อความเดียวว่า "ซ้ำ"** เพราะ CS ตัดสินใจต่างกันมากระหว่าง "นี่คือไฟล์เดิม" กับ "นี่คือเวอร์ชันใหม่ของไฟล์เดิม" |
+| **KL-21** | **เตือน ไม่ใช่บล็อก — และกลไกต้องเป็น opt-in ฝั่งผู้เรียก ไม่งั้นจะไปพัง UC-5** · `UploadDocumentDto` เพิ่มฟิลด์ **`bool CheckDuplicate` ค่าเริ่มต้น `false`** (additive ล้วน ไม่ breaking) · **`false` = พฤติกรรมเดิมทุกตัวอักษร** อัปโหลดผ่านตลอด แต่ **ยังคำนวณและเก็บ `ContentHash` เสมอ** · **`true` = ตรวจก่อนเขียน**: ถ้าเจอตาม KL-19 หรือ KL-20 ให้ **ไม่เขียนแถว ไม่เขียน storage ไม่เข้าคิว index** แล้วคืน **`409 Conflict`** · **⚠️ แก้ 2026-08-25 — payload ไม่ใช่ JSON body เปล่า ๆ อย่างที่ถ้อยคำเดิมของข้อนี้ทำให้เข้าใจผิด มันขี่มาใน `ApiErrorResponse` envelope เดิมของระบบทุกตัวอักษร เหมือน error ทุกตัวใน API นี้**: `GeneralException.Conflict(messageTh, details)` (`SupportRoom.Application/Exceptions/GeneralException.cs:37-38`) → `{ error: { code: "CONFLICT", message, details, requestId? } }` โดย **`details` คือ `DuplicateDocumentDto`** = `{ duplicateByHash: [...], duplicateByFileName: [...] }` · `"CONFLICT"` เป็นค่าใหม่ใน `ApiErrorCode` และ **ต้องมีอยู่ในทั้งสองฝั่งเสมอ** (`SupportRoom.Domain/Enums/ApiErrorCode.cs` ↔ `frontend/src/types/api.ts` — สองไฟล์นี้เขียนกำกับกันเองไว้แล้วว่าต้องเดินคู่กัน) · client จึงอ่านค่าที่ `err.response.error.details` **ห้ามอ่านจาก root ของ body** · แต่ละรายการในสองลิสต์มี `id` · `fileName` · `scopeType` · `scopeId` · **`createdAt`** เท่านั้น — **`createdAt` ไม่ใช่ `createDate`** (ชื่อ wire ตรงกับ `DocumentResourceViewModel.CreatedAt` เดิมของระบบ · `CreateDate` เป็นชื่อคอลัมน์ฝั่ง entity ที่ไม่เคยออก API · ถ้อยคำเดิมของข้อนี้เขียนผิดมาตั้งแต่แรก แก้ให้ตรงโค้ดจริง `DocumentResourceViewModel.cs:37-44` เมื่อ 2026-08-25 — **โค้ดถูกอยู่แล้ว เอกสารเป็นฝ่ายผิด ห้าม rename โค้ดตามถ้อยคำเดิม**) · CS กด "อัปโหลดต่อไป" = client **ส่งคำขอเดิมซ้ำด้วย `checkDuplicate: false`** แล้วอัปได้ตามปกติ → **CS ยืนยันอัปซ้ำได้เสมอ ไม่มีทางไหนที่ระบบปฏิเสธถาวร** · **ทำไมต้องกันไว้ก่อนเขียน ไม่ใช่เตือนหลังอัปเสร็จ**: ไฟล์ซ้ำที่หลุดเข้าไปแล้วจะถูก embed + เขียน vector ซ้ำลง namespace เดียวกัน = จ่ายค่า embedding ฟรีๆ **และทำให้ผลค้นแย่ลงจริง** (เนื้อหาเดียวกันกินที่ top-k ซ้ำสองใบ) การลบทีหลังไม่คืนค่าที่จ่ายไปแล้ว · **ทำไมค่าเริ่มต้นต้องเป็น `false`**: `handlePdfUpload` (UC-5 · ห้ามแตะ) เรียก `api.uploadDocument` ตัวเดียวกัน และการใช้ PDF ไฟล์เดิมสร้างบทเรียนที่สองเป็นเรื่องปกติ — ถ้า default เป็น `true` การสร้างบทเรียนจะเด้ง 409 ใส่หน้า CS ซึ่งคือความพังแบบเดียวกับที่ R8.3 เขียนขึ้นมาเพื่อกัน · **มีที่เดียวในระบบที่ส่ง `checkDuplicate: true` คือฟอร์มอัปโหลดในหน้าคลังรวม `/admin/documents`** |
+| **KL-22** | **ข้อความที่ CS เห็น ต้องบอกให้ครบว่าซ้ำแบบไหนและซ้ำกับใบไหน** — ระบุ (ก) ซ้ำที่ชื่อ/ที่เนื้อหา/ทั้งสองอย่าง ตาม KL-20 (ข) **ชื่อไฟล์และขอบเขตของใบที่ซ้ำ โดยใช้ป้ายขอบเขตชุดเดียวกับ KL-6** (ชื่อบทเรียนจริง / "หมวดแม่ › หมวดย่อย" / "ทั้งบริษัท") ไม่ใช่ id ดิบ (ค) วันที่อัปของใบเดิม (ง) ปุ่มสองปุ่ม: **"อัปโหลดต่อไป"** และ **"ยกเลิก"** · **⚠️ ต้องเขียนกำกับไว้ที่หน้าจอด้วยว่าการเตือนเนื้อหาซ้ำครอบเฉพาะเอกสารที่อัปหลังจากระบบเปิดใช้ความสามารถนี้** — เอกสารเก่ามี `ContentHash = null` และจะไม่ถูกจับตลอดไป (KL-19 · R-20) · **เหตุผลเดียวกับ KL-13 คำต่อคำ**: ถ้าไม่เขียน CS จะเจอเคสที่ "ระบบไม่เตือนทั้งที่ไฟล์ซ้ำชัดๆ" แล้วสรุปว่าฟีเจอร์นี้พัง ทั้งที่เป็นพฤติกรรมที่ออกแบบไว้ |
+| **KL-23** | **✅ Q&A ซ้ำเป็น "ด่านก่อนบันทึก" ไม่ใช่คำเตือนหลังบันทึก — มติ Q-H2 = ทาง (ข) (เจ้าของโปรเจกต์เคาะ 2026-08-25)** · **Q&A ซ้ำใช้คนละกลไกกับเอกสาร ไม่มีฟิลด์ใหม่ ไม่เกี่ยวกับ `ContentHash` เลย** — นิยาม "ซ้ำ" คือ `Question` **ซ้ำเป๊ะหลัง trim + ยุบช่องว่างติดกันให้เหลือช่องเดียว + เทียบแบบไม่สนตัวพิมพ์ใหญ่เล็ก** กับ Q&A ที่ยังไม่ถูกลบของบริษัทเดียวกัน · **เทียบเฉพาะ `Question` ไม่เทียบ `Answer`** — คำตอบเหมือนกันสำหรับคนละคำถามเป็นเรื่องปกติและไม่ใช่ความซ้ำ · **① จังหวะ — ตรวจก่อนเขียนทุกอย่าง ไม่มีข้อยกเว้น**: เจอซ้ำแล้ว **ไม่เขียนแถว `KnowledgeQnA` · ไม่เขียนแถว `KnowledgeQnASource` แม้แถวเดียว · ไม่ปิดคำถามในคิว · ไม่ `EnqueueJob(qna_index)` · ไม่ `UnitOfWork.Commit()`** — โยน 409 ออกก่อนถึงบรรทัด `_repository.Add(entity)` (วันนี้ `IKnowledgeQnAService.cs:186-231` ตรวจถูกที่แล้วแต่เอาผลไปใส่ response หลัง `Commit()` — **นั่นคือของที่ต้องรื้อ**) · **② ลำดับการตรวจตายตัว**: `EnsureValidScope` → `SessionQuestionIds` ว่าง/หาไม่เจอ → **แล้วจึงตรวจซ้ำ** · 400/404 ชนะ 409 เสมอ ห้ามให้ CS เห็น "ซ้ำ" ทั้งที่ปัญหาจริงคือ scope ผิด · **③ ไม่มีธง `CheckDuplicate` — การตรวจเป็น unconditional ทุกครั้งที่ create** · **ห้ามลอก `CheckDuplicate` ของ KL-21 มาเพราะรูปเหมือนกัน** — เหตุผลที่ KL-21 ต้อง opt-in คือ `handlePdfUpload` (UC-5) ซึ่งเป็น caller ที่ต้องเงียบ · **ตรวจ call site จริงแล้ว 2026-08-25: ทางสร้าง Q&A มี call site เดียวในโปรเจกต์คือ `app/admin/qna-queue/page.tsx:130` (`mode="create"`) ส่วน `KnowledgeQnATable.tsx:171` เป็น `mode="edit"` ไม่แตะทางสร้างเลย** และ **KL-25 รับประกันว่าจะไม่มีที่สอง** → ไม่มี caller ที่ต้องเงียบ · ธงที่มีค่าถูกต้องเพียงค่าเดียว (`true`) คือกับดักแบบ R-14 (ลืมส่งแล้วด่านหายไปเงียบๆ) และ unconditional ยังทำให้ caller ใหม่ในอนาคตได้การป้องกันโดยปริยาย ไม่ต้องจำมา opt-in · **④ ธงที่มีคือธง "ยืนยัน" ไม่ใช่ธง "ตรวจ"**: `CreateKnowledgeQnADto` เพิ่ม **`bool ConfirmDuplicate` ค่าเริ่มต้น `false`** (wire `confirmDuplicate`) · `false` = ตรวจและบล็อก · `true` = **ข้ามการตรวจ** บันทึกตามปกติ · `true` ตอนที่ไม่มีของซ้ำจริง = บันทึกปกติ **ไม่ใช่ error** · **⑤ คำตอบเมื่อเจอซ้ำ = 409 ตัวเดียวกับ KL-21 ทุกตัวอักษร**: `GeneralException.Conflict(messageTh, details)` → `{ error: { code: "CONFLICT", message, details, requestId? } }` · **`ApiErrorCode.Conflict = "CONFLICT"` มีอยู่แล้วทั้งสองฝั่ง** (ยืนยัน `ApiErrorCode.cs:19` ↔ `frontend/src/types/api.ts:13`) **ไม่ใช่ค่าใหม่ ห้ามเพิ่มซ้ำ** · **⑥ payload = ViewModel ใหม่ `DuplicateQnAResponse` = `{ duplicateByQuestion: KnowledgeQnAViewModel[] }`** — **ห้ามยัดลง `DuplicateDocumentsResponse`** (คนละชนิดข้อมูล คนละ endpoint) และ **ห้ามสร้าง shape ที่สองสำหรับ Q&A** — ใช้ `KnowledgeQnAViewModel` เดิมทั้งใบ (เหตุผลเดียวกับ KL-9 "ห้ามเพิ่มฟิลด์") ซึ่งพอดีกับ type `KnowledgeQnA` ฝั่ง frontend อยู่แล้ว (`domain.ts:523-532`) · เรียง `CreateDate` **ลง** (ใบล่าสุดก่อน) · **เป็นลิสต์ ไม่ใช่ใบเดียว** เพราะ "ยืนยันบันทึกซ้ำ" ทำให้มีหลายใบที่ `Question` เหมือนกันได้จริงตามกติกา (ไม่มี unique constraint · KL-24) — คืนใบเดียวจะโกหกในรอบที่สอง และ `FirstOrDefault` ของโค้ดวันนี้ไม่พอ · client อ่านที่ `err.response.error.details` **ห้ามอ่านจาก root ของ body** · **⑦ สองเส้นทางคืน `CONFLICT` แล้วโดย details ต่างชนิด** — `POST /api/documents` = `DuplicateDocumentsResponse` (KL-21) · `POST /api/knowledge-qna` = `DuplicateQnAResponse` · client **ต้องแยกด้วย endpoint ที่ตัวเองเรียก ห้ามแยกด้วย `code`** ซึ่งเท่ากันทั้งสองเส้น · **⑧ success response เปลี่ยนรูป — breaking แต่มี caller เดียว**: **ลบคลาส `KnowledgeQnACreateResultViewModel` ทั้งใบ** พร้อมฟิลด์ `DuplicateWarning` (ไม่มีคำเตือนใน success path อีกแล้วโดยนิยาม) · `POST /api/knowledge-qna` คืน **`Ok(new { qna = ... })` รูปเดียวกับ `PUT` เป๊ะ** (`KnowledgeQnAController.cs:30`) · ⚠️ ของเดิมคืน ViewModel ทั้งใบตรงๆ (`KnowledgeQnAController.cs:26`) ซึ่ง property `QnA` ถูก camelCase policy แปลงเป็น **`qnA`** ไม่ใช่ `qna` ที่ `api-client.ts:669` ประกาศไว้ — วันนี้ไม่มีใครอ่านฟิลด์นั้นจึงไม่มีใครเจอ **การห่อด้วย `new { qna = ... }` ปิดกับดักนี้ไปพร้อมกัน ห้ามคืน ViewModel ทั้งใบกลับมาอีก** · **⑨ ห้ามขยายไปทางแก้**: `UpdateAsync`/`PUT /api/knowledge-qna/{id}` **ไม่ตรวจซ้ำ ไม่มี `ConfirmDuplicate`** — QQ-6 คุมทางแก้อยู่แล้ว ถ้าเห็นว่า "ควรมีเพื่อความสม่ำเสมอ" ให้ตีกลับมา ห้ามเติมเอง · **⑩ ยอมรับ race โดยรู้ตัว**: CS สองคนบันทึกคำถามเดียวกันพร้อมกันผ่านด่านได้ทั้งคู่ — ไม่มี unique constraint (KL-24 สั่งห้ามเพิ่มไว้แล้ว) ด่านนี้คุม**จังหวะการเตือน** ไม่ใช่การรับประกันระดับฐานข้อมูล · **⑪ test ที่ต้องมี**: 3 ตัวเดิม (`KnowledgeQnAServiceTests.cs:222 / 242 / 259`) **เขียนใหม่ให้ยืนยัน 409 แทน `DuplicateWarning`** (ตัวที่ 259 คือตัวที่พิสูจน์ว่าไม่ข้ามบริษัท **ห้ามลบ**) + เพิ่มตัวที่พิสูจน์ว่าเมื่อ 409 แล้ว **ไม่มีแถว `KnowledgeQnA`/`KnowledgeQnASource` ถูกเขียนและไม่มี `BackgroundJob` เข้าคิว** + ตัวที่ `ConfirmDuplicate = true` บันทึกผ่านจริงทั้งที่มีของซ้ำ · **UI ของด่านนี้อยู่ที่ KL-26 อ่านคู่กันเสมอ** · **ไม่เทียบข้ามบริษัท** และ **ไม่สนว่า scope ต่างกันไหม** (เหตุผลเดียวกับ KL-19) · **⚠️ เพิ่ม 2026-08-25 — วิธีเทียบต้องทำในหน่วยความจำ (`CollapseWhitespace` + `OrdinalIgnoreCase`) ห้ามย้ายไป SQL** · เขียนให้ชัดเพราะข้อนี้**ไม่เคย**สั่ง `EF.Functions.ILike` มาตั้งแต่แรก (ตรวจถ้อยคำเดิมแล้ว 2026-08-25 — ต่างจาก KL-20 ที่สั่งไว้จริงและถูกยกเลิกในรอบนี้) และ **สั่งไม่ได้ด้วย**: "ยุบช่องว่างติดกันให้เหลือช่องเดียว" ต้องใช้ `regexp_replace` ของ Postgres ซึ่งไม่มี LINQ translation ที่ปลอดภัย ไม่มีใน contract และจะทำให้ test ตาม R-12 เขียนไม่ได้เหมือน KL-20 ข้อ (3) · **ห้ามแก้ให้เป็นคิวรีเพราะเห็นว่า KL-11 ทำได้** — KL-11 เทียบ "มีคำนี้อยู่ข้างใน" บนข้อความดิบ ส่วนข้อนี้เทียบ "เท่ากันเป๊ะหลัง normalize" คนละงานกัน · ขนาดถูกจำกัดด้วยจำนวน Q&A ของบริษัทเดียว อยู่ในกรอบ O-11 เหมือนกัน · **`CompanyId` ต้องอยู่ใน predicate ตรง ๆ** ไม่ฝากไว้กับ query filter อย่างเดียว (เหมือน KL-19/KL-20) |
+| **KL-24** | **ขอบเขตของ R7.5 ที่ห้ามขยาย** — **ไม่มี** การ backfill `ContentHash` ของเอกสารเก่าไม่ว่ารูปแบบใด (สคริปต์, job ตอนสตาร์ต, การคำนวณ lazy ตอนเปิดดู) เพราะต้องดาวน์โหลดไฟล์ทุกใบจาก object storage กลับมา — **เจ้าของโปรเจกต์เคาะแล้วว่าไม่คุ้ม ห้าม engineer ตัดสินใจใหม่เอง** · **ไม่มี** การจับซ้ำแบบใกล้เคียง/semantic (O-12) · **ไม่มี** หน้า "ไล่หาของซ้ำย้อนหลังทั้งคลัง" — เตือนเฉพาะตอนกำลังจะบันทึกเท่านั้น · **ไม่มี** การรวม/ลบ/แทนที่ไฟล์ซ้ำให้อัตโนมัติ ระบบไม่แตะของเดิมแม้แต่แถวเดียว · **ไม่มี** การบล็อก ไม่มี unique constraint บน `ContentHash` (DM-15 เขียนไว้ตรงๆ แล้ว) · **ไม่มี** การเตือนซ้ำตอน **ย้าย scope** (DS-5) — ย้ายบ้านไม่ใช่การสร้างของใหม่ |
+| **KL-25** | **⛔ หน้าคลังรวม `/admin/documents` ไม่มีทาง "สร้าง Q&A ใหม่" — ทางสร้างมีที่เดียวในระบบคือ `/admin/qna-queue`** (เพิ่ม 2026-08-25 เพื่อปิดข้อนี้ให้ขาด หลัง `frontend-engineer` ตีกลับมาถูกต้องว่า KL-1..KL-17 ไม่เคยให้อำนาจสร้างกับหน้านี้) · หน้าคลังทำกับ `KnowledgeQnA` ได้ **สามอย่างเท่านั้น**: **ดู** (KL-1/KL-8) · **แก้ของที่มีอยู่** (KL-14) · **ลบของที่มีอยู่** (KL-15/KL-16) · **ห้ามมีปุ่ม/ลิงก์/ฟอร์ม "เพิ่ม Q&A" ที่หน้านี้ ไม่ว่ารูปแบบใด** · **สองเหตุผล และข้อที่สองสำคัญกว่าเรื่องขอบเขต**: (1) `requirement.md` ไม่เคยขอ — R7.2 ขอ "เห็น Q&A รวมอยู่ในหน้าเดียวกับเอกสาร" (ทางอ่าน) · R7.6 ขอ "แก้ไข/ลบ Q&A **ที่มีอยู่แล้ว** ได้จากหน้ารวม ไม่ใช่ดูได้เฉย ๆ" (แก้/ลบของเดิม) · CR-1.h เลือกไว้สี่ข้อคือ เห็นทั้งคลัง/กรอง/ค้นเนื้อหา/เตือนซ้ำ — **ไม่มีข้อไหนเป็นการสร้าง** (2) **ตาม contract ปัจจุบัน มันสร้างไม่ได้ ไม่ใช่แค่ไม่ควรสร้าง** — `CreateKnowledgeQnADto.SessionQuestionIds` ต้องมีอย่างน้อยหนึ่งรายการ เพราะ **QQ-2** กำหนดว่าคำถามออกจากคิวได้ทางเดียวคือมี Q&A ผูกกับมัน และ **QQ-7** ให้หนึ่ง Q&A ปิดได้หลายคำถาม · หน้าคลังไม่มีแถวคิวให้เลือกผูก → ฟอร์มสร้างที่นั่นจะได้ `KnowledgeQnA` ที่ไม่มี `KnowledgeQnASource` เลยแม้แถวเดียว ซึ่งขัดโครงของ R5 ทั้งชุด **ไม่ใช่การขยายฟีเจอร์ แต่เป็นการรื้อ contract** · **ถ้าวันหนึ่งเจ้าของโปรเจกต์ต้องการ "เขียน Q&A เองโดยไม่ต้องมีคำถามจากคิว" จริง นั่นคือความต้องการใหม่ (R7.7) ต้องกลับไป `business-analyst` ก่อน แล้ว amend QQ-2/QQ-7 + `CreateKnowledgeQnADto` — ห้าม engineer หรือ `project-manager` เปิดทางนี้เอง** · **หมายเหตุถึง `project-manager`**: task ของ Phase 8 ที่เคยเขียนว่า "เพิ่มฟอร์มบันทึก Q&A ใหม่จากหน้ารวม" เป็นถ้อยคำที่คลาดเคลื่อน ไม่ใช่ขอบเขตที่ design เคยอนุมัติ — แก้ถ้อยคำใน `plan.md` แล้วเมื่อ 2026-08-25 โดยไม่แตะ checkbox และไม่เปลี่ยน phasing · **UI เตือนซ้ำตาม KL-23 จึงอยู่ที่ `/admin/qna-queue` ซึ่งเป็นที่เดียวที่มีการสร้างจริง ไม่ใช่ที่หน้าคลัง** — การที่ `KnowledgeQnAAnswerDialog` ถูกทำให้ใช้ร่วมกันด้วย `mode: "create" \| "edit"` ตัวเดียวคือสิ่งที่ KL-14 สั่งไว้ตรง ๆ ("ห้ามสร้าง pattern ที่สอง") **ถูกต้องแล้ว** |
+| **KL-26** | **UI ของด่าน KL-23 — อยู่ที่ `/admin/qna-queue` ที่เดียว และห้ามลิงก์ข้ามหน้า** (เพิ่ม 2026-08-25 พร้อมมติ Q-H2 = ทาง (ข)) · ที่นั่นเป็นทางสร้างเดียวที่มี (KL-25) จึงเป็นที่เดียวที่ต้องรับ 409 นี้ · **การรับ 409**: `KnowledgeQnAAnswerDialog` ทาง create ต้อง `catch (err instanceof ApiClientError && err.status === 409)` แล้วอ่าน `err.response.error.details` เป็น `DuplicateQnAResponse` — **pattern เดียวกับ `DocumentUploadList.tsx:218-224` คำต่อคำ ห้ามสร้าง pattern ที่สอง** · state ที่เก็บเป็น**ลิสต์** ไม่ใช่ใบเดียว (KL-23 ⑥) และเก็บ input ที่ CS กรอกไว้ทั้งชุดเพื่อส่งซ้ำได้ · **สิ่งที่ต้องแสดง**: คำถามของใบที่ซ้ำ + **คำตอบเดิมเต็มๆ** + ป้ายขอบเขต (**ใช้ `scopeLabel()` ชุดเดียวกับ KL-6** ไม่ใช่ id ดิบ) + วันที่บันทึก · **และต้องบอกตรงๆ ว่า "ยังไม่ได้บันทึก"** — เหตุผลเดียวกับ KL-13/KL-22 คำต่อคำ: ห้ามให้ UI พูดสิ่งที่ระบบไม่ได้ทำ (ของเดิมโกหกในทางกลับกัน คือบันทึกไปแล้วแต่พูดเหมือนยังเลือกได้ — **นั่นคือทั้งหมดของ Q-H2**) · **สามปุ่ม**: **"ยืนยันบันทึกซ้ำ"** = ส่งคำขอเดิมซ้ำด้วย `confirmDuplicate: true` (mirror ของ KL-21 ที่ส่งซ้ำด้วย `checkDuplicate: false`) → **ใช้ได้เสมอ ไม่มีทางไหนที่ระบบปฏิเสธถาวร non-negotiable เดียวกับ KL-21** · **"แก้ใบเดิมแทน" ต่อรายการ** (หนึ่งปุ่มต่อหนึ่งแถวในลิสต์ เพราะซ้ำได้หลายใบ) · **"ยกเลิก"** = ปิด dialog ไม่บันทึกอะไร คำถามยังอยู่ในคิวครบ · **"แก้ใบเดิมแทน" ทำในที่เดิม ไม่ลิงก์ข้ามหน้า** — payload มี `KnowledgeQnAViewModel` ครบทุกฟิลด์ที่ type `KnowledgeQnA` ต้องการอยู่แล้ว dialog จึง **สลับตัวเองเป็น `mode: "edit"` บนแถวนั้นได้ทันที ไม่ต้อง fetch เพิ่ม ไม่ต้องมี endpoint ใหม่ ไม่ต้องออกจากหน้า** (บันทึกด้วย `updateKnowledgeQnA` เดิมตาม KL-14) · **prop `onEditExisting` ถูกลบทิ้ง** (`KnowledgeQnAAnswerDialog.tsx:27-30`) — มันไม่เคยถูกส่งมาจาก call site เดียวที่มี และตาม KL-25 จะไม่มีวันถูกส่ง **นี่คือปุ่มตายของ Q-H2 ที่ต้องหายไปจริง ไม่ใช่ย้ายที่** · **⛔ ห้ามลิงก์ไป `/admin/documents?q=<คำถาม>`** — ทาง (ก) ของ Q-H2 **ตกไปพร้อมกับมติ** · สามเหตุผล: (1) มันเป็น**การค้นหา ไม่ใช่การชี้ไปที่แถว** — KL-11 เทียบ "มีคำนี้อยู่ข้างใน" จึงคืนได้หลายแถวหรือคืนแถวที่ไม่ใช่ใบที่ซ้ำ และคำถามที่สั้นกว่า 2 ตัวอักษรจะไม่ค้นเลย (KL-12) (2) การออกจากหน้าทิ้ง**คำตอบที่ CS พิมพ์ค้างไว้และการเลือกแถวคิว**ไปด้วย ซึ่งยิ่งเสียของเมื่อยังไม่มีอะไรถูกบันทึก (3) มันบังคับให้หน้าคลังต้องอ่าน `q` จาก URL เพิ่ม ซึ่ง**ไม่มี requirement ข้อไหนขอ** (KL-2/UC-7 ขอแค่ `scopeType`/`scopeId`) — **ห้ามเพิ่ม `q` เข้า URL param ของหน้าคลังในรอบนี้** · **⚠️ ผลที่ต้องเขียนบอกที่หน้าจอ ห้ามปล่อยให้ CS เดา**: กด "แก้ใบเดิมแทน" แล้วบันทึกการแก้สำเร็จ **คำถามในคิวที่ CS เลือกไว้ยังไม่ถูกปิดและยังอยู่ในคิว** — QQ-2 ปิดคำถามได้ทางเดียวคือมีแถว `KnowledgeQnASource` ผูก และ QQ-6 บอกว่าการแก้ไม่แตะคิว · หลังแก้เสร็จ dialog ต้องกลับมาที่สถานะที่ CS ยังเลือก "ยืนยันบันทึกซ้ำ" ได้ หรือปิดไปโดย**รู้ตัว**ว่าแถวคิวยังอยู่ · **⛔ ห้ามปิดคำถามในคิวเป็นผลข้างเคียงของการแก้ใบเดิมเด็ดขาด ไม่ว่ารูปแบบใด** — การผูกคำถามในคิวเข้ากับ Q&A ที่มีอยู่แล้วคือ **ความสามารถใหม่ (O-13) ต้องกลับไป `business-analyst` ก่อน ห้าม engineer เปิดทางนี้เอง** (เหตุผลโครงสร้างเดียวกับ KL-25) |
+
+---
+
+## Upload Consolidation Rules (R8) — contract
+
+> **เพิ่ม 2026-08-25** จาก R8.1–R8.4 (มติ CR-1.j = "ลบทิ้งไปเลย") ·
+> **ข้อนี้เป็นงานลบเป็นหลัก และงานลบคือจุดที่พลาดแล้วเจ็บที่สุดในรอบนี้** —
+> `requirement.md` R8.3 เขียนขอบเขตห้ามข้ามไว้เองก่อนที่ `system-analyst` จะได้อ่านด้วยซ้ำ
+
+| # | กติกา |
+|---|---|
+| **UC-1** | **ลบการ์ด "เอกสารประกอบ" ออกจากฟอร์มบทเรียน** — ที่อยู่จริง ณ 2026-08-25 คือ **`frontend/src/components/admin/LessonForm.tsx` บรรทัด 679–698** (การ์ดทั้งใบ: `CardHeader` + คำอธิบาย + `<DocumentUploadList fixedScope=... primaryDocumentId=... />`) · ⚠️ **`requirement.md` R8.1/R8.3 ชี้ `app/admin/lessons/[slug]/page.tsx:448` ซึ่งเป็นที่อยู่ก่อน refactor — ยึดที่อยู่ในข้อนี้** · ลบ import `DocumentUploadList` ที่ `LessonForm.tsx:11` ตามไปด้วย |
+| **UC-2** | **ลบโหมด `fixedScope` ออกจาก `DocumentUploadList` ทั้งโหมด ไม่ใช่แค่เลิกเรียก** — หลัง UC-1 แล้ว `/admin/documents` (`app/admin/documents/page.tsx:25`) เป็น call site เดียวที่เหลือ · ให้ลบ props union (`DocumentUploadList.tsx:131-133`), ตัวแปร `libraryMode`, `activeScope`, `fixedScope ?? ...` และเงื่อนไข `{libraryMode && ...}` ทุกจุดทิ้ง แล้วเหลือทางเดียว · **เหตุผลที่ต้องลบจริง ไม่ใช่ปล่อยไว้เฉยๆ**: R-14 ของเอกสารนี้บันทึกไว้แล้วว่าโค้ดที่ไม่มี call site ผ่าน QA มาหกเฟสโดยไม่มีใครจับได้ — โหมดที่ไม่มีใครใช้คือของแบบเดียวกันเป๊ะ |
+| **UC-3** | **`primaryDocumentId` ไม่ถูกลบทิ้งเฉยๆ แต่ย้ายไป KL-7** — prop นี้ (`DocumentUploadList.tsx:132, 356-360`) เป็นสิ่งเดียวที่บอก CS ว่าไฟล์ไหนคือตัวขับสไลด์ · ลบ prop ออกได้ (บริบท "บทเรียนไหน" หายไปพร้อมการ์ด) **แต่ badge ต้องโผล่ที่หน้าคลังรวมแทนเสมอ ตาม KL-7** — ห้ามลบทั้งสองที่พร้อมกัน |
+| **UC-4** | **ไม่มี migration · ไม่มี endpoint ถูกลบ · ไม่มีเอกสารเดิมถูกย้ายแม้แถวเดียว** (R8.2) — `ScopeType = "lesson"` ยังเป็นค่าที่ถูกต้องและยังต้องมีต่อไป (CR-1.f ยืนยันว่า "กลุ่มความรู้" ที่เจ้าของโปรเจกต์หมายถึงคือบทเรียน) แค่เลือกจากหน้าคลังรวมแทน (KL-4) · **ถ้าใครกำลังจะเขียน migration หรือสคริปต์ย้ายข้อมูลเพราะข้อนี้ แปลว่าอ่านผิด** |
+| **UC-5** | ⚠️ **แก้ 2026-08-26 — คำว่า "ห้ามแตะ" ถูก R4.6 supersede อย่างเป็นทางการ (CR-2.m · `requirement.md` กล่อง 📌 ใต้ R8.3)** · **สิ่งที่ยังบังคับใช้เต็มที่คือเจตนา**: ทางอัป PDF ตัวสไลด์ **ห้ามถูกลบทิ้งไปพร้อมการ์ด "เอกสารประกอบ" ของ UC-1** และการอัปสองอย่างในหน้าแก้บทเรียนยังคนละเรื่องกันโดยสิ้นเชิง · **สิ่งที่เปลี่ยน**: R4.6 สั่งแก้พฤติกรรมของฟังก์ชันกลุ่มนี้โดยตรงและโดยเจตนา (NR-12/NR-14/NR-17) — `handlePdfUpload` เลิกถูกเรียกตอน*เลือก*ไฟล์ในโหมดสร้าง · `canCreate` เปลี่ยนเงื่อนไข · scope เป็น `lesson` ทั้งสองโหมด · **`qa-engineer` ต้องไม่รายงานการแก้เหล่านี้เป็นการละเมิด R8.3** การละเมิดที่ยังนับมีอย่างเดียวคือ **ลบเส้นทางอัป PDF ตัวสไลด์ทิ้งจนสร้างบทเรียน PDF ไม่ได้** · **ข้อความเดิมของข้อนี้เก็บไว้ทั้งย่อหน้าด้านล่างโดยไม่แก้** เพื่อให้ยังอ่านออกว่าที่อยู่จริงในโค้ดคือที่ไหนและเคยห้ามอะไรไว้เพราะอะไร: **⛔ (เดิม) ห้ามแตะทางอัป PDF ตัวสไลด์ของบทเรียน (R8.3)** — `handlePdfUpload` อยู่ที่ **`LessonForm.tsx:187`** ถูกเรียกจากบรรทัด **243, 250 และ 450** และหลังอัปเสร็จมันเรียก `previewPdfLessonContent` ต่อเพื่อสร้าง `slideConfigs` + ตั้ง `pdfDocumentResourceId` · **มันบังเอิญใช้ `api.uploadDocument` ตัวเดียวกับการ์ดที่ถูกลบ ซึ่งเป็นเหตุผลเดียวที่คนอ่านผิดได้** · ลบทางนี้ = **สร้างบทเรียนแบบ PDF ไม่ได้อีกเลย** และ R4 ทั้งชุดพัง · `pdfField`, `handlePdfFileSelected`, และ input ที่บรรทัด 450 **อยู่ในกลุ่มห้ามแตะทั้งหมด** |
+| **UC-6** | **หน้าแก้บทเรียนต้องยังบอกได้ว่ามีเอกสารอะไรผูกอยู่ (R8.4)** — แทนที่การ์ดที่ถูกลบ ด้วย**บรรทัดสรุปอ่านอย่างเดียว**: "เอกสารประกอบของบทเรียนนี้: N รายการ" + ลิงก์ "ดูในคลังความรู้" · ตัวเลข N มาจาก `listDocuments({ scopeType: "lesson", scopeId: lesson.id })` ที่**มีอยู่แล้ว** (`api-client.ts:506`) **ไม่ต้องมี endpoint ใหม่** · แสดงเฉพาะตอนแก้บทเรียนที่มีอยู่แล้ว (มี `lesson.id`) เหมือนเงื่อนไข `{lesson && ...}` เดิม |
+| **UC-7** | **ลิงก์ตาม UC-6 ต้องพากรองมาให้แล้ว ไม่ใช่พาไปหน้าเปล่า** — `/admin/documents?scopeType=lesson&scopeId=<lesson.id>` · หน้าคลังต้อง**อ่าน filter ตั้งต้นจาก URL query param** (ค่าที่ไม่รู้จัก/ไม่มี = "ทั้งหมด" ตาม KL-2) · ข้อนี้จำเป็นกับ R7.3 อยู่แล้วในตัวมันเอง (deep-link ไปหมวด/สถานะ) จึงไม่ใช่ของที่ทำเพื่อ R8.4 อย่างเดียว |
+| **UC-8** | **UC-6 ห้ามกลายเป็นเครื่องอัปโหลดตัวที่สองในรูปอื่น** — บรรทัดสรุปนี้ **ไม่มี** ปุ่มอัปโหลด **ไม่มี** ปุ่มลบ **ไม่มี** ปุ่มย้าย scope **ไม่มี** ตารางรายการไฟล์ · `requirement.md` R8.4 เขียนกำกับไว้เองว่า "ไม่ใช่การเอาเครื่องอัปโหลดกลับมา" |
+| **UC-9** | **หน้า `/admin/lessons/new` ไม่มีอะไรต้องแก้จากข้อนี้** — ตรวจแล้ว 2026-08-25: การ์ดเอกสารประกอบถูก render เฉพาะเมื่อมี `lesson` (แก้บทเรียนที่มีอยู่) หน้าสร้างใหม่จึงไม่เคยมีมันอยู่แล้ว · UC-6 ก็ไม่ต้องโผล่ที่หน้าสร้างใหม่ด้วยเหตุผลเดียวกัน (ยังไม่มี `lesson.id` ให้กรอง) · ⚠️ **เพิ่ม 2026-08-26**: ข้อนี้ยังจริงทุกตัวอักษร**สำหรับ R8** — แต่ **R4.6 (Module J) แก้หน้านี้หนักที่สุดในทั้ง CR** · **สองรอบนี้แก้ `LessonForm.tsx` ไฟล์เดียวกัน คนละบริเวณ** (UC-1 ลบการ์ดที่บรรทัด 679–698 + UC-6 บรรทัดสรุป · Module J แก้ `handlePdfUpload`/`handlePdfFileSelected`/`canCreate`/`handleCreate`) → **ห้ามให้สอง phase นี้ถูกทำขนานกันโดยคนละ agent** ดูลำดับที่ Module J |
+| **UC-10** | **frontend และ backend ของ R8 ไม่ผูกกัน — แต่ R8 ผูกกับ R7** — UC-1..UC-9 เป็นงาน frontend ล้วน ไม่มีการเปลี่ยน wire contract จึงไม่มีความเสี่ยงแบบ R-15 · **แต่ห้าม deploy UC-1 ก่อนที่ KL-2/KL-4/KL-7 จะขึ้นจริง**: วินาทีที่การ์ดถูกลบโดยหน้าคลังยังกรองได้แค่ company/category และยังไม่มี badge สไลด์ CS จะมองไม่เห็นเอกสารระดับบทเรียนจากที่ไหนเลยทั้งระบบ (ดู R-18) |
+
+---
+
+## Lesson Trash & Permanent Purge Rules (R9) — contract
+
+> **เพิ่ม 2026-08-26 จาก CR-4 · Q-L1..Q-L5 และ Data Model ยืนยันแล้ว** · retention รอบนี้
+> **60 วันตายตัว**; setting ต่อบริษัทเป็น O-18 deferred · ทุกเวลาคำนวณด้วย UTC
+
+| # | กติกา |
+|---|---|
+| **LT-1** | **state machine ตาม DM-2 เท่านั้น** — active → trash → restored หรือ purging → purged · restore จาก purging และย้อนกลับจาก purged ไม่ได้ · archive/restore/purge ทุกตัวต้อง idempotent: เรียกซ้ำที่ state เดิมคืนผลเดิมหรือ `NotFound/Conflict` ตามข้อด้านล่าง ห้ามสร้าง job ซ้ำ |
+| **LT-2** | **สิทธิ์ server-side:** archive/restore = `owner` หรือ `admin`; manual permanent delete = `owner` เท่านั้น; `cs` ได้ 403 ทุกกรณี · owner ต้องมี selected company context และผ่าน `EnsureCanAccessCompany` เหมือน admin · UI ซ่อนปุ่มเป็นชั้นที่สอง ไม่ใช่ security control |
+| **LT-3** | **archive หนึ่ง transaction:** โหลด lesson active ใน company ปัจจุบัน · สร้าง `BackgroundJob` ชนิด `lesson_purge` โดย `NextAttemptAt = now + 60 days` · ตั้ง `LessonConfig.IsDelete=true`, `DeletedAt=now`, `DeleteBy=actor`, `PurgeJobId=job.Id`, `PurgeStartedAt=null` · ตั้ง `TrainingLink` ทุกใบของ lesson เป็น `IsDelete=true`, `DeletedAt=now`, `DeleteBy=actor` · ไม่แตะ document/Q&A/vector/narration/session/question ในขั้นนี้ |
+| **LT-4** | **restore หนึ่ง conditional transaction:** ทำได้เฉพาะ `IsDelete=true && PurgeStartedAt=null` · เปลี่ยน lesson กลับ active (`IsDelete=false`, ช่องลบ/PurgeJobId/PurgeStartedAt เป็น null) และเปลี่ยน purge job ที่ id ตรงเป็น `canceled` · ถ้า worker claim purge ไปแล้วให้ 409 “เริ่มลบถาวรแล้ว” · **TrainingLink เดิมห้าม restore** ทุกใบคง revoked และต้องสร้างลิงก์ใหม่ |
+| **LT-5** | **public link policy ต้องแยก method:** new join/restart ปฏิเสธ `TrainingLink.IsDelete=true` เสมอ · resume/progress/question/TTS/content อนุญาต revoked link ได้เฉพาะเมื่อ `(token, learnerKey)` resolve ไปยัง session เดิมของ link นั้นที่ `Status=IN_PROGRESS` · token อย่างเดียวไม่พอสำหรับเปิดเนื้อหาหลัง archive |
+| **LT-6** | endpoint learner ที่คืน teaching content/PDF page วันนี้รับ token อย่างเดียว ต้องเพิ่ม `learnerKey` และ validate ผ่าน LT-5 ก่อนโหลด trashed lesson ด้วย repository เฉพาะ · ห้ามผ่อน `GetByToken` ให้ revoked token อ่านเนื้อหาได้กว้าง ๆ · session ที่ `ENDED` อ่าน recap/history ได้ แต่เริ่มถามหรือโหลดบทเรียนใหม่ไม่ได้ |
+| **LT-7** | normal lesson list/get/save ใช้ query filter จึงไม่เห็น trash · trash tab ใช้ `GetTrash(companyId)` เท่านั้น · lesson ใน trash เป็น read-only มีแค่ restore/permanent delete ไม่มี edit/upload/move/link action และไม่มี bulk |
+| **LT-8** | archive แล้ว active review queue ต้องซ่อนคำถามของ lesson แบบ derive: candidates → session → training link → lesson; ถ้า lesson อยู่ trash ให้ตัดออก · restore แล้วกลับตาม QQ-1 เดิมโดยไม่เขียน/ลบ exclusion ใด ๆ |
+| **LT-9** | trash API คืน `deletedAt`, `scheduledPurgeAt = deletedAt + 60 days`, `remainingDays`, `urgency`, `purgeState` · >14×24h = neutral · >7×24h ถึง 14×24h = yellow · >24h ถึง 7×24h = red · ≤24h = red + “จะถูกลบถาวรภายในวันนี้” · ถ้า purge เริ่มแล้วแสดง “กำลังลบถาวร” และไม่มี action |
+| **LT-10** | manual permanent delete รับ `confirmationTitle`; server trim แล้วเทียบแบบ ordinal exact กับ `lesson.Title.Trim()` · ไม่ตรง = validation error · ตรงแล้ว **เร่ง job เดิม** (`NextAttemptAt=now`) และคืน 202 ห้ามลบ inline/สร้าง job ที่สอง · ถ้ามี active session ยังรอตาม LT-12 |
+| **LT-11** | purge job ก่อน query อื่นต้อง `companyContext.Resolve(job.CompanyId)` แล้วโหลด lesson ด้วย `(CompanyId, Id)` + ignore filter · job no-op succeeded ถ้า lesson หาย/restore แล้ว/`PurgeJobId != job.Id` · การเทียบ job id คือ generation guard ของรอบ trash ล่าสุด ห้ามเทียบ timestamp ซึ่ง PostgreSQL อาจตัด precision |
+| **LT-12** | เมื่อถึงกำหนด ถ้ายังมี `LearningSession.Status=IN_PROGRESS` ใต้ TrainingLink ของ lesson แม้เป็น stalled ให้ **ยังไม่ set `PurgeStartedAt`** และเลื่อน `NextAttemptAt = now + 1 hour` · ไม่มี hard cutoff; session ค้างอาจทำให้ retention เกิน 60 วันโดยเจตนาตาม Q-L4 |
+| **LT-13** | เมื่อไม่มี active session worker ต้อง claim ด้วย conditional update `(CompanyId, Id, IsDelete=true, PurgeJobId=job.Id, PurgeStartedAt=null)` → set `PurgeStartedAt=now` · restore ที่แข่งกันใช้เงื่อนไขตรงข้าม; คำสั่งใด update ได้ก่อนเป็นผู้ชนะ · retry job id เดิมที่เห็น `PurgeStartedAt` มีค่าแล้วทำต่อได้ แต่ job id อื่นห้ามทำ |
+| **LT-14** | `lesson_purge` ใช้ retry/backoff 3 ครั้งแรกเหมือน DI-9; หลังจากนั้น **ไม่เปลี่ยนเป็น failed ถาวร** แต่คง `pending`, เก็บ `LastError*`, และ retry ทุก 24 ชั่วโมงไม่มีกำหนด · ไม่มีอีเมล/notification · app restart requeue running job id เดิมตาม DI-11; ทุก external delete ต้อง idempotent |
+| **LT-15** | ก่อนลบ parent ให้ snapshot dependency ภายใต้ company เดียว: links → sessions → questions; narration; `LessonExcludedSlide`; documents `ScopeType=lesson && ScopeId=lesson.Id`; Q&A scope lesson + source/conflict; และ `PdfDocumentResourceId` · ห้ามรับ dependency id จาก client |
+| **LT-16** | สร้าง `SessionQuestionReviewExclusion` ให้คำถาม **ทุกแถว** ของ lesson ก่อนลบ Q&A/source โดย `Reason=lesson_permanently_deleted`; retry ใช้ unique index เป็น no-op · QQ-1 ต้องตัด exclusion ก่อนตรวจ `KnowledgeQnASource` เพื่อให้คำถามไม่กลับคิวไม่ว่า Q&A เดิมมีหรือไม่มี |
+| **LT-17** | ลบ knowledge ภายนอกก่อน DB: `DeleteNamespaceAsync(KnowledgeNamespaces.For(companyId, lesson.Slug))` เก็บ slide/orphan ใน namespace ปัจจุบัน · document chunks และ Q&A ใช้ `NamespaceKey`/`IndexedNamespaceKey` ที่บันทึกจริงเพื่อครอบ legacy scope `company` · การลบ id/namespace ที่ไม่มีแล้วเป็น success |
+| **LT-18** | document ที่จะ purge: ลบ vector ตาม chunk, ลบ bytes ด้วย `IDocumentStorageProvider.DeleteAsync(ObsKey)`, แล้ว hard-delete chunks/resource ตอน DB finalization · **ข้อยกเว้น Q-L3:** ถ้า `PdfDocumentResourceId` ยังถูก LessonConfig อื่นในบริษัทอ้าง ให้ preserve resource/bytes/chunks/vector ทั้งชุด; purge lesson ปัจจุบันยังสำเร็จ · lesson-scoped attachment อื่นไม่แชร์และลบตามปกติ |
+| **LT-19** | DB finalization transaction เกิดหลัง external deletes สำเร็จครบ: hard-delete narration, page exclusions, lesson-scoped Q&A/source/conflict, documents/chunks ที่ไม่ preserve และ `LessonConfig` · retain `TrainingLink` (revoked), `LearningSession`, `SessionQuestion`, exclusion และ BackgroundJob history · report ที่หา parent ไม่เจอแสดง “บทเรียนที่ถูกลบ” |
+| **LT-20** | ห้ามเรียก `IKnowledgeQnAService.DeleteAsync` วนทีละใบใน purge เพราะ QQ-5 soft-delete source แล้วเปิดคำถามกลับคิวก่อน exclusion และทำ commit หลายครั้ง · purge orchestration ต้องทำ batch/snapshot ของตัวเองตาม LT-15..LT-19 |
+| **LT-21** | การ restore ไม่ re-index เพราะ archive ไม่ได้ถอด vector/ลบ bytes เลย · ถ้าพบ code ที่ soft-delete document/Q&A ตอน archive ให้ถือว่าผิด contract (ทำให้ active session ตาม Q-L1 ถามต่อไม่ได้และเพิ่มค่า embeddingตอน restoreโดยไม่จำเป็น) |
+| **LT-22** | endpoint: `GET /api/lessons/trash`; `POST /api/lessons/{id}/trash`; `POST /api/lessons/{id}/restore`; `POST /api/lessons/{id}/permanent-delete` (body `{ confirmationTitle }`, 202) · ใช้ id ไม่ใช้ slug สำหรับ destructive actions · DTO/ViewModel camelCase และ frontend api-client ต้องเปลี่ยนคู่กัน |
+| **LT-23** | **company isolation hard rule 🔒:** `IgnoreQueryFilters()` อนุญาตเฉพาะ repository methods ที่ระบุใน DM-16 และ predicate เดียวกันต้องมี `CompanyId` · purge job tableไม่มี filterจึง resolve company จาก row ก่อน queryทุกครั้ง · tests ต้องมีบริษัท A ใช้ lesson/link/job id ของ B แล้วได้ not found/forbiddenและข้อมูล B ไม่เปลี่ยนแม้แถวเดียว |
+| **LT-24** | preflight ก่อน MG-L1 ต้องยืนยันไม่มี `LessonConfig.IsDelete=true` ที่เกิดนอก flow (ปัจจุบันไม่มี delete endpoint และ setter เป็น init จึงคาดว่า 0) · ถ้าพบให้หยุด deployและตรวจรายแถว ห้ามเดาว่าเป็น trash แล้วสร้าง purge jobย้อนหลัง · ไม่มี backfill/cleanup อัตโนมัติ |
 
 ---
 
@@ -936,6 +1424,9 @@ rehearse แล้ว แต่ละ phase ต้องสร้าง migratio
 | **MG-D1** | `AddDocumentChunks` (Phase 4) | สร้าง `DocumentChunk` พร้อม index ตาม DM-15 |
 | **MG-E1** | `AddLessonSlideNarrations` (Phase 5) | สร้าง `LessonSlideNarration` พร้อม index ตาม DM-15 |
 | **MG-F1** | `AddKnowledgeQnA` (Phase 6) | สร้าง `KnowledgeQnA`, `KnowledgeQnASource`, `KnowledgeQnAConflict` พร้อม index ตาม DM-15 และเพิ่ม index `(CompanyId, AnswerStatus)`/`(CompanyId, ReviewResult)` บน `SessionQuestion` |
+| **MG-H1** | `AddDocumentContentHash` (phase ของ Module H) | **เพิ่ม 2026-08-25 จากมติ Q-H1 = ทาง B** · เพิ่มคอลัมน์ `DocumentResource.ContentHash` แบบ **nullable ถาวร** (ไม่ใช่ nullable ชั่วคราวแบบ MG-A2 — **ไม่มีขั้นตอนที่ตามมาทำให้เป็น `NOT NULL`**) + index `(CompanyId, ContentHash)` แบบ **ไม่ unique** ตาม DM-15 · **additive ล้วน: ไม่มี backfill · ไม่มี UPDATE · ไม่แตะข้อมูลเดิมแม้แถวเดียว · ไม่แตะ Pinecone** · แถวที่มีอยู่แล้วทั้งหมดได้ `null` และ **จงใจปล่อยไว้อย่างนั้นตลอดไป** (KL-19/KL-24) · `Down()` = drop index + drop column ซึ่ง **ย้อนกลับได้สมบูรณ์ 100%** ไม่มีข้อมูลใดสูญหาย (ต่างจาก MG-A7) เพราะไม่มีอะไรอื่นพึ่งคอลัมน์นี้ · ต้องอยู่ **เฟสเดียวกับ KL-18..KL-24** ห้ามแยก |
+| **MG-K1** | `AddLessonExcludedSlides` (phase ของ Module K) | **เพิ่ม 2026-08-26 จากมติ Q-K1** · สร้างตาราง `LessonExcludedSlide` พร้อม index `(LessonId, SlideObjectId)` **ไม่ unique** และ `(CompanyId)` ตาม DM-17 · **additive ล้วนแบบเดียวกับ MG-D1/MG-E1: ไม่มีคอลัมน์ใหม่บนตารางเดิม · ไม่มี backfill · ไม่มี `UPDATE` · ไม่แตะข้อมูลเดิมแม้แถวเดียว · ไม่แตะ Pinecone** — บทเรียนที่มีอยู่แล้วทุกบทเริ่มต้นด้วย "ไม่มีหน้าไหนถูกตัด" ซึ่งคือพฤติกรรมเดิมเป๊ะ ๆ · `Down()` = drop table **ย้อนกลับได้สมบูรณ์ 100%** ไม่มีข้อมูลใดสูญหาย (ต่างจาก MG-A7) เพราะไม่มีอะไรอื่นพึ่งตารางนี้ · **ต้องอยู่เฟสเดียวกับ EX-1..EX-12 ห้ามแยก** |
+| **MG-L1** | `AddLessonTrashLifecycle` (phase ของ Module L) | เพิ่ม `LessonConfig.PurgeJobId` (`string?`) + `PurgeStartedAt` (`DateTime?`) และ index `(CompanyId, IsDelete, DeletedAt)` · สร้าง `SessionQuestionReviewExclusion` + unique `(CompanyId, SessionQuestionId)` + index `(CompanyId, LessonId)` ตาม DM-18 · **additive schema ไม่มี backfill ไม่มี UPDATE ไม่แตะ Pinecone/object storage** · setter/query-filter เป็น code change ไม่ใช่ DDL · ก่อน apply ต้องผ่าน preflight LT-24 · `Down()` ย้อน schema ได้ แต่หลังมี purge จริงข้อมูล lesson/content ที่ hard-delete แล้วกู้คืนไม่ได้ จึง **ห้ามอ้างว่า rollback migration กู้ข้อมูลธุรกิจได้** |
 
 Phase 2 ไม่มี schema migration · ชื่อข้างบนเป็นชื่อ logical migration ที่ต้องใช้เป็นฐานตอน generate;
 timestamp prefix ให้ EF Core สร้างตามจริง ห้ามคัดลอกจากเอกสาร
@@ -943,6 +1434,22 @@ timestamp prefix ให้ EF Core สร้างตามจริง ห้�
 **Phase 7 (Module G / DS-1..DS-12) ไม่มี migration เช่นกัน** — `DocumentResource.ScopeType`/`ScopeId`
 ถูกสร้างไปแล้วใน MG-A2/MG-A5 และ Phase 7 ไม่เพิ่ม/ลด/เปลี่ยนฟิลด์ใดเลย · ถ้าใครกำลังจะ generate
 migration ในเฟสนี้ แปลว่ากำลังทำเกิน contract — ให้หยุดแล้วตีกลับมาที่ `system-analyst`
+
+**Module H (R7 / KL-1..KL-24) มี migration ใบเดียวคือ MG-H1 · Module I (R8 / UC-1..UC-10)
+ไม่มี migration เลย** (เพิ่ม 2026-08-25 · แก้ในรอบ Q-H1 วันเดียวกัน) — งานเกือบทั้งหมดของสองโมดูลนี้
+เป็นทางอ่านและหน้าจอล้วน: `GetAllInCompany()` ทั้งสองตัวใช้ตารางและ index ที่มีอยู่แล้ว ·
+การค้นเนื้อหา (KL-11) อ่าน `DocumentChunk.Text` ที่ MG-D1 สร้างไปแล้ว · Q&A ทั้งชุดมาจาก MG-F1 ·
+**ข้อยกเว้นเดียวคือ R7.5** ซึ่ง **เคาะแล้วเป็นทาง B (Q-H1, 2026-08-25) และเป็น contract แล้ว** →
+`MG-H1` ตามแถวในตารางข้างบน · **`ContentHash` ถูกเขียนลง `## Data Model` (DM-3) และ DM-15
+เรียบร้อยแล้ว — ไม่ต้องกลับมา amend อะไรอีกก่อนลงมือ** · **แต่ยังห้าม generate migration
+ล่วงหน้าเหมือนเดิม** — สร้างในเฟสที่ implement KL-18..KL-24 จริงเท่านั้น (ชื่อ logical คือ
+`AddDocumentContentHash` · timestamp prefix ให้ EF Core สร้างเอง ห้ามคัดลอกจากเอกสาร)
+
+**Module J (R4.6 / NR-10..NR-19) ไม่มี migration และไม่มีฟิลด์ใหม่** (เพิ่ม 2026-08-26) —
+ทุกอย่างในโมดูลนั้นเป็น endpoint ใหม่ที่ไม่แตะฐานข้อมูล (NR-10 · NR-18) กับการเรียงลำดับ
+endpoint ที่มีอยู่แล้ว (NR-12) · **มติ CR-2.h เปลี่ยนแค่ค่า `ScopeType` ที่ถูกเขียนใหม่ ไม่ใช่รูป
+ของตาราง และไม่มี backfill** (NR-14 · O-14) · **ถ้าใครกำลังจะ generate migration ในเฟสของ
+Module J แปลว่าอ่านผิด — ให้หยุดแล้วตีกลับมาที่ `system-analyst`** (ข้อความเดียวกับ Phase 7)
 
 **phased availability ของ Q&A:** ตั้งแต่ Phase 1 endpoint ของ TX-6/TX-10 ต้องคง response shape ที่มี
 Q&A count แต่คืน `0` จนกว่า MG-F1 จะสร้างตารางจริง Phase 6 ต้องเปลี่ยน repository/service ให้คำนวณ
@@ -1070,11 +1577,180 @@ storage ไม่ใช่แค่มีโค้ดอยู่)** · DS-3 ค
 พร้อมกัน (IDOR สองชั้นในคำขอเดียว) · DS-6 ที่ `VectorId` ใน `PayloadJson` ต้องมาจากเอกสารของบริษัท
 ผู้เรียกเท่านั้น — id ผิดบริษัทที่หลุดเข้าไปจะลบคลังความรู้ของคนอื่นถาวร (เหตุผลเดียวกับ gate ของ Module C)
 
-**ลำดับที่แนะนำให้ `project-manager`:** A → B → C → D, E, F (สามตัวหลังขนานกันได้) → **G**
+### Module H — Knowledge library view (R7) 🔒 Security gate
+
+> **เพิ่ม 2026-08-25** — จาก R7.1–R7.6 (CR-1.h / R7.6) · **เรื่องการมองเห็นล้วน ไม่แตะ retrieval**
+
+`GET /api/documents` โหมด "ทุก scope" (KL-2) · `GET /api/knowledge-qna` **ใหม่ทั้งเส้น** —
+repository + service + controller (KL-8..KL-10) · ค้นในเนื้อหาผ่าน `DocumentChunk.Text` (KL-11..KL-13) ·
+filter 4 แบบ + กรองหมวดแบบกินบทเรียนในหมวด (KL-4/KL-5) · คอลัมน์ขอบเขตที่อ่านออกทั้งสามระดับ
++ badge ไฟล์สไลด์ (KL-6/KL-7) · **UI แก้/ลบ Q&A (R7.6 — หลังบ้านเสร็จแล้ว รับรองย้อนหลัง)**
+(KL-14..KL-17) · **เตือนซ้ำตอนอัปโหลด/บันทึก Q&A (R7.5)** (KL-18..KL-24 · **ฝั่ง Q&A = KL-23 + KL-26**) ·
+**⛔ ไม่มีทางสร้าง Q&A ใหม่ที่หน้าคลัง — ทางสร้างอยู่ที่ `/admin/qna-queue` ที่เดียว (KL-25 · เพิ่ม 2026-08-25)** ·
+**⚠️ ด่านเตือน Q&A ซ้ำเป็น "ก่อนบันทึก" (KL-23 + KL-26 · มติ Q-H2 = ทาง (ข), 2026-08-25) — ไม่ใช่คำเตือนหลังบันทึกอย่างที่โค้ดวันนี้ทำ**
+
+**สิ่งเดียวในโมดูลนี้ที่แตะ schema คือ R7.5** — `DocumentResource.ContentHash` + index
+`(CompanyId, ContentHash)` (DM-3/DM-15) พร้อม migration **`MG-H1`** ใบเดียว · **additive ล้วน
+ไม่ backfill ไม่แตะข้อมูลเดิม** · ที่เหลือทั้งโมดูล **ไม่มีฟิลด์ใหม่** · ฝั่ง wire contract เพิ่ม
+`UploadDocumentDto.CheckDuplicate` (ค่าเริ่มต้น `false` = พฤติกรรมเดิมทุกตัวอักษร · **ไม่ breaking**
+และตั้งใจให้ `handlePdfUpload` ตาม UC-5 ไม่ได้รับผลกระทบเลย — ดู KL-21) · **เพิ่ม 2026-08-25
+พร้อมมติ Q-H2**: `CreateKnowledgeQnADto.ConfirmDuplicate` (ค่าเริ่มต้น `false` · additive) และ
+**`POST /api/knowledge-qna` เปลี่ยนรูป response เป็น `{ qna }` พร้อมลบคลาส
+`KnowledgeQnACreateResultViewModel` ทั้งใบ — breaking แต่มี caller เดียว** (`api-client.ts:667-671`)
+ต้องเปลี่ยน frontend/backend ในเฟสเดียว ห้ามปล่อยคร่อม (เหตุผลเดียวกับ R-15/DS-11)
+
+**ขึ้นกับ:** A (scope) · D (`DocumentChunk` ที่ KL-11 ค้น) · F (`KnowledgeQnA` ที่ KL-8 อ่าน) ·
+G (`ScopeType`/`ScopeId` ที่ CS ตั้งเองได้จริง + หน้าคลังที่ต่อยอด) — **ทั้งสี่ implement เสร็จแล้ว
+และ Phase 7 verified ✅ (FULL)** จึงเริ่มได้ทันที · ✅ **R7.5 (KL-18..KL-24) ไม่ถูกบล็อกอีกต่อไป**
+(Q-H1 เคาะแล้ว 2026-08-25 = ทาง B) — `project-manager` วางได้ทั้งโมดูลในคราวเดียว **ไม่ต้องกัน
+R7.5 ออกเป็นก้อนแยกที่ยังไม่วางอีกแล้ว** · ข้อจำกัดเดียวที่เหลือคือ **MG-H1 ต้องอยู่เฟสเดียวกับ
+KL-18..KL-24** ห้ามแยกคอลัมน์ไปไว้อีกเฟส (คอลัมน์ที่ไม่มีใครเขียนค่าลงไปจะทำให้เอกสารที่อัประหว่างนั้น
+มี `ContentHash = null` ถาวรโดยไม่มีใครตั้งใจ ซึ่งย้อนไม่ได้เพราะห้าม backfill)
+
+**🔒 เหตุผลของ gate — สามข้อ ทุกข้อเป็นของใหม่ที่ไม่เคยถูกตรวจในเฟสไหนมาก่อน**:
+(1) **KL-2/KL-9 เพิ่ม query path ใหม่ที่ไม่มีเงื่อนไข `Where` เลย** (`FindBy(_ => true)`) —
+isolation ทั้งหมดฝากไว้กับ EF global query filter ตัวเดียว · จุดนี้เคยพลาดมาแล้วจริงในโปรเจกต์นี้
+(`GetDeleted` ใช้ `IgnoreQueryFilters()` แล้วทำ `CompanyId` หลุดไปด้วย ดูคอมเมนต์ที่
+`IDocumentResourceRepository.cs:12-18`) — **ต้องยืนยันด้วยการทดสอบข้ามบริษัทจริง ไม่ใช่อ่านโค้ดผ่าน**
+(2) **KL-8/KL-10 เป็น endpoint ที่สองของระบบที่คืนเนื้อความในคลังความรู้ออกไปทั้งก้อน**
+(ตัวแรกคือ DI-7 chunks ซึ่งติด gate ของ Module D ด้วยเหตุผลเดียวกัน) — คำถาม+คำตอบทั้งบริษัท
+ในคำขอเดียว เป็นเป้าที่คุ้มค่าที่สุดของ IDOR ในโมดูลนี้
+(3) **KL-14 ทำให้ข้อความที่ `cs` พิมพ์ถูก re-index เข้า prompt ของ LLM ได้อีกครั้งหลังบันทึกไปแล้ว**
+— เหตุผล gate ของ Module F ข้อ (1) คำต่อคำ (prompt injection ผ่านช่อง `Answer` โดยไม่มีขั้นอนุมัติ
+ตาม R5.7) ต่างกันแค่ว่ารอบนี้เป็นทาง **แก้** ซึ่งไม่เคยมี UI มาก่อน
+(4) **KL-19/KL-21 เพิ่มช่องทางใหม่ที่ตอบว่า "ไฟล์นี้มีอยู่แล้วในระบบหรือไม่" จากข้อมูลที่ผู้เรียก
+เป็นคนป้อนเข้ามาเอง** (เพิ่ม 2026-08-25 พร้อมมติ Q-H1) — payload 409 เปิดเผย**ชื่อไฟล์ ขอบเขต
+และวันที่**ของเอกสารใบอื่น ถ้าคิวรีจับซ้ำหลุด `CompanyId` เมื่อไหร่ นี่กลายเป็นเครื่องมือถามว่า
+"บริษัทอื่นมีไฟล์นี้ไหม" ทีละไฟล์ · **ต้องมี test ที่มีข้อมูลสองบริษัทถือไฟล์เดียวกัน (hash เท่ากันเป๊ะ)
+แล้วยืนยันว่าไม่เตือนข้ามกัน** — test บริษัทเดียวผ่านได้แม้ filter หลุด (เหตุผลเดียวกับ R-16)
+· **เพิ่ม 2026-08-25 พร้อมมติ Q-H2**: ข้อนี้ครอบ **KL-23 ด้วย ไม่ใช่แค่ KL-19/KL-21** — 409 ของ
+`POST /api/knowledge-qna` เปิดเผย **`Question` + `Answer` เต็มๆ ของ Q&A ใบอื่น** ซึ่งเป็นเนื้อความ
+ในคลังความรู้ (หนักกว่า metadata ของไฟล์ที่ KL-21 เปิดเผย) จากข้อความที่ผู้เรียกเป็นคนป้อนเข้ามาเอง ·
+`FindDuplicateQuestion` ต้องมี `CompanyId` ใน predicate ตรงๆ และ **ต้องมี test สองบริษัทที่มีคำถาม
+เหมือนกันเป๊ะ แล้วยืนยันว่าไม่เห็นกัน** (test นี้มีอยู่แล้วที่ `KnowledgeQnAServiceTests.cs:259`
+**เขียนใหม่ให้ยืนยัน 409 ห้ามลบ**)
+· จุดที่ต้องตรวจเพิ่ม: **KL-11 ต้องเป็น parameterized query จริง** (`EF.Functions.ILike` ไม่ใช่
+string interpolation เข้า `FromSqlRaw`) — คำค้นมาจาก request ตรงๆ
+
+### Module I — Upload consolidation (R8)
+
+> **เพิ่ม 2026-08-25** — จากมติ CR-1.j ("ลบทิ้งไปเลย") · **งานลบเป็นหลัก frontend ล้วน**
+
+ลบการ์ด "เอกสารประกอบ" ใน `LessonForm.tsx` · ลบโหมด `fixedScope` ออกจาก `DocumentUploadList`
+ทั้งโหมด · ย้าย badge ไฟล์สไลด์ไปหน้าคลัง · บรรทัดสรุป + deep-link ตาม R8.4 · UC-1..UC-10 ·
+**ไม่มี migration ไม่มี endpoint ใหม่ ไม่มีการเปลี่ยน wire contract**
+
+**ขึ้นกับ: H — และเป็นการพึ่งพาแบบ deploy ต้องเรียงกัน ไม่ใช่แค่เขียนโค้ดเรียงกัน** ·
+ปล่อย I ก่อน H เมื่อไหร่ CS จะไม่เหลือทางเห็นเอกสารระดับบทเรียนจากที่ไหนเลยทั้งระบบ (R-18)
+
+**ไม่ติด 🔒 Security gate** — เป็นการ**ลบ** UI ที่ไม่เพิ่มพื้นที่โจมตีใหม่แม้แต่จุดเดียว: ไม่มี
+endpoint ใหม่ ไม่มี input ใหม่ ไม่มี query ใหม่ ไม่มีการเปลี่ยนสิทธิ์ · UC-5 (ห้ามลบทางอัป PDF
+ตัวสไลด์) เป็นความเสี่ยงเชิงฟังก์ชัน ไม่ใช่เชิงความปลอดภัย — `qa-engineer` ต้องจับข้อนี้ ไม่ใช่ `security`
+
+### Module J — เฟสจัดการเนื้อหาก่อนสร้างบทเรียน PDF (R4.6) 🔒 Security gate
+
+> **เพิ่ม 2026-08-26** — จาก CR-2 (R4.6.1–R4.6.10) · **ไม่ยัดกลับเข้า Module E** ซึ่ง implement และ
+> ปิดไปแล้วทั้งก้อน (Phase 5): การเพิ่มงานใหม่เข้าไปจะทำให้สถานะ verify ของ Phase 5 กำกวม —
+> เหตุผลเดียวกับที่ Module G ถูกแยกออกจาก Phase 1 (มติ Q-F)
+
+preview session ของไฟล์ที่ยังไม่ persist (`POST /api/lessons/pdf-preview/session` ·
+`GET .../pages/{n}`) · เฟสรีวิวสไลด์+บทพูดในหน้าสร้างบทเรียน · ลำดับ commit 4 ขั้นและสัญญา
+ความล้มเหลว · scope `lesson` ของเด็คตอน commit · component แก้บทพูดร่วมกับหน้าเดิม ·
+**NR-10..NR-19** (+ NR-1/NR-2/NR-3/NR-5/NR-6/NR-8 ที่ถูก amend) ·
+**ไม่มี migration · ไม่มีฟิลด์ใหม่ · ไม่มี entity ใหม่ · Data Model ไม่ถูกแตะแม้ฟิลด์เดียว**
+
+**ขึ้นกับ:** **A** (บทเรียนต้องมีหมวดตั้งแต่ขั้นแรกของ NR-12) · **C** (`BackgroundJob` ที่ NR-6 ใช้ตอน
+flush) · **E** (endpoint บันทึกบทพูด + หน้าแก้บทพูด + `ILessonSlideNarrationResolver` ที่ข้อนี้ใช้ซ้ำ
+ทั้งชุด **ไม่ได้เขียนใหม่**) · **G** (`ScopeType`/`ScopeId` ขาเขียนของเอกสาร + `EnsureValidScope`
+ที่ NR-14 พึ่ง) — **ทั้งสี่ implement ไปแล้ว จึงเริ่มได้ทันที ไม่ต้องรออะไรเชิงฟังก์ชัน**
+
+**ไม่ขึ้นกับ H และ I เชิงฟังก์ชัน — แต่ห้ามทำขนานกับ I** · Module I (Phase 9) กับ Module J
+แก้ `frontend/src/components/admin/LessonForm.tsx` ไฟล์เดียวกันคนละบริเวณ (UC-9 ท้ายข้อ) ·
+**ลำดับที่แนะนำ: I ก่อน J** เพราะ I เป็นงานลบไม่กี่บรรทัดที่ค้างอยู่แล้วและมีข้อบังคับ deploy
+ของตัวเอง (R-18) ส่วน J เป็นงานเพิ่มก้อนใหญ่ในไฟล์เดียวกัน · **ถ้าจำเป็นต้องสลับ ทำได้ แต่ต้อง
+เรียงกัน ห้ามคร่อมกัน** — เขียนข้อห้ามนี้ไว้ในหัวข้อ phase ด้วย
+
+**🔒 เหตุผลของ gate — ระบุชื่อความกังวลได้ 3 ข้อ ไม่ใช่ "เป็นเรื่องละเอียดอ่อน" ลอย ๆ**:
+(1) **ไฟล์จากภายนอกถูก parse และ render ในโปรเซสโดยไม่มีแถวใน DB คุมอยู่** — PDFium/PdfPig
+ทำงานบน byte ที่ CS ส่งมาตรง ๆ ผ่าน endpoint ใหม่ที่ไม่ผ่าน `DocumentParserFactory`
+(ตัวนั้นอยู่ในเส้นทาง `UploadAsync` เท่านั้น) → ไฟล์พังหรือไฟล์ที่ไม่ใช่ PDF ต้องตกเป็น 4xx
+ที่สะอาดเสมอ ห้ามหลุดเป็น 500 หรือทำ process ตาย
+(2) **company isolation ของ preview session เป็นโค้ดที่เขียนด้วยมือ (NR-11)** — `IMemoryCache`
+ไม่มี `HasQueryFilter` มาช่วยเลย นี่คือของชิ้นแรกในโปรเจกต์ที่เก็บ**เนื้อหาไฟล์ของบริษัทหนึ่ง**
+ไว้นอก PostgreSQL โดยชี้ด้วย id ที่มาจาก request · พลาดที่นี่ = อ่านเด็คของบริษัทอื่นได้ด้วย id
+เดียว และ typecheck/build/test ผ่านหมด (เหตุผลเดียวกับ R-16 คำต่อคำ)
+(3) **ต้นทุนหน่วยความจำ/CPU ที่ผู้ใช้ที่ล็อกอินแล้วสั่งได้โดยตรง** — ไฟล์ 30 MB × จำนวน session
+ค้างในหน่วยความจำ 10 นาที + PDFium render ทุกหน้าที่ CS เลื่อนดู · ต้องยืนยันว่า
+`[RequestSizeLimit]` ถูกใส่จริง และดูพฤติกรรมตอนหลาย session พร้อมกัน (R-22)
+
+### Module K — ตัดหน้าออกจากบทเรียน PDF (R4.7) 🔒 Security gate
+
+> **เพิ่ม 2026-08-26** — จาก CR-3 (R4.7.1–R4.7.12) · **✅ มติ Q-K4: ไม่ยัดกลับเข้า Module J**
+> ซึ่ง implement ครบแล้วแต่ **ยังปิดรอบ QA แบบ FULL ไม่ได้ ยังไม่ audit และยังไม่ deploy** —
+> การเติมงานใหม่เข้า phase ที่ยังไม่ปิดจะทำให้สถานะ verify ของมันกำกวมและแยกไม่ออกว่าอะไรพัง
+> เหตุผลเดียวกับที่ Module J ไม่ถูกยัดกลับเข้า Module E (และ Module G ไม่ถูกยัดเข้า Phase 1) ·
+> **ข้อบังคับลำดับเต็มอยู่ที่ R-26**
+
+`LessonExcludedSlide` (**DM-17**) · migration **MG-K1** · `ILessonExcludedSlideRepository` ·
+endpoint toggle `PUT /api/lessons/{id}/slides/{slideObjectId}/excluded` · การกรอง+เรียงเลขใหม่
+ฝั่งสอน · การถอด/คืน vector ทั้งสองชุด · `excludedSlideObjectIds` ในขั้นที่ 3 ของ NR-12 ·
+ปุ่มตัด/เอากลับใน `SlideNarrationEditorCard` (ใช้ร่วมสองที่) · กล่องเตือน NR-3 ที่นับสองจำนวน ·
+**EX-1..EX-12** (+ NR-1/NR-2/NR-3/NR-4/NR-5/NR-6/NR-7/NR-8/NR-12/NR-13/NR-15/NR-16/NR-17/NR-18
+ที่ถูก amend) · **`VectorDeleteTargetKind.LessonPage` ค่าใหม่** ·
+**Data Model ถูกแตะ: ตารางใหม่ 1 ใบ ไม่มีคอลัมน์ใหม่บนตารางเดิม ไม่มี backfill**
+
+**ขึ้นกับ:** **C** (`BackgroundJob` + `vector_delete` + `DeleteVectorsAsync` ที่ EX-5/EX-6 ใช้ทั้งชุด) ·
+**D** (`DocumentChunk` — **`VectorId`/`NamespaceKey`/`Text` คือสิ่งเดียวที่ทำให้ EX-6 ทำได้โดยไม่ต้อง
+parse ไฟล์ใหม่**) · **E** (endpoint/หน้าแก้บทพูด + `ILessonSlideNarrationResolver` ที่ใช้ซ้ำทั้งชุด) ·
+**J** (`SlideNarrationEditorCard` + `PdfLessonContentPhase` + ลำดับ 4 ขั้นของ NR-12 ที่ EX-9 ต่อยอด) —
+**สามตัวแรก implement ไปแล้ว · ตัวสุดท้ายคือเงื่อนไขเวลา ไม่ใช่แค่เงื่อนไขฟังก์ชัน (R-26)**
+
+**🔒 เหตุผลของ gate — ระบุชื่อความกังวลได้ ไม่ใช่ "เป็นเรื่องละเอียดอ่อน" ลอย ๆ**:
+**`slideObjectId` ที่ผู้ใช้ส่งเข้ามาดิบ ๆ ถูกใช้ประกอบ vector id ที่จะถูก *ลบจริง* ใน Pinecone
+สองชุดพร้อมกัน** (`pdf-page-N` ในเส้น `lesson_index` และ `{documentId}-page-N` ในเส้น
+`vector_delete` — EX-5/EX-6) · ถ้าไม่ถูกตรวจว่าเป็นหน้าที่มีอยู่จริง**ของบทเรียนใบนั้น**
+(EX-12(ข)) จะเกิด **การลบข้ามบทเรียน** ได้ทันที และถ้า `LessonId` ไม่ถูกตรวจคู่กับ `CompanyId`
+ตาม query filter เดิม ขอบเขตความเสียหายจะกว้างกว่านั้นอีก · **นี่คือของชิ้นแรกในโมดูลนี้ที่
+"ค่าที่มาจาก request ทำให้ข้อมูลในคลังความรู้หายถาวร"** — ต่างจาก R6.1 ที่ id มาจากแถวใน DB
+ที่ผ่าน query filter มาแล้วทั้งหมด · **`security` ต้องตรวจสามข้อนี้เป็นรายการแยก**: (1) การ
+validate `slideObjectId` เทียบชุดหน้าจริงของเด็คนั้น (2) `LessonId` ผ่าน query filter ของบริษัท
+ก่อนถูกใช้ประกอบ namespace (3) **การ toggle ซ้ำ ๆ ไม่ทำให้เกิดงานลบสะสมที่ลบของคนอื่น**
+(idempotency ของ EX-4) · **สิทธิ์ `cs`/`admin` ที่เท่ากับการแก้บทพูดวันนี้ ไม่ใช่คำตอบของข้อนี้**
+— การแก้บทพูดผิดหน้าคือข้อความผิด การตัดผิดหน้าคือ vector หายจากคลัง
+
+### Module L — Lesson trash, restore & permanent purge (R9) 🔒 Security gate
+
+`LessonConfig` trash lifecycle amendment (DM-2) · `SessionQuestionReviewExclusion` (DM-18) ·
+migration **MG-L1** · `lesson_purge` durable job · trash/restore/manual-purge endpoints · trash tab
+ในหน้าจัดการบทเรียน · revoked-link + existing-session policy · countdown/purge state · permanent
+cleanup ของ Pinecone/object storage/DB · report fallback “บทเรียนที่ถูกลบ” · **LT-1..LT-24**
+
+**ขึ้นกับ:** C (`BackgroundJob`, durable claim/retry) · D (`DocumentChunk.VectorId/NamespaceKey`) ·
+E (narration) · F (Q&A/source/conflict) · K (`LessonExcludedSlide` ต้องถูก purge ด้วย) · auth/company
+context ที่มีอยู่จริง · **Module L ต้องเริ่มหลัง K ปิด implementation** เพื่อไม่ให้ K เพิ่มตารางลูกใหม่
+หลัง purge orchestration ถูกส่งมอบแล้วโดยไม่มีใครลบมัน
+
+**Data Model:** เพิ่ม nullable columns 2 ตัวบน `LessonConfig` + ตารางใหม่ 1 ใบ + indexes ·
+ไม่มี Company retention field รอบนี้ · ไม่เพิ่ม FK จริงตาม pattern เดิม · `TrainingLink`,
+`LearningSession`, `SessionQuestion`, `DocumentResource`, `KnowledgeQnA` ไม่มี column ใหม่
+
+**🔒 เหตุผลของ gate:** owner-only hard delete · owner ข้ามบริษัทแต่ต้องมี selected company ·
+`IgnoreQueryFilters()` ใช้อ่าน trash · public token ที่ revoked ยังอนุญาตเฉพาะ session เดิม ·
+worker ทำ destructive calls ไป Pinecone/object storage และ hard-deleteหลายตาราง · `security` ต้องตรวจ
+แยกอย่างน้อย: role matrix, tenant predicate ทุก ignore-filter query, stale purge job no-op, restore/purge
+race, token+learnerKey binding, dependency ids มาจาก DB ไม่ใช่ request และ shared-PDF guard
+
+**ลำดับที่แนะนำให้ `project-manager`:** A → B → C → D, E, F (สามตัวหลังขนานกันได้) → **G** →
+**H → I → J → K → L**
 
 G วางไว้ท้ายสุดเพราะขึ้นกับ A/B/C/D ครบทั้งสี่ · **แต่ G ไม่ได้ขึ้นกับ E หรือ F** ถ้าจำเป็นต้องรีบ
 สามารถทำขนานกับสองตัวนั้นได้ — สิ่งที่บล็อกจริงคือ Phase 3 ที่ยังมี issue cross-company ค้างอยู่
 (G ใช้ `BackgroundJob`/soft delete ชุดเดียวกัน การสร้างของใหม่ทับบั๊กเดิมจะทำให้แยกไม่ออกว่าอะไรพัง)
+
+**H และ I เพิ่มเข้ามาทีหลัง (2026-08-25) ต่อท้าย G** · **H แยกจาก I เพราะขนาดและชนิดของงานต่างกันมาก**:
+H เป็นงานสร้าง (backend เส้นใหม่ + UI ก้อนใหญ่ + ติด gate) ส่วน I เป็นงานลบล้วนไม่กี่ไฟล์ที่
+**ต้องขึ้นหลัง H เท่านั้น** — รวมเป็นก้อนเดียวจะได้ phase ที่ปิดไม่ลงเพราะครึ่งหนึ่งรอ security
+อีกครึ่งไม่ต้องรอ และเสี่ยงให้คนหยิบ I ไปทำก่อนโดยไม่ตั้งใจ
 
 ---
 
@@ -1097,12 +1773,110 @@ G วางไว้ท้ายสุดเพราะขึ้นกับ A/
 | **R-13** | **`IsSystemDefault` เป็น flag ของ chain ไม่ใช่ unique-row flag** — การ query เพียง `IsSystemDefault` จะได้สองแถวและ `SingleOrDefault()` จะ throw; การใช้ `FirstOrDefault()` จะซ่อนข้อมูลผิดรูปและอาจคืน parent ที่ assign ไม่ได้ | `GetSystemDefault()` ต้อง filter `IsSystemDefault && Level == 2` ก่อน `SingleOrDefault()` เพื่อคืน assignable leaf แบบ deterministic และยัง fail-fast เมื่อมี leaf ซ้ำ · migration/repository tests ต้องยืนยัน exactly 2 flagged rows ต่อบริษัท, one per level, linked chain, `LessonConfig.CategoryId` ชี้ leaf และ update/delete ของทั้ง parent+leaf ถูกบล็อก |
 | **R-14** | **contract ที่ "เขียนไว้แล้วแต่ไม่มี call site" ไม่ถูกจับโดยอะไรเลย** — KS-2 (`EnsureValidScope`) และ KS-4 (เปลี่ยน scope = ย้ายบ้าน) ทั้งคู่ถูก implement ถูกต้อง มี unit test ผ่าน และผ่าน QA มาหกเฟส **โดยไม่เคยมีใครเรียกใช้จริงฝั่งเอกสาร** · `status.md` ของ Phase 2 บันทึกไว้เองด้วยซ้ำว่า "ยังไม่มี call site" แต่ไม่มีกลไกไหนพาข้อความนั้นไปโผล่ใน `plan.md` เป็น task | รอบนี้ปิดด้วย DS-2/DS-5 · **บทเรียนสำหรับรอบต่อไป: contract ข้อไหนที่ระบุพฤติกรรมของ "ตอนบันทึก" ต้องมี task คู่กันที่ระบุ *ใครเรียก* ไม่ใช่แค่ *มีฟังก์ชัน*** · `qa-engineer` ควรถือว่า "ฟังก์ชันที่ไม่มี production call site" เป็นสัญญาณเตือน ไม่ใช่โค้ดที่ผ่าน |
 | **R-15** | **DS-1/DS-4 เปลี่ยน wire contract ของ endpoint ที่ frontend ใช้อยู่จริงแล้ว** (`lessonSlug` → `scopeType`/`scopeId` ทั้งขา upload และขา list) — ต่างจากทุก phase ก่อนหน้าที่เป็นการ *เพิ่ม* endpoint ใหม่ · ปล่อยคร่อมครึ่งเดียวเมื่อไหร่ หน้าอัปโหลดเอกสารพังทั้งหน้า | ต้องแก้ backend + `api-client.ts` + ทั้ง 3 caller **ในเฟสเดียวกัน** ห้ามแยกเป็นสอง phase · ข้อดีคือไม่มี client ภายนอกเลย ความเสี่ยงจึงจบภายใน repo นี้ · `frontend/docs/API_CONTRACT.md` ต้องอัปเดตในรอบเดียวกัน |
+| **R-16** | **KL-2/KL-9 สร้าง query ที่ไม่มีเงื่อนไข `Where` ของตัวเองเลย** — isolation ข้ามบริษัททั้งหมดฝากไว้กับ EF global query filter ตัวเดียว · ถ้าวันหนึ่งมีคนใส่ `IgnoreQueryFilters()` เข้าไปเพื่อ debug แล้วลืมเอาออก ผลคือรายการเอกสารและ Q&A **ของทุกบริษัท** ไหลออกทาง endpoint เดียว โดยที่ typecheck/build/test ทั้งหมดยังผ่าน | เขียนกติกาไว้ตรงๆ ใน KL-2/KL-9 ว่าห้ามใช้ `IgnoreQueryFilters()` · **ต้องมี unit test ที่มีข้อมูลสองบริษัทแล้วยืนยันว่าเห็นของบริษัทตัวเองเท่านั้น** ทั้งเอกสารและ Q&A — ไม่ใช่ test ที่มีบริษัทเดียวซึ่งผ่านได้แม้ filter หลุด · เป็นหนึ่งในเหตุผล 🔒 gate ของ Module H |
+| **R-17** | **KL-11 ค้นด้วย `ILIKE '%คำ%'` = full scan ของ `DocumentChunk` เสมอ ใช้ index ไม่ได้เลย** — วันนี้ยอมรับได้ (ข้อมูลหลักร้อย–หลักพันแถวต่อบริษัท และ query ถูกจำกัดด้วย `CompanyId` อยู่แล้ว) แต่โตขึ้นเมื่อไหร่จะช้าแบบเงียบๆ ไม่มี error | **ห้ามสร้าง index/extension ล่วงหน้าในรอบนี้** (`CLAUDE.md` Solution Design Rule ข้อ 7) · **เส้นที่ต้องกลับมาดู**: บริษัทใดมี `DocumentChunk` เกิน ~50,000 แถว หรือหน้าคลังใช้เวลาค้นเกิน ~1 วินาที → ทางแก้คือ `pg_trgm` + GIN index ซึ่งเป็น migration additive ใบเดียว ไม่ต้องรื้อ query · บันทึกไว้ใน `docs/TECH_DECISIONS.md` ตอน implement |
+| **R-18** | **ลำดับ deploy ของ Module I สำคัญกว่าตัวโค้ดของมันเอง** — UC-1 ลบทางเดียวที่ CS เห็นเอกสารระดับบทเรียนวันนี้ ส่วนทางใหม่อยู่ใน Module H (KL-4 filter บทเรียน · KL-6 ชื่อบทเรียนในคอลัมน์ขอบเขต · KL-7 badge ไฟล์สไลด์) · ปล่อย I ขึ้นก่อน H = CS ตาบอดทั้งระบบ ซึ่งเป็นสิ่งที่ R8.4 เขียนขึ้นมาเพื่อกันโดยเฉพาะ | `project-manager` ต้องวาง H และ I เป็นคนละ phase โดย **I อยู่หลัง H เสมอ** และเขียนข้อห้ามนี้ไว้ในหัวข้อ phase · `devops` ต้องไม่ปล่อย I ถ้า H ยังไม่ขึ้น · **ต่างจาก R-15 ตรงที่ไม่ใช่ wire contract พัง แต่เป็นฟีเจอร์หายไปจากสายตาผู้ใช้** — build/test ผ่านหมดทั้งสองกรณี ไม่มีอะไรจับได้นอกจากคนอ่าน |
+| **R-19** | **R7.6 มีโค้ดหลังบ้าน + api-client อยู่ก่อนที่เอกสารนี้จะรับรอง** — `UpdateAsync`/`DeleteAsync`, `PUT`/`DELETE /api/knowledge-qna/{id}` และฟังก์ชันใน `api-client.ts` ถูกเขียนไปแล้วโดยข้ามรอบ `system-analyst`/`project-manager` · เอกสารรอบนี้รับรองย้อนหลังเพราะตรวจแล้วว่าตรงกับ R5.6/R7.6 และ QQ-5 ทุกข้อ **แต่ไม่มี checkbox ไหนใน `plan.md` ที่ครอบมัน และไม่เคยผ่าน QA รอบไหนเลย** | `project-manager` ต้องเขียน task ของ Module H ให้ครอบ **การตรวจย้อนหลังของสามชั้นนี้** ด้วย ไม่ใช่แค่งาน UI ใหม่ · `qa-engineer` ต้องตรวจ `UpdateAsync`/`DeleteAsync` เทียบ KL-14..KL-16 เหมือนโค้ดที่เพิ่งเขียน · **นี่คือ R-14 ซ้ำในอีกรูปหนึ่ง** — คราวนี้เป็น "โค้ดที่มี call site ไม่ได้ แต่ไม่มีเอกสารรองรับ" แทน "โค้ดที่มีเอกสารรองรับแต่ไม่มีใครเรียก" |
+| **R-20** | **จุดบอดถาวรของ R7.5: เอกสารทุกใบที่อัปก่อน `MG-H1` มี `ContentHash = null` และจะไม่ถูกจับว่าเนื้อหาซ้ำตลอดไป** (เพิ่ม 2026-08-25 พร้อมมติ Q-H1 = ทาง B) — **นี่คือราคาที่เจ้าของโปรเจกต์เคาะรับไปแล้วโดยรู้ตัว ไม่ใช่บั๊ก** · อาการที่จะเกิดจริง: CS อัปไฟล์ที่ซ้ำกับของเก่าเป๊ะๆ แล้วระบบเงียบ ทั้งที่หน้าจอบอกว่าเตือนซ้ำได้ | **KL-22 บังคับให้เขียนข้อจำกัดนี้ไว้ที่หน้าจอ** — เหตุผลเดียวกับ KL-13 คำต่อคำ · **ตัวชดเชยที่ใช้ได้จริงคือ KL-20 (ชื่อไฟล์ซ้ำ) ซึ่งทำงานกับเอกสารเก่าได้ 100% เพราะ `FileName` มีค่ามาตลอด** — นี่คือเหตุผลที่ทาง B **ไม่ได้ทิ้ง**การตรวจชื่อไฟล์ของทาง A แต่ทำทั้งคู่ (KL-20) · **`qa-engineer` ต้องไม่รายงาน "ไฟล์เก่าซ้ำแล้วไม่เตือน" เป็น ❌** — เป็นพฤติกรรมตาม contract · ถ้าวันหนึ่งจุดบอดนี้แพงเกินรับ ทางแก้คือ backfill ซึ่ง **ต้อง amend ก่อน ห้าม engineer เติมเอง** (KL-24) |
+
+| **R-21** | **มติ CR-2.h ทำให้ namespace ของบทเรียนมีข้อความหน้าเดียวกันสองชุดแข่งกันเอง** (เพิ่ม 2026-08-26) — เด็คถูก index เป็น `sourceType = slide` (NR-7) และเป็นเอกสารในคลัง `sourceType = document` (DI-1) · วันนี้สองชุดนี้อยู่คนละ namespace เพราะโหมดสร้าง hardcode `company` · หลัง NR-14 ทั้งคู่อยู่ใน namespace ของบทเรียน → top-k เดียวกันอาจถูกกินด้วยข้อความเดียวกันสองรูปแบบ = ความหลากหลายของหลักฐานที่ส่งเข้า prompt ลดลง | **นี่คือการแลกที่ตั้งใจ ไม่ใช่ผลข้างเคียงที่มองข้าม** — ทางเลือกเดิม (`company`) แลกด้วยของที่แย่กว่ามาก คือข้อความของเด็คบทเรียนหนึ่ง**ตอบคำถามของทุกบทเรียนในบริษัท** ซึ่งขัด R3 ตรง ๆ · **ห้ามแก้ด้วยการข้ามไม่ index เอกสารเด็ค หรือกรอง `sourceType` ตอน retrieval** (แตะพฤติกรรมการตอบที่ CR-1.g สั่งห้าม) · ของจริงต้องแก้ที่ **O-4** (รวมสองตัวแปลง) ซึ่งเป็นงานคนละรอบ · **ต้องวัดจริงหลัง Module J ขึ้น**: ถามคำถามที่ตอบได้จากหน้าใดหน้าหนึ่งของเด็ค แล้วดูว่า chunk ที่ถูกหยิบมาซ้ำกันเองกี่ชิ้น |
+| **R-22** | **preview session เปิดทางให้ผู้ใช้ที่ล็อกอินแล้วสั่งกิน RAM/CPU ของ server ได้โดยตรง** (เพิ่ม 2026-08-26) — ไฟล์ 30 MB ต่อ session ค้างในหน่วยความจำ 10 นาทีแบบ sliding (ต่ออายุทุกครั้งที่ขอภาพหน้า) + PDFium render ทุกหน้าที่ CS เลื่อนดู · เลือกไฟล์ใหม่ระหว่างเฟส (NR-16) **ไม่ได้คืนหน่วยความจำทันที** — ของเก่ารอหมดอายุเอง · **`IMemoryCache` วันนี้ไม่มี `SizeLimit` ตั้งไว้** จึงไม่มีเพดานอะไรกันไว้เลยนอกจากเวลา | `[RequestSizeLimit(30MB)]` เท่ากับ `DocumentsController` เดิมเป็นเพดานต่อคำขอ (NR-10) · **จุดที่ `security` ต้องดูจริงคือ "หลาย session พร้อมกัน" ไม่ใช่ session เดียว** · **ห้ามสร้าง quota/rate limiter ล่วงหน้าในรอบนี้** (`CLAUDE.md` Solution Design Rule ข้อ 7 · และ TD-002 บันทึกไว้แล้วว่าทั้งระบบยังไม่มี rate limiting) — สิ่งที่ต้องทำคือ **บันทึกเส้นที่ต้องกลับมาดูลง `docs/TECH_DECISIONS.md` ตอน implement**: จำนวน CS ที่ใช้พร้อมกันจริงมีหลักหน่วย ถ้าวันหนึ่งเปิดให้คนนอกทีมสร้างบทเรียนได้ ข้อนี้ต้องถูกทบทวนก่อน |
+| **R-23** | **หน้าต่างไม่กี่วินาทีที่ index ของบทเรียนใหม่ยังเป็นข้อความ prefill** (เพิ่ม 2026-08-26) — NR-12 ขั้น 3 index ทั้งเด็คแบบ inline **ก่อน**ที่บทพูดที่ CS แก้จะถูก flush ในขั้น 4 · ระหว่างนั้นสิ่งที่ AI ใช้ตอบคือข้อความดิบจากไฟล์ ไม่ใช่ที่ CS เพิ่งเขียน | **ยอมรับได้จริงเพราะบทเรียนเพิ่งเกิดวินาทีนี้ ยังไม่มีลิงก์ ยังไม่มีผู้เรียนคนไหนเข้าห้องได้** · งาน `lesson_index` ต่อหน้าของ NR-6 ในขั้นที่ 4 แก้ให้เองภายในรอบ polling ปกติ (DI-12 ทุก 5 วินาที) · **ห้าม "แก้" ด้วยการสลับลำดับขั้น 3↔4** ซึ่งจะทำให้บทพูดถูกลบทิ้งทั้งชุดตาม NR-3 · **`qa-engineer` ต้องไม่รายงานหน้าต่างนี้เป็น ❌** — เป็นพฤติกรรมตาม contract ที่ตั้งใจ |
+| **R-24** | **Module J แก้ไฟล์เดียวกับ Module I (`LessonForm.tsx`) และเป็นไฟล์ที่ `requirement.md` เคยเขียนข้อห้ามคร่อมไว้** (เพิ่ม 2026-08-26) — UC-1/UC-6 (ลบการ์ด + บรรทัดสรุป) กับ NR-12/NR-17 (รื้อ flow การสร้าง) อยู่คนละบริเวณของไฟล์เดียวกัน · ทำขนานกันเมื่อไหร่ ฝ่ายหนึ่งจะเขียนทับอีกฝ่ายโดยที่ typecheck/build ผ่านหมด | `project-manager` ต้องวาง **I ก่อน J** และเขียนข้อห้าม "ห้ามทำขนาน" ไว้ในหัวข้อ phase ทั้งสอง (Module J · UC-9) · **จุดที่พังเงียบที่สุดคือ UC-5**: ถ้าคนทำ I อ่าน UC-5 ฉบับก่อน 2026-08-26 แล้วเข้าใจว่า "ห้ามแตะตลอดกาล" จะตีกลับงานของ J ทั้งก้อนโดยเข้าใจผิด — **NR-17 และ UC-5 ที่แก้แล้วเป็นข้อความที่ต้องอ่านคู่กันเสมอ** |
+| **R-25** | **หน้าต่างเวลาที่ AI ยัง *สอน* หน้าที่ถูกตัด แต่ *ตอบ* เรื่องหน้านั้นไม่ได้แล้ว** (เพิ่ม 2026-08-26 · **มติ Q-K2 ครึ่งหลัง — เจ้าของโปรเจกต์เคาะรับไปแล้วโดยรู้ตัว ไม่ใช่บั๊ก**) — ผู้เรียนที่เปิดห้องค้างไว้ถือสไลด์ทั้งชุดอยู่ใน `slidesRef.current` ของเบราว์เซอร์ตั้งแต่ตอนเข้าห้อง (นี่คือสิ่งที่ทำให้ R4.7.10 ได้มาฟรี) แต่ vector ถูกถอดทันทีตาม R4.7.4 → **ระหว่างนั้น AI จะบรรยายหน้า 7 ต่อไปตามปกติ แต่ถ้าผู้เรียนกด Push-to-Talk ถามเรื่องหน้า 7 จะได้ `not_found`** · เจ้าของโปรเจกต์**ปฏิเสธทางเลือกที่หน่วงการลบ vector ไว้รอ session ที่ค้าง**อย่างชัดเจน | **ยอมรับได้จริงเพราะหน้าต่างนี้สั้นและวงแคบ**: กินเฉพาะผู้เรียนที่กำลังเปิดค้างอยู่ ณ วินาทีที่ CS กดตัด และหายไปเองเมื่อเขาจบหรือรีเฟรช · **`qa-engineer` ต้องไม่รายงานอาการนี้เป็น ❌** — เป็นพฤติกรรมตาม contract ที่เจ้าของโปรเจกต์เคาะแล้ว (รูปเดียวกับ R-20/R-23) · **ห้าม "แก้" ด้วยการหน่วงลบ vector, การ snapshot ชุดหน้าต่อ session, หรือการบังคับ reload ให้ผู้เรียนกลางคัน** — สองอย่างแรกถูกตัดที่ Q-K2 ส่วนอย่างที่สามละเมิด R4.7.10 ตรง ๆ · **สิ่งที่ทำได้และควรทำคือไม่ทำอะไรเลย** |
+| **R-26** | **Module K ห้ามเริ่มก่อน Module J ปิดรอบ QA แบบ FULL — เป็นเงื่อนไขเวลา ไม่ใช่แค่เงื่อนไขฟังก์ชัน** (เพิ่ม 2026-08-26 · **มติ Q-K4**) — Module J วันนี้ผ่านแค่ **TARGETED 21/21** ยังไม่ FULL ยังไม่ audit ยังไม่ deploy · Module K **แก้ไฟล์ชุดเดียวกันแทบทั้งหมด** (`SlideNarrationEditorCard.tsx` · `PdfLessonContentPhase.tsx` · `narrations/page.tsx` · `LessonForm.tsx` · `ILessonConfigService.cs` · `ILessonSlideNarrationService.cs` · `IBackgroundJobProcessor.cs`) และ **amend contract 14 ข้อที่ J เพิ่ง implement ตาม** · เริ่มก่อน = สถานะ verify ของ J กำกวมถาวร แยกไม่ออกว่าอาการที่เจอเป็นของ J หรือของ K — **นี่คือ R-24 ซ้ำอีกรูปหนึ่ง แต่คราวนี้เป็นแกนเวลา ไม่ใช่แกนไฟล์** | `project-manager` ต้องวาง **K เป็น phase ของตัวเอง ต่อจาก J** และเขียนข้อห้ามนี้ไว้ในหัวข้อ phase ทั้งสอง · **เงื่อนไขเริ่ม K ที่ต้องเป็นจริงครบทุกข้อ: J ผ่าน FULL แล้ว · `plan.md` ของ J ติ๊กครบ · ไม่มี issue ของ J ค้างใน `review.md`** · **`security` ของ J ไม่จำเป็นต้องผ่านก่อนเริ่มเขียนโค้ด K** (คนละชั้นกัน) **แต่ `devops` ห้ามปล่อย K ถ้า J ยังไม่ผ่านทั้ง FULL และ audit** เพราะ K ทับโค้ดของ J · **ถ้ามีเหตุให้ต้องรีบจริง ทางที่ถูกคือเร่งปิดรอบ FULL ของ J ไม่ใช่เริ่ม K ขนานไป** |
+| **R-27** | **มติ Q-L4 ทำให้ “60 วัน” ไม่ใช่ hard cutoff** — `IN_PROGRESS` รวม stalled session หนึ่งแถวทำให้ purge เลื่อนได้ไม่มีกำหนด | เป็นมติที่เจ้าของโปรเจกต์ยืนยันโดยรู้ผลแล้ว · LT-12 ตรวจใหม่ทุก 1 ชั่วโมง ไม่บังคับจบ/ไม่ timeout session · QA ห้ามรายงานการอยู่เกิน 60 วันขณะยังมี `IN_PROGRESS` เป็นบั๊ก |
+| **R-28** | **permanent purge ข้ามสาม source of truth และไม่ atomic** — Pinecone, object storage, PostgreSQL ไม่สามารถอยู่ transaction เดียว | LT-13/LT-14/LT-17..LT-19 บังคับ claim token + idempotent external delete + DB hard-deleteสุดท้าย + retry job id เดิมไม่มีกำหนด · ห้ามย้าย hard-delete DB ขึ้นก่อนเพื่อให้ UI หายเร็ว |
+| **R-29** | **`IgnoreQueryFilters()` ใน trash/purge เป็น cross-company blast radius** โดยเฉพาะ owner ที่ไม่มี CompanyId ประจำตัว | ทุก method ต้องรับ companyId ที่ resolve แล้วและใส่ predicate ใน query/update เดียวกัน (LT-23) · security tests สองบริษัทเป็น gate ไม่ใช่ optional |
+| **R-30** | **public link ที่ revoked ยังทำงานได้บางกรณีโดยเจตนา** เพื่อให้ session เดิมจบ — ถ้าใช้ token อย่างเดียวจะกลายเป็นช่องอ่านเนื้อหาหลัง archive | LT-5/LT-6 บังคับ token + learnerKey + `IN_PROGRESS`; content/PDF endpoints ต้องแก้ wire contractและห้ามใช้ raw `GetByToken` เป็น authorization |
+| **R-31** | **PDF shared-reference เป็น anomaly ที่ schema ไม่กัน**; ลบตาม literal R9.7 อาจทำบทเรียนอื่นพัง | LT-18 preserve resource ถ้ายังมี lesson อื่นอ้าง · ไม่เพิ่ม unique index/backfillในรอบนี้เพราะอาจชน live dataและ requirement เลือก preserve แล้ว |
 
 ---
 
 ## Unresolved Open Questions
 
-> **ไม่มีคำถามค้างแล้ว — พร้อมส่งต่อ `project-manager`**
+> ✅ **แก้ 2026-08-26 (รอบที่สองของวัน)** — **ไม่มีข้อรอคำตอบค้างในโมดูลนี้เลยแม้ข้อเดียว**:
+> `Q1`–`Q6` · `Q-A`..`Q-G` · `Q-H1`/`Q-H2` ปิดครบตามเดิม และ **`Q-J1`/`Q-J2` ของรอบ CR-2
+> เจ้าของโปรเจกต์เคาะแล้ววันนี้** (ดูตารางมติข้างล่าง) → **Module A–J ไม่มีอะไรค้าง
+> `project-manager` วาง phase ของ Module J ได้ทั้งก้อนโดยไม่ต้องกันงานส่วนไหนออกไว้** ·
+> หัวข้อ "🟡 ค้างไว้โดยตั้งใจ" ข้างล่าง **ยังมีผลบังคับเต็มที่** — มีรายการใหม่
+> **O-14 · O-15 · O-16** จากรอบ CR-2 ให้อ่านด้วย (คนละเรื่องกับข้อรอคำตอบ: พวกนี้คือของที่
+> **ตั้งใจไม่ทำ** ไม่ใช่ของที่รอคำตอบ)
+
+> ✅ **ยืนยันอีกครั้ง 2026-08-26 (รอบที่สามของวัน · CR-3 / R4.7)** — **ยังไม่มีข้อรอคำตอบค้าง
+> ในโมดูลนี้เลยแม้ข้อเดียว**: `Q-K1` (โครงข้อมูลของหน้าที่ถูกตัด = **ตารางใหม่ DM-17**) ·
+> `Q-K2` (รีเฟรชกลางคัน = **รับชุดใหม่ทันที ไม่ snapshot** · และ **ถอด vector ทันที ยอมให้ตอบ
+> `not_found` ระหว่างที่แท็บเก่ายังสอนอยู่** — R-25) · `Q-K3` (หน้าแก้บทพูด = **แสดงครบทุกหน้า
+> การ์ดสีจาง + read-only + ปุ่มเอากลับ**) · `Q-K4` (**แยกเป็น Module K หลัง J ปิด FULL** — R-26)
+> **เจ้าของโปรเจกต์เคาะครบทั้งสี่ข้อเมื่อ 2026-08-26** มติเต็มอยู่ที่ตาราง
+> **"การตัดสินใจที่ผู้ใช้ยืนยันแล้ว"** · **Module A–K วาง phase ได้ทั้งก้อน ไม่มีเงื่อนไขค้าง
+> นอกจากลำดับเวลาของ R-26** · รายการใหม่ **O-17** จากรอบนี้ให้อ่านด้วย
+
+> ✅ **ยืนยันอีกครั้ง 2026-08-26 (รอบที่สี่ · CR-4 / R9)** — `Q-L1`..`Q-L5` และ Data Model
+> DM-2/DM-18 เคาะครบแล้ว · **Module L ไม่มีคำถามค้าง** และพร้อมให้ `project-manager` วาง phase
+> หลัง Module K ตาม dependency · setting retention ต่อบริษัทเป็น **O-18 deferred โดยเจ้าของ
+> โปรเจกต์สั่งว่า “ยังไม่ทำระบบนี้ตอนนี้”** ไม่ใช่ open question และห้ามใส่ field/API/UI แถม
+
+### ✅ มติ Q-J1 / Q-J2 (เจ้าของโปรเจกต์เคาะ 2026-08-26) — CR-2 / Module J
+
+> **เจ้าของโปรเจกต์เลือกทางที่ `system-analyst` เสนอไว้ทั้งสองข้อตรงตัว** ผลคือ
+> **NR-10 และ NR-18 ที่เขียนไว้แล้วไม่ต้องแก้แม้คำเดียว** · **ไม่มี contract ข้ออื่น ไม่มี
+> Data Model ไม่มี NR ข้อไหน ไม่มีตาราง/ฟิลด์/migration ถูกแตะจากมติสองข้อนี้** ·
+> คอลัมน์ "ถ้าตอบอีกทาง" เก็บไว้เป็น**บันทึกเหตุผล** — ทางเลือกที่ตกไปแล้ว **ห้ามหยิบกลับ
+> โดยไม่ amend เอกสารนี้ก่อน**
+
+| # | คำถาม | ✅ มติ (2026-08-26) | ผลต่อเอกสาร | ทางที่ตกไป — ห้ามหยิบกลับ |
+|---|---|---|---|---|
+| **Q-J1** | **R4.6.5 เขียนว่า "ก่อนกดยืนยัน ไม่มี state ที่ฝั่ง server เลย" — byte ของไฟล์ที่ต้องส่งไป parse/render ถือว่าละเมิดข้อนี้ไหม?** | **"ไม่ขัด — แตะชั่วคราวได้"** · เจ้าของโปรเจกต์ยืนยันว่า **"ไม่มี state ที่ฝั่ง server" ใน R4.6.5 หมายถึงไม่มี state ที่ *persist / กลับมาทำต่อได้* ไม่ใช่ห้าม byte แตะโปรเซสของ server เลย** → **preview session ในหน่วยความจำตาม NR-10 ยืนตามที่ออกแบบไว้ทุกตัวอักษร**: byte อยู่ใน `IMemoryCache` ชั่วคราว · sliding expiry 10 นาที · **ไม่มีแถวในฐานข้อมูล ไม่มีรายการในคลังความรู้ ไม่มีการ index** · ไม่กดยืนยัน = หมดอายุหายไปเอง | **NR-10 / NR-11 ไม่ต้องแก้แม้คำเดียว** · R4.6.1 (เห็นจำนวนหน้า+ชื่อทันที) และ R4.6.3 (ภาพสไลด์จริง) ทำได้ตามที่เขียนไว้ · **O-15 ยังบังคับเต็มที่** — ไม่มี state ฝั่ง server ก็ยังห้ามสร้าง draft/autosave ฝั่ง client มาแทน | **pdf.js ในเบราว์เซอร์เป็นตัวแปลงชุดที่สอง** — ตกไปทั้งทาง พร้อมกับการ amend NR-2 ให้รับ prefill จาก client (ซึ่งจะเปิดช่องแช่แข็งสำเนาที่ R4.1 ห้าม) และการทบทวน R4.6.1/R4.6.3 กับ `business-analyst` · **NR-2 จึงยังเป็น "server เท่านั้นเป็นผู้ตัดสิน" ตามเดิม** |
+| **Q-J2** | **หน้าแก้บทพูดเดิม (`/admin/lessons/[slug]/narrations`) ควรมีภาพสไลด์ด้วยไหม?** | **"ใส่ทั้งสองที่"** · เจ้าของโปรเจกต์ยืนยันว่าหน้าแก้บทพูดเดิม **ต้องมีภาพสไลด์ด้วย** ไม่ใช่แค่เฟสสร้าง → **NR-18 ยืนตามที่ออกแบบไว้และอยู่ในขอบเขต** (endpoint บาง ๆ ที่ห่อ `RenderPdfPageAsync` เดิมทั้งดุ้น) · ตรงกับเจตนาของ R4.6.4 ที่ว่า CS ต้องเห็น "หน้าตาเดียวกันทั้งตอนสร้างและตอนแก้" | **NR-18 ไม่ต้องแก้แม้คำเดียว และ ⛔ ห้ามตัด** · `GET /api/documents/{documentId}/pdf-pages/{n}` อยู่ในขอบเขต · component ร่วมรับ `imageSrc` ตามที่เขียนไว้ · แถว "หน้า `/admin/lessons/[slug]/narrations`" ในตารางของเดิมข้างล่าง **อ่านเป็น "ทำเลย" ได้แล้ว ไม่ใช่ "ผูกกับคำถามที่ยังไม่ตอบ"** | **"ใส่เฉพาะเฟสสร้าง"** ตกไป — **ห้ามตัด NR-18 ออกเพื่อลดขอบเขตของ phase** ไม่ว่าจะด้วยเหตุผลเรื่องเวลาหรือความง่าย · การตัดต้องกลับมา amend เอกสารนี้ก่อน |
+
+<details>
+<summary>ข้อความคำถามฉบับเต็มตอนเปิดข้อ (เก็บไว้เป็นบันทึกเหตุผล — 2026-08-26 รอบแรก)</summary>
+
+| # | คำถาม | ข้อเสนอของ `system-analyst` | ถ้าตอบอีกทางจะเปลี่ยนอะไร |
+|---|---|---|---|
+| **Q-J1** | **R4.6.5 เขียนว่า "ก่อนกดยืนยัน ไม่มี state ที่ฝั่ง server เลย" — byte ของไฟล์ที่ต้องส่งไป parse/render ถือว่าละเมิดข้อนี้ไหม?** · ข้อเท็จจริงที่ทำให้ต้องถาม: **R4.6.1 (เห็นจำนวนหน้า+ชื่อทันทีโดยไม่อัปโหลด) และ R4.6.3 (ภาพสไลด์จริง) ทำไม่ได้เลยถ้าไฟล์ไม่ถึง server** — ยกเว้นจะเอา parser/renderer ชุดที่สองไปไว้ในเบราว์เซอร์ ซึ่งจะทำให้**ข้อความร่างที่ CS เห็น ต่างจากข้อความที่ NR-2 เอาไปเทียบตอนเซฟ** (คนละตัวแปลง) = แก้แล้วหาย/เซฟทั้งที่ไม่ได้แก้ โดยไม่มี error | **ตีความว่า R4.6.5 ห้าม "state ที่ persist และที่กลับมาทำต่อได้" ไม่ใช่ห้าม byte แตะโปรเซส** → preview session ในหน่วยความจำ 10 นาที (NR-10/NR-11) · **ผลที่เจ้าของโปรเจกต์ยอมรับไว้ทั้งสองข้อยังจริง 100%**: ปิดแท็บ = เริ่มใหม่ (ไม่มีอะไรให้กลับมาต่อ) · ทิ้งเฟส = ไม่มีค่า embedding (ไม่มีแถว ไม่มีไฟล์ ไม่มีคิว ไม่มี vector) · **และตรงกับที่ `requirement.md` เขียนเองว่า "น่าจะผ่านทาง `RenderPdfPageAsync` ที่มีอยู่แล้ว"** ซึ่งเป็นของฝั่ง server | ถ้าเจ้าของโปรเจกต์ยืนยันว่า **ห้ามไฟล์ถึง server ก่อน commit จริง ๆ** → ต้องกลับมาที่ `system-analyst` ทั้งรอบ ไม่ใช่ให้ engineer แก้เอง: ทางที่เหลือคือ pdf.js ในเบราว์เซอร์ + **ยอมรับว่าข้อความร่างไม่ใช่ชุดเดียวกับที่ server จะเทียบ** (ต้อง amend NR-2 ให้รับ prefill จาก client ซึ่งเปิดช่องแช่แข็งสำเนาที่ R4.1 ห้ามไว้) หรือไม่ก็ต้องทบทวน R4.6.1/R4.6.3 กับ `business-analyst` |
+| **Q-J2** | **หน้าแก้บทพูดเดิม (`/admin/lessons/[slug]/narrations`) ควรมีภาพสไลด์ด้วยไหม?** · R4.6.3 บังคับให้มีภาพ**ในเฟสสร้าง** ส่วน R4.6.4 บอกว่า CS ต้องเห็น "หน้าตาเดียวกันทั้งตอนสร้างและตอนแก้" — หน้าเดิมวันนี้ไม่มีภาพเลย จึงเป็นไปได้สองทางและ requirement ไม่ได้ตอบไว้ | **ใส่ทั้งสองที่** (NR-18) — เหตุผลของ R4.6.3 (หน้าที่เป็นรูปเกือบทั้งหน้าตัดสินบทพูดไม่ได้ถ้าไม่เห็นรูป) **เป็นจริงตอนแก้ทีหลังเหมือนกันเป๊ะ** และราคาคือ endpoint ~10 บรรทัดที่ห่อ `RenderPdfPageAsync` เดิม | ถ้าตอบว่า **"ใส่เฉพาะเฟสสร้าง"** → **ตัด NR-18 ทั้งข้อ** ไม่ต้องมี `GET /api/documents/{documentId}/pdf-pages/{n}` และ component ร่วมรับ `imageSrc` เป็น optional · **ไม่มีข้ออื่นพึ่ง NR-18 เลย** — ตัดได้สะอาดโดยไม่กระทบ NR-10..NR-17 หรือ NR-19 |
+
+</details>
+
+### ✅ มติ Q-H2 (เจ้าของโปรเจกต์เคาะ 2026-08-25) — KL-23 เปลี่ยนเป็นด่านก่อนบันทึก
+
+**อาการที่เปิดข้อนี้ (ตรวจจากโค้ดจริง `KnowledgeQnAAnswerDialog.tsx:110-135`,
+`IKnowledgeQnAService.cs:186-230`)**: คำเตือน KL-23 ถูกคืนมาพร้อมผลลัพธ์ของ `CreateAsync` ซึ่งแปลว่า
+**แถว `KnowledgeQnA` ใบใหม่ถูกบันทึกไปเรียบร้อยแล้ว คำถามในคิวถูกปิดแล้ว และงาน `qna_index`
+เข้าคิวแล้ว ก่อนที่ CS จะเห็นคำเตือน** · ผลคือปุ่มสองปุ่มที่ KL-23 สั่งให้มี **ให้ผลลัพธ์เหมือนกันเป๊ะ
+คือปิด dialog**: "บันทึกเพิ่มอยู่ดี" ไม่ได้บันทึกอะไร (บันทึกไปแล้ว) และ "ไปแก้ใบเดิมแทน" ไม่ได้พาไปไหน
+(`onEditExisting` ไม่ถูกส่งมาจาก `/admin/qna-queue` ซึ่งไม่มีลิสต์ Q&A ให้ส่งต่อ — และตาม **KL-25**
+มันจะไม่มีวันมีด้วย)
+
+| # | คำถาม | ✅ มติ | อยู่ในเอกสารที่ไหน |
+|---|---|---|---|
+| **Q-H2** | **คำเตือน Q&A ซ้ำ (KL-23) ควรเป็นคำเตือนหลังบันทึก (ก) หรือด่านก่อนบันทึก (ข)?** — วันนี้เป็น (ก) โดยไม่ได้ตั้งใจ และทำให้ปุ่มสองปุ่มที่ contract สั่งให้มีเป็นปุ่มตายทั้งคู่ | **ทาง (ข) — ด่านก่อนบันทึก แบบเดียวกับ KL-21** · เจอซ้ำ → **ไม่เขียนแถว ไม่เขียน `KnowledgeQnASource` ไม่ปิดคำถามในคิว ไม่ enqueue `qna_index`** แล้วคืน **409/`CONFLICT`** พร้อม `DuplicateQnAResponse` ใน `error.details` · CS กด **"ยืนยันบันทึกซ้ำ"** = ส่งซ้ำด้วย `confirmDuplicate: true` (**ไม่มีทางไหนที่ระบบปฏิเสธถาวร**) หรือ **"แก้ใบเดิมแทน"** ซึ่งทำในที่เดิมโดย dialog สลับเป็น `mode: "edit"` **ไม่ลิงก์ข้ามหน้า** · **การตรวจเป็น unconditional ไม่มีธง `CheckDuplicate` แบบ KL-21** เพราะไม่มี caller ที่ต้องเงียบ (ตรวจ call site จริงแล้ว: create มีที่เดียวคือ `app/admin/qna-queue/page.tsx:130`) · **เป็น rework จริง**: `CreateAsync` + `CreateKnowledgeQnADto` + response shape + dialog ทาง create เขียนใหม่ทั้งชุด | **KL-23** (contract หลังบ้านเต็ม) · **KL-26** (contract ของ UI + ข้อห้ามลิงก์ `?q=`) · **O-13** (ผลที่ตามมาที่ตั้งใจเลื่อน) · Module H (wire contract) |
+
+**สิ่งที่ตกไปพร้อมมตินี้ — ห้ามหยิบกลับ**: ทาง (ก) ทั้งทาง รวมถึง **ลิงก์
+`/admin/documents?q=<คำถาม>`** ที่เป็นหัวใจของทาง (ก) · ฟิลด์ `DuplicateWarning` และคลาส
+`KnowledgeQnACreateResultViewModel` · prop `onEditExisting` · ถ้อยคำ "ไม่บล็อกเช่นกัน" ของ KL-23 เดิม ·
+และ **การเพิ่ม `q` เข้า URL param ของหน้าคลัง** ซึ่งไม่มี requirement ข้อไหนขอและตกไปพร้อมทาง (ก)
+
+**สิ่งที่มติข้อนี้ไม่ได้เปลี่ยนเลย** — นิยาม "ซ้ำ" ของ KL-23 (trim + ยุบช่องว่าง + ไม่สนตัวพิมพ์
+· `Question` เท่านั้น · ไม่ข้ามบริษัท · ไม่สน scope · เทียบในหน่วยความจำ) · KL-15/KL-16 (**ตรวจแล้ว
+ไม่ต้องแก้ — ทั้งสองข้อพูดถึงการ*ลบ* Q&A ที่มีอยู่แล้ว ไม่มีคำว่า KL-23 อยู่ในข้อ และไม่มีประโยคไหน
+พึ่งจังหวะของ KL-23 เลย · การกลับเข้าคิวของ KL-16 มาจาก `DeleteAsync` + QQ-1 ล้วน**) ·
+KL-18..KL-22 และ KL-24 (ฝั่งเอกสาร ไม่ถูกแตะ) · KL-25 (ยังห้ามสร้าง Q&A จากหน้าคลัง) ·
+Data Model ทั้งชุด **ไม่มีฟิลด์ใหม่ ไม่มี migration ใหม่** · QQ-1..QQ-10 · **ไม่มี checkbox
+ใน `plan.md` ถูกแตะในรอบนี้**
+
+### ✅ มติ Q-H1 (เจ้าของโปรเจกต์เคาะ 2026-08-25)
+
+| # | คำถาม | ✅ มติ | อยู่ในเอกสารที่ไหน |
+|---|---|---|---|
+| **Q-H1** | **R7.5 "เตือนเมื่อเนื้อหาซ้ำ" จะรู้ได้อย่างไรว่าเนื้อหาซ้ำ?** — ไม่มีอะไรในตารางวันนั้นเทียบเนื้อหาไฟล์ได้ (`SizeBytes` เท่ากันไม่ได้แปลว่าไฟล์เดียวกัน · `DocumentChunk.Text` มีก็ต่อเมื่อ index สำเร็จไปแล้ว = สายเกินกว่าจะเตือนตอนอัปโหลด และจ่ายค่า embedding ไปแล้ว) | **ทาง B — ชื่อไฟล์ + ลายนิ้วมือไฟล์** · เพิ่ม `DocumentResource.ContentHash` (SHA-256 hex 64 ตัว, `string?`, คำนวณที่ backend ตอนอัปโหลดก่อนส่งเข้า storage) + index `(CompanyId, ContentHash)` · **additive ล้วน ไม่ backfill ไม่แตะข้อมูลเดิมแม้แถวเดียว** · **ทาง A (ชื่อไฟล์อย่างเดียว) ตกไป** เพราะจับไฟล์เดิมที่ถูกเปลี่ยนชื่อไม่ได้ = ทำ CR-1.h ได้ไม่ครบ — **แต่การตรวจชื่อไฟล์ของทาง A ไม่ได้ถูกทิ้ง มันถูกรวมเข้ามาเป็น KL-20** · **ราคาที่รับแล้วโดยรู้ตัว: เอกสารที่อัปก่อน `MG-H1` จะไม่มี hash และไม่ถูกจับว่าเนื้อหาซ้ำตลอดไป** | DM-3 (`ContentHash`) · DM-15 (index) · **KL-18..KL-24** (contract เต็ม) · MG-H1 · R-20 · O-12 |
+
+**สิ่งที่มติข้อนี้ไม่ได้เปลี่ยนเลย** — R7.1/R7.2/R7.3/R7.4/R7.6 · R8 ทั้งชุด · KL-1..KL-17 ·
+UC-1..UC-10 · R3 + KS-1..KS-11 · Module A–G · ลำดับ `... → G → H → I` ·
+**ไม่มี checkbox ใน `plan.md` ถูกแตะ และไม่มีโค้ดถูกเขียนในรอบนี้**
+
 > 6 ข้อที่เคยอยู่ในหัวข้อนี้ (Q1–Q6) **เจ้าของโปรเจกต์เคาะครบเมื่อ 2026-08-19** — Q1–Q5 ตรงตาม
 > ข้อเสนอเดิมทุกข้อ · **Q6 เจ้าของโปรเจกต์ทักท้วงข้อเสนอเดิมและเลือกทิศทางที่ถูกกว่า** (รายละเอียด
 > อยู่ในตารางข้างล่าง) เก็บตารางไว้เป็นบันทึกมติ ไม่ใช่รายการรอคำตอบ · ส่วน "ค้างไว้โดยตั้งใจ"
@@ -1128,13 +1902,23 @@ G วางไว้ท้ายสุดเพราะขึ้นกับ A/
 |---|---|---|
 | **O-1** | **`cs` แก้/ลบ Q&A ของคนอื่นในบริษัทเดียวกันได้ไหม** | requirement ไม่ได้พูดถึง · QQ-9 กำหนดค่าเริ่มต้นเป็น "ได้" ซึ่งตรงกับที่ `AdminRole` อธิบายสิทธิ์ `cs` ไว้ · ถ้าอยากจำกัดให้แก้ได้เฉพาะของตัวเอง ต้อง amend QQ-9 ก่อน implement Module F **ห้าม engineer ตัดสินเอง** |
 | **O-2** | **Q&A ไม่มีวันหมดอายุ** | R5.6 ระบุชัดว่า "ยังไม่ทำวันหมดอายุอัตโนมัติในเฟสนี้" — **นอก scope โดยเจตนา ห้าม implement** · ถ้าจะทำต้องกลับมา amend ก่อน |
-| **O-3** | **soft delete ไม่ทั่วทั้งระบบ** | module นี้เติม `!IsDelete` ใน query filter เฉพาะ `DocumentResource` + ตารางใหม่ · `LessonConfig`/`TrainingLink`/`LearningSession`/`SessionQuestion`/`ChatMessage` ยังลบจริงเหมือนเดิม — **นอก scope โดยเจตนา** การไล่เติมจะเปลี่ยนพฤติกรรมของ module `learning-session` โดยไม่มีใครขอ · ถ้าอยากให้ทั้งระบบสม่ำเสมอ ต้องเปิดรอบใหม่ |
+| **O-3** | **soft delete ยังไม่ทั่วทั้งระบบ (amend R9)** | Module L เปิดใช้ `LessonConfig.IsDelete` + `!IsDelete` query filter จริงแล้ว จึงไม่อยู่ในรายชื่อ “ไม่ใช้” อีกต่อไป · `TrainingLink` ใช้ `IsDelete` เป็น revoked marker แต่ **ไม่เติม `!IsDelete` filter** เพราะ history ต้องเห็น · `LearningSession`/`SessionQuestion` ยัง retain ตาม R9.8 · ห้ามไล่ทำให้ทุก entity เหมือนกันเพราะความต่างนี้เป็น contract ไม่ใช่ drift |
 | **O-4** | **บทเรียน PDF ยังใช้ตัวแปลงสองตัวกับไฟล์เดียวกัน** | NR-8 ยอมรับความซ้ำนี้ในเฟสนี้ (บทพูดจาก `PdfSlidesRenderer` เก็บหน้าว่าง · คำตอบจาก `PdfTextExtractor` ตัดหน้าว่าง) — การรวมสองตัวแปลงเป็นงานคนละรอบ **ห้ามรวมเองระหว่าง implement** |
 | **O-5** | **เปลี่ยน `LessonConfig.Slug` แล้ว vector กำพร้า** | หนี้เดิม อยู่นอก R1–R6 (R-8) · ถ้าจะแก้ในรอบนี้ต้อง amend เพิ่ม |
 | **O-6** | **รายงานเทียบข้ามบริษัท** | ตัดออกโดยเจตนาแล้วตาม R2 — **นอก scope** |
 | **O-7** | **OCR สำหรับ PDF สแกน · override บทพูด Google Slides · PPTX เป็นสื่อสอนหลัก · auto-detect เด็คต้นทางถูกแก้** | ทั้งสี่อยู่ในหัวข้อ "ที่ตัดออกจากเฟสนี้โดยตั้งใจ" ของ `requirement.md` — **ห้าม implement โดยไม่ amend `requirement.md` ก่อน** |
 | **O-8** | **หน้าบทเรียนยังไม่แสดง "เอกสารระดับหมวดที่บทเรียนนี้ได้รับมรดก"** (เพิ่ม 2026-08-20, มติ Q-D) | วันนี้หน้าบทเรียนแสดงเฉพาะเอกสารที่ `ScopeType = lesson` ของตัวเอง · หลัง Phase 7 บทเรียนจะถูกตอบด้วยเอกสารระดับหมวดและระดับบริษัทด้วย (KS-3 ยิง 3 namespace) แต่ CS มองไม่เห็นจากหน้าบทเรียนว่ามีอะไรบ้าง — ต้องเดาเอง · **เจ้าของโปรเจกต์ตัดสินให้เลื่อน ไม่ใช่มองข้าม** เป็นรายการอ่านอย่างเดียวที่เพิ่มทีหลังได้โดยไม่กระทบ schema/contract ใดๆ (ข้อมูลครบอยู่แล้วผ่าน `GET /api/documents?scopeType=category&scopeId=` ตาม DS-4) · **ห้าม implement แถมระหว่าง Phase 7** |
+| **O-10** | **หน้าคลังรวมไม่มีทางกู้คืน Q&A ที่ลบไปแล้ว** (เพิ่ม 2026-08-25, KL-17) | `KnowledgeQnA` เป็น soft delete จริงในฐานข้อมูล (DM-6) แต่**ไม่มี UI ให้กู้** — ต่างจากเอกสารที่มี `DeletedDocumentsList` เพราะ R6.1 ขอไว้ตรงๆ ส่วน Q&A ไม่เคยมีใครขอ · **นอก scope โดยเจตนา ห้าม implement แถม** · ผลที่ยอมรับ: ลบผิดแล้วต้องพิมพ์ใหม่ (ซึ่งถูกชดเชยด้วย QQ-5 — คำถามต้นทางกลับเข้าคิวให้เขียนใหม่ได้ทันที) |
+| **O-11** | **หน้าคลังรวมไม่มี pagination** (เพิ่ม 2026-08-25, KL-12) | คืนทุกแถวของบริษัทในคำขอเดียวทั้งเอกสารและ Q&A · วันนี้จำนวนอยู่ในหลักสิบ–หลักร้อยต่อบริษัท การใส่ pagination ตอนนี้คือการสร้าง infrastructure ล่วงหน้า (`CLAUDE.md` Solution Design Rule ข้อ 7) · **เส้นที่ต้องกลับมาดู: บริษัทใดมีเอกสาร+Q&A รวมเกิน ~500 รายการ** หรือหน้าเริ่มหน่วงตอนโหลด → กลับมา amend ก่อน ห้าม engineer ใส่เอง (การใส่ pagination เปลี่ยนรูป response ของ endpoint ทั้งสองตัว) |
+| **O-12** | **"ซ้ำ" ตาม R7.5 คือซ้ำแบบเป๊ะเท่านั้น ไม่ใช่ซ้ำแบบใกล้เคียง** (เพิ่ม 2026-08-25 · **ยังจริงทุกตัวอักษรหลังมติ Q-H1 = ทาง B**) | ทาง B ที่เลือกจับได้แค่ "ไฟล์เดียวกันแบบ byte-for-byte (KL-19) / ชื่อเดียวกัน (KL-20) / คำถามเดียวกันเป๊ะ (KL-23)" · เอกสารคนละไฟล์ที่เนื้อหาทับกัน 90% หรือ Q&A ที่ถามเรื่องเดียวกันด้วยคำต่างกัน **จับไม่ได้และไม่พยายามจับในเฟสนี้** — การจับแบบนั้นต้องใช้ embedding เทียบความคล้าย ซึ่งเป็นคนละเรื่องกับ R7 (การมองเห็น) และแตะ retrieval ที่ CR-1.g สั่งห้าม · ถ้าวันหนึ่งต้องการจริง **ต้อง amend ก่อน** |
+| **O-13** | **ยังไม่มีทาง "ผูกคำถามในคิวเข้ากับ Q&A ที่มีอยู่แล้ว" — ต้องสร้างใบใหม่เท่านั้น** (เพิ่ม 2026-08-25 พร้อมมติ Q-H2) | โผล่มาเป็นผลตรงของมติ Q-H2: ด่านก่อนบันทึกทำให้ CS เห็นว่า "คำถามนี้มีคำตอบอยู่แล้ว" **ก่อน**ที่จะเขียนอะไร แต่ทางเดียวที่จะเอาแถวคิวออกยังคือ **สร้าง Q&A ใบใหม่** (QQ-2 — คำถามออกจากคิวได้ทางเดียวคือมีแถว `KnowledgeQnASource` ผูก) → CS ที่คิดว่าคำตอบเดิมดีอยู่แล้วต้องเลือกระหว่าง "ยืนยันบันทึกซ้ำ" (ได้ Q&A ซ้ำ + จ่าย embedding ซ้ำ) หรือ "ปล่อยแถวคิวค้างไว้" · **สิ่งที่จะแก้ได้จริงคือปุ่มที่สาม "ใช้คำตอบเดิมกับคำถามนี้" = เพิ่ม `KnowledgeQnASource` เข้าใบเดิมโดยไม่สร้างแถวใหม่** ซึ่ง **QQ-7 รองรับเชิงโครงสร้างอยู่แล้ว** (หนึ่ง Q&A ปิดได้หลายคำถาม) แต่ **ไม่มี endpoint/DTO รองรับ และไม่มี requirement ข้อไหนขอ** → **เป็นความต้องการใหม่ ต้องกลับไป `business-analyst` ก่อน (R7.7) ห้าม engineer หรือ `project-manager` เปิดทางนี้เอง** เหตุผลโครงสร้างเดียวกับ KL-25 · **ไม่ใช่ regression**: วันนี้ (ก่อนมติ Q-H2) ระบบบันทึกใบซ้ำ **ทุกครั้งโดยไม่ถาม** อยู่แล้ว มติ Q-H2 จึงเพิ่มทางเลือกที่ดีกว่าเดิมเสมอ ไม่ได้ตัดทางไหนทิ้ง |
 | **O-9** | **เอกสาร/Q&A หนึ่งใบอยู่ได้หมวดเดียว — ยังไม่รองรับหลายหมวดพร้อมกัน** (เพิ่ม 2026-08-20, มติ Q-G) | `ScopeId` เป็นช่องเดียวตาม DM-3/DM-6 · **ถามเจ้าของโปรเจกต์ตรงๆ แล้วเมื่อ 2026-08-20 ว่ามีทิศทางนี้ในอนาคตอันใกล้ไหม — คำตอบคือยังไม่มี/ยังไม่คิดถึง** จึงตั้งใจไม่ออกแบบตารางเชื่อม many-to-many ล่วงหน้า (`CLAUDE.md` Solution Design Rule ข้อ 7) · **แต่ราคาของการเปลี่ยนใจไม่ถูก**: ต้องเพิ่มตารางเชื่อม แล้วรื้อ `EnsureValidScope`, `Resolve`, `GetByScope`, `vector_delete` payload, TX-5/TX-6/TX-10 และ DS-1..DS-7 ทั้งชุด เพราะทุกจุดตั้งอยู่บนสมมติฐาน "หนึ่ง scope ต่อหนึ่งแถว" · ถ้าวันหนึ่งต้องการจริง **ต้อง amend เอกสารนี้ก่อน ห้าม engineer ขยายเอง** |
+
+| **O-14** | **เอกสารเด็ค PDF ที่มีอยู่แล้วและ scope `company` อยู่ ไม่ถูกย้ายเป็น `lesson`** (เพิ่ม 2026-08-26 พร้อมมติ CR-2.h) | ทุกใบที่สร้างจากหน้า *สร้างบทเรียนใหม่* ก่อน Module J มี `ScopeType = "company"` เพราะ `LessonForm.tsx:194` hardcode ไว้ · **NR-14 เปลี่ยนเฉพาะของใหม่** ตามแนวเดียวกับ R4.6.10 ("ปล่อยไว้ แก้แค่ของใหม่") · **ผลที่ยอมรับแล้วโดยรู้ตัว: ข้อความของเด็คเก่าเหล่านั้นยังตอบคำถามของทุกบทเรียนในบริษัทต่อไปเรื่อย ๆ** และคลังจะมีสองยุคปนกัน (`qa-engineer` ต้องไม่รายงานเป็น ❌) · **ทางแก้ทีละใบมีอยู่แล้วและถูกต้องอยู่แล้ว: `PATCH /api/documents/{id}/scope` (DS-5/DS-6/DS-7) ซึ่งลบ vector เก่า + re-index ให้ครบ** — CS ทำเองได้จากหน้าคลังโดยไม่ต้องมีงานพัฒนา · **ห้ามเขียน migration/สคริปต์ย้ายเป็นชุด** (จะจ่ายค่า embedding ใหม่ทุกใบพร้อมกันโดยไม่มีใครขอ) · ถ้าวันหนึ่งอยากย้ายทั้งกองจริง **ต้อง amend ก่อน** |
+| **O-15** | **เฟสจัดการเนื้อหาไม่มีทางทำต่อจากเดิม และไม่มี draft ที่ไหนทั้งสิ้น** (เพิ่ม 2026-08-26) | **นี่คือมติของเจ้าของโปรเจกต์เอง ไม่ใช่ข้อจำกัดทางเทคนิค** (CR-2.a/CR-2.b · R4.6.5(ก)) — ปิดแท็บ/เน็ตหลุด/เผลอกด back = เริ่มจากเลือกไฟล์ใหม่ · **ห้าม implement `localStorage`/`sessionStorage`/autosave/`beforeunload` เพื่อ "ช่วย" CS โดยไม่ amend ก่อน** — การเก็บ draft ไว้ที่ client ก็ยังเป็นการสร้างกลไกกู้คืนที่ requirement ตัดออกไปแล้ว · **ข้อเดียวที่ทำได้และควรทำคือคำเตือนตอนออกจากหน้า** ถ้ามี draft ค้าง (เป็น UX ปกติของฟอร์ม ไม่ใช่ระบบกู้คืน) |
+| **O-16** | **AI ช่วยร่างบทพูดขยายความ — อยู่นอกขอบเขต CR-2 โดยชัดเจน** (เพิ่ม 2026-08-26 · CR-2.l) | `requirement.md` เขียนห้าม scope งานนี้เข้ามาเอง · NR-19 บันทึกไว้แค่ว่า**โครงข้อมูลวันนี้ไม่ปิดทาง** (prefill ไม่เคยถูก persist ตาม R4.1 → ร่างจาก AI เสียบเข้าที่เงื่อนไขที่สองของ NR-1 ได้ตรง ๆ) · **ห้ามเตรียมฟิลด์/DTO/enum ล่วงหน้า และห้าม implement แถม** — ถ้าจะทำจริงต้องกลับไป `business-analyst` ก่อน (กติกาที่ต้องคุยตอนนั้นคือ "ร่างที่คนไม่ได้แตะ ห้ามลง DB") |
+| **O-17** | **สี่อย่างที่ถูกปฏิเสธพร้อมกับการรับ R4.7: จัดลำดับหน้าใหม่ (drag) · รวม/แยกหน้า · แทรกหน้าเปล่าคั่นบทพูด · โหมด "ข้ามตอนสอนแต่ยังใช้ตอบคำถามได้"** (เพิ่ม 2026-08-26 · CR-3.13) | `business-analyst` เปิดถามเองทั้งสี่ข้อตอนปิดขอบเขต CR-3 **เจ้าของโปรเจกต์ปฏิเสธทุกข้อ** และยืนยันว่าขอบเขตจบที่ "ตัดหน้า" อย่างเดียว — **ห้าม implement แถม ห้าม "เผื่อ" ในโครงข้อมูล** · **ข้อสุดท้ายห้ามเผลอเติมเป็นพิเศษ** เพราะฟังดูเป็นของแถมที่สมเหตุสมผล (และ EX-5/EX-6 แยกฝั่งสอนกับฝั่งตอบออกจากกันชัดจนทำได้ง่ายมาก) **แต่มันขัดกับ R4.7.3 ตรง ๆ ที่ให้หน้าที่ถูกตัดหายไปทั้งสองด้านพร้อมกัน — ระบบนี้มีสถานะเดียวคือ "ตัด" ไม่ใช่สองสถานะ** · **สัญญาณที่บอกว่ากำลังจะละเมิดข้อนี้: มีใครเสนอฟิลด์ที่สองใน `LessonExcludedSlide`** (`IsSkipTeachingOnly`, `Mode`, `Scope`) หรือเสนอให้ EX-5 ทำงานโดยไม่ทำ EX-6 → **หยุดแล้วตีกลับมาที่ `system-analyst`** · **ข้อ "จัดลำดับหน้า" ถูกปฏิเสธมาแล้วสองรอบ** (CR-2.k แล้วซ้ำที่ CR-3.13) ถ้ามีคนเสนออีกให้กลับมาอ่านข้อนี้ก่อน ไม่ต้องวิเคราะห์ใหม่ตั้งแต่ศูนย์ |
+| **O-18** | **ตั้ง retention ถังบทเรียนแยกแต่ละบริษัท — ทิศทางยืนยันแล้วแต่ยังไม่ทำ** (เพิ่ม 2026-08-26 · Q-L5) | อนาคต: default 60 วัน · ช่วง 1–365 · `owner`/`admin` แก้ · `cs` อ่านอย่างเดียว · เจ้าของโปรเจกต์ยืนยันแล้วแต่สั่งชัด **“ยังไม่ทำระบบนี้ตอนนี้”** → Module L ใช้ 60 วันตายตัวและ **ไม่มี** `Company.LessonTrashRetentionDays`, settings UI, DTO, endpoint หรือ migration · เมื่อต้องการเปิดจริงต้องให้ `business-analyst` amend R9.4 ก่อน แล้ว `system-analyst` ตัดสินว่ารายการที่อยู่ในถังจะ snapshot ค่าเดิมหรือ recalculation ตามค่าใหม่ |
 
 ### เรื่องที่ตรวจสอบครบแล้วในรอบนี้ (ไม่มีอะไรตกค้าง)
 
@@ -1153,14 +1937,265 @@ G วางไว้ท้ายสุดเพราะขึ้นกับ A/
 | `IBackgroundTaskQueue` + `BackgroundTaskQueue.cs` | **ทำเลย — ลบทิ้ง** (DI-17) |
 | `IKnowledgeIndexProvider.DeleteNamespaceAsync` | **ไม่แตะ** — `IAdminService` reindex-all ยังใช้อยู่ · เพิ่ม `DeleteVectorsAsync` ข้างๆ (DM-13) |
 | `KnowledgeNamespaces.For`/`ForGlobal` | **ไม่แตะ** — เพิ่ม `ForCategory` ข้างๆ (DM-12) |
-| `IsDelete`/`DeletedAt` ที่มีในทุก entity แต่ไม่เคยใช้ | **ทำเลยบางส่วน** — ใช้จริงเฉพาะ `DocumentResource` + ตารางใหม่ · ที่เหลือ **นอก scope โดยเจตนา** (O-3) |
+| `IsDelete`/`DeletedAt` ที่มีในทุก entity แต่ไม่เคยใช้ | **amend R9:** ใช้จริงบน `DocumentResource` + ตารางใหม่ตามเดิม และเปิดใช้บน `LessonConfig` เป็น trash lifecycle · `TrainingLink.IsDelete` ใช้เป็น revoked marker แต่ไม่ซ่อนจาก history · `LearningSession`/`SessionQuestion` retain ไม่ลบ (O-3/LT-3/LT-19) |
 | `SessionStatus.cs` (`NOT_STARTED`/`IN_PROGRESS`/`ENDED`/`EXPIRED`) | **นอก scope** — เป็นของ module `learning-session` |
 | `docs/KNOWLEDGE_ROADMAP.md` (K0–K4) | **นอก scope** — คนละชั้น (retrieval/eval quality) ไม่ทับกับเอกสารนี้ ตามที่ `requirement.md` ระบุ |
+
+**เพิ่ม 2026-08-25 — ของเดิมที่ R7/R8 เข้าไปแตะ หรือควรจะแตะแต่ไม่แตะ (ทุกใบต้องมีคำตัดสิน):**
+
+| ของเดิม | คำตัดสิน |
+|---|---|
+| `DocumentUploadList` โหมด `fixedScope` + props union (`DocumentUploadList.tsx:131-133`) | **ทำเลย — ลบทั้งโหมด** (UC-2) ตามมติ CR-1.j · ไม่ใช่แค่เลิกเรียก |
+| `primaryDocumentId` + badge "ใช้เป็นสไลด์หลัก" (`DocumentUploadList.tsx:132, 356-360`) | **ทำเลย — ย้าย ไม่ใช่ลบ** · prop หายไปพร้อมโหมด แต่ badge ต้องโผล่ที่หน้าคลังรวมแทน (KL-7) ไม่งั้นข้อมูลนี้หายจากระบบทั้งใบ |
+| การ์ด "เอกสารประกอบ" ใน `LessonForm.tsx:679-698` | **ทำเลย — ลบ** (UC-1) · แทนด้วยบรรทัดสรุปอ่านอย่างเดียว + deep-link (UC-6/UC-7) |
+| `handlePdfUpload` + `handlePdfFileSelected` + `pdfField` (`LessonForm.tsx:187, 243, 250, 450`) | **⛔ ห้ามแตะ** (UC-5 / R8.3) — คนละเรื่องกับการ์ดที่ถูกลบ แม้จะเรียก `api.uploadDocument` ตัวเดียวกัน |
+| `DocumentResourceService.GetByScope(null, null)` ที่แปลงค่าว่างเป็น `company` (`IDocumentResourceService.cs:132-141`) | **ทำเลย — เปลี่ยนพฤติกรรม** เป็น "ทุก scope" (KL-2) · แก้ DS-4 แล้วในรอบนี้ · caller เดียวที่เหลือหลัง UC-2 คือหน้าคลัง ซึ่งต้องการพฤติกรรมใหม่พอดี |
+| `IDocumentResourceRepository.GetByScope` / `GetDeleted` | **ไม่แตะทั้งสองตัว** — เพิ่ม `GetAllInCompany()` ข้างๆ (KL-2) แบบเดียวกับที่ DM-12/DM-13 เพิ่มเมธอดข้างของเดิม |
+| `KnowledgeQnAController` ที่มีแค่ `POST`/`PUT`/`DELETE` | **ทำเลย — เพิ่ม `GET`** (KL-8) · สามตัวเดิมไม่แตะ |
+| `IKnowledgeQnAService.UpdateAsync` / `DeleteAsync` + `PUT`/`DELETE /api/knowledge-qna/{id}` + `updateKnowledgeQnA`/`deleteKnowledgeQnA` ใน `api-client.ts` | **มีอยู่แล้วครบ — เอกสารนี้รับรองย้อนหลัง ไม่ต้องเขียนใหม่** (R7.6) · ตรวจแล้วตรงกับ R5.6/R7.6/QQ-5 ทุกข้อ · **แต่ยังไม่เคยผ่าน QA และไม่มี checkbox ไหนครอบ** (R-19) |
+| `GET /api/qna-queue` + หน้า `/admin/qna-queue` | **ไม่แตะ · ห้ามยุบรวมกับหน้าคลัง** (KL-8) — คิวคือ `SessionQuestion` ที่ยังไม่มีคำตอบ (QQ-1) คนละตารางคนละความหมายกับรายการ Q&A ที่มีอยู่แล้ว |
+| หน้า `/admin/qna-conflicts` (R5.5 / KS-9) | **ไม่แตะ** — เป็นคิวธง "Q&A ขัดกับเอกสาร" คนละเรื่องกับการมองเห็นคลัง · R7 ไม่ได้ขอให้รวมเข้ามา |
+| `DeletedDocumentsList` (ถังกู้คืนเอกสาร, R6.1/DI-15) | **ไม่แตะ** — R7 พูดถึงของที่ยังใช้งานอยู่ · ของที่ถูกลบไม่ควรปนในหน้าคลังรวม (และ `GetAllInCompany()` ก็ไม่เห็นมันอยู่แล้วเพราะ query filter) |
+| `scopeLabel()` ที่คืนคำว่า "บทเรียนนี้" (`DocumentUploadList.tsx:119-129`) | **ทำเลย — แก้** ให้แสดงชื่อบทเรียนจริง (KL-6) · คำว่า "บทเรียนนี้" ถูกต้องเฉพาะในโหมดที่กำลังถูกลบ |
+| filter Select ที่มีแค่ "ทั้งบริษัท/หมวด" (`DocumentUploadList.tsx:255-280`) | **ทำเลย — ต่อยอด** เพิ่ม "ทั้งหมด" + "เฉพาะบทเรียน" (KL-4) · ห้ามเขียน component ใหม่ทับ |
+| `KnowledgeQnAAnswerDialog.tsx` | **ทำเลย — ใช้ซ้ำเป็นฐานของ dialog แก้ Q&A** (KL-14) ห้ามสร้าง pattern ที่สอง |
+| `DocumentResource.FileName` | **ทำเลย — ใช้เป็นเกณฑ์ "ชื่อซ้ำ"** (KL-20) · ไม่เปลี่ยนชนิด ไม่เปลี่ยนความหมาย แค่มีคนอ่านเพิ่ม (เพิ่ม 2026-08-25 รอบ Q-H1) |
+| `DocumentResource.SizeBytes` | **ไม่แตะ · ⛔ ห้ามใช้เป็นเกณฑ์จับซ้ำไม่ว่ากรณีใด** — ขนาดเท่ากันไม่ได้แปลว่าไฟล์เดียวกัน และการเอามาใช้เป็นตัวกรองก่อนเทียบ hash ก็ไม่มีประโยชน์เพราะ hash มี index อยู่แล้ว (เพิ่ม 2026-08-25 รอบ Q-H1) |
+| `DocumentChunk.Text` | **ไม่ใช้กับ R7.5** — มีค่าก็ต่อเมื่อ index สำเร็จไปแล้ว จึงสายเกินกว่าจะเตือนตอนอัปโหลด และจ่ายค่า embedding ไปแล้ว · มันเป็นของ KL-11 (ค้นเนื้อหา) เท่านั้น (เพิ่ม 2026-08-25 รอบ Q-H1) |
+
+**เพิ่ม 2026-08-26 — ของเดิมที่ R4.6 (Module J) เข้าไปแตะ หรือควรจะแตะแต่ไม่แตะ (ทุกใบต้องมีคำตัดสิน):**
+
+| ของเดิม | คำตัดสิน |
+|---|---|
+| `handlePdfUpload` (`LessonForm.tsx:186-221`) + `handlePdfFileSelected` (228) + `pdfField`/input (450) | **ทำเลย — แก้ ไม่ใช่ลบ** (NR-12/NR-14/NR-17) · **ข้อห้ามเดิมของ UC-5/R8.3 ถูก supersede แล้วอย่างเป็นทางการ** (CR-2.m) · โหมดแก้ยังใช้ทางเดิมทั้งเส้นรวม dialog NR-3 |
+| `canCreate` (`LessonForm.tsx:335-341`) ที่บังคับว่าต้องมี `form.pdfDocumentResourceId` | **ทำเลย — เปลี่ยนเงื่อนไข** เป็น "มี preview session สำเร็จ (มี `previewId` + `pageCount > 0`)" เพราะโหมดสร้างจะไม่มี `pdfDocumentResourceId` จนกดยืนยันอีกต่อไป (R4.6.1) |
+| `handleCreate` (`LessonForm.tsx:264-275`) ที่เรียก `saveLesson` แล้ว push ทันที | **ทำเลย — แก้** เป็น "เปิดเฟสจัดการเนื้อหา" สำหรับ `pdf` (R4.6.2) · **`google_slides` คงเดิมทุกตัวอักษร** (R4.6.9) · การ `router.push` ย้ายไปอยู่ท้ายขั้นที่ 4 ของ NR-12 |
+| `previewPdfLessonContent` / `GET /api/lessons/pdf-preview?documentId=` | **ไม่แตะ** — ยังเป็นทางของโหมดแก้ (ไฟล์ persist แล้ว) · **ห้ามยัดโหมด "รับไฟล์" เข้า endpoint นี้** เพราะ query param `documentId` กับ multipart คนละสัญญากันคนละกฎสิทธิ์ (NR-11) → NR-10 เป็น endpoint แยก |
+| `RenderPdfPageAsync` / `BuildPdfContentAsync` / `GetPdfBytesAsync` (`ILessonConfigService.cs:407-487`) | **ไม่แตะทั้งสามตัว — ใช้ซ้ำ** · NR-10 เรียก `PdfSlidesRenderer` ตรง ๆ ด้วย byte ของ preview session (ไม่ผ่าน `GetPdfBytesAsync` ซึ่งบังคับว่าต้องมีแถว `DocumentResource`) · NR-18 ห่อ `RenderPdfPageAsync` เดิมทั้งดุ้น |
+| endpoint ภาพหน้า PDF ฝั่ง learner `GET /api/lessons/pdf-pages/{token}/{documentId}/{page}` + path ที่ยกเว้น auth ใน `Program.cs:195` | **⛔ ไม่แตะ ห้ามใช้จากฝั่ง admin ห้ามขยายให้ยอมรับ `previewId` และห้ามเพิ่ม path ใหม่เข้ารายการยกเว้น auth** — endpoint ของ NR-10/NR-18 เป็น admin-auth ปกติทั้งคู่ |
+| `PdfSlidesRenderer.BuildContent` / `RenderPagePng` / `GetPageCount` | **ไม่แตะ — ใช้ซ้ำทั้งชุด** · `BuildContent` รับ `documentId` เป็น string ล้วนสำหรับประกอบ marker `pdf-page:{id}:{n}` → NR-10 ส่ง `previewId` ลงไปตรงนั้นได้โดยไม่แก้ provider แม้บรรทัดเดียว |
+| `LessonSlideNarrationService` ทั้งไฟล์ + `PUT /api/lessons/{id}/narrations/{slideObjectId}` + `GET .../narrations` + `GET .../narrations/count` | **ไม่แตะแม้บรรทัดเดียว — ใช้ซ้ำ** (นี่คือหัวใจของคำตอบ R4.6.4) · `EnsurePdfSource` ที่บังคับว่าต้องมี `PdfDocumentResourceId` **เป็นสิ่งที่กำหนดลำดับของ NR-12 ไม่ใช่อุปสรรคที่ต้องปลดล็อก** |
+| หน้า `/admin/lessons/[slug]/narrations` (`narrations/page.tsx`) | **แก้เท่าที่จำเป็น** — แยกการ์ดแก้บทพูดออกเป็น component ร่วมให้เฟสใหม่ใช้ด้วย (R4.6.4 "ไม่สร้างของใหม่ขนานกัน") · **การเพิ่มภาพสไลด์ในหน้านี้ผูกกับ `Q-J2`/NR-18** · พฤติกรรมอื่นของหน้า (NR-9 guard, คำเตือน NR-5, ตัวนับ 5000 ตัวอักษร, ปุ่มบันทึกทีละหน้า) **ห้ามเปลี่ยน** |
+| `IDocumentResourceService.UploadAsync` (รวม `ComputeContentHash`/KL-18 · `DocumentParserFactory`/DI-2 · `EnqueueJob`) | **ไม่แตะ — เรียกด้วย scope ใหม่เท่านั้น** (NR-14) · **ห้ามคัดลอกตรรกะของมันเข้า endpoint ของ NR-10** — เส้นทาง preview ไม่มี hash ไม่มี job ไม่มีแถว โดยเจตนา · **ผลที่ต้องรู้: `DocumentParserFactory` (DI-2) จึงไม่อยู่ในเส้นทาง preview** → NR-10 ต้องอาศัย `BuildContent` ที่ throw กับไฟล์ไม่ใช่ PDF แล้วแปลงเป็น 4xx ข้อความไทยแบบเดียวกับที่ `BuildPdfContentAsync` ทำอยู่แล้ว |
+| `LessonConfigService.SaveAsync` (รวม trigger NR-3 ที่บรรทัด 197-200 และ index NR-7 ที่ 223-239) | **ไม่แตะ** — NR-12 อาศัยพฤติกรรมสองอย่างนี้ตามที่มันเป็นอยู่จริง (ดู NR-3 ท้ายข้อ + R-23) · **ห้ามเพิ่มพารามิเตอร์ "ข้ามการ index" หรือ "ข้าม NR-3" เพื่อความสะดวกของเฟสใหม่** — จะกลายเป็นธงที่มีค่าถูกต้องค่าเดียว (กับดักแบบ R-14) |
+| `LessonConfig.IsActive` | **ไม่แตะ และห้ามใช้เป็นสถานะ "สร้างไม่เสร็จ"** — ค่านี้มาจากตัวเลือกของ CS ในฟอร์ม การแอบตั้ง `false` แล้วพลิกเป็น `true` ท้ายขั้นที่ 4 คือการสร้าง state machine ที่ไม่มีใครขอและมองไม่เห็นจาก UI · ความล้มเหลวกลางทางจัดการด้วย NR-13 แทน |
+| `slideConfigs` / `videoDurationMs` (`SlideConfig`) | **ไม่แตะ** — เฟสใหม่สร้าง `slideConfigs` จาก preview session แบบเดียวกับที่ `handlePdfUpload` ทำวันนี้ (1 รายการต่อหน้า `videoDurationMs = null`) · **การจัดลำดับ/ซ่อนหน้า และการตั้งเวลาต่อหน้าในเฟสนี้อยู่นอกขอบเขต** (R4.6 ท้ายข้อ ตัด 4 เรื่องนี้ทิ้งชัด ๆ) |
+| `checkDuplicate` / KL-21 (คำเตือนไฟล์ซ้ำตอนอัปโหลด) | **ไม่แตะ · เฟสใหม่ส่ง `false`** (NR-12 ขั้น 2) — เด็คของบทเรียนไม่ใช่เอกสารที่ CS กำลังจัดคลัง และ KL-21 เป็น opt-in ตั้งแต่ต้น · **ห้ามเปิดเป็น `true` โดยไม่ amend** (จะได้ 409 กลางขั้นที่ 2 ของ commit ซึ่ง NR-13 ไม่ได้ออกแบบรองรับ) |
+| `DtoLimits.NarrationTextMaxLength` (5000) + ค่า `NARRATION_MAX_LENGTH` ฝั่ง frontend | **ไม่แตะ — เฟสใหม่ใช้ค่าเดียวกัน** ผ่าน component ร่วม ห้ามประกาศค่าที่สาม |
+| เอกสารเด็คเก่าที่ `ScopeType = "company"` | **นอก scope โดยเจตนา — ไม่ย้าย** (O-14 · แนวเดียวกับ R4.6.10) · ทางแก้ทีละใบคือ `PATCH /api/documents/{id}/scope` ที่มีอยู่แล้ว |
+| เอกสาร orphan ที่เกิดจากฟอร์มที่ถูกทิ้งก่อน Module J | **นอก scope โดยเจตนา — ไม่ตามเก็บ** (R4.6.10 · CR-2.j) · **ไม่มีสคริปต์ ไม่มี migration ไม่มีหน้าจอให้ล้าง** ในรอบนี้ |
+
+**เพิ่ม 2026-08-26 — ของเดิมที่ R9 (Module L) เข้าไปแตะ หรือออกแบบรอบให้โดยชัดเจน:**
+
+| ของเดิม | คำตัดสิน |
+|---|---|
+| `LessonConfig.IsDelete/DeletedAt/DeleteBy` (`init`) | **ใช้จริง + เปลี่ยนเป็น set** ไม่มี DDL สำหรับสามช่อง · query filter เพิ่ม `!IsDelete` (DM-2/DM-15) |
+| `LessonConfig.IsActive` | **ไม่ใช้แทน trash** — active toggle เป็นคนละความหมาย; archive ไม่เขียนทับค่าที่ผู้ดูแลเลือก เพื่อ restore กลับสภาพเดิม |
+| `TrainingLink.IsDelete/DeletedAt/DeleteBy` | **ใช้เป็น revoked marker แต่ retain row และไม่เติม `!IsDelete` query filter** · restore lesson ไม่คืนลิงก์ (LT-3/LT-4) |
+| `TrainingLink.ExpiresAt` | **ไม่แก้ค่า** — natural expiry กับ lesson revocation คนละเหตุผล; status mapping ต้องให้ `revoked` ชนะ `expired` |
+| `ITrainingLinkRepository.GetByToken()` ที่ `IgnoreQueryFilters()` | **คง raw lookup แต่ห้ามใช้เป็น authorization โดยลำพัง** · service แยก new/existing session และ bind learnerKey (LT-5/LT-6) |
+| `LearningSession` / `SessionQuestion` | **retain ทั้งแถว ไม่เพิ่ม field ไม่ hard/soft delete** · ใช้ relation ผ่าน TrainingLink เพื่อสร้าง exclusion/รายงาน (R9.8) |
+| `IKnowledgeQnAService.DeleteAsync` / QQ-5 | **ไม่เรียกจาก purge** เพราะจะเปิดคิวกลางทาง · dedicated batch orchestration ตาม LT-16/LT-20 |
+| `IDocumentResourceService.DeleteAsync/RestoreAsync` | **ไม่เรียกจาก archive/purge** — archive ไม่แตะเอกสาร; purge ต้องลบ bytes+hard-delete และไม่มี restore จึงเป็น contract คนละชุด (LT-18/LT-21) |
+| `IDocumentStorageProvider.DeleteAsync` | **ใช้จริงใน purge** · provider ทั้ง local/OBS มีเมธอดแล้ว ไม่เพิ่ม dependency |
+| `IKnowledgeIndexProvider.DeleteNamespaceAsync/DeleteVectorsAsync` | **ใช้ซ้ำ**; namespace ปัจจุบัน + persisted actual namespace keys ครอบ lesson/document/Q&A (LT-17) |
+| `BackgroundJob` + single-instance worker | **ใช้ซ้ำ + เพิ่ม job type** `lesson_purge`; stale generation guard อยู่ที่ `LessonConfig.PurgeJobId` · retryหลัง 3 ครั้งเฉพาะ job type นี้เป็นรายวัน (LT-11..LT-14) |
+| `LessonExcludedSlide` (Module K) | **hard-deleteตอน purge** · เป็นเหตุผลให้ L ขึ้นหลัง K ห้ามเปิด L ก่อนแล้วปล่อยให้ K เพิ่ม dependent table ทีหลัง |
+| `Company` / settings page | **ไม่แตะรอบนี้** — retention ต่อบริษัทเป็น O-18 deferred ตามคำสั่ง “ยังไม่ทำระบบนี้ตอนนี้” |
 
 ---
 
 ## Change Log
 
+- 2026-08-26 (รอบที่สี่ของวัน) — **amend CR-4 / R9: ถังบทเรียน กู้คืน และ permanent purge ·
+  เกิด Module L 🔒 · เจ้าของโปรเจกต์ยืนยัน Data Model/contract แล้ว** · เพิ่ม feasibility R9,
+  มติ **Q-L1..Q-L5**, amendment บน DM-2 (`PurgeJobId`/`PurgeStartedAt` + เปิดใช้
+  `IsDelete/DeletedAt/DeleteBy`), ตารางใหม่ **DM-18 `SessionQuestionReviewExclusion`**, constants,
+  DM-15/DM-16, contract **LT-1..LT-24**, migration **MG-L1**, Module L, R-27..R-31,
+  amend O-3 และเพิ่ม **O-18** + reconciliation table · **มติสำคัญ:** session เดิมเรียนจนจบ;
+  คำถามซ่อนตอนอยู่ในถังและกลับเมื่อ restore; purge สร้าง suppression ถาวร; shared PDF preserve
+  จนเหลือผู้ใช้รายสุดท้าย; ถ้ายังมี `IN_PROGRESS` เมื่อครบ 60 วันให้เลื่อน purgeทุก 1 ชั่วโมง
+  แม้เกิน retention; permanent delete เร่ง durable job เดิมและ external cleanup ต้อง idempotent;
+  retain link/session/question เพื่อ history · setting retention ต่อบริษัทยืนยันเป็นทิศทาง
+  **แต่ยังไม่ทำรอบนี้** (default 60, 1–365, owner/admin edit, cs read) จึงไม่มี Company field/API/UI ·
+  **schema additive แต่ query-filter/public-token behavior เป็น breaking contract ที่ต้อง QA/security** ·
+  ไม่แตะ `requirement.md`/`plan.md`/checkbox/code · **พร้อมส่ง `project-manager` แต่ยังไม่ dispatch**
+- 2026-08-26 (รอบที่สามของวัน) — **amend แบบเจาะจง: รับ CR-3 / R4.7 (ตัดหน้าออกจากบทเรียน PDF)
+  เข้าออกแบบ · เกิด Module K ใหม่ · ⚠️ รอบนี้ Data Model *ถูกแตะ* ต่างจากรอบ CR-2** ·
+  **ไม่แตะ checkbox ไม่แตะ `plan.md` ไม่แตะ `requirement.md` ไม่แตะเอกสารโมดูลอื่น ไม่มีโค้ดถูกเขียน**
+  · **✅ เจ้าของโปรเจกต์เคาะครบทั้งสี่ข้อวันนี้ (ถามทีละข้อ)**: **`Q-K1` = ตารางใหม่**
+  (`LessonExcludedSlide` · DM-17 · MG-K1) โดยตัด "ธงใน `SlideConfigs`" ทิ้งเพราะ `SaveAsync`
+  เขียนทับทั้งก้อนทุกครั้ง → รายการที่ตัดไว้จะหายเงียบ ๆ · **`Q-K2` = รับพฤติกรรมปัจจุบัน**
+  (รีเฟรชแล้วได้ชุดหน้าใหม่ทันที ไม่ snapshot ต่อ session) **และถอด vector ทันทีโดยไม่รอ session
+  ที่ค้าง** (ยอมให้ตอบ `not_found` ระหว่างที่แท็บเก่ายังสอนหน้านั้นอยู่ → **R-25**) ·
+  **`Q-K3` = หน้าแก้บทพูดแสดงครบทุกหน้า** การ์ดสีจาง + ปุ่มเอากลับ + ช่องบทพูด read-only +
+  หน้าที่ถูกตัดแสดง "หน้าที่ N ของไฟล์" (EX-11/EX-12) · **`Q-K4` = แยกเป็น Module K
+  และเริ่มหลัง Module J ปิดรอบ FULL** (→ **R-26**)
+  · **สองข้อสรุปเชิงเทคนิคที่เป็นสาระของรอบนี้ ทั้งคู่ยืนยันจากโค้ดจริงไม่ใช่การอนุมาน**:
+  (1) **R4.7.6 ไม่ขัดกับ NR-4** — `SlideObjectId` (`pdf-page-N`) กับ `Index` เป็นคนละฟิลด์ตั้งแต่
+  `PdfSlidesRenderer.BuildContent:83-84` การเรียงเลขใหม่จึงแตะเฉพาะ `Index` และ **id ไม่ขยับ**
+  ซึ่งเป็นเหตุผลเดียวที่ R4.7.8 (บทพูดเดิมคืนมา) ทำงานได้โดยไม่ต้องมีกลไกอะไรเพิ่ม →
+  **NR-4 ไม่ถูกผ่อนแม้ตัวอักษรเดียว มีแต่ข้อห้ามใหม่ต่อท้าย** (ห้ามคำนวณเลขหน้าไฟล์จากลำดับที่แสดง)
+  (2) **หน้าหนึ่งของเด็คมี vector สองใบไม่ใช่ใบเดียว** (`pdf-page-N` ของบทพูด + `{documentId}-page-N`
+  ของเอกสารเด็ค ตาม NR-8 หลังมติ CR-2.h) — **ถอดใบเดียว = R4.7.3(ข) ล้มทั้งข้อ** และสำหรับเด็คเก่า
+  ที่ scope `company` (O-14) เนื้อหาหน้าที่ถูกตัดจะยังตอบคำถามได้ทั้งบริษัท · **แก้ได้โดยไม่ต้อง
+  สร้างกลไกใหม่เลยแม้ชิ้นเดียว**: `DeleteVectorsAsync` (DM-13) + job `vector_delete` +
+  `DocumentChunk.VectorId`/`.NamespaceKey`/`.Text` ที่ R6.1 ทำไว้แล้ว (`.NamespaceKey` ครอบเคส
+  เด็คเก่าให้ฟรี · `.Text` ทำให้เอาหน้ากลับได้โดยไม่ต้อง parse ไฟล์ใหม่ จ่าย embedding หน้าเดียว)
+  · **contract ใหม่ทั้งชุด: `## Page Exclusion Rules (R4.7)` EX-1..EX-12** ·
+  **NR-1/NR-2/NR-3/NR-4/NR-5/NR-6/NR-7/NR-8/NR-12/NR-13/NR-15/NR-16/NR-17/NR-18 ถูก amend
+  เฉพาะจุด (ครึ่งที่เหลือของทุกข้อไม่ถูกแตะแม้คำเดียว)** — จุดที่สำคัญที่สุดสามจุด: **NR-6**
+  (`ProcessLessonIndexAsync` วันนี้กรองด้วย `.Where(resolvedById.ContainsKey)` → ถ้ากรองหน้าที่ถูกตัด
+  ออกจาก resolved list ตามธรรมชาติ **id จะถูกดรอปทิ้งและ vector ไม่เคยถูกลบ โดยงานขึ้น `succeeded`
+  ตามปกติ**) · **NR-12** (ลำดับ *ภายใน* ขั้นที่ 3 ต้องเป็น ล้างตาม NR-3 → เขียน exclusion →
+  index ทั้งเด็ค · สลับสองอันแรก = หน้าที่ CS ตัดทั้งเฟสหายเงียบ ๆ — กับดักตัวเดียวกับที่ NR-3
+  เขียนเตือนเรื่องบทพูดไว้แล้ว) · **NR-3/EX-10** (`GET {id}/narrations/count` เปลี่ยนรูปจาก
+  `{ count }` เป็น `{ count, excludedCount }` — **breaking แต่มี caller เดียว** ต้องแก้ TS type
+  คู่กันในเฟสเดียว) · **Module K ติด 🔒 Security gate** โดยระบุชื่อความกังวลไว้ตรง ๆ:
+  `slideObjectId` ที่มาจาก request ถูกใช้ประกอบ **vector id ที่จะถูกลบจริง** ทั้งสองชุด —
+  ของชิ้นแรกในโมดูลนี้ที่ค่าจาก request ทำให้ข้อมูลในคลังความรู้หายถาวร (ต่างจาก R6.1 ที่ id
+  มาจากแถวที่ผ่าน query filter มาแล้ว) · **`Q-K3` ทำให้เกิดข้อห้ามฝั่ง server เพิ่มหนึ่งข้อ**:
+  แก้บทพูดของหน้าที่ถูกตัดไม่ได้ ต้องปฏิเสธที่ `SaveAsync` ไม่ใช่แค่ `readOnly` ใน UI (EX-12(ก))
+  · **สิ่งที่ยังไม่ทำและห้ามทำแถม: O-17** (จัดลำดับหน้า · รวม/แยกหน้า · แทรกหน้าเปล่า ·
+  โหมด "ข้ามตอนสอนแต่ยังใช้ตอบได้" — ข้อสุดท้ายขัด R4.7.3 ตรง ๆ) · **⛔ ยังไม่ส่ง engineer**
+  — ขั้นต่อไปคือ `project-manager` วาง phase ของ Module K โดยเคารพ R-26
+
+- 2026-08-26 (รอบที่สองของวัน) — **ปิดข้อรอคำตอบอย่างเดียว ไม่มีการออกแบบใหม่**: เจ้าของโปรเจกต์
+  เคาะ **`Q-J1` = "ไม่ขัด — แตะชั่วคราวได้"** และ **`Q-J2` = "ใส่ทั้งสองที่"** ·
+  **ทั้งสองข้อตรงกับทางที่ `system-analyst` เสนอไว้ตั้งแต่รอบแรก จึงไม่มีข้อความ contract
+  ข้อไหนถูกแก้แม้คำเดียว** — **NR-10 และ NR-18 ยืนตามที่เขียนไว้ทุกตัวอักษร** (NR-10:
+  preview session ใน `IMemoryCache` · sliding 10 นาที · ไม่มีแถว ไม่มีรายการในคลัง ไม่มี index ·
+  NR-18: ภาพสไลด์ในหน้าแก้บทพูดเดิม **อยู่ในขอบเขต ห้ามตัด**) · **ไม่แตะ Data Model
+  ไม่มี migration ใหม่ ไม่แตะ NR/KL/UC/DS/KS/DM/DI ข้อใดเลย ไม่แตะ checkbox ไม่แตะ `plan.md`
+  ไม่แตะ `requirement.md` ไม่แตะเอกสารโมดูลอื่น ไม่มีโค้ดถูกเขียน** · สิ่งที่แก้ในไฟล์นี้มีสี่จุด
+  เท่านั้น: **กล่องสถานะหัวไฟล์** · **ช่องคำตัดสินของแถว R4.6.5 ใน `## Feature-by-Feature
+  Feasibility`** (จาก "ตัวอักษรต้องตีความ — ดู `Q-J1`" เป็นมติที่ยืนยันแล้ว · **เหตุผลในช่อง
+  ขวาไม่ถูกแตะแม้คำเดียว**) · **`## Unresolved Open Questions`** (ย้าย `Q-J1`/`Q-J2` จาก
+  🟠 รอคำตอบ → ✅ มติที่ปิดแล้ว พร้อมบันทึก "ทางที่ตกไป — ห้ามหยิบกลับ" ตาม pattern ของ Q-H1/Q-H2
+  และเก็บข้อความคำถามฉบับเต็มไว้ใน `<details>` เป็นบันทึกเหตุผล) · **Change Log บรรทัดนี้** ·
+  **ผลรวม: Module A–J ไม่มีข้อรอคำตอบค้างเลยแม้ข้อเดียว → `project-manager` วาง phase ของ
+  Module J ได้ทั้งก้อน ไม่มีเงื่อนไขค้าง** (ข้อจำกัดที่ยังบังคับอยู่คือ **R-24: I ก่อน J
+  ห้ามทำขนาน** และหัวข้อ 🟡 O-1..O-16 ซึ่งเป็นของที่ **ตั้งใจไม่ทำ** ไม่ใช่ของที่รอคำตอบ)
+
+- 2026-08-26 — **amend แบบเจาะจง: รับ CR-2 / R4.6 (เฟสจัดการเนื้อหาก่อนสร้างบทเรียน PDF) เข้าออกแบบ
+  · ไม่แตะ Data Model แม้ฟิลด์เดียว ไม่มี migration ใหม่ ไม่แตะ checkbox ไม่แตะ `plan.md`
+  ไม่แตะ `requirement.md` ไม่แตะเอกสารโมดูลอื่น**
+  · **NR-1/NR-2/NR-3/NR-5/NR-6/NR-8/NR-9 ถูก amend เฉพาะจุด (ครึ่งที่เหลือของทุกข้อไม่ถูกแตะ
+  แม้คำเดียว)** — สรุปว่าเปลี่ยนอะไร: NR-1 ระหว่างเฟสไม่ resolve จาก DB และ**ห้ามเรียก
+  `ILessonSlideNarrationResolver` ด้วย lessonId ปลอม/ว่าง** · NR-2 การเทียบ prefill **ยังเป็นของ
+  server เท่านั้น** client ส่งเฉพาะหน้าที่แตะและไม่ใช่ผู้ตัดสิน · NR-3 **ไม่ครอบ R4.6.8** และมี
+  กับดักลำดับที่เขียนไว้ตรง ๆ · NR-5 มีผู้ผลิตค่าสองที่ (สูตรเดียวกันเป๊ะ) · NR-6 ระหว่างเฟส
+  ไม่ enqueue อะไรเลย · NR-8 สองสำเนาย้ายมาอยู่ namespace เดียวกันหลังมติ CR-2.h
+  · **NR-10..NR-19 ใหม่ทั้งชุด** — preview session ในหน่วยความจำ + endpoint ภาพหน้า (NR-10) ·
+  company isolation ที่ต้องเขียนด้วยมือเพราะ query filter เอื้อมไม่ถึง (NR-11) · **ลำดับ commit
+  4 ขั้นที่บังคับด้วยข้อจำกัดจริงของโค้ด (`EnsureValidScope` ต้องมี lesson id · `EnsurePdfSource`
+  ต้องมีไฟล์ผูกแล้ว) พร้อมกับดัก "สลับขั้น 3↔4 = บทพูดหายเงียบ ๆ"** (NR-12) · สัญญาความล้มเหลว
+  ครบทั้ง 4 ขั้น (NR-13) · มติ CR-2.h (NR-14) · คำเตือนก่อนยืนยัน (NR-15) · เปลี่ยนไฟล์กลางเฟส
+  (NR-16) · ขอบเขต + การ supersede R8.3 (NR-17) · ภาพสไลด์ในหน้าแก้บทพูดเดิม (NR-18) ·
+  ข้อสังเกตเรื่อง AI-drafting ที่ **ห้ามมีผลกับการตัดสินใจใดในรอบนี้** (NR-19)
+  · **✅ ตัดสิน CR-2.h ตามที่เจ้าของโปรเจกต์มอบให้: `ScopeType = "lesson"` ตอน commit** —
+  เหตุผล 4 ข้อที่ NR-14 · **เป็นการเปลี่ยนค่าที่เขียนใหม่ ไม่ใช่รูปของตาราง: ไม่มีคอลัมน์ใหม่
+  ไม่มี migration ไม่มี backfill ไม่มีแถวเดิมถูกแตะ** (additive ในความหมายที่เข้มที่สุด) ·
+  **R8.2 ("R8 เป็นเรื่อง UI ล้วน") ยังจริงสำหรับ R8 แต่ไม่ครอบ R4.6** — เขียนกำกับไว้ที่ตาราง
+  "การตัดสินใจที่ผู้ใช้ยืนยันแล้ว" แถว CR-2.h และที่ DM-3 · เด็คเก่าที่ scope `company`
+  **ไม่ถูกย้าย (O-14)** ทางแก้ทีละใบคือ `PATCH /api/documents/{id}/scope` ที่มีอยู่แล้ว
+  · **ประเมิน R4.6.3 (ภาพสไลด์จริง) แล้ว: ทำได้ด้วยของที่มี ต้นทุนอยู่ที่ CPU/RAM ไม่ใช่ dependency** —
+  `PdfSlidesRenderer.RenderPagePng`/`BuildContent` รับ `Stream` ล้วน (ยืนยันจากโค้ด) จึงทำงานกับไฟล์
+  ที่ยังไม่ persist ได้ · **ข้อจำกัดที่ต้องรู้: `RenderPdfPageAsync` เดิมใช้ตรง ๆ ไม่ได้** เพราะ
+  `GetPdfBytesAsync` บังคับว่าต้องมีแถว `DocumentResource` + `ObsKey` · endpoint ภาพที่มีวันนี้ก็
+  เป็น learner-side ผูก link token ใช้ฝั่ง admin ไม่ได้ → ต้องมี endpoint ใหม่ 2 (หรือ 3 ถ้า `Q-J2`
+  ตอบว่าใส่ภาพในหน้าแก้ด้วย) ตัว
+  · **UC-5 amend (คำว่า "ห้ามแตะ" ถูก supersede · เก็บข้อความเดิมไว้ทั้งย่อหน้า) · UC-9 amend
+  (เตือนเรื่องแก้ `LessonForm.tsx` ไฟล์เดียวกันคนละบริเวณ)** — สอง contract ที่ `qa-engineer`
+  จะอ่านผิดเป็นการละเมิดขอบเขตได้ถ้าไม่แก้ตรงนี้
+  · **Module J ใหม่ (🔒 Security gate · เหตุผล 3 ข้อระบุชื่อครบ) · ลำดับใหม่ `... → G → H → I → J`
+  โดย I และ J ห้ามทำขนานกัน (R-24)** · **ไม่ยัดกลับเข้า Module E ที่ปิดไปแล้ว** (เหตุผลเดียวกับมติ Q-F)
+  · **R-21..R-24 ใหม่** (top-k ซ้ำจากสองสำเนาใน namespace เดียว · RAM/CPU ของ preview session ·
+  หน้าต่างไม่กี่วินาทีที่ index ยังเป็น prefill · การแก้ไฟล์เดียวกันชนกับ Module I) ·
+  **O-14..O-16 ใหม่** (เด็คเก่าไม่ย้าย · ห้ามสร้าง draft/autosave · AI-drafting นอกขอบเขต)
+  · **🟠 เปิดข้อรอคำตอบ 2 ข้อ: `Q-J1`** (การตีความ R4.6.5 คำว่า "ไม่มี state ที่ฝั่ง server เลย"
+  กับ byte ที่ต้องผ่าน server เพื่อ parse/render — **ต้องได้คำตอบก่อน engineer เริ่ม NR-10**
+  แต่ไม่บล็อกการวาง phase) **· `Q-J2`** (ภาพสไลด์ในหน้าแก้บทพูดเดิม — ตัด NR-18 ได้สะอาดถ้าตอบว่าไม่)
+  · **ไม่มีโค้ดถูกเขียนในรอบนี้ และ `prisma`/EF schema จริงไม่ต้องถูกแตะเลย** เพราะไม่มีการเปลี่ยน
+  Data Model — ต่างจาก amendment ที่มีฟิลด์ใหม่ (เทียบ MG-H1 รอบ Q-H1)
+
+- 2026-08-25 — **amend แบบเจาะจง: ปิด `Q-H2` ตามที่เจ้าของโปรเจกต์เคาะ = ทาง (ข) "ด่านก่อนบันทึก"
+  · ไม่แตะ Data Model แม้ฟิลด์เดียว ไม่แตะ checkbox ไม่แตะ `plan.md` ไม่แตะ `requirement.md`
+  ไม่แตะเอกสารโมดูลอื่น**
+  · **KL-23 เขียนใหม่ทั้งครึ่งแรก** — จาก "เตือนหลังบันทึก ไม่บล็อก" เป็น **ด่านก่อนเขียน**:
+  ตรวจก่อน `_repository.Add` ทุกอย่าง (ก่อนแถว `KnowledgeQnA` · ก่อน `KnowledgeQnASource` ·
+  ก่อนปิดคำถามในคิว · ก่อน `EnqueueJob(qna_index)` · ก่อน `Commit()`) → **409 `CONFLICT`**
+  ผ่าน `GeneralException.Conflict` โดย `details` เป็น **`DuplicateQnAResponse` =
+  `{ duplicateByQuestion: KnowledgeQnAViewModel[] }`** (เป็น**ลิสต์** เรียงใหม่→เก่า เพราะการ
+  "ยืนยันบันทึกซ้ำ" ทำให้มีหลายใบซ้ำกันได้จริง `FirstOrDefault` เดิมจึงไม่พอ) ·
+  **ครึ่งหลังของข้อ (การเทียบในหน่วยความจำ · `Question` เท่านั้น · ไม่ข้ามบริษัท · ไม่สน scope)
+  ไม่ถูกแตะแม้คำเดียว** — มตินี้เปลี่ยน**จังหวะและกลไกตอบกลับ** ไม่ได้เปลี่ยน**นิยามของคำว่าซ้ำ**
+  · **ตัดสิน default-on vs default-off ด้วยการอ่าน call site จริง ไม่ใช่ลอกรูปของ KL-21** —
+  ทางสร้าง Q&A มี call site เดียวในโปรเจกต์ (`app/admin/qna-queue/page.tsx:130` · `mode="create"`)
+  ส่วน `KnowledgeQnATable.tsx:171` เป็น `mode="edit"` และ KL-25 รับประกันว่าจะไม่มีที่สอง →
+  **ไม่มี caller ที่ต้องเงียบแบบ `handlePdfUpload`/UC-5 ซึ่งเป็นเหตุผลทั้งหมดที่ KL-21 ต้อง opt-in**
+  → **การตรวจเป็น unconditional ไม่มีธง `CheckDuplicate`** และธงที่เพิ่มคือธงยืนยันขาออก
+  **`CreateKnowledgeQnADto.ConfirmDuplicate` (default `false`)** แทน (ธงที่มีค่าถูกต้องค่าเดียว
+  คือกับดักแบบ R-14)
+  · **KL-26 ใหม่ — contract ของ UI ที่ `/admin/qna-queue`**: ปุ่ม "ยืนยันบันทึกซ้ำ" ส่งซ้ำด้วย
+  `confirmDuplicate: true` (mirror ของ KL-21) · **"แก้ใบเดิมแทน" ทำในที่เดิมโดย dialog สลับเป็น
+  `mode: "edit"` จาก payload ที่มีแถวครบทุกฟิลด์อยู่แล้ว** · **prop `onEditExisting` ถูกลบทิ้ง**
+  (ปุ่มตายของ Q-H2 ต้องหายไปจริง ไม่ใช่ย้ายที่) · **⛔ ห้ามลิงก์ไป `/admin/documents?q=<คำถาม>`
+  และห้ามเพิ่ม `q` เข้า URL param ของหน้าคลัง** — ตกไปพร้อมทาง (ก) เพราะมันเป็น*การค้นหา*
+  (KL-11 "มีคำนี้อยู่ข้างใน" + ขั้นต่ำ 2 ตัวอักษรของ KL-12) ไม่ใช่การชี้ไปที่แถว และการออกจากหน้า
+  ทิ้งคำตอบที่พิมพ์ค้าง + การเลือกแถวคิวไปด้วย · **เขียนผลที่ต้องบอกที่หน้าจอไว้ในข้อ**: การแก้ใบเดิม
+  **ไม่ปิด**คำถามในคิว (QQ-2/QQ-6) และ **ห้ามปิดเป็นผลข้างเคียงเด็ดขาด**
+  · **`KnowledgeQnACreateResultViewModel` ถูกลบทั้งคลาส** พร้อม `DuplicateWarning` ·
+  `POST /api/knowledge-qna` คืน `{ qna }` รูปเดียวกับ `PUT` — **breaking แต่มี caller เดียว
+  (`api-client.ts:667-671`) ต้องเปลี่ยนสองฝั่งในเฟสเดียว ห้ามปล่อยคร่อม** · เก็บกับดักที่เจอ
+  ระหว่างทางไว้ในข้อด้วย: ของเดิมคืน ViewModel ทั้งใบ ทำให้ property `QnA` ออก wire เป็น **`qnA`**
+  ไม่ใช่ `qna` ที่ api-client ประกาศ (ไม่มีใครอ่านฟิลด์นั้นจึงไม่มีใครเจอ) — การห่อ `new { qna = ... }`
+  ปิดกับดักนี้ไปพร้อมกัน
+  · **O-13 ใหม่ (🟡 ค้างไว้โดยตั้งใจ)** — ผลตรงของมตินี้: ยังไม่มีทาง "ผูกคำถามในคิวเข้ากับ Q&A
+  ที่มีอยู่แล้ว" (ปุ่มที่สาม "ใช้คำตอบเดิมกับคำถามนี้" = เพิ่ม `KnowledgeQnASource` เข้าใบเดิม)
+  ซึ่ง **QQ-7 รองรับเชิงโครงสร้างอยู่แล้วแต่ไม่มี endpoint และไม่มี requirement ข้อไหนขอ** →
+  **เป็นความต้องการใหม่ ต้องกลับไป `business-analyst` (R7.7) ห้าม engineer เปิดทางนี้เอง** ·
+  **ไม่ใช่ regression** เพราะวันนี้ระบบบันทึกใบซ้ำทุกครั้งโดยไม่ถามอยู่แล้ว
+  · **ตรวจแล้วไม่ต้องแก้ (ยืนยันด้วยการอ่านข้อจริง ไม่ใช่เดา)**: **KL-15** (ข้อความยืนยันตอนลบ) และ
+  **KL-16** (ลบแล้วคำถามกลับเข้าคิว + ลิงก์ไป `/admin/qna-queue`) — ทั้งสองข้อพูดถึงการ**ลบ Q&A
+  ที่มีอยู่แล้ว** ไม่มีการอ้าง KL-23 อยู่ในข้อ (grep ยืนยัน: KL-23 ถูกอ้างที่ KL-20/KL-25 เท่านั้น)
+  และการกลับเข้าคิวมาจาก `DeleteAsync` + QQ-1 ล้วน **ไม่พึ่งจังหวะของ KL-23 เลย** · KL-14/KL-17/
+  KL-18..KL-22/KL-24/KL-25 · QQ-1..QQ-10 · Data Model ทั้งชุด · ลำดับ Module H → I
+  · **แก้เหตุผล 🔒 gate ข้อ (4) ของ Module H ให้ครอบ KL-23 ด้วย** — 409 ของ
+  `POST /api/knowledge-qna` เปิดเผย `Question` + `Answer` เต็มๆ ของ Q&A ใบอื่น (เนื้อความในคลัง
+  ความรู้ หนักกว่า metadata ของไฟล์ที่ KL-21 เปิดเผย) จากข้อความที่ผู้เรียกป้อนเข้ามาเอง →
+  test สองบริษัทที่ `KnowledgeQnAServiceTests.cs:259` **ห้ามลบ ให้เขียนใหม่ให้ยืนยัน 409**
+  · **`plan.md` ไม่ถูกแตะในรอบนี้โดยเจตนา** — task ของ Phase 8 ที่เขียนบน สมมติฐาน "เตือนหลังบันทึก"
+  (รวมบรรทัด 257 และ test KL-23 บรรทัด 262) **ต้องถูกเขียนใหม่โดย `project-manager`** ก่อนส่งต่อ
+  engineer · **`qa-engineer` ยังห้ามปิด KL-23 เป็น ✅** จนกว่าโค้ดจะตรงกับ contract ใหม่นี้
+- 2026-08-25 — **amend: reconcile Phase 8 หลัง `backend-engineer`/`frontend-engineer` ตีกลับ
+  3 จุดที่ contract ไม่ตรงกับของจริง — ไม่แตะ Data Model แม้ฟิลด์เดียว ไม่แตะ checkbox**
+  · **(1) KL-21 field drift — เอกสารผิด โค้ดถูก**: ชื่อ wire ของวันที่ในรายการซ้ำคือ `createdAt`
+  ไม่ใช่ `createDate` (ยืนยันกับ `DocumentResourceViewModel.cs:37-44`) และ **409 ไม่ใช่ body เปล่า**
+  แต่ขี่มาใน `ApiErrorResponse.error.details` เดิมของระบบ ผ่าน `GeneralException.Conflict` +
+  `ApiErrorCode.Conflict = "CONFLICT"` (ยืนยันทั้ง `ApiErrorCode.cs` และ `frontend/src/types/api.ts`)
+  — เขียน envelope จริงลงใน KL-21 แทนถ้อยคำเดิมที่ทำให้เข้าใจผิด
+  · **(2) KL-25 ใหม่ — ปิดช่องว่าง "สร้าง Q&A จากหน้าคลัง" ให้ขาด**: ตรวจ `requirement.md`
+  R7.2/R7.6/CR-1.h แล้วไม่มีข้อไหนขอการสร้าง และ **ตาม QQ-2/QQ-7 มันสร้างไม่ได้อยู่แล้ว**
+  (`SessionQuestionIds` ต้องมีอย่างน้อยหนึ่ง หน้าคลังไม่มีแถวคิวให้ผูก) → `frontend-engineer`
+  ที่ไม่ยอมสร้างปุ่มเอง **ทำถูกต้อง** · KL-17 เพิ่มบรรทัดชี้ไป KL-25 กันอ่านสองข้อนี้แยกกัน ·
+  ถ้อยคำ task ใน `plan.md` ที่คลาดเคลื่อนถูกแก้ในรอบเดียวกัน **phasing ไม่เปลี่ยน จึงไม่ต้องเรียก
+  `project-manager`**
+  · **(3) รับการเทียบซ้ำแบบ in-memory เข้าเป็นข้อบังคับใน KL-19/KL-20/KL-23 พร้อมเหตุผลในตัว
+  contract เอง** — เหตุผลที่หนักที่สุดไม่ใช่เรื่อง test แต่เป็นเรื่องความถูกต้อง: `EF.Functions.ILike`
+  ตีความ `_`/`%` **ที่อยู่ในชื่อไฟล์** เป็น wildcard → `report_2026.pdf` แมตช์ `report-2026.pdf`
+  เป็น false positive ทั้งที่ KL-20 สั่ง "เทียบเต็มสตริง" · และ "ยุบช่องว่าง" ของ KL-23 แปลเป็น
+  `ILike` ไม่ได้เลย · บวกกับ fakes ของ `Application.Tests` ที่ทำให้ test สี่ตัวตาม R-12 เขียนไม่ได้
+  ถ้าใช้ `ILike` · เขียน "ห้ามแก้กลับ" + เส้นที่ต้องกลับมา amend (~500 รายการต่อบริษัท เส้นเดียวกับ
+  O-11) ไว้ในข้อ · **แก้ KL-19 ให้เลิกอ้างว่าคิวรีใช้ index `(CompanyId, ContentHash)`** เพราะโค้ดจริง
+  เทียบ hash ในหน่วยความจำบนลิสต์ก้อนเดียวกับ KL-20 (brief ที่ส่งมาเข้าใจว่า KL-19 ยังเป็น DB-level
+  — ตรวจไฟล์แล้วไม่ใช่) **แต่คง index ไว้ ห้าม drop** · **KL-11 ไม่ถูกแตะ ยังเป็น `ILike` จริงที่ระดับ
+  คิวรีทุกตัวอักษร**
+  · **เปิด `Q-H2` เป็นข้อรอมติ (🔴)** — เจอเพิ่มจากการอ่านโค้ด ไม่ได้อยู่ใน 3 ข้อที่ถูกมอบหมาย:
+  คำเตือน KL-23 ขึ้น**หลัง**บันทึกสำเร็จ ทำให้ปุ่ม "บันทึกเพิ่มอยู่ดี" กับ "ไปแก้ใบเดิมแทน" ให้ผล
+  เหมือนกันเป๊ะคือปิด dialog · ทางเลือก (ก) คำเตือนหลังบันทึกแต่ห้าม UI โกหก + deep-link ไป
+  `?q=` กับ (ข) เปลี่ยนเป็นด่านก่อนบันทึกแบบ KL-21 มีราคาต่างกันมาก **`system-analyst` ไม่ตัดสินเอง**
+  · ระหว่างรอมติ ห้ามปิด KL-23 เป็น ✅
 - 2026-08-19 — สร้างเอกสารครั้งแรกจาก `requirement.md` (R1–R6, P1–P9) · ยืนยัน feasibility
   ครบทุกข้อด้วย stack เดิม ไม่ต้องเพิ่ม dependency · Data Model 16 ส่วน (ตารางใหม่ 8 · แก้ของเดิม 3 ·
   constants 4 ชุด · interface 2 ตัว) · contract 5 ชุด (Taxonomy · Knowledge Scope & Retrieval ·
@@ -1227,3 +2262,79 @@ G วางไว้ท้ายสุดเพราะขึ้นกับ A/
   สมมติฐาน per-lesson pacing · ผลที่ได้คือ QA รอบหน้าของโมดูลนี้จะไม่รายงานสามคอลัมน์นี้เป็น drift
   ผิดๆ อีก · **ไม่แตะเอกสารของโมดูลอื่นแม้แต่ไฟล์เดียว** (`company-admin/design.md` บันทึกมติของ
   ตัวเองครบถูกต้องอยู่แล้ว)
+- 2026-08-25 — **amend: รับ R7 + R8 เข้าออกแบบ และยกเลิก DS-8/Q-C ตามมติ CR-1.j** (ไม่มีโค้ด
+  ไม่แตะ checkbox ไม่แตะ `requirement.md`) · **ที่มา**: `business-analyst` ปิด CR-1 ครบเมื่อ
+  2026-08-24 — ข้อเสนอเดิม (ยุบ knowledge scope เหลือกองเดียว) **ตกไป** และ CR-1.g ยืนยันว่า
+  พฤติกรรมการค้นคำตอบวันนี้ถูกต้องแล้วทั้งหมด → **R3 + KS-1..KS-11 คงเดิมทั้งชุด ไม่ถูกแตะแม้
+  ข้อเดียวในรอบนี้** · **สิ่งที่เพิ่ม**: contract ใหม่ 2 ชุด — `## Knowledge Library View Rules`
+  (**KL-1..KL-18**, R7) และ `## Upload Consolidation Rules` (**UC-1..UC-10**, R8) · **Module H**
+  (Knowledge library view · 🔒 Security gate) และ **Module I** (Upload consolidation · ไม่ติด gate
+  เพราะเป็นการลบ UI ล้วน ไม่เพิ่มพื้นที่โจมตี) พร้อมลำดับ `... → G → H → I` · 10 แถวใหม่ใน
+  Feature-by-Feature (R7.1–R7.6, R8.1/R8.3/R8.4) · 4 มติใหม่ในตาราง "การตัดสินใจที่ผู้ใช้ยืนยันแล้ว"
+  (CR-1.g/CR-1.h/CR-1.j/R7.6) · **R-16..R-19** · **O-10..O-12** (deferred โดยรู้ตัว: ไม่มีถังกู้คืน
+  Q&A · ไม่มี pagination · "ซ้ำ" = ซ้ำเป๊ะเท่านั้น) · ตารางกระทบของเดิม 14 แถวใน "เรื่องที่ตรวจสอบ
+  ครบแล้วในรอบนี้"
+  · **สิ่งที่กลับทิศ**: **DS-8 ครึ่งหลัง (โหมด `fixedScope` ในหน้าแก้บทเรียน) ถูกยกเลิก** ตามคำตอบ
+  CR-1.j = "ลบทิ้งไปเลย" · แถวมติ **Q-C** ในตารางการตัดสินใจถูกขีดฆ่าและทำเครื่องหมายว่าห้าม
+  อ้างอิงแล้ว (ไม่ลบทิ้ง — เก็บไว้เป็นบันทึกว่าเคยตัดสินอะไรและถูกกลับเพราะอะไร) · **DS-4 แก้ที่
+  ประโยคเดียว**: ไม่ส่ง query = ทุก scope (เดิม = `company`) ตาม R7.1 · DS-9 เพิ่มตัวเลือก filter
+  "ทั้งหมด"/"เฉพาะบทเรียน"
+  · **additive/breaking**: **Data Model ไม่เปลี่ยนแม้แต่ฟิลด์เดียว · ไม่มี migration ใหม่ ·
+  ไม่มีข้อมูลเดิมถูกแตะแม้แถวเดียว** · ฝั่ง wire contract **ไม่ breaking** (endpoint เดิมทุกตัว
+  รับพารามิเตอร์เดิมได้เหมือนเดิม เปลี่ยนแค่พฤติกรรมกรณี "ไม่ส่ง scope มาเลย" ซึ่งหลัง UC-2 แล้ว
+  เหลือ caller เดียวคือหน้าคลังที่ต้องการพฤติกรรมใหม่พอดี) · endpoint ใหม่ **1 ตัว**
+  (`GET /api/knowledge-qna`) เป็นการเพิ่มล้วน
+  · **⏸️ ค้าง 1 ข้อ: Q-H1** (R7.5 "เนื้อหาซ้ำ" จะรู้ได้อย่างไร — ทาง A ชื่อไฟล์อย่างเดียว ไม่มี
+  schema change · ทาง B เพิ่ม `DocumentResource.ContentHash` แบบ additive) — **ยังไม่ได้เคาะ
+  จึงยังไม่ถูกเขียนลง `## Data Model` และยังไม่เป็น contract** ตาม `.claude/shared/conventions.md`
+  §6 ข้อ 2 · **บล็อกเฉพาะ R7.5/KL-18 ไม่บล็อกอย่างอื่นในโมดูลนี้เลย**
+  · **แก้ความเข้าใจที่ส่งต่อกันมาผิด 2 จุด (ยืนยันด้วยโค้ดจริง ตาม conventions §12)**: (1) **R7.6
+  ยังไม่เสร็จทั้งข้อ** — backend (`UpdateAsync`/`DeleteAsync`, `PUT`/`DELETE /api/knowledge-qna/{id}`)
+  และฟังก์ชันใน `api-client.ts:643-654` มีจริงและเอกสารนี้รับรองย้อนหลังแล้ว **แต่ grep ทั้ง
+  `frontend/src/app` และ `frontend/src/components` ไม่พบ call site แม้แต่จุดเดียว** → ฝั่ง UI
+  ยังเป็นงานเต็มใบ (KL-14..KL-17) และไม่มี checkbox ไหนใน `plan.md` ครอบของที่ทำไปแล้ว (R-19)
+  (2) **ที่อยู่ของโค้ดที่ R8 ต้องแตะเปลี่ยนไปแล้ว** — การ์ด "เอกสารประกอบ" และ `handlePdfUpload`
+  ย้ายจาก `app/admin/lessons/[slug]/page.tsx` (ที่ `requirement.md` R8.1/R8.3 อ้าง) ไปอยู่ที่
+  `components/admin/LessonForm.tsx:679-698` และ `:187` ตามลำดับ · เขียนที่อยู่จริงลง UC-1/UC-5
+  เพื่อไม่ให้ engineer ไปลบผิดไฟล์ (ลบ `handlePdfUpload` = สร้างบทเรียนแบบ PDF ไม่ได้อีกเลย)
+- 2026-08-25 — **amend แบบเจาะจง: ปิด `Q-H1` (ข้อค้างสุดท้ายของโมดูล) ตามที่เจ้าของโปรเจกต์
+  เคาะเป็น "ทาง B"** (ไม่มีโค้ด · ไม่แตะ checkbox · ไม่แตะ `requirement.md` · ไม่แตะ `plan.md` ·
+  ไม่แตะเอกสารของโมดูลอื่น) · **ขอบเขตของรอบนี้แคบมากโดยตั้งใจ — แตะเฉพาะสิ่งที่ Q-H1 บล็อกไว้
+  เท่านั้น**: R7/R8 contract ที่เหลือ (KL-1..KL-17, UC-1..UC-10), R3 + KS-1..KS-11, Module A–G
+  และลำดับ `... → G → H → I` **ไม่ถูกแตะแม้ข้อเดียว**
+  · **สิ่งที่เพิ่มเข้า Data Model**: `DocumentResource.ContentHash` (`string?`, `init`,
+  SHA-256 hex ตัวพิมพ์เล็ก 64 ตัว) ใน DM-3 + index `(CompanyId, ContentHash)` **แบบไม่ unique**
+  ใน DM-15 · **`ContentHash` ไม่ออก API** (ไม่เพิ่มลง ViewModel ใดๆ)
+  · **สิ่งที่เพิ่มเข้า contract**: `KL-18` เขียนใหม่ทั้งข้อจาก "⏸️ ยังไม่เป็น contract" เป็นกติกา
+  ที่ปิดแล้ว และเพิ่ม **KL-19..KL-24** — นิยาม "เนื้อหาซ้ำ" ที่โค้ดตัดสินได้ (hash เท่ากันเป๊ะ
+  ในบริษัทเดียวกัน · `null` ไม่เคยซ้ำกับอะไร · ไม่นับของที่ลบแล้ว · ข้าม scope ได้ · **ห้ามข้ามบริษัท**) ·
+  "ชื่อซ้ำ" เป็นการตรวจแยกที่ต้องทำคู่กันและรายงานแยก 4 กรณี · **เตือนไม่บล็อก ผ่านฟิลด์ใหม่
+  `UploadDocumentDto.CheckDuplicate` ค่าเริ่มต้น `false`** (ตรวจแล้วคืน 409 พร้อมรายการที่ซ้ำ →
+  CS กด "อัปโหลดต่อไป" = ส่งซ้ำด้วย `false`) · ข้อความที่ CS เห็น · Q&A คำถามซ้ำเป๊ะ ·
+  และรายการ "ห้ามขยาย"
+  · **เหตุผลที่ default เป็น `false` ไม่ใช่ `true`**: `handlePdfUpload` (UC-5 / R8.3 — ห้ามแตะ)
+  ใช้ `api.uploadDocument` ตัวเดียวกัน และการเอา PDF ไฟล์เดิมไปสร้างบทเรียนที่สองเป็นเรื่องปกติ —
+  ถ้า default เป็น `true` การสร้างบทเรียนจะเด้ง 409 ใส่หน้า CS ซึ่งคือความพังแบบเดียวกับที่ R8.3
+  เขียนขึ้นมาเพื่อกันโดยเฉพาะ
+  · **additive/breaking — ทุกด้านเป็น additive ล้วน**: DB **additive** (คอลัมน์ใหม่ nullable ถาวร
+  + index ใหม่ · **ไม่ backfill · ไม่มี `UPDATE` แม้แถวเดียว · ไม่แตะ Pinecone** · `Down()`
+  ย้อนกลับได้ 100%) · wire contract **ไม่ breaking** (`CheckDuplicate` เป็น optional ที่ค่าเริ่มต้น
+  = พฤติกรรมเดิมทุกตัวอักษร ผู้เรียกเดิมทั้ง 3 จุดไม่ต้องแก้) · **ไม่มี endpoint ใหม่**
+  · **migration**: เพิ่ม **`MG-H1` = `AddDocumentContentHash`** ใน Migration Plan · **ต้องอยู่เฟส
+  เดียวกับ KL-18..KL-24 ห้ามแยก** · **generate ตอน implement เท่านั้น ห้ามสร้างล่วงหน้า** (กติกาเดิม
+  ของหัวข้อนั้น)
+  · **ราคาที่บันทึกไว้ให้ทุกคนเห็น**: เอกสารทุกใบที่อัปก่อน `MG-H1` มี `ContentHash = null`
+  และ **จะไม่ถูกจับว่าเนื้อหาซ้ำตลอดไป** — ขึ้นเป็น **R-20** ใน Risks, บังคับให้เขียนบอกที่หน้าจอ
+  ตาม KL-22, และชดเชยด้วย KL-20 (ชื่อไฟล์ซ้ำ ซึ่งใช้กับเอกสารเก่าได้ 100%) · **`qa-engineer`
+  ต้องไม่รายงานพฤติกรรมนี้เป็น ❌**
+  · **สิ่งที่เลิกบล็อกแล้ว**: ข้อความ "⛔ R7.5/KL-18 ห้ามหยิบจนกว่า Q-H1 จะเคาะ" ถูกลบออกจาก
+  Module H, Migration Plan, Feature-by-Feature (R7.5) และกล่องสถานะหัวเอกสาร ·
+  **`project-manager` วาง phase ของ Module H/I ได้ทั้งก้อนแล้ว ไม่ต้องกัน R7.5 ออกเป็นก้อนแยก
+  ที่ยังไม่วางอีกต่อไป**
+  · **เพิ่มเหตุผล 🔒 gate ข้อที่ (4) ให้ Module H**: คิวรีจับซ้ำตอบคำถามว่า "ไฟล์นี้มีอยู่แล้วไหม"
+  จาก input ของผู้เรียกเอง — ถ้า `CompanyId` หลุด มันคือเครื่องมือถามข้อมูลข้ามบริษัททีละไฟล์ ·
+  ต้องมี test ที่มีสองบริษัทถือไฟล์เดียวกัน
+  · **⚠️ ยังไม่จบที่เอกสารนี้** — ตาม `.claude/shared/conventions.md` §7 การแก้ schema จะลงจริง
+  เมื่อ `backend-engineer` propagate `ContentHash` เข้า entity + `OnModelCreating` + migration
+  จริง แล้ว `qa-engineer` ยืนยันว่าโค้ดกับ Data Model ตรงกันอีกครั้ง · **`system-analyst`
+  ไม่แตะโค้ดและไม่ generate migration เอง**

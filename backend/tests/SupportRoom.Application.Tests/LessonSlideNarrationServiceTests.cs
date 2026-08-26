@@ -26,6 +26,7 @@ public class LessonSlideNarrationServiceTests
     private readonly FakeDocumentResourceRepository _documents = new();
     private readonly FakeKnowledgeCategoryRepository _categories = new();
     private readonly FakeLessonSlideNarrationRepository _narrations = new();
+    private readonly FakeLessonExcludedSlideRepository _excludedSlides = new();
     private readonly FakeBackgroundJobRepository _jobs = new();
     private readonly FakeUnitOfWork _unitOfWork = new();
     private readonly LocalDocumentStorageProvider _storage = new(NullLogger<LocalDocumentStorageProvider>.Instance);
@@ -40,10 +41,12 @@ public class LessonSlideNarrationServiceTests
         _unitOfWork.Register<IDocumentResourceRepository>(_documents);
         _unitOfWork.Register<IKnowledgeCategoryRepository>(_categories);
         _unitOfWork.Register<ILessonSlideNarrationRepository>(_narrations);
+        _unitOfWork.Register<ILessonExcludedSlideRepository>(_excludedSlides);
         _unitOfWork.Register<IBackgroundJobRepository>(_jobs);
         _unitOfWork.Register<ICompanyRepository>(new FakeCompanyRepository());
 
         var resolver = new LessonSlideNarrationResolver(_unitOfWork);
+        var (guard, currentUser) = TestFixtures.AdminContext(AdminRole.Owner, TestFixtures.CompanyId);
         _lessonConfigService = new LessonConfigService(
             _unitOfWork,
             new FakeServiceProvider(),
@@ -52,7 +55,9 @@ public class LessonSlideNarrationServiceTests
             new FakeKnowledgeIndexingService(),
             _storage,
             new MemoryCache(new MemoryCacheOptions()),
-            resolver);
+            resolver,
+            guard,
+            currentUser);
 
         _service = new LessonSlideNarrationService(
             _unitOfWork,
@@ -204,7 +209,26 @@ public class LessonSlideNarrationServiceTests
         await _service.SaveAsync(lesson.Id, "pdf-page-1", "แก้หน้า 1");
         await _service.SaveAsync(lesson.Id, "pdf-page-2", "แก้หน้า 2");
 
-        Assert.Equal(2, _service.CountByLessonId(lesson.Id));
+        Assert.Equal(2, _service.CountByLessonId(lesson.Id).Count);
+    }
+
+    [Fact]
+    public async Task CountByLessonId_AlsoReportsExcludedCount()
+    {
+        var lesson = await SeedPdfLessonAsync();
+        _excludedSlides.Items.Add(new LessonExcludedSlide
+        {
+            Id = "exsl-1",
+            CompanyId = TestFixtures.CompanyId,
+            LessonId = lesson.Id,
+            SlideObjectId = "pdf-page-1",
+            CreateDate = DateTime.UtcNow,
+        });
+
+        var (count, excludedCount) = _service.CountByLessonId(lesson.Id);
+
+        Assert.Equal(0, count);
+        Assert.Equal(1, excludedCount);
     }
 
     // ---- Resolver (NR-1) ---------------------------------------------------

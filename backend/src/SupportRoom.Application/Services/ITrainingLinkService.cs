@@ -28,8 +28,26 @@ public interface ITrainingLinkService
     PublicTrainingLinkViewModel GetPublicByToken(string token);
 
     /// <summary>Entity-level variant for callers that need the row itself (the learning-session
-    /// service needs the id and expiry, not a wire model). Resolves company identically.</summary>
+    /// service needs the id and expiry, not a wire model). Resolves company identically.
+    ///
+    /// Does NOT check IsDelete - a revoked link is a real link (its metadata/history must stay
+    /// visible to back office and to the join screen's "resumable?" check), so this alone is not
+    /// an authorization decision for the recipient-side content surface. See
+    /// GetEntityByTokenForContentAccess (R9/LT-5/LT-6) for that gate.</summary>
     TrainingLink GetEntityByToken(string token);
+
+    /// <summary>
+    /// R9/LT-5/LT-6 - the gate in front of every recipient-side endpoint that serves a lesson's
+    /// actual teaching content (the full deck, a PDF page image, or an AI answer). A link that is
+    /// not revoked always passes through unchanged. A revoked link passes ONLY when
+    /// (token, learnerKey) resolves to that link's own LearningSession, currently IN_PROGRESS -
+    /// every other case (missing/blank learnerKey, a different learner's key, no session at all,
+    /// an already-ended session, a brand new visitor) throws the exact same NotFound a bad token
+    /// would, so a trashed lesson's existence is never distinguishable from "this link doesn't
+    /// exist" to an outside caller. Do not relax this to "token is enough" or "any learnerKey for
+    /// this lesson" - both are exactly the holes this gate exists to close.
+    /// </summary>
+    TrainingLink GetEntityByTokenForContentAccess(string token, string? learnerKey);
 }
 
 public sealed class TrainingLinkService(IUnitOfWork unitOfWork, IServiceProvider serviceProvider, ILogger<ITrainingLinkService> logger)
@@ -154,6 +172,33 @@ public sealed class TrainingLinkService(IUnitOfWork unitOfWork, IServiceProvider
             throw GeneralException.Forbidden("ลิงก์นี้ไม่ได้อยู่ในบริษัทที่กำลังดู");
         }
         CompanyContext.Resolve(entity.CompanyId);
+        return entity;
+    }
+
+    public TrainingLink GetEntityByTokenForContentAccess(string token, string? learnerKey)
+    {
+        var entity = GetEntityByToken(token);
+        if (!entity.IsDelete)
+        {
+            return entity;
+        }
+
+        // R9/LT-5 - revoked: only an IN_PROGRESS session bound to THIS learnerKey may keep
+        // reading content. An ended session, a wrong/missing key, or no session at all must fail
+        // exactly like an unknown token - never reveal that a lesson used to exist here.
+        if (string.IsNullOrWhiteSpace(learnerKey))
+        {
+            throw GeneralException.NotFound("ลิงก์ หรือลิงก์หมดอายุ");
+        }
+
+        var hasInProgressSession = _learningSessionRepository
+            .FindBy(s => s.TrainingLinkId == entity.Id && s.LearnerKey == learnerKey && s.Status == SessionStatus.InProgress)
+            .Any();
+        if (!hasInProgressSession)
+        {
+            throw GeneralException.NotFound("ลิงก์ หรือลิงก์หมดอายุ");
+        }
+
         return entity;
     }
 

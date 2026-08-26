@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using SupportRoom.Domain.Entities;
 using SupportRoom.Providers.Data.Common;
 using SupportRoom.Providers.Data.Data;
@@ -13,6 +14,11 @@ public interface IKnowledgeQnASourceRepository : IRepositoryBase<KnowledgeQnASou
     IQueryable<KnowledgeQnASource> GetBySessionQuestionIds(IReadOnlyList<string> sessionQuestionIds);
 
     IQueryable<KnowledgeQnASource> GetByQnAId(string qnaId);
+
+    /// <summary>R9/LT-19 - every source row of these Q&amp;A ids regardless of soft-delete state,
+    /// for purge's hard-delete step. IgnoreQueryFilters() only exists to see past `!IsDelete` -
+    /// CompanyId is reapplied explicitly (LT-23).</summary>
+    IQueryable<KnowledgeQnASource> GetByQnAIdsIncludingDeleted(string companyId, IReadOnlyList<string> qnaIds);
 }
 
 public sealed class KnowledgeQnASourceRepository(ApplicationDbContext dbContext)
@@ -23,4 +29,8 @@ public sealed class KnowledgeQnASourceRepository(ApplicationDbContext dbContext)
 
     public IQueryable<KnowledgeQnASource> GetByQnAId(string qnaId)
         => FindBy(x => x.QnAId == qnaId);
+
+    public IQueryable<KnowledgeQnASource> GetByQnAIdsIncludingDeleted(string companyId, IReadOnlyList<string> qnaIds)
+        => Context.KnowledgeQnASource.IgnoreQueryFilters()
+            .Where(x => x.CompanyId == companyId && qnaIds.Contains(x.QnAId));
 }
