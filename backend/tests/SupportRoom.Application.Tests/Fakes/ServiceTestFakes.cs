@@ -77,6 +77,13 @@ internal sealed class FakeDocumentResourceRepository : IDocumentResourceReposito
     public IQueryable<DocumentResource> GetByScope(string scopeType, string? scopeId)
         => Items.AsQueryable().Where(x => x.ScopeType == scopeType && x.ScopeId == scopeId && !x.IsDelete);
     public IQueryable<DocumentResource> GetDeleted(string companyId) => Items.AsQueryable().Where(x => x.CompanyId == companyId && x.IsDelete);
+
+    // Mirrors the real FindBy(_ => true) - the real isolation comes entirely from the EF query
+    // filter, which this fake reproduces with the same "!IsDelete" half GetAll() already applies
+    // (CompanyId isolation is not reproduced here on purpose - see the class-level warning on
+    // FakeCompanyRepository for why a "helpfully" scoped fake would hide the bugs these tests
+    // exist to catch; callers that need company isolation filter CompanyId explicitly themselves).
+    public IQueryable<DocumentResource> GetAllInCompany() => GetAll();
 }
 
 /// <summary>⚠️ Unscoped for the same reason as FakeCompanyRepository - the real BackgroundJob
@@ -197,6 +204,10 @@ internal sealed class FakeKnowledgeQnARepository : IKnowledgeQnARepository
 
     public IQueryable<KnowledgeQnA> Search(string keyword)
         => GetAll().Where(x => x.Question.Contains(keyword) || x.Answer.Contains(keyword));
+
+    // See FakeDocumentResourceRepository.GetAllInCompany() for why this does not also filter
+    // CompanyId.
+    public IQueryable<KnowledgeQnA> GetAllInCompany() => GetAll();
 }
 
 internal sealed class FakeKnowledgeQnASourceRepository : IKnowledgeQnASourceRepository

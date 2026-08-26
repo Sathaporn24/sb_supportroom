@@ -11,6 +11,11 @@ public interface IKnowledgeQnARepository : IRepositoryBase<KnowledgeQnA, string>
     /// <summary>Simple substring match against Question/Answer - a keyword search, not full-text
     /// ranking (the knowledge base itself is what handles ranked retrieval).</summary>
     IQueryable<KnowledgeQnA> Search(string keyword);
+
+    /// <summary>KL-9 - same shape as IDocumentResourceRepository.GetAllInCompany() in every
+    /// respect: FindBy(_ => true), isolation left entirely to the EF global query filter, never
+    /// IgnoreQueryFilters().</summary>
+    IQueryable<KnowledgeQnA> GetAllInCompany();
 }
 
 public sealed class KnowledgeQnARepository(ApplicationDbContext dbContext)
@@ -21,4 +26,6 @@ public sealed class KnowledgeQnARepository(ApplicationDbContext dbContext)
 
     public IQueryable<KnowledgeQnA> Search(string keyword)
         => FindBy(x => x.Question.Contains(keyword) || x.Answer.Contains(keyword));
+
+    public IQueryable<KnowledgeQnA> GetAllInCompany() => FindBy(_ => true);
 }

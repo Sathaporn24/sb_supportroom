@@ -19,7 +19,7 @@ public sealed class HttpStatusCodeExceptionHandler : IExceptionHandler
             return false;
         }
 
-        await ApiErrorEnvelope.WriteAsync(httpContext, (int)statusCodeException.StatusCode, statusCodeException.Code, statusCodeException.Message);
+        await ApiErrorEnvelope.WriteAsync(httpContext, (int)statusCodeException.StatusCode, statusCodeException.Code, statusCodeException.Message, statusCodeException.Details);
         return true;
     }
 }

@@ -76,7 +76,7 @@ Already scaffolded — this is an existing project (`frontend/` Next.js + `backe
 
 | Module | Stage | Next agent |
 |---|---|---|
-| knowledge-base | **QA FULL (2026-08-20) — Phase 7 verified ✅ (FULL)**, module overall ✅ — 139/140 `plan.md` tasks ✅ ติ๊กแล้วทั้ง 7 phase (เหลือแค่ R-2 latency ที่บล็อกด้วย deployment ไม่ใช่ล้มเหลว), ไม่มีข้อค้าง ❌/⚠️ เหลือเลย. Phase 7 (Document scope assignment, Module G, 🔒 gate) 22/22 ✅ ยืนยันด้วยโค้ดจริง + unit test ใหม่ 14 ตัว (backend 204/204) + ทดสอบจริงกับแอปที่รันอยู่ (curl ยิง 6 กรณีปฏิเสธของ DS-3 ผ่าน JWT จริง, login+`GET /api/companies` จริง) · Phase 1's TX-5 partial ปิดแล้ว (ปิดพร้อม Phase 7 wiring call site) → Phase 1 ตอนนี้ 15/15 ✅ · **บั๊ก 2 (owner บริษัทเดียว login ไม่ได้)** แก้ใน `AdminSessionProvider.tsx` ยืนยันแล้วด้วย code trace + live data (`GET /api/companies` คืนบริษัทเดียวจริงสำหรับ `owner@local.test`) — ไม่มี browser tool ในเซสชันนี้ให้คลิกทดสอบเอง แต่ผู้ใช้ยืนยันด้วยตาตัวเองแล้ว · **บั๊ก 3 (Select ต้องเลือกสองรอบ)** แก้ใน `DocumentUploadList.tsx` + `KnowledgeQnAAnswerDialog.tsx` (ไฟล์ Phase 6 เดิม, regression check ผ่านครบไม่กระทบ flow เดิม) ยืนยันแล้วด้วย diff อ่านโค้ดตรง · Phase 3 ยังเหมือนเดิม (21/21 ✅ แต่รอบล่าสุดเป็น TARGETED ไม่ใช่ FULL ต้องมี FULL ก่อน deploy ได้) · **`security` ยังไม่เคยรันสักครั้งตลอดทั้ง 7 phase** — เป็นตัวบล็อกเดียวที่เหลือสำหรับทุก phase ที่ติด gate (2,3,4,6,7) ก่อนส่ง `devops` · รายละเอียดเต็มใน `review.md` (Phase 1–6 เดิมย้ายไป `review/phase-1-6.md` แล้ว, Phase 3 Round 1 เดิมอยู่ที่ `review/phase-3.md`) | `security` (เมื่อผู้ใช้เรียก), `devops` (Phase 1 พร้อม accept ได้ทันที ไม่ติด gate), **✅ 2026-08-25 (`system-analyst` amend เสร็จแล้ว): R7/R8 เข้าออกแบบครบ · DS-8/Q-C ยกเลิกตาม CR-1.j · เกิด contract ใหม่ KL-1..KL-18 + UC-1..UC-10 และ Module H (🔒 gate) + Module I · ไม่มี schema change ไม่มี migration · endpoint ใหม่ตัวเดียว `GET /api/knowledge-qna` · ⏸️ ค้าง `Q-H1` ข้อเดียว (R7.5 "เนื้อหาซ้ำ" → ต้องมี `ContentHash` ไหม) ซึ่งบล็อกเฉพาะ R7.5 · ⚠️ R7.6 ยังไม่เสร็จทั้งข้อ — หลังบ้าน+api-client ครบแต่ไม่มี call site ใน UI เลย** → **ผู้รับต่อ: `project-manager`** (วาง phase Module H แล้ว I · กันงาน R7.5 ออกไว้จนกว่า Q-H1 จะเคาะ) |
+| knowledge-base | **QA FULL (2026-08-20) — Phase 7 verified ✅ (FULL)**, module overall ✅ — 139/140 `plan.md` tasks ✅ ติ๊กแล้วทั้ง 7 phase (เหลือแค่ R-2 latency ที่บล็อกด้วย deployment ไม่ใช่ล้มเหลว), ไม่มีข้อค้าง ❌/⚠️ เหลือเลย. Phase 7 (Document scope assignment, Module G, 🔒 gate) 22/22 ✅ ยืนยันด้วยโค้ดจริง + unit test ใหม่ 14 ตัว (backend 204/204) + ทดสอบจริงกับแอปที่รันอยู่ (curl ยิง 6 กรณีปฏิเสธของ DS-3 ผ่าน JWT จริง, login+`GET /api/companies` จริง) · Phase 1's TX-5 partial ปิดแล้ว (ปิดพร้อม Phase 7 wiring call site) → Phase 1 ตอนนี้ 15/15 ✅ · **บั๊ก 2 (owner บริษัทเดียว login ไม่ได้)** แก้ใน `AdminSessionProvider.tsx` ยืนยันแล้วด้วย code trace + live data (`GET /api/companies` คืนบริษัทเดียวจริงสำหรับ `owner@local.test`) — ไม่มี browser tool ในเซสชันนี้ให้คลิกทดสอบเอง แต่ผู้ใช้ยืนยันด้วยตาตัวเองแล้ว · **บั๊ก 3 (Select ต้องเลือกสองรอบ)** แก้ใน `DocumentUploadList.tsx` + `KnowledgeQnAAnswerDialog.tsx` (ไฟล์ Phase 6 เดิม, regression check ผ่านครบไม่กระทบ flow เดิม) ยืนยันแล้วด้วย diff อ่านโค้ดตรง · Phase 3 ยังเหมือนเดิม (21/21 ✅ แต่รอบล่าสุดเป็น TARGETED ไม่ใช่ FULL ต้องมี FULL ก่อน deploy ได้) · **`security` ยังไม่เคยรันสักครั้งตลอดทั้ง 7 phase** — เป็นตัวบล็อกเดียวที่เหลือสำหรับทุก phase ที่ติด gate (2,3,4,6,7) ก่อนส่ง `devops` · รายละเอียดเต็มใน `review.md` (Phase 1–6 เดิมย้ายไป `review/phase-1-6.md` แล้ว, Phase 3 Round 1 เดิมอยู่ที่ `review/phase-3.md`) | `security` (เมื่อผู้ใช้เรียก), `devops` (Phase 1 พร้อม accept ได้ทันที ไม่ติด gate), **✅ 2026-08-25 (`system-analyst` amend เสร็จแล้ว): R7/R8 เข้าออกแบบครบ · DS-8/Q-C ยกเลิกตาม CR-1.j · เกิด contract ใหม่ KL-1..KL-18 + UC-1..UC-10 และ Module H (🔒 gate) + Module I · endpoint ใหม่ตัวเดียว `GET /api/knowledge-qna` · ⚠️ R7.6 ยังไม่เสร็จทั้งข้อ — หลังบ้าน+api-client ครบแต่ไม่มี call site ใน UI เลย** · **✅ 2026-08-25 (รอบสอง · `system-analyst` amend เฉพาะจุด): `Q-H1` ปิดแล้ว = ทาง B** — `DocumentResource.ContentHash` (`string?`) + index `(CompanyId, ContentHash)` เข้า Data Model (DM-3/DM-15) แล้ว · contract R7.5 เต็มที่ **KL-18..KL-24** · **migration ใหม่ 1 ใบ `MG-H1` = `AddDocumentContentHash` (additive ล้วน ไม่ backfill · generate ตอน implement เท่านั้น)** · `UploadDocumentDto.CheckDuplicate` default `false` (ไม่ breaking · ไม่กระทบ `handlePdfUpload` ตาม UC-5) · **ไม่มีคำถามค้างในโมดูลนี้แล้ว** · **✅ 2026-08-25 (`project-manager`): `plan.md` amended — เพิ่ม Phase 8 (Module H, 🔒 gate, รวม MG-H1/KL-18..KL-24 เฟสเดียวกัน) และ Phase 9 (Module I, ไม่ติด gate, ต้อง deploy หลัง Phase 8 เสมอตาม R-18) พร้อม task tag `[frontend]`/`[backend]` ครบ ไม่แตะ checkbox เดิมของ Phase 1–7** → **ผู้รับต่อ: `frontend-engineer`/`backend-engineer`** (Phase 8 ก่อน แล้ว Phase 9), `qa-engineer` verify เมื่อ implement เสร็จ · **✅ 2026-08-25 (รอบสาม · `system-analyst` amend reconcile Phase 8 · ไม่มีโค้ด ไม่แตะ checkbox ไม่แตะ `requirement.md`)**: engineer ทั้งสองฝั่ง implement Phase 8 แล้วตีกลับ 3 จุดที่ contract ไม่ตรงของจริง — reconcile ครบทั้งสาม **ไม่แตะ Data Model แม้ฟิลด์เดียว** · (1) KL-21 `createDate` → **`createdAt`** + 409 ขี่ใน `ApiErrorResponse.error.details` ไม่ใช่ body เปล่า (**เอกสารผิด โค้ดถูก**) · (2) **KL-25 ใหม่: หน้า `/admin/documents` ไม่มีทางสร้าง Q&A ใหม่ ทางสร้างอยู่ที่ `/admin/qna-queue` ที่เดียว** — `requirement.md` R7.2/R7.6/CR-1.h ไม่เคยขอ และตาม QQ-2/QQ-7 สร้างไม่ได้อยู่แล้ว (`SessionQuestionIds` ต้องมี ≥ 1) → `frontend-engineer` ทำถูก · ถ้อยคำ task ใน `plan.md` ที่คลาดเคลื่อนถูกแก้ **phasing ไม่เปลี่ยน ไม่ต้องเรียก `project-manager`** · (3) **รับการเทียบซ้ำแบบ in-memory เข้าเป็นข้อบังคับใน KL-19/KL-20/KL-23 พร้อมคำสั่ง "ห้ามแก้กลับเป็น `ILike`"** — เหตุผลหลักคือความถูกต้อง (`ILike` ตีความ `_`/`%` ในชื่อไฟล์เป็น wildcard = false positive) ไม่ใช่แค่ testability · KL-11 ยังเป็น `ILike` จริงตามเดิม · **🔴 เปิด `Q-H2` รอเจ้าของโปรเจกต์เคาะ (ไม่บล็อกงานอื่น แต่บล็อกการปิด KL-23)**: คำเตือน Q&A ซ้ำขึ้นหลังบันทึกสำเร็จ ทำให้ปุ่ม "บันทึกเพิ่มอยู่ดี"/"ไปแก้ใบเดิมแทน" ให้ผลเหมือนกันเป๊ะคือปิด dialog — เลือกระหว่าง (ก) แก้ถ้อยคำ + deep-link `?q=` หรือ (ข) เปลี่ยนเป็นด่านก่อนบันทึกแบบ KL-21 · **✅ 2026-08-25 (รอบสี่ · `system-analyst` amend เฉพาะจุด): `Q-H2` ปิดแล้ว = ทาง (ข) ด่านก่อนบันทึก** — KL-23 เขียนใหม่ (ตรวจก่อนเขียนทุกอย่าง → 409 `CONFLICT` + `DuplicateQnAResponse` ใน `error.details` · การตรวจ unconditional ไม่มีธง `CheckDuplicate` เพราะทางสร้างมี call site เดียว · ธงที่เพิ่มคือ `CreateKnowledgeQnADto.ConfirmDuplicate` default `false`) + **KL-26 ใหม่** (UI: "แก้ใบเดิมแทน" สลับเป็น `mode: "edit"` ในที่เดิม · ลบ prop `onEditExisting` · **ห้ามลิงก์ `/admin/documents?q=`** · การแก้ใบเดิมไม่ปิดคำถามในคิวและต้องเขียนบอก) + **O-13 ใหม่** (ผูกคำถามในคิวเข้ากับ Q&A เดิม = ความต้องการใหม่ ต้องกลับไป `business-analyst`) · **ไม่มีฟิลด์ใหม่ ไม่มี migration Data Model ไม่ถูกแตะ** · breaking เฉพาะ wire ของ `POST /api/knowledge-qna` (caller เดียว) · **ต้องรื้อโค้ด Phase 8 ที่เพิ่ง implement เสร็จ: `CreateAsync` · DTO · response shape · dialog ทาง create · test 3 ตัว** → **ผู้รับต่อ: `project-manager`** (เขียน task Phase 8 ใหม่ก่อน engineer หยิบ) · `qa-engineer` ยังห้ามปิด KL-23 เป็น ✅ · **🆕 2026-08-26 (`business-analyst` · CR-2): เพิ่ม R4.6 เฟสจัดการเนื้อหาก่อนสร้างบทเรียน PDF (R4.6.1–R4.6.10) — เลือกไฟล์ไม่ commit อะไร, กด "สร้าง" เปิดเฟสรีวิวสไลด์ภาพจริง+บทพูดทีละหน้า, "ยืนยันการสร้าง" เป็นจุด commit จุดเดียว, ไม่มี state ที่ server ก่อนยืนยัน · R8.3 ("ห้ามแตะ `handlePdfUpload`") ถูก supersede อย่างเป็นทางการ · CR-2.h (scope เอกสาร PDF ตอน commit) มอบให้ `system-analyst` ตัดสิน → ผู้รับต่อ: `system-analyst` amend `NR-1..NR-9` ให้ครอบเคสยังไม่มี `LessonId` · ⛔ ยังไม่ส่ง engineer** · **✅ 2026-08-26 (`system-analyst` amend รับ CR-2 เสร็จแล้ว · ไม่มีโค้ด ไม่แตะ checkbox ไม่แตะ `plan.md`/`requirement.md`): เกิด Module J (🔒 Security gate) · NR-1/NR-2/NR-3/NR-5/NR-6/NR-8/NR-9 amend เฉพาะจุด + NR-10..NR-19 ใหม่ · Data Model ไม่ถูกแตะแม้ฟิลด์เดียว ไม่มี migration ใหม่** — คำตอบของเคส "ยังไม่มี `LessonId`" คือ draft อยู่ในเบราว์เซอร์แล้ว flush ผ่าน `PUT .../narrations/{slideObjectId}` ตัวเดิมทีละหน้า *หลัง* บทเรียนเกิดและผูกไฟล์แล้ว (`LessonSlideNarrationService` ไม่ต้องแก้เลย) · **✅ CR-2.h ตัดสินแล้ว = `ScopeType = "lesson"`** (เปลี่ยนค่าที่เขียนใหม่ ไม่ใช่ schema · ไม่มี backfill · เด็คเก่าที่ scope `company` ไม่ถูกย้าย O-14) · **R4.6.3 ทำได้ด้วยของที่มี** — `PdfSlidesRenderer` รับ `Stream` ล้วน แต่ `RenderPdfPageAsync` เดิมใช้ตรง ๆ ไม่ได้ (บังคับว่าต้องมีแถว `DocumentResource`) → preview session ในหน่วยความจำ + endpoint ใหม่ 2 ตัว (NR-10/NR-11) · **UC-5 amend: "ห้ามแตะ `handlePdfUpload`" ถูก supersede แล้ว — QA ห้ามรายงานเป็นการละเมิด R8.3** · **Module I และ J แก้ `LessonForm.tsx` ไฟล์เดียวกัน ห้ามทำขนาน ลำดับ I → J (R-24)** · **🟠 `Q-J1`** (ตีความ R4.6.5 กับ byte ที่ต้องผ่าน server) **· `Q-J2`** (ภาพสไลด์ในหน้าแก้บทพูดเดิม) — **✅ ปิดทั้งคู่แล้วในรอบถัดมา ดูบรรทัดถัดไป** · **✅ 2026-08-26 (รอบที่สองของวัน · `system-analyst` amend ปิดข้อรอคำตอบอย่างเดียว): `Q-J1` = "ไม่ขัด — แตะชั่วคราวได้"** (R4.6.5 ห้าม state ที่ persist/กลับมาทำต่อได้ ไม่ใช่ห้าม byte แตะโปรเซส → **NR-10 preview session ใน `IMemoryCache` sliding 10 นาที ไม่มีแถวใน DB ไม่มีรายการในคลัง ไม่มี index ยืนตามที่ออกแบบไว้**) **· `Q-J2` = "ใส่ทั้งสองที่"** (**NR-18 ภาพสไลด์ในหน้าแก้บทพูดเดิม อยู่ในขอบเขต ⛔ ห้ามตัด**) · **ทั้งสองข้อตรงกับทางที่ `system-analyst` เสนอไว้ → ไม่มี contract / Data Model / ข้อความ NR ถูกแก้แม้คำเดียว ไม่มี migration ไม่แตะ checkbox/`plan.md`/`requirement.md`/เอกสารโมดูลอื่น ไม่มีโค้ดถูกเขียน** (แก้ `design.md` 4 จุดที่เป็น bookkeeping ล้วน: กล่องสถานะ · ช่องคำตัดสินแถว R4.6.5 · `## Unresolved Open Questions` · Change Log) · **ผลรวม: Module A–J ไม่มีข้อรอคำตอบค้างเลยแม้ข้อเดียว** · **ผู้รับต่อ: `project-manager` วาง phase ของ Module J ได้ทั้งก้อน ไม่มีเงื่อนไข/คำถามค้าง** (ข้อจำกัดที่ยังบังคับ = **R-24 I ก่อน J ห้ามทำขนาน** + 🟡 O-1..O-16 ซึ่งเป็นของที่ตั้งใจไม่ทำ ไม่ใช่ของที่รอคำตอบ) · **⛔ engineer ยังห้ามหยิบจนกว่าจะมี task ใน `plan.md`** |
 | company-admin | **✅ 2026-08-22: Phase 4 "ต้องถอด/แก้ย้อนหลัง" (backend+frontend, contract กลับทิศ P1) เสร็จครบแล้ว พร้อม `qa-engineer` FULL รอบแรก (R-17)** · Phase 5 (Company Settings Page) implemented ✅ พร้อม `qa-engineer` — หน้า `/admin/settings` + section pacing + `section-access.ts`/`resolveSectionAccess`/registry ครบตาม SP-1..SP-15, `AdminSidebar.tsx` แก้ gate เมนู "ตั้งค่า" ให้ derive จาก registry แล้ว, typecheck/lint/test(60)/build ผ่านหมด · checkbox ใน `plan.md` §Phase 5 ยังเป็น `[ ]` ทั้งหมดรอ QA ติ๊ก · **Security SECURITY-1 ⚠️ — 3 Important findings open (ยังไม่แก้ในรอบนี้)**: stale JWT ยังใช้ได้หลัง deactivate/demotion · `MustChangePassword` bypass ผ่าน API · login ไม่มี rate limiting. QA: Phase 1 15/15 verified ✅ (TARGETED, ต้อง FULL ก่อน devops) · Phase 2 7/7 verified ✅ (FULL) · Phase 3 (Company Switching — Owner UX) 6/6 verified ✅ (FULL) · deployed ⬜ ทั้งโมดูล · ทั้งสาม phase ยังติด `🔒 Security gate` ของ Module A — Phase 3 ยังไม่เคยผ่าน `security` เลย (SECURITY-1 คลุมแค่ Phase 1/2) · **design amend 2026-08-22: ปิด B4 · B3a · A5 (แถว pacing) แล้ว** — เกิด **Module P · Lesson Pacing Defaults** (schema change จริง 2 จุด + contract `## Lesson Pacing Resolution Rules` LP-1..LP-15) · **A2 · A3 · A4 · B3b + A6 เฉพาะส่วนที่ไม่ใช่ pacing ยังเปิด** (บล็อกเฉพาะ Module B ที่เหลือ · **A5 แถว pacing และ A8 ปิดแล้ว 2026-08-22**) · **2026-08-22 (comment cleanup, รอบแรก): แก้ comment ตกค้างใน `ICompanyService.cs` ที่ยังอ้างถึง `ILessonPacingResolver` (ถูกลบไปแล้วจริงในรอบแก้ Module P) ให้ตรงกับโมเดลปัจจุบัน — ไม่มี resolver layer แล้ว อ่านค่า pacing จาก `Company` ตรงๆ · build 0 warning/0 error · ⚠️ claim ตอนนั้นว่า "grep ทั้ง backend แล้วไม่พบ reference อื่นเหลืออยู่" ไม่จริง — QA รอบถัดมา (Codex ภายนอก) grep ซ้ำแล้วเจอเพิ่มอีก 4 จุด ดูรายการแก้จริงในบรรทัดถัดไป** · **2026-08-22 (`backend-engineer`, comment cleanup รอบสอง หลัง QA จับ claim เดิมผิด): grep repo-wide จริงหา `LP-5`/`lesson-edit form`/`lesson-form placeholder`/`inherit`/`ILessonPacingResolver` ทั่ว `backend/` แล้วแก้ครบ 5 จุดที่เหลือซึ่งยังพูดถึงโมเดล per-lesson override เก่า — `ICompanyService.cs:28` (เหตุผลที่ `cs` อ่านได้ เปลี่ยนจากอ้าง "lesson-edit form placeholder (LP-5)" เป็นอ้าง section pacing บน `/admin/settings` ที่ `visibleToRoles` รวม `cs` ตาม SP-4/SP-15), `CompanyController.cs:38-40` (เหตุผลเดียวกัน), `CompanyViewModel.cs:11-13` (เลิกเทียบกับ `LessonConfigViewModel`'s nullable fields ที่ไม่มีอยู่แล้ว เหลือแค่เหตุผลว่า `Company` เป็นชั้นสุดท้ายของ resolve chain ตาม LP-1), `CompanyDto.cs:39-44` (เหตุผลเดียวกัน ไม่เทียบกับ `LessonConfigDto` อีก), `CompanyServiceTests.cs:222,312` (comment บน test แก้ให้ตรงเหตุผลใหม่) · grep ซ้ำหลังแก้เจอ `inherit` เหลือ 2 จุดที่เป็นของจริง ไม่ใช่ของเก่า — `Company.cs:45` พูดถึง Module B (settings ที่ยังพักไว้ ตาม design.md บรรทัด 296/1373 ที่ nullable = inherit ยังใช้จริงกับ Module B ไม่เกี่ยวกับ per-lesson pacing ที่ถูกลบ) และ `Program.cs:134` (เรื่อง middleware protection ไม่เกี่ยวกับ pacing เลย) — ทั้งสองจุดนี้ถูกต้องอยู่แล้ว ไม่แก้ · ไม่แตะ logic ใดๆ ทั้งหมดเป็น comment-only · build 0 warning/0 error ยืนยันแล้วจริงรอบนี้** · **2026-08-22 (`frontend-engineer`, แก้ QA findings จาก Codex ภายนอก ตรวจ Phase 5): แก้ 4 จุดใน `frontend/` — (1) Important: `LessonPacingSettingsSection.tsx` `CardDescription` เคยเขียนตามโมเดล per-lesson override เก่า แก้เป็นข้อความที่ตรง LP-7/SP-10 ปัจจุบัน (ค่ามีผลกับทุกบทเรียนของบริษัทตั้งแต่เข้าห้องครั้งถัดไป ห้องที่กำลังเรียนไม่เปลี่ยนกลางคัน ไม่เขียนว่า "มีผลทันที") (2) Important: แก้ race condition ตอนสลับบริษัทเร็วๆ ที่ทำให้ response เก่าของบริษัท A ทับ state ของบริษัท B บนจอ (และเสี่ยงบันทึกค่าผิดบริษัทถ้ากด save) — เลือกทาง (ก) เปลี่ยน `key={id}` เป็น `key={`${id}-${companyId}`}` ใน `page.tsx` บังคับ remount ทั้ง component เมื่อสลับบริษัท (3) Minor: ย้าย `LESSON_PACING_SECTION_ACCESS` ออกจาก `LessonPacingSettingsSection.tsx` (.tsx) ไปไฟล์ใหม่ `lesson-pacing-access.ts` เพื่อให้ `section-access.test.ts` import ค่าจริงจาก production แทนการ copy literal เอง (4) Minor: แก้ comment ที่อ้างอิงโมเดล lesson-vs-company inheritance เก่าใน `types/domain.ts` และ comment "lesson form placeholder" เก่าใน `api-client.ts` ให้ตรงโมเดลปัจจุบัน (ไม่มี per-lesson override แล้ว) · typecheck/lint/test(60)/build ผ่านหมด · ยังไม่แตะ checkbox ใดๆ ใน `plan.md`, รอ `qa-engineer` ตรวจซ้ำ** · **2026-08-22 (`frontend-engineer`, แก้จุดตกหล่นรอบ QA ที่สอง): แก้ 1 จุดที่เหลือ — comment ใน `frontend/src/components/admin/settings/lesson-pacing-fields.ts` (บรรทัด ~21) เคยเทียบ SP-7 กับ "the lesson form's LP-11 (empty means inherit)" ที่ไม่มีอยู่แล้ว ตัดการเทียบทิ้ง เหลือแค่เหตุผลของ SP-7 เอง (ที่ชั้นบริษัทว่างไม่ใช่ค่าที่ถูกต้องเพราะไม่มีชั้นถัดไปให้ fallback) · ตามด้วย grep ทั่ว `frontend/src/` จริงหา `LP-11`/`LP-5`/`inherit`/`lesson form`/`lesson-edit`/`ILessonPacingResolver`/`placeholder` — ไม่พบ reference อื่นที่ยังพูดถึงโมเดล per-lesson override เก่า (`inherit` ที่เจอ 2 จุดเป็นเรื่อง learner-key/JWT ไม่เกี่ยวกับ pacing, `pacing` ที่ match ใน `card.tsx`/`sidebar.tsx` เป็น CSS `--card-spacing`/`--sidebar-width` ไม่ใช่ pacing จริง) · sweep ครบ ไม่มีจุดตกหล่นเพิ่ม · typecheck/lint/test(60)/build ผ่านหมด · ไม่แตะ checkbox/`design.md`/`requirement.md`/`plan.md`, รอ `qa-engineer` ปิด gate**
   **2026-08-22 (`backend-engineer`): `plan.md` §Phase 4 `[backend]` ทุก task เสร็จแล้ว รอ QA** — migration ใหม่ `AddCompanyLessonPacingDefaults` (ใบเดียว: `Company` เพิ่ม `DefaultIntroWaitMs`/`DefaultBreathPauseMs`/`DefaultFinalQuestionWaitMs` เป็น `int` NOT NULL backfill literal `5000`/`500`/`5000` ตาม R-11 · `LessonConfig` 3 คอลัมน์เดิมเปลี่ยนเป็น `int?` โดยไม่แตะข้อมูลเดิม) — **applied จริงกับ local Postgres แล้ว** (`docker` container `supportroom-local-postgres-1`, verified ด้วย `\d "Company"`/`\d "LessonConfig"` ตรง contract เป๊ะ **⚠️ แก้ไข 2026-08-22: นี่คือ container ที่ไม่ได้ใช้งานจริง — `.env` ชี้ไป `supportroom-pg` พอร์ต 5432 ตามที่บันทึกไว้ถูกต้องแล้วที่บรรทัดถัดๆ ไป (`AddCompanyLessonPacingDefaults` ถูก apply ซ้ำให้ `supportroom-pg` ในรอบหลังแล้ว, ดูบรรทัด ~43 และ status ของ `RemoveLessonConfigPacingOverrides` ที่ apply ถูก container ตั้งแต่แรก) — ห้ามอ้างอิงบรรทัดนี้เพื่อเช็คสถานะ migration ของ runtime DB จริง**) · `dotnet ef migrations has-pending-model-changes` clean · `ILessonPacingResolver`/`LessonPacingResolver` ใหม่ (จุดเดียวที่ resolve, ต่อเข้า `GetTeachingContentByLinkAsync`) · `ICompanyService.Create`/`SeedFirstCompanyIfEmpty` (regression surface ของ Phase 1 ตาม R-12) แก้ให้ตั้ง pacing จาก `ServerDefaults` เสมอ — **ยืนยันสดกับแอปที่รันจริง**: restart แอปสำเร็จ, `SeedFirstCompanyIfEmpty` ตั้งค่า 5000/500/5000 ให้บริษัทแรกจริง, `POST /api/companies` ตั้งค่าให้บริษัทใหม่จริง (curl จริงผ่าน JWT จริง) · endpoint ใหม่ `GET`/`PUT /api/companies/{companyId}/lesson-pacing` (LP-9) ทดสอบสดครบ: owner GET/PUT ผ่าน, cs GET ผ่าน cs PUT ได้ 403 จริง, ค่านอกช่วง LP-8 ได้ 400 จริง, บริษัทไม่มีจริงได้ 404 จริง · `backend`: build 0 warning ใหม่/0 error, `dotnet test --filter "Category!=Integration"` **243/243 ผ่านหมด** (210 Application + 23 Providers + 10 Api.IntegrationTests, รวม unit test ใหม่ตาม LP-14 ครบ 4 กรณี + regression test ของ `Create`/`SeedFirstCompanyIfEmpty`) · **`[frontend]` ของ Phase 4 ยังไม่ทำเลย** (types/`api-client.ts`/ฟอร์มบทเรียน/ค่า fallback ยังเป็นงานเดิมทั้งหมด) — endpoint พร้อมให้ frontend เรียกแล้ว แต่หน้าจอยังไม่มีอะไรเปลี่ยน · หนี้ข้ามโมดูล D-3 (`knowledge-base/design.md` §DM-2 ยังไม่ตรง DM-P2) ยังไม่ปิด ไม่บล็อก Phase 4
   **2026-08-22 (`frontend-engineer`): `plan.md` §Phase 4 `[frontend]` ทุก task ที่มีอยู่ใน `plan.md` เสร็จแล้ว รอ QA** — `types/domain.ts`: `LessonConfig` 3 ฟิลด์ pacing เป็น `number | null` ตรง `LessonConfigViewModel` จริง (LP-12), `LearnerLessonConfig` เลิกใช้ `Pick` กับ 3 ฟิลด์นี้ ประกาศเป็น `number` ตรงๆ (LP-5/LP-12), เพิ่ม type `CompanyLessonPacing` ตรง `CompanyLessonPacingViewModel` จริง · `api-client.ts` เพิ่ม `getCompanyLessonPacing(companyId)` เรียก `GET /api/companies/{companyId}/lesson-pacing` (response ไม่ wrap เป็น `{ company }` ตรงกับ controller จริง) — **ไม่เพิ่มฟังก์ชัน `PUT`** เพราะไม่มี UI ตั้งค่าบริษัทให้เรียกใช้ในรอบนี้ (ดู open question ด้านล่าง) · `admin/lessons/[slug]/page.tsx`: handler ของ 3 ช่อง pacing แยกค่าว่าง (`null`) กับ `0` ได้จริงแล้ว (เลิกใช้ `Math.max(0, Number(e.target.value) || 0)`, LP-11), เพิ่ม placeholder `ว่าง = ใช้ค่าบริษัท (N ms)` ดึงค่าจริงจาก `getCompanyLessonPacing(activeCompanyId)` ไม่ hardcode ตัวเลข · `admin/lessons/new/page.tsx`: ค่าเริ่มต้น 3 ช่อง pacing เปลี่ยนจาก `3000/800/5000` เป็น `null` ทั้งหมด (ฟอร์มนี้ไม่มี input field ให้กรอกอยู่แล้ว เป็นแค่ default ของ payload ตอนสร้าง) · `use-tutor-session.ts:46` แก้ fallback `breathPauseMs` จาก `1000` เป็น `500` ให้ตรง `TutorConfig.Default*`/`ServerDefaults` จริง (LP-13) · frontend: `typecheck`/`lint`/`test` (41/41)/`build` ผ่านทั้งหมด (Node 22) · **Phase 4 backend+frontend เสร็จครบตาม `plan.md` แล้ว พร้อมให้ `qa-engineer` verify**
@@ -185,11 +185,13 @@ Already scaffolded — this is an existing project (`frontend/` Next.js + `backe
    ในหน้าแก้บทเรียนแบบล็อก scope) · ทั้งคู่ **ไม่แตะ retrieval และไม่แตะ Data Model ของ scope** ·
    ~~**ขั้นถัดไป: `system-analyst` (amend) รับ R7 และ R8 ได้ทั้งคู่ ไม่มีคำถามธุรกิจค้าง**~~
    (CR-1.j ปิดแล้ว 2026-08-24 = "ลบทิ้งไปเลย" → DS-8/Q-C ถูกยกเลิก, ระวัง R8.3 ที่ห้ามลบ
-   ทางอัป PDF ตัวสไลด์ไปด้วย) → ✅ **`system-analyst` ทำเสร็จแล้ว 2026-08-25** — KL-1..KL-18 +
-   UC-1..UC-10 + Module H/I อยู่ใน `knowledge-base/design.md` แล้ว ไม่มี schema change ·
-   **ผู้รับต่อคือ `project-manager`** · ⏸️ เหลือคำถามเชิงเทคนิคข้อเดียว **Q-H1** (R7.5 เนื้อหาซ้ำ)
-   ที่ต้องให้เจ้าของโปรเจกต์เคาะ — บล็อกเฉพาะ R7.5 · ⛔ engineer ยังห้ามหยิบจนกว่าจะมี task
-   ใน `plan.md`
+   ทางอัป PDF ตัวสไลด์ไปด้วย) → ✅ **`system-analyst` ทำเสร็จแล้ว 2026-08-25** — KL-1..KL-24 +
+   UC-1..UC-10 + Module H/I อยู่ใน `knowledge-base/design.md` แล้ว · ✅ **คำถามเชิงเทคนิคข้อเดียว
+   ที่เคยค้าง (`Q-H1` — R7.5 เนื้อหาซ้ำ) เจ้าของโปรเจกต์เคาะแล้ว 2026-08-25 = ทาง B**:
+   เพิ่ม `DocumentResource.ContentHash` + index `(CompanyId, ContentHash)` · **schema change
+   มีจุดเดียวนี้ และเป็น additive ล้วน (migration `MG-H1`, ไม่ backfill)** ที่เหลือของ R7/R8
+   ไม่แตะ schema เลย · **ผู้รับต่อคือ `project-manager` (วาง Module H ได้ทั้งก้อนรวม R7.5)** ·
+   ⛔ engineer ยังห้ามหยิบจนกว่าจะมี task ใน `plan.md`
 3. ~~**ฝั่งผู้เรียน: Responsive มือถือ/แท็บเล็ต + พิมพ์ถามแทนการพูด**~~ — ✅ **ปิดสมบูรณ์แล้ว
    2026-08-22 · R1–R6, T1–T7 และ T4-a ครบทุกข้อ ไม่มีคำถามค้าง · ผู้รับต่อคือ `system-analyst`**
    (ไม่ใช่ capture-only อีกต่อไป) · คำตอบถูกยกขึ้นเป็น
@@ -232,6 +234,25 @@ Already scaffolded — this is an existing project (`frontend/` Next.js + `backe
 "ยังไม่ครบวงจร": ครึ่งซ้าย (เตรียมความรู้ → แจกลิงก์ → เรียน → จับคำถาม) ทำงานได้แล้ว
 แต่ครึ่งขวา (รีวิว → แก้ความรู้ → รู้ว่าดีขึ้น) ตัน
 
+**🆕 2026-08-26 (`business-analyst`, CR-2 · สัมภาษณ์ 3 รอบ 14 คำถาม · ไม่มีโค้ด ไม่แตะ checkbox
+ไม่แตะ `design.md`/`plan.md`):** เพิ่ม **R4.6 · เฟสจัดการเนื้อหาก่อนสร้างบทเรียน PDF**
+(R4.6.1–R4.6.10) ลง `requirement.md` · **ต้นเรื่อง:** เจ้าของโปรเจกต์พบเองว่าในหน้า *สร้างบทเรียน
+ใหม่* แค่ **เลือก** ไฟล์ PDF ก็สร้าง `DocumentResource` scope `company` จริงเข้าคลังความรู้และถูก
+index ทันทีก่อนกด "สร้าง" (ยืนยันจากโค้ด `LessonForm.tsx:186-221`) → ทิ้งฟอร์ม = orphan ถาวร ·
+และข้อความที่ดึงจาก PDF พูดตรง ๆ ไม่ได้ ต้องให้ CS แก้ก่อนบทเรียนขึ้นใช้ · **มติ:** เลือกไฟล์ =
+พรีวิวอ่านอย่างเดียว · กด "สร้าง" เปิดเฟสรีวิว **สไลด์ภาพจริง + บทพูดทีละหน้า** (ใช้ UI แก้บทพูด
+ตัวเดิม NR-1/NR-2 ซ้ำ) · **ไม่มี state ที่ server เลยก่อนยืนยัน** (ปิดแท็บ = เริ่มใหม่ · ไม่มีค่า
+embedding ถ้าทิ้งเฟส) · **"ยืนยันการสร้าง" = จุด commit จุดเดียว** ของทั้ง flow · ยืนยันโดยไม่แก้ได้
+แต่ต้องเตือน · เปลี่ยนไฟล์กลางเฟสล้างเงียบ ๆ (ต่างจาก NR-3 โดยเจตนา) · **ขอบเขต: สร้างบทเรียน
+PDF ใหม่เท่านั้น** — แทนที่ไฟล์ของบทเรียนเดิมคง NR-3, Google Slides ไม่เกี่ยว · ไม่ตามเก็บ orphan
+เดิม · **📌 R8.3 ("ห้ามแตะ `handlePdfUpload`") ถูก R4.6 supersede แล้วโดยเจ้าของโปรเจกต์ยืนยันเอง**
+— `qa-engineer` รอบหลังต้องไม่รายงานการแก้ฟังก์ชันนี้ว่าเป็นการละเมิด (การละเมิดที่ยังนับคือ
+"ลบเส้นทางอัป PDF ตัวสไลด์ทิ้ง" เท่านั้น) · **มอบ CR-2.h ให้ `system-analyst` ตัดสิน**: scope ของ
+เอกสาร PDF ตอน commit (`lesson` vs `company` — ข้อจำกัด "ยังไม่มี lesson id" หมดไปแล้ว) ·
+**ผู้รับต่อ: `system-analyst` (amend)** — งานหลักคือ amend **NR-1..NR-9** ให้ครอบเคส "ยังไม่มี
+`LessonId`" ที่ R4.6.4 บังคับ + ประเมินต้นทุน render ภาพสไลด์ต่อหน้า (R4.6.3) · ⛔ **ยังไม่ส่ง
+engineer** · ทิศทางอนาคตที่บันทึกไว้แบบยังไม่ scope: **AI ช่วยร่างบทพูดขยายความอัตโนมัติ**
+
 **🆕 2026-08-24 (`business-analyst`, สัมภาษณ์ 2 รอบ · ไม่มีโค้ด ไม่แตะ checkbox):** ปิด **CR-1**
 ครบทั้งหัวข้อ · **ข้อเสนอเดิม (ยุบ knowledge scope เหลือกองเดียว) ถูกปฏิเสธ** — เจ้าของโปรเจกต์
 ตอบว่าคำตอบจากบทเรียนผิด "รับไม่ได้เลย" (CR-1.b) และยืนยันที่ CR-1.g ว่าพฤติกรรมการค้นคำตอบ
@@ -255,19 +276,27 @@ amend** · พร้อมกันนั้น **R8.3 เป็นขอบเ�
 
 **✅ 2026-08-25 (`system-analyst` amend · ไม่มีโค้ด ไม่แตะ checkbox ไม่แตะ `requirement.md`):
 R7 + R8 เข้าออกแบบแล้ว และ DS-8/Q-C ถูกยกเลิกตามมติ CR-1.j** — `design.md` เพิ่ม contract
-ใหม่ 2 ชุด (`## Knowledge Library View Rules` **KL-1..KL-18** สำหรับ R7 · `## Upload
+ใหม่ 2 ชุด (`## Knowledge Library View Rules` **KL-1..KL-18** สำหรับ R7 — **ขยายเป็น
+KL-1..KL-24 ในรอบสองของวันเดียวกัน ดูบูลเล็ตถัดไป** · `## Upload
 Consolidation Rules` **UC-1..UC-10** สำหรับ R8) + **Module H** (Knowledge library view ·
 🔒 Security gate) และ **Module I** (Upload consolidation · ไม่ติด gate) · ลำดับใหม่
 `... → G → H → I` โดย **I ต้อง deploy หลัง H เสมอ (R-18)** ไม่งั้น CS ตาบอดว่าบทเรียนมีเอกสารอะไร ·
-**Data Model ไม่เปลี่ยนแม้แต่ฟิลด์เดียว · ไม่มี migration ใหม่ · wire contract ไม่ breaking ·
-endpoint ใหม่ตัวเดียวคือ `GET /api/knowledge-qna`** (วันนี้ไม่มีทางอ่านรายการ Q&A เลย มีแค่
-`GetQueue()`) · R3 + KS-1..KS-11 **ไม่ถูกแตะแม้ข้อเดียว** ตามมติ CR-1.g
-- **⏸️ ค้าง 1 ข้อ — `Q-H1`**: R7.5 "เตือนเมื่อ**เนื้อหา**ซ้ำ" จะรู้ได้อย่างไร · **ทาง A** เตือน
-  เฉพาะชื่อไฟล์ซ้ำ (ไม่มี schema change แต่ทำ R7.5 ได้ไม่ครบตาม CR-1.h — ไฟล์เดิมที่เปลี่ยนชื่อ
-  ไม่ถูกจับ) · **ทาง B (ข้อเสนอของ SA)** เพิ่ม `DocumentResource.ContentHash` (`string?` +
-  index, **additive ล้วน ไม่ backfill**; เอกสารเก่าจะไม่มี hash และจะไม่ถูกจับว่าซ้ำตลอดไป) →
-  **ต้องให้เจ้าของโปรเจกต์เคาะก่อน ยังไม่ถูกเขียนลง Data Model และยังไม่เป็น contract** ·
-  **บล็อกเฉพาะ R7.5/KL-18 เท่านั้น ไม่บล็อกงานอื่นเลย**
+**wire contract ไม่ breaking · endpoint ใหม่ตัวเดียวคือ `GET /api/knowledge-qna`** (วันนี้ไม่มี
+ทางอ่านรายการ Q&A เลย มีแค่ `GetQueue()`) · R3 + KS-1..KS-11 **ไม่ถูกแตะแม้ข้อเดียว** ตามมติ CR-1.g
+- **✅ `Q-H1` ปิดแล้ว 2026-08-25 (รอบสองของวัน · `system-analyst` amend เฉพาะจุด · ไม่มีโค้ด
+  ไม่แตะ checkbox ไม่แตะ `requirement.md`/`plan.md`)** — **เจ้าของโปรเจกต์เคาะ "ทาง B"**:
+  เพิ่ม `DocumentResource.ContentHash` (`string?`, SHA-256 hex, `init`) + index
+  `(CompanyId, ContentHash)` แบบไม่ unique · **เขียนลง `## Data Model` (DM-3 + DM-15) แล้ว
+  เป็น contract เรียบร้อย** · contract เต็มของ R7.5 อยู่ที่ **KL-18..KL-24** (นิยาม "ซ้ำ" ที่โค้ด
+  ตัดสินได้ · ชื่อไฟล์ซ้ำเป็นการตรวจแยกที่ทำคู่กัน · เตือนไม่บล็อกผ่าน
+  `UploadDocumentDto.CheckDuplicate` **ค่าเริ่มต้น `false` เพื่อไม่ให้ `handlePdfUpload` ตาม
+  UC-5/R8.3 พัง** · ห้ามเทียบข้ามบริษัท · รายการห้ามขยาย) · **migration ใหม่ 1 ใบ: `MG-H1` =
+  `AddDocumentContentHash`** — additive ล้วน ไม่ backfill ไม่แตะข้อมูลเดิม `Down()` ย้อนได้ 100% ·
+  **ต้องอยู่เฟสเดียวกับ KL-18..KL-24 และ generate ตอน implement เท่านั้น ห้ามสร้างล่วงหน้า** ·
+  ราคาที่รับแล้วโดยรู้ตัว: เอกสารที่อัปก่อน `MG-H1` มี `ContentHash = null` และจะไม่ถูกจับว่า
+  เนื้อหาซ้ำตลอดไป (บันทึกเป็น **R-20** + ต้องบอก CS ที่หน้าจอตาม KL-22 · **QA ห้ามรายงานเป็น ❌**) ·
+  ⚠️ **schema จะลงจริงเมื่อ `backend-engineer` propagate เข้า entity/`OnModelCreating`/migration
+  แล้ว `qa-engineer` ยืนยันว่าตรงกับ Data Model อีกครั้ง** (`conventions.md` §7)
 - **⚠️ แก้ความเข้าใจที่ส่งต่อกันมาผิด 2 จุด (ยืนยันด้วยโค้ดจริง)**: (1) **R7.6 ยังไม่เสร็จทั้งข้อ** —
   หลังบ้านครบจริง (`UpdateAsync`/`DeleteAsync`, `PUT`/`DELETE /api/knowledge-qna/{id}`) และ
   `api-client.ts:643-654` ประกาศฟังก์ชันไว้แล้ว **แต่ grep ทั้ง `frontend/src/app` และ
@@ -277,14 +306,110 @@ endpoint ใหม่ตัวเดียวคือ `GET /api/knowledge-qna`*
   `components/admin/LessonForm.tsx:679-698` และ `handlePdfUpload` (**ตัวห้ามแตะ ตาม R8.3**) อยู่ที่
   `LessonForm.tsx:187` ไม่ใช่ `app/admin/lessons/[slug]/page.tsx:448` ตามที่ `requirement.md` อ้าง
   (ย้ายตอน refactor) — เขียนที่อยู่จริงลง UC-1/UC-5 แล้ว
-- **ขั้นถัดไป: `project-manager`** วาง phase ของ Module H (backend เส้นใหม่ + UI ก้อนใหญ่ +
-  🔒 gate) และ Module I (งานลบ frontend ล้วน ไม่กี่ไฟล์ ต้องอยู่หลัง H) · **ไม่ควรส่ง engineer
-  ตรงๆ** เพราะ H มีทั้ง backend/frontend หลายสิบ task และมีข้อห้ามเรื่องลำดับ deploy ·
-  ให้กันงาน R7.5 ออกเป็นก้อนแยกที่ยังไม่วาง จนกว่า Q-H1 จะเคาะ
+- **✅ 2026-08-25 (`project-manager`): เสร็จแล้ว** — `plan.md` เพิ่ม **Phase 8: Knowledge library
+  view (R7) — extends `/admin/documents` 🔒 Security gate** (KL-1..KL-24 รวม `MG-H1` เฟสเดียวกัน
+  ตามข้อบังคับ, 4 เหตุผล gate ระบุครบใน Sequencing Notes) และ **Phase 9: Upload consolidation
+  (R8) — delete-only, no gate** (UC-1..UC-10, ขึ้นกับ Phase 8 แบบ deploy ต้องเรียงกันตาม R-18)
+  พร้อม task tag `[frontend]`/`[backend]` ทุกบรรทัด · ที่อยู่จริง `LessonForm.tsx:679-698`/`:187`
+  ถูกเขียนลง task ตรงๆ, ไม่แตะ checkbox เดิมของ Phase 1–7 แม้บรรทัดเดียว · **ขั้นถัดไป:
+  `frontend-engineer`/`backend-engineer` หยิบ Phase 8 ก่อน (Phase 9 รอ Phase 8 deploy เสร็จ)**
+- **✅ 2026-08-25 (รอบสาม · `system-analyst` amend reconcile Phase 8 · ไม่มีโค้ด ไม่แตะ checkbox
+  ไม่แตะ `requirement.md`): engineer ทั้งสองฝั่ง implement Phase 8 แล้ว "หยุดและตีกลับ" 3 จุด
+  ที่ contract ไม่ตรงกับของจริง แทนที่จะตัดสินเอง — ตรงตามที่ pipeline ต้องการ** ·
+  reconcile ครบทั้งสาม **ไม่แตะ Data Model แม้ฟิลด์เดียว จึงไม่มี migration ใหม่**:
+  **(1)** KL-21 field drift — `createDate` → **`createdAt`** และ 409 **ขี่มาใน
+  `ApiErrorResponse.error.details` เดิมของระบบ ไม่ใช่ JSON body เปล่า** ผ่าน
+  `GeneralException.Conflict` + `ApiErrorCode.Conflict = "CONFLICT"` (ยืนยันทั้งสองฝั่ง) —
+  **เอกสารเป็นฝ่ายผิด โค้ดถูกอยู่แล้ว ห้าม rename โค้ดตามถ้อยคำเดิม** ·
+  **(2) KL-25 ใหม่ — ปิดข้อ "สร้าง Q&A จากหน้าคลัง" ให้ขาด**: `/admin/documents` ทำได้แค่
+  ดู/แก้ (KL-14)/ลบ (KL-15-16) · ทางสร้างมีที่เดียวคือ `/admin/qna-queue` เพราะ **QQ-2/QQ-7
+  บังคับว่า Q&A ต้องผูกกับคำถามในคิวอย่างน้อยหนึ่ง** และหน้าคลังไม่มีแถวคิวให้ผูก → ฟอร์มสร้าง
+  ที่นั่นจะได้ Q&A ที่ไม่มี `KnowledgeQnASource` เลย ซึ่งขัดโครง R5 ทั้งชุด · ถ้อยคำ task
+  `plan.md` ที่เคยเขียนว่า "เพิ่มฟอร์มบันทึก Q&A ใหม่จากหน้ารวม" ถูกแก้ **phasing ไม่เปลี่ยน
+  จึงไม่ต้องมีรอบ `project-manager`** ·
+  **(3) รับการเทียบซ้ำแบบ in-memory (KL-19/KL-20/KL-23) เข้าเป็นข้อบังคับ พร้อมคำสั่ง
+  "ห้ามแก้กลับเป็น `EF.Functions.ILike`" เขียนอยู่ในตัว contract เอง** — เหตุผลที่หนักที่สุด
+  ไม่ใช่ testability แต่เป็น **ความถูกต้อง**: `ILike` ตีความ `_`/`%` ที่อยู่ใน**ชื่อไฟล์**
+  เป็น wildcard → `report_2026.pdf` แมตช์ `report-2026.pdf` เป็น false positive ทั้งที่ KL-20
+  สั่ง "เทียบเต็มสตริง" · บวกกับ "ยุบช่องว่าง" ของ KL-23 ที่แปลเป็น `ILike` ไม่ได้เลย และ fakes
+  ของ `Application.Tests` ที่ทำให้ test 4 ตัวตาม R-12 เขียนไม่ได้ · **KL-19 เลิกอ้างว่าคิวรีใช้
+  index `(CompanyId, ContentHash)`** (โค้ดจริงเทียบ hash ในหน่วยความจำบนลิสต์ก้อนเดียวกับ KL-20)
+  **แต่คง index ไว้ ห้าม drop** — ถูกต้องทันทีที่ทะลุเส้น ~500/บริษัทของ O-11 · **KL-11 ไม่ถูกแตะ
+  ยังเป็น `ILike` จริงที่ระดับคิวรี** ·
+  **🔴 เปิด `Q-H2` เป็นข้อรอมติ** (เจอเพิ่มจากการอ่านโค้ด ไม่ได้อยู่ใน 3 ข้อที่มอบหมาย):
+  คำเตือน KL-23 ถูกคืนมา**หลัง** `CreateAsync` บันทึกสำเร็จ ปิดคำถามในคิว และ enqueue
+  `qna_index` ไปแล้ว → ปุ่ม "บันทึกเพิ่มอยู่ดี" กับ "ไปแก้ใบเดิมแทน" **ให้ผลเหมือนกันเป๊ะคือ
+  ปิด dialog** (`onEditExisting` ไม่ถูกส่งมาจาก `/admin/qna-queue` และตาม KL-25 จะไม่มีวันมี) ·
+  ทางเลือก (ก) คงคำเตือนหลังบันทึกแต่ห้าม UI โกหก + deep-link `/admin/documents?q=<คำถาม>`
+  กับ (ข) เปลี่ยนเป็นด่านก่อนบันทึกแบบ KL-21 (rework ทั้งสองฝั่ง) — **`system-analyst`
+  ไม่ตัดสินเอง เพราะราคาต่างกันมากและเป็นการตัดสินใจของเจ้าของโปรเจกต์**
+- **✅ 2026-08-25 (รอบสี่ · `system-analyst` amend เฉพาะจุด · ไม่มีโค้ด ไม่แตะ checkbox
+  ไม่แตะ `plan.md`/`requirement.md`): `Q-H2` ปิดแล้ว = ทาง (ข) "ด่านก่อนบันทึก"** —
+  เจ้าของโปรเจกต์เลือก rework · **KL-23 เขียนใหม่ทั้งครึ่งแรก**: ตรวจซ้ำ **ก่อน**
+  `_repository.Add` ทุกอย่าง (ก่อนแถว `KnowledgeQnA` · ก่อน `KnowledgeQnASource` · ก่อนปิดคำถาม
+  ในคิว · ก่อน `EnqueueJob(qna_index)` · ก่อน `Commit()`) → คืน **409 `CONFLICT`** โดย `details`
+  เป็น **`DuplicateQnAResponse` = `{ duplicateByQuestion: KnowledgeQnAViewModel[] }`** (ลิสต์
+  เรียงใหม่→เก่า ไม่ใช่ใบเดียว) · **การตรวจเป็น unconditional ไม่มีธง `CheckDuplicate`** —
+  ตรวจ call site จริงแล้วว่าทางสร้างมีที่เดียว (`app/admin/qna-queue/page.tsx:130`) จึงไม่มี
+  caller ที่ต้องเงียบแบบ UC-5 · ธงที่เพิ่มคือ **`CreateKnowledgeQnADto.ConfirmDuplicate`
+  (default `false`)** สำหรับ "ยืนยันบันทึกซ้ำ" · **`KnowledgeQnACreateResultViewModel` +
+  `DuplicateWarning` ถูกลบทั้งคลาส** และ `POST /api/knowledge-qna` คืน `{ qna }` รูปเดียวกับ
+  `PUT` — **breaking แต่มี caller เดียว ต้องเปลี่ยนสองฝั่งในเฟสเดียว** · **KL-26 ใหม่ (UI)**:
+  "แก้ใบเดิมแทน" ทำในที่เดิมโดย dialog สลับเป็น `mode: "edit"` จาก payload · **prop
+  `onEditExisting` ถูกลบ** · **⛔ ห้ามลิงก์ `/admin/documents?q=` และห้ามเพิ่ม `q` เข้า URL param
+  ของหน้าคลัง** (ตกไปพร้อมทาง ก) · การแก้ใบเดิม **ไม่ปิด**คำถามในคิว (QQ-2/QQ-6) ต้องเขียนบอก
+  ที่หน้าจอ · **O-13 ใหม่**: การผูกคำถามในคิวเข้ากับ Q&A ที่มีอยู่แล้วเป็น**ความต้องการใหม่
+  ต้องกลับไป `business-analyst` (R7.7)** · **ไม่มีฟิลด์ใหม่ ไม่มี migration ใหม่ Data Model
+  ไม่ถูกแตะ** · KL-15/KL-16 **ตรวจแล้วไม่ต้องแก้** (เป็นเรื่องการลบ ไม่พึ่งจังหวะของ KL-23) ·
+  **ต้องมีรอบ `project-manager` ก่อนส่ง engineer** — task Phase 8 ที่เขียนบนสมมติฐาน
+  "เตือนหลังบันทึก" (`plan.md` บรรทัด 257 และ test KL-23 บรรทัด 262) ต้องเขียนใหม่ ·
+  **`qa-engineer` ยังห้ามปิด KL-23 เป็น ✅** จนกว่าโค้ดจะตรง contract ใหม่
+- **✅ 2026-08-26 (`system-analyst` amend รับ CR-2 / R4.6 · ไม่มีโค้ด ไม่แตะ checkbox
+  ไม่แตะ `plan.md`/`requirement.md` ไม่แตะเอกสารโมดูลอื่น): Module J ใหม่ (🔒 Security gate) ·
+  Data Model ไม่ถูกแตะแม้ฟิลด์เดียว ไม่มี migration ใหม่** — `design.md` amend NR-1/NR-2/NR-3/
+  NR-5/NR-6/NR-8/NR-9 เฉพาะจุด + เพิ่ม **NR-10..NR-19** ครอบเคส "ยังไม่มี `LessonId`" ที่ R4.6.4
+  บังคับ · **คำตอบของช่องว่างนั้นคือ "ไม่ย้ายกติกาไปที่ client และไม่สร้าง endpoint บันทึกบทพูด
+  ตัวที่สอง"**: draft อยู่ในเบราว์เซอร์ตาม R4.6.5 แล้ว flush ผ่าน
+  `PUT /api/lessons/{id}/narrations/{slideObjectId}` **ตัวเดิมทีละหน้า หลัง**บทเรียนเกิดและผูกไฟล์
+  แล้ว → `LessonSlideNarrationService` ไม่ต้องแก้แม้บรรทัดเดียว ·
+  **✅ ตัดสิน CR-2.h แล้ว: เด็ค PDF เข้าคลังด้วย `ScopeType = "lesson"` ตอน commit** (เลิก hardcode
+  `company`) — `company` แปลว่าเนื้อหาเด็คของบทเรียนหนึ่งตอบคำถามได้**ทุกบทเรียนในบริษัท** ซึ่งขัด R3
+  และไม่มีใครขอ · **เปลี่ยนแค่ค่าที่เขียนใหม่ ไม่ใช่ schema: ไม่มีคอลัมน์ใหม่ ไม่มี backfill
+  ไม่มีแถวเดิมถูกแตะ** · **R8.2 ("R8 เป็นเรื่อง UI ล้วน") ยังจริงสำหรับ R8 แต่ไม่ครอบ R4.6** ·
+  เด็คเก่าที่ scope `company` **ไม่ถูกย้าย (O-14)** ทางแก้ทีละใบคือ `PATCH /api/documents/{id}/scope`
+  ที่มีอยู่แล้ว ·
+  **R4.6.3 (ภาพสไลด์จริง) ทำได้ด้วยของที่มี — ต้นทุนอยู่ที่ CPU/RAM ไม่ใช่ dependency**:
+  `PdfSlidesRenderer.BuildContent`/`RenderPagePng` รับ `Stream` ล้วนจึงทำงานกับไฟล์ที่ยังไม่ persist ได้
+  · **แต่ `RenderPdfPageAsync` เดิมใช้ตรง ๆ ไม่ได้** (`GetPdfBytesAsync` บังคับว่าต้องมีแถว
+  `DocumentResource` + `ObsKey`) และ endpoint ภาพที่มีวันนี้เป็น learner-side ผูก link token →
+  ต้องมี **preview session ในหน่วยความจำ (sliding 10 นาที) + endpoint ใหม่ 2 ตัว** (NR-10/NR-11) ·
+  **UC-5 amend: "ห้ามแตะ `handlePdfUpload`" ถูก R4.6 supersede อย่างเป็นทางการ (CR-2.m) —
+  `qa-engineer` ต้องไม่รายงานการแก้ฟังก์ชันนี้เป็นการละเมิด R8.3** (การละเมิดที่ยังนับ = ลบเส้นทาง
+  อัป PDF ตัวสไลด์ทิ้ง) · **UC-9 amend**: Module I และ Module J แก้ `LessonForm.tsx` ไฟล์เดียวกัน
+  คนละบริเวณ → **ห้ามทำขนานกัน ลำดับที่แนะนำคือ I ก่อน J (R-24)** ·
+  **R-21..R-24 · O-14..O-16 ใหม่** · **🟠 เปิดข้อรอคำตอบ 2 ข้อ: `Q-J1`** (ตีความ R4.6.5 "ไม่มี state
+  ที่ฝั่ง server เลย" กับ byte ที่ต้องผ่าน server เพื่อ parse/render) **· `Q-J2`** (ภาพสไลด์ในหน้า
+  แก้บทพูดเดิม) — ✅ **ทั้งสองข้อปิดแล้วในรอบถัดมาของวันเดียวกัน ดูบรรทัดล่างสุด**
+- **✅ 2026-08-26 (รอบที่สองของวัน · `system-analyst` amend ปิดข้อรอคำตอบอย่างเดียว):
+  `Q-J1` และ `Q-J2` เคาะแล้ว → Module J ไม่มีคำถามค้างเลย** · **`Q-J1` = "ไม่ขัด —
+  แตะชั่วคราวได้"**: เจ้าของโปรเจกต์ยืนยันว่า "ไม่มี state ที่ฝั่ง server" ใน R4.6.5 หมายถึงห้าม
+  state ที่ **persist / กลับมาทำต่อได้** ไม่ใช่ห้าม byte แตะโปรเซส → **NR-10 (preview session ใน
+  `IMemoryCache` · sliding 10 นาที · ไม่มีแถวใน DB ไม่มีรายการในคลัง ไม่มี index · ไม่ยืนยัน =
+  หมดอายุเอง) ยืนตามที่ออกแบบไว้** · **`Q-J2` = "ใส่ทั้งสองที่"**: **NR-18 (ภาพสไลด์ในหน้าแก้บทพูด
+  เดิมด้วย) อยู่ในขอบเขต ⛔ ห้ามตัด** · **ทั้งสองข้อตรงกับทางที่ `system-analyst` เสนอไว้ จึงไม่มี
+  contract / Data Model / ข้อความ NR ข้อไหนถูกแก้แม้คำเดียว ไม่มี migration ไม่แตะ checkbox
+  ไม่แตะ `plan.md`/`requirement.md` ไม่แตะเอกสารโมดูลอื่น ไม่มีโค้ดถูกเขียน** — `design.md`
+  แก้ 4 จุด: กล่องสถานะหัวไฟล์ · ช่องคำตัดสินของแถว **R4.6.5** ใน `## Feature-by-Feature
+  Feasibility` (เลิกเขียนว่า "ตัวอักษรต้องตีความ") · `## Unresolved Open Questions`
+  (ย้าย `Q-J1`/`Q-J2` เป็นตารางมติที่ปิดแล้ว + บันทึก "ทางที่ตกไป ห้ามหยิบกลับ") · Change Log · **ขั้นถัดไป: `project-manager`
+  วาง phase ของ Module J ได้ทั้งก้อน ไม่มีเงื่อนไข/คำถามค้างเหลืออยู่เลย** — ข้อจำกัดที่ยังบังคับ
+  คือ **R-24 (I ก่อน J ห้ามทำขนาน)** และหัวข้อ 🟡 O-1..O-16 ซึ่งเป็นของที่ **ตั้งใจไม่ทำ**
+  ไม่ใช่ของที่รอคำตอบ · **⛔ engineer ยังห้ามหยิบจนกว่าจะมี task ใน `plan.md`**
+
 ⚠️ `docs/HANDOFF_MASTER.md` หมายเหตุ 🟡 ใต้มติข้อ 5 **ยังเขียนว่า "ข้อเสนอค้างอยู่ ยังไม่ตัดสิน"
-ซึ่งล้าสมัยแล้ว** — `business-analyst` ไม่แก้เพราะไฟล์อยู่นอกโฟลเดอร์โมดูล (`conventions.md` §1)
-ต้องมีคนตัดสินว่าใครแก้ · **ขั้นถัดไป: `system-analyst` (amend) รับ R7 ได้เลย · ⛔ engineer
-ยังห้ามหยิบ**
+ซึ่งล้าสมัยแล้ว** — ทั้ง `business-analyst` และ `system-analyst` ไม่แก้เพราะไฟล์อยู่นอกโฟลเดอร์
+โมดูล (`conventions.md` §1) ต้องมีคนตัดสินว่าใครแก้ · **ขั้นถัดไป: `project-manager` ·
+⛔ engineer ยังห้ามหยิบจนกว่าจะมี task ใน `plan.md`**
 
 Docs: requirement ✅ · design ✅ (ยืนยัน default-chain amendment แล้ว — เป็น contract) · plan ✅ (default-chain repository/test contract ตรง design แล้ว) · Phase 1 code ✅ พร้อม QA (invariant แก้แล้ว + verify ผ่านครบ — ดูหัวข้อ "Claude Code handoff" ด้านล่าง)
 

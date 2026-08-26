@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text.Json;
 using Mapster;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using SupportRoom.Application.Common;
 using SupportRoom.Application.Dto;
@@ -20,6 +21,16 @@ public interface IKnowledgeQnAService
     /// session and lesson.</summary>
     IReadOnlyList<KnowledgeQnAQueueItemViewModel> GetQueue();
 
+    /// <summary>KL-8/KL-9 - the library view's Q&A table, same shape and semantics as
+    /// IDocumentResourceService.GetByScope (KL-2..KL-5, KL-11..KL-13). Explicitly authenticated
+    /// inside the implementation (KL-10) - not left to the query filter alone, same reasoning as
+    /// GetChunks (DI-7).</summary>
+    IReadOnlyList<KnowledgeQnAViewModel> GetAll(KnowledgeQnAFilter filter);
+
+    /// <summary>KL-23/Q-H2 - pre-save gate: throws GeneralException.Conflict (409, details =
+    /// DuplicateQnAResponse) before any write when an existing, non-deleted Q&A of this company
+    /// already has the same Question (trim + whitespace-collapse + case-insensitive). Unconditional
+    /// on every create unless input.ConfirmDuplicate is true.</summary>
     Task<KnowledgeQnAViewModel> CreateAsync(CreateKnowledgeQnADto input);
     Task<KnowledgeQnAViewModel> UpdateAsync(string id, UpdateKnowledgeQnADto input);
     Task DeleteAsync(string id);
@@ -36,6 +47,7 @@ public sealed class KnowledgeQnAService(
     IUnitOfWork unitOfWork,
     IServiceProvider serviceProvider,
     ILogger<IKnowledgeQnAService> logger,
+    IAuthorizationGuard guard,
     IKnowledgeNamespaceResolver namespaceResolver)
     : ServiceBase<IKnowledgeQnAService>(unitOfWork, serviceProvider, logger), IKnowledgeQnAService
 {
@@ -44,6 +56,7 @@ public sealed class KnowledgeQnAService(
     private readonly ISessionQuestionRepository _sessionQuestionRepository = unitOfWork.GetRepository<ISessionQuestionRepository>();
     private readonly ILearningSessionRepository _learningSessionRepository = unitOfWork.GetRepository<ILearningSessionRepository>();
     private readonly ITrainingLinkRepository _trainingLinkRepository = unitOfWork.GetRepository<ITrainingLinkRepository>();
+    private readonly ILessonConfigRepository _lessonConfigRepository = unitOfWork.GetRepository<ILessonConfigRepository>();
 
     public IReadOnlyList<KnowledgeQnAQueueItemViewModel> GetQueue()
     {
@@ -104,13 +117,58 @@ public sealed class KnowledgeQnAService(
             .ToList();
     }
 
+    public IReadOnlyList<KnowledgeQnAViewModel> GetAll(KnowledgeQnAFilter filter)
+    {
+        // KL-10 - explicit, not left to the query filter alone: this is the second endpoint in the
+        // system (after DI-7's chunks) that returns the knowledge base's actual text content.
+        guard.EnsureAuthenticated();
+
+        var query = ResolveScopeQuery(filter.ScopeType, filter.ScopeId);
+
+        if (!string.IsNullOrEmpty(filter.Status))
+        {
+            query = query.Where(x => x.IndexingStatus == filter.Status);
+        }
+
+        var normalizedQuery = KnowledgeLibrarySearch.Normalize(filter.Q);
+        if (normalizedQuery is not null)
+        {
+            // KL-11 - Question or Answer matches; EF.Functions.ILike keeps this parameterized.
+            var pattern = $"%{normalizedQuery}%";
+            query = query.Where(x => EF.Functions.ILike(x.Question, pattern) || EF.Functions.ILike(x.Answer, pattern));
+        }
+
+        return query.OrderByDescending(x => x.CreateDate).ToList().Select(x => x.Adapt<KnowledgeQnAViewModel>()).ToList();
+    }
+
+    private IQueryable<KnowledgeQnA> ResolveScopeQuery(string? scopeType, string? scopeId)
+    {
+        // KL-2 (via KL-9's "same shape as documents") - no scopeType sent = every scope.
+        if (string.IsNullOrEmpty(scopeType))
+        {
+            return _repository.GetAllInCompany();
+        }
+
+        // KL-5 - a category filter also surfaces the Q&A of every lesson under it.
+        if (scopeType == KnowledgeScopeType.Category && !string.IsNullOrEmpty(scopeId))
+        {
+            var lessonIdsInCategory = _lessonConfigRepository.GetByCategoryId(scopeId).Select(l => l.Id);
+            return _repository.FindBy(x =>
+                (x.ScopeType == KnowledgeScopeType.Category && x.ScopeId == scopeId)
+                || (x.ScopeType == KnowledgeScopeType.Lesson && lessonIdsInCategory.Contains(x.ScopeId)));
+        }
+
+        return _repository.GetByScope(scopeType, scopeId);
+    }
+
     public Task<KnowledgeQnAViewModel> CreateAsync(CreateKnowledgeQnADto input)
     {
         var question = NormalizeQuestion(input.Question);
         var answer = NormalizeAnswer(input.Answer);
 
         // KS-2/TX-5 - the single resolver validates the scope pair (and, for "category", that it
-        // is a Level-2 leaf) before anything is written.
+        // is a Level-2 leaf) before anything is written. 400/404 must win over 409, so this and
+        // the SessionQuestionIds checks below run before the duplicate gate (Q-H2 fixed order).
         namespaceResolver.EnsureValidScope(CurrentCompanyId, input.ScopeType, input.ScopeId);
 
         if (input.SessionQuestionIds.Count == 0)
@@ -126,6 +184,26 @@ public sealed class KnowledgeQnAService(
         if (missing.Count > 0)
         {
             throw GeneralException.NotFound($"คำถาม ({string.Join(", ", missing)})");
+        }
+
+        // KL-23/Q-H2 - pre-save gate, unconditional unless ConfirmDuplicate: computed before any
+        // write (no row, no KnowledgeQnASource, no queue close, no queued job, no Commit). A 409
+        // here must leave the database exactly as it was.
+        if (!input.ConfirmDuplicate)
+        {
+            var duplicates = FindDuplicateQuestions(question);
+            if (duplicates.Count > 0)
+            {
+                throw GeneralException.Conflict(
+                    "พบคำถามที่ซ้ำกับที่มีอยู่แล้วในคลัง",
+                    new DuplicateQnAResponse
+                    {
+                        DuplicateByQuestion = duplicates
+                            .OrderByDescending(x => x.CreateDate)
+                            .Select(x => x.Adapt<KnowledgeQnAViewModel>())
+                            .ToList(),
+                    });
+            }
         }
 
         // DM-6: "id ใน Pinecone = Id ของแถวนี้ตรงๆ" - VectorId and Id must be identical, generated
@@ -166,6 +244,22 @@ public sealed class KnowledgeQnAService(
 
         return Task.FromResult(entity.Adapt<KnowledgeQnAViewModel>());
     }
+
+    /// <summary>KL-23 - scoped to CurrentCompanyId explicitly in the predicate (same
+    /// defence-in-depth reasoning as DocumentResourceService's KL-19/KL-20 checks), Question only,
+    /// scope-agnostic. Whitespace-collapse happens in memory rather than via SQL regex, for the
+    /// same fakes-testability reason documented on DocumentResourceService.FindDuplicates.</summary>
+    private List<KnowledgeQnA> FindDuplicateQuestions(string normalizedQuestion)
+    {
+        var collapsed = CollapseWhitespace(normalizedQuestion);
+        return _repository.FindBy(x => x.CompanyId == CurrentCompanyId)
+            .ToList()
+            .Where(x => string.Equals(CollapseWhitespace(x.Question), collapsed, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+    }
+
+    private static string CollapseWhitespace(string value)
+        => System.Text.RegularExpressions.Regex.Replace(value, @"\s+", " ");
 
     public Task<KnowledgeQnAViewModel> UpdateAsync(string id, UpdateKnowledgeQnADto input)
     {

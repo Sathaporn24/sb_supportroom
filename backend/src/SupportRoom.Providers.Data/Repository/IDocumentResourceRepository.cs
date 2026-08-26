@@ -10,6 +10,14 @@ public interface IDocumentResourceRepository : IRepositoryBase<DocumentResource,
     IQueryable<DocumentResource> GetByScope(string scopeType, string? scopeId);
 
     /// <summary>
+    /// KL-2 - every non-deleted document of the caller's company, across every scope. Just
+    /// FindBy(_ => true): isolation comes entirely from the EF global query filter (CompanyId +
+    /// !IsDelete), same as every other scoped query in this project. IgnoreQueryFilters() must
+    /// never be added here - see the GetDeleted comment below for what that mistake costs.
+    /// </summary>
+    IQueryable<DocumentResource> GetAllInCompany();
+
+    /// <summary>
     /// IgnoreQueryFilters() only exists here to see past the `!IsDelete` half of the query filter
     /// (see ApplicationDbContext) - the soft-deleted rows this method exists to return are exactly
     /// what that half hides. IgnoreQueryFilters() drops the CompanyId half too though, so
@@ -24,6 +32,8 @@ public sealed class DocumentResourceRepository(ApplicationDbContext dbContext)
 {
     public IQueryable<DocumentResource> GetByScope(string scopeType, string? scopeId)
         => FindBy(x => x.ScopeType == scopeType && x.ScopeId == scopeId);
+
+    public IQueryable<DocumentResource> GetAllInCompany() => FindBy(_ => true);
 
     public IQueryable<DocumentResource> GetDeleted(string companyId)
         => Context.DocumentResource.IgnoreQueryFilters().Where(x => x.CompanyId == companyId && x.IsDelete);

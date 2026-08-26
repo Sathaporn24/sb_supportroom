@@ -33,4 +33,13 @@ public sealed class DocumentResource : IEntityMaster<string>, ICompanyScoped
     public required string IndexingStatus { get; set; }
     public int IndexedChunkCount { get; set; }
     public string? FailureReason { get; set; }
+
+    /// <summary>R7.5 (Q-H1 = ทาง B) - the file's fingerprint for "warn on duplicate content" (KL-18).
+    /// SHA-256 of the whole file's bytes, stored as lowercase hex, 64 characters, no prefix/dashes.
+    /// Computed once at upload time and never touched again - moving scope, soft delete/restore,
+    /// and re-index never recompute it (KL-18).
+    /// Null in exactly two cases: (1) a row uploaded before MG-H1 - intentionally not backfilled
+    /// (KL-24) - and (2) no other case: every upload after MG-H1 always sets it.
+    /// Null must never be treated as equal to another null when checking for duplicates (KL-19).</summary>
+    public string? ContentHash { get; init; }
 }

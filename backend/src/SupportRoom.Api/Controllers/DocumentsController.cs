@@ -16,6 +16,10 @@ public sealed class UploadDocumentRequest
     public string? ScopeType { get; init; }
 
     public string? ScopeId { get; init; }
+
+    /// <summary>KL-21 - opt-in duplicate check, defaults false. Only the upload form on
+    /// /admin/documents sends true (handlePdfUpload/UC-5 never does).</summary>
+    public bool CheckDuplicate { get; init; }
 }
 
 [ApiController]
@@ -57,15 +61,16 @@ public sealed class DocumentsController : ControllerBase
             // typo, so the controller does not need a second check of its own.
             ScopeType = request.ScopeType ?? string.Empty,
             ScopeId = request.ScopeId,
+            CheckDuplicate = request.CheckDuplicate,
         });
 
         return Ok(new { document = result });
     }
 
     [HttpGet]
-    public ActionResult GetAll([FromQuery] string? scopeType, [FromQuery] string? scopeId)
+    public ActionResult GetAll([FromQuery] string? scopeType, [FromQuery] string? scopeId, [FromQuery] string? status, [FromQuery] string? q)
     {
-        var documents = _service.GetByScope(scopeType, scopeId);
+        var documents = _service.GetByScope(scopeType, scopeId, status, q);
         return Ok(new { documents });
     }
 

@@ -112,6 +112,7 @@ export function LessonForm(props: LessonFormProps) {
   const [pendingCategoryChange, setPendingCategoryChange] = useState(false);
   const [pendingPdfReplace, setPendingPdfReplace] = useState<{ file: File; narrationCount: number } | null>(null);
   const [pdfReplaceError, setPdfReplaceError] = useState<string | null>(null);
+  const [documentCount, setDocumentCount] = useState<number | null>(null);
 
   const categories = props.categories;
   const loadError = props.loadError ?? null;
@@ -123,6 +124,15 @@ export function LessonForm(props: LessonFormProps) {
       setForm((prev) => (prev.categoryId ? prev : { ...prev, categoryId: defaultCategory.id }));
     }
   }, [props.mode, categories]);
+
+  // UC-6 - read-only count of documents attached to this lesson via ScopeType="lesson"; only
+  // meaningful once the lesson exists (has an id), so create mode never fetches this.
+  useEffect(() => {
+    if (!isEdit || !lesson) return;
+    void api.listDocuments({ scopeType: "lesson", scopeId: lesson.id }).then(({ documents }) => {
+      setDocumentCount(documents.length);
+    });
+  }, [isEdit, lesson]);
 
   const slugTaken = useMemo(() => {
     if (props.mode !== "create") return false;
@@ -678,6 +688,22 @@ export function LessonForm(props: LessonFormProps) {
           </p>
         </CardContent>
       </Card>
+
+      {/* UC-6/UC-8 - read-only summary of documents attached to this lesson (ScopeType="lesson").
+          The upload/delete/move UI that used to live here was consolidated into the knowledge
+          library page (UC-1/UC-2) - this line deliberately has no button or table of its own. */}
+      {lesson && (
+        <p className="text-sm text-muted-foreground" data-testid="lesson-editor-document-summary">
+          เอกสารประกอบของบทเรียนนี้: {documentCount ?? "…"} รายการ ·{" "}
+          <AdminLink
+            href={`/admin/documents?scopeType=lesson&scopeId=${encodeURIComponent(lesson.id)}`}
+            className="text-primary hover:underline"
+            data-testid="lesson-editor-document-summary-link"
+          >
+            ดูในคลังความรู้
+          </AdminLink>
+        </p>
+      )}
 
       <section className="flex flex-col gap-3">
         <p className="text-xs tracking-wide text-muted-foreground uppercase">

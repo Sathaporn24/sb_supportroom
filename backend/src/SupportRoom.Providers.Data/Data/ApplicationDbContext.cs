@@ -116,6 +116,9 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
         {
             entity.HasKey(x => x.Id);
             entity.HasIndex(x => new { x.CompanyId, x.ScopeType, x.ScopeId });
+            // R7.5/KL-19 - the duplicate-detection query hits this on every CS upload, not a spare
+            // index. Not unique: "duplicate" is a warning, not a constraint (KL-21).
+            entity.HasIndex(x => new { x.CompanyId, x.ContentHash });
             entity.HasQueryFilter(x => x.CompanyId == companyContext.CompanyId && !x.IsDelete);
         });
 

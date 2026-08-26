@@ -21,6 +21,7 @@ import type {
   KnowledgeCategory,
   KnowledgeQnA,
   KnowledgeQnAConflict,
+  KnowledgeQnAFilter,
   KnowledgeQnAQueueItem,
   LearningSession,
   LearnerLessonConfig,
@@ -489,26 +490,44 @@ export function resetDemoData(): Promise<{ status: string }> {
   return request(apiUrl("/api/admin/reset"), { method: "POST" });
 }
 
-/** DS-1 - scope is required, never inferred: pass { scopeType: "company" } for the standalone
- * library, { scopeType: "lesson", scopeId: LessonConfig.Id } to attach to one lesson, or
- * { scopeType: "category", scopeId } for a Level-2 category. */
-export function uploadDocument(file: File, scope: DocumentScope): Promise<{ document: DocumentResource }> {
+/** DS-1/KL-21 - scope is required, never inferred: pass { scopeType: "company" } for the
+ * standalone library, { scopeType: "lesson", scopeId: LessonConfig.Id } to attach to one lesson,
+ * or { scopeType: "category", scopeId } for a Level-2 category. `checkDuplicate` defaults to
+ * `false` (unchanged behaviour everywhere except the library page's own upload form, KL-21) -
+ * when `true` and the server finds a match it responds 409 with a normal ApiClientError whose
+ * `response.error.details` is a DuplicateDocumentsResponse (KL-21/KL-22); nothing is written. */
+export function uploadDocument(
+  file: File,
+  scope: DocumentScope,
+  checkDuplicate = false,
+): Promise<{ document: DocumentResource }> {
   const formData = new FormData();
   formData.append("file", file);
   formData.append("scopeType", scope.scopeType);
   if (scope.scopeId) {
     formData.append("scopeId", scope.scopeId);
   }
+  if (checkDuplicate) {
+    formData.append("checkDuplicate", "true");
+  }
   return request(apiUrl("/api/documents"), { method: "POST", body: formData });
 }
 
-/** DS-4 - defaults to the company-wide library when no scope is passed. */
-export function listDocuments(scope: DocumentScope = { scopeType: "company" }): Promise<{ documents: DocumentResource[] }> {
-  const params = new URLSearchParams({ scopeType: scope.scopeType });
-  if (scope.scopeId) {
-    params.set("scopeId", scope.scopeId);
-  }
-  return request(apiUrl(`/api/documents?${params.toString()}`));
+function libraryFilterParams(filter: KnowledgeQnAFilter): URLSearchParams {
+  const params = new URLSearchParams();
+  if (filter.scopeType) params.set("scopeType", filter.scopeType);
+  if (filter.scopeId) params.set("scopeId", filter.scopeId);
+  if (filter.status) params.set("status", filter.status);
+  if (filter.q) params.set("q", filter.q);
+  return params;
+}
+
+/** KL-2 - omitting scopeType (pass `{}` or nothing) returns every scope for the company, the
+ * library page's default. Pass an explicit scopeType for the old single-scope behaviour (still
+ * used when embedded in a lesson editor). */
+export function listDocuments(filter: KnowledgeQnAFilter = {}): Promise<{ documents: DocumentResource[] }> {
+  const query = libraryFilterParams(filter).toString();
+  return request(apiUrl(`/api/documents${query ? `?${query}` : ""}`));
 }
 
 /** DS-5/DS-6 - moves an already-uploaded document to a new scope; the server re-embeds into the
@@ -633,8 +652,19 @@ export function getQnaQueue(): Promise<{ queue: KnowledgeQnAQueueItem[] }> {
   return request(apiUrl("/api/qna-queue"));
 }
 
+/** KL-8/KL-9 - the Q&A half of the library page (`/admin/documents`); same filter shape and same
+ * interpretation as listDocuments (KL-2..KL-5, KL-11..KL-13). */
+export function listKnowledgeQnA(filter: KnowledgeQnAFilter = {}): Promise<{ qnas: KnowledgeQnA[] }> {
+  const query = libraryFilterParams(filter).toString();
+  return request(apiUrl(`/api/knowledge-qna${query ? `?${query}` : ""}`));
+}
+
 /** QQ-7/QQ-8 - closes every sessionQuestionId selected from the queue. Used immediately, no
- * approval step (R5.7). */
+ * approval step (R5.7). KL-23/KL-26 (mati Q-H2) - the duplicate check runs unconditionally before
+ * anything is written: when the Question matches an existing, non-deleted Q&A of this company, the
+ * server writes nothing and responds 409 with a normal ApiClientError whose `response.error.details`
+ * is a DuplicateQnAResponse (same envelope shape as uploadDocument's KL-21 409, different details
+ * type). Pass `confirmDuplicate: true` to skip the check and always succeed. */
 export function createKnowledgeQnA(input: CreateKnowledgeQnAInput): Promise<{ qna: KnowledgeQnA }> {
   return request(apiUrl("/api/knowledge-qna"), { method: "POST", headers: jsonHeaders, body: JSON.stringify(input) });
 }

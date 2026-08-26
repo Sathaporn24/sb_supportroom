@@ -99,7 +99,7 @@ public sealed class LessonSlideNarrationService(
             ?? throw GeneralException.NotFound("หน้าเอกสาร");
 
         var trimmed = SanitizeNarrationText(narrationText).Trim();
-        var prefill = baseSlide.SpeakerNotes.Trim();
+        var prefill = SanitizeNarrationText(baseSlide.SpeakerNotes).Trim();
         var existing = _narrationRepository.GetOne(lessonId, slideObjectId);
         var changed = false;
 

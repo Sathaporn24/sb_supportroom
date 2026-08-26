@@ -42,10 +42,11 @@ Error กลาง:
 | POST | `/api/tts` | JSON `{ text, token, learnerKey, rate? }` → audio bytes |
 | POST | `/api/voice-question` | multipart audio question |
 | POST | `/api/text-question` | JSON `{ token, learnerKey, text, currentSlideObjectId? }` - typed question, same result shape as voice (F10/TQ-2) |
-| GET | `/api/documents?scopeType=&scopeId=` | documents ตาม scope (`lesson`/`category`/`company`); ไม่ส่ง query เลย = `company` |
-| POST | `/api/documents` | upload document (multipart `file` + `scopeType` + `scopeId?`), สูงสุดตาม `MAX_DOCUMENT_UPLOAD_MB` |
+| GET | `/api/documents?scopeType=&scopeId=&status=&q=` | documents ตาม scope (`lesson`/`category`/`company`); **ไม่ส่ง `scopeType` เลย = ทุก scope ของบริษัท** (KL-2, เดิมคือ `company`) · `scopeType=category` คืนของหมวดนั้นบวกของทุกบทเรียนในหมวดนั้นด้วย (KL-5) · `status` กรองด้วย `IndexingStatus` · `q` ค้นใน `FileName`/`DocumentChunk.Text` (ILIKE, ไม่สนตัวพิมพ์ใหญ่เล็ก) — ว่างหรือสั้นกว่า 2 ตัวอักษร = ไม่ค้น (KL-11..KL-13) |
+| POST | `/api/documents` | upload document (multipart `file` + `scopeType` + `scopeId?` + `checkDuplicate?`), สูงสุดตาม `MAX_DOCUMENT_UPLOAD_MB` — ดู "Duplicate detection" ด้านล่าง |
 | PATCH | `/api/documents/{id}/scope` | JSON `{ scopeType, scopeId? }` — ย้ายเอกสารไป scope ใหม่ (DS-5/DS-6) |
 | DELETE | `/api/documents/{id}` | ลบ metadata/storage object |
+| GET | `/api/knowledge-qna?scopeType=&scopeId=&status=&q=` | Q&A ของบริษัทผู้เรียก เรียงตาม `CreateDate` ลง — query ตีความเหมือน `/api/documents` ทุกข้อ (KL-8/KL-9); **ไม่ใช่** `/api/qna-queue` (คิวคำถามที่ยังไม่มีคำตอบ คนละตาราง) |
 | POST | `/api/admin/reset` | ลบ link/learning session/question เมื่ออนุญาต |
 | POST | `/api/admin/reindex` | rebuild RAG namespaces เมื่ออนุญาต |
 
@@ -112,6 +113,89 @@ Response: `VoiceAnswerViewModel` เดียวกับ `/api/voice-question` 
 
 `reviewResult` รับแค่ `correct` / `incorrect` · `reviewNote` เป็น free text ไม่บังคับ
 (เหตุผลที่ไม่ทำเป็น enum อยู่ใน CORE_FEATURE_SPEC §2.7)
+
+### `POST /api/documents` — duplicate detection (KL-18..KL-24)
+
+ทุกการอัปโหลดคำนวณ `ContentHash` (SHA-256 ของไฟล์) เก็บไว้ภายใน — ไม่ออก API ที่ไหนเลย
+
+`checkDuplicate` (`boolean`, default `false`) เป็น multipart field เสริม:
+
+- `false` (ค่าเริ่มต้น, ทุกทางอัปโหลดเดิมรวม PDF ตัวสไลด์) — อัปโหลดผ่านตลอดเหมือนเดิม
+- `true` (เฉพาะฟอร์มอัปโหลดที่ `/admin/documents`) — ตรวจ "เนื้อหาซ้ำ" (`ContentHash` ตรงกัน
+  ในบริษัทเดียวกัน) และ "ชื่อซ้ำ" (`FileName` ตรงกันหลัง trim, ไม่สนตัวพิมพ์ใหญ่เล็ก) **ก่อน**
+  เขียนอะไรทั้งสิ้น — เจอซ้ำแบบใดแบบหนึ่งคืน `409 Conflict` ไม่เขียนแถว/storage/index job
+
+```json
+{
+  "error": {
+    "code": "CONFLICT",
+    "message": "พบเอกสารที่อาจซ้ำกับที่มีอยู่แล้วในคลัง",
+    "details": {
+      "duplicateByHash": [{ "id": "doc_...", "fileName": "...", "scopeType": "lesson", "scopeId": "...", "createdAt": "..." }],
+      "duplicateByFileName": [{ "id": "doc_...", "fileName": "...", "scopeType": "company", "scopeId": null, "createdAt": "..." }]
+    },
+    "requestId": "..."
+  }
+}
+```
+
+`duplicateByHash`/`duplicateByFileName` เป็นคนละรายการ อาจทับกันได้ (ไฟล์เดิมเป๊ะ) — client กด
+"อัปโหลดต่อไป" คือส่งคำขอเดิมซ้ำพร้อม `checkDuplicate: false` เท่านั้น ไม่มี field อื่นให้ override
+
+### `POST /api/knowledge-qna` — question-duplicate gate (KL-23, มติ Q-H2 = ทาง (ข), 2026-08-25)
+
+Request body เพิ่ม `confirmDuplicate` (`boolean`, default `false`):
+
+```json
+{
+  "question": "...",
+  "answer": "...",
+  "scopeType": "lesson",
+  "scopeId": "...",
+  "sessionQuestionIds": ["sq_..."],
+  "confirmDuplicate": false
+}
+```
+
+**ด่านก่อนบันทึก ไม่ใช่คำเตือนหลังบันทึก** — ตรวจ**ก่อน**เขียนอะไรทั้งสิ้น (ไม่มีแถว
+`KnowledgeQnA`/`KnowledgeQnASource`, ไม่มี job เข้าคิว) ทุกครั้งที่ `confirmDuplicate = false`
+(ค่าเริ่มต้น) โดยเทียบ `Question` (trim + ยุบช่องว่าง + ไม่สนตัวพิมพ์ใหญ่เล็ก) กับ Q&A เดิมของ
+บริษัทเดียวกัน — คนละกลไกกับ duplicate เอกสารข้างบนทั้งหมด (ไม่ใช้ `ContentHash`, ไม่สน scope,
+เทียบเฉพาะ `Question` ไม่เทียบ `Answer`) ลำดับตรวจ: `EnsureValidScope` → `sessionQuestionIds`
+ว่าง/หาไม่เจอ (400/404) → ตรวจซ้ำ (409) — 400/404 ชนะ 409 เสมอ
+
+เจอซ้ำ → `409 Conflict`:
+
+```json
+{
+  "error": {
+    "code": "CONFLICT",
+    "message": "พบคำถามที่ซ้ำกับที่มีอยู่แล้วในคลัง",
+    "details": {
+      "duplicateByQuestion": [
+        { "id": "qna_...", "question": "...", "answer": "...", "scopeType": "...", "scopeId": "...", "indexingStatus": "...", "createdAt": "..." }
+      ]
+    },
+    "requestId": "..."
+  }
+}
+```
+
+`duplicateByQuestion` เป็น**ลิสต์** เรียง `createdAt` ลง (ไม่ใช่ใบเดียว — บันทึกซ้ำอยู่ดีสามารถ
+มีของซ้ำหลายใบสะสมได้เพราะไม่มี unique constraint ตาม KL-24) ใช้ shape เดียวกับ
+`GET /api/knowledge-qna` ทุกฟิลด์ — คนละ payload กับ `duplicateByHash`/`duplicateByFileName` ของ
+เอกสารข้างบน (คนละ endpoint คนละ shape)
+
+`confirmDuplicate: true` = ข้ามการตรวจ บันทึกปกติแม้มีของซ้ำจริง (ไม่ error) — เทียบเท่า
+"อัปโหลดต่อไป" (`checkDuplicate: false`) ของฝั่งเอกสาร
+
+สำเร็จ (ไม่มีของซ้ำ หรือ `confirmDuplicate: true`) คืน **`200`** shape เดียวกับ `PUT`:
+
+```json
+{ "qna": { "id": "qna_...", "question": "...", "answer": "...", "scopeType": "lesson", "scopeId": "...", "indexingStatus": "pending", "createdAt": "..." } }
+```
+
+`PUT /api/knowledge-qna/{id}` **ไม่มี**ด่านนี้ ไม่มี `confirmDuplicate` — แก้ไขไม่ตรวจซ้ำ (QQ-6)
 
 ## SignalR Contract
 

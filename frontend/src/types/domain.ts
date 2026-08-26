@@ -340,6 +340,39 @@ export type DocumentResource = {
   hasPendingVectorDelete: boolean;
 };
 
+/**
+ * Mirrors UploadDocumentDto (design.md KL-21/KL-18) - the multipart POST /api/documents request.
+ * `checkDuplicate` defaults to `false` (existing behaviour, unchanged) - the library page's
+ * upload form is the only caller in the whole system that ever sends `true` (KL-21).
+ */
+export type UploadDocumentDto = DocumentScope & {
+  checkDuplicate?: boolean;
+};
+
+/**
+ * One row of a 409 Conflict body from POST /api/documents when checkDuplicate=true finds a match
+ * (KL-21/KL-22) - deliberately narrow: never includes ContentHash (KL-18) or any field beyond
+ * what CS needs to recognise the other document (KL-22's scope label reuses KL-6's scopeLabel()).
+ * Mirrors DuplicateDocumentEntryViewModel - field is `createdAt` (design.md KL-21 corrected from
+ * "createDate" to "createdAt" on 2026-08-25), matching the actual ApiErrorBody.details payload
+ * the backend sends.
+ */
+export type DuplicateDocumentDto = {
+  id: string;
+  fileName: string;
+  scopeType: KnowledgeScopeType;
+  scopeId?: string;
+  createdAt: string;
+};
+
+/** Mirrors DuplicateDocumentDto (backend) - the value of ApiErrorResponse.error.details on a 409
+ * from POST /api/documents (KL-21). Hash and file-name duplicates are reported separately because
+ * KL-20 requires telling the four duplicate cases apart on screen. */
+export type DuplicateDocumentsResponse = {
+  duplicateByHash: DuplicateDocumentDto[];
+  duplicateByFileName: DuplicateDocumentDto[];
+};
+
 /** Mirrors DocumentChunkViewModel (DI-7) - one row of GET /api/documents/{id}/chunks, exactly
  * what the knowledge store received for this document, never re-parsed on the fly. */
 export type DocumentChunk = {
@@ -506,12 +539,41 @@ export type CreateKnowledgeQnAInput = {
   scopeId?: string;
   /** QQ-7 - one Q&A can close several queue questions at once; at least one is required. */
   sessionQuestionIds: string[];
+  /** Mirrors CreateKnowledgeQnADto.ConfirmDuplicate (design.md KL-23, mati Q-H2) - defaults to
+   * `false` server-side. `true` skips the pre-save duplicate check (KL-23/KL-26's "ยืนยันบันทึกซ้ำ")
+   * and always succeeds, even when a matching Question already exists. */
+  confirmDuplicate?: boolean;
 };
 
 export type UpdateKnowledgeQnAInput = {
   question: string;
   answer: string;
 };
+
+/**
+ * Mirrors DuplicateQnAResponse (design.md KL-23/KL-26) - the value of ApiErrorResponse.error.details
+ * on a 409 from POST /api/knowledge-qna when the Question (trimmed, whitespace-collapsed,
+ * case-insensitive) already matches a non-deleted Q&A of this company. A list, not a single row,
+ * because "ยืนยันบันทึกซ้ำ" can make several rows share the same Question over time. Reuses
+ * KnowledgeQnA verbatim (KL-23 rule ⑥) - never a second shape for the same data.
+ */
+export type DuplicateQnAResponse = {
+  duplicateByQuestion: KnowledgeQnA[];
+};
+
+/**
+ * Mirrors the query GET /api/documents and GET /api/knowledge-qna both accept (design.md
+ * KL-2..KL-5, KL-8/KL-9, KL-11..KL-13) - the two endpoints interpret every field identically, so
+ * one shape covers both. `scopeType` omitted = every scope (KL-2's "all" default); `q` under 2
+ * characters after trim is treated as "not searching", never an error (KL-12).
+ */
+export type KnowledgeQnAFilter = {
+  scopeType?: KnowledgeScopeType;
+  scopeId?: string;
+  status?: DocumentIndexingStatus;
+  q?: string;
+};
+
 
 /**
  * Mirrors KnowledgeQnAQueueItemViewModel - one row of GET /api/qna-queue (P8/R5.1). A

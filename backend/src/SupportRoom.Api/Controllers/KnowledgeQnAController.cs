@@ -14,6 +14,13 @@ public sealed class KnowledgeQnAController : ControllerBase
     public KnowledgeQnAController(IServiceProvider serviceProvider)
         => _service = serviceProvider.GetRequiredService<IKnowledgeQnAService>();
 
+    [HttpGet]
+    public ActionResult GetAll([FromQuery] string? scopeType, [FromQuery] string? scopeId, [FromQuery] string? status, [FromQuery] string? q)
+    {
+        var qnas = _service.GetAll(new KnowledgeQnAFilter { ScopeType = scopeType, ScopeId = scopeId, Status = status, Q = q });
+        return Ok(new { qnas });
+    }
+
     [HttpPost]
     public async Task<ActionResult> Create([FromBody] CreateKnowledgeQnADto input)
         => Ok(new { qna = await _service.CreateAsync(input) });
