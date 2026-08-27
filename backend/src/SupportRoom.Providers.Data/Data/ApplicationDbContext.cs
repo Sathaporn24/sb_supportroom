@@ -1,6 +1,9 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.ChangeTracking;
+using SupportRoom.Domain;
 using SupportRoom.Domain.Common;
 using SupportRoom.Domain.Entities;
+using SupportRoom.Domain.Enums;
 
 namespace SupportRoom.Providers.Data.Data;
 
@@ -19,7 +22,10 @@ namespace SupportRoom.Providers.Data.Data;
 /// filter on them would match zero rows and nothing would work. For those two, IAuthorizationGuard
 /// is the only protection, which is why its rules are covered by tests directly (TD-014).
 /// </summary>
-public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options, ICompanyContext companyContext) : DbContext(options)
+public sealed class ApplicationDbContext(
+    DbContextOptions<ApplicationDbContext> options,
+    ICompanyContext companyContext,
+    ICurrentUser currentUser) : DbContext(options)
 {
     /// <summary>No query filter - see the ⚠️ note on this class and on the entity itself.</summary>
     public DbSet<Company> Company => Set<Company>();
@@ -41,6 +47,7 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     public DbSet<KnowledgeQnASource> KnowledgeQnASource => Set<KnowledgeQnASource>();
     public DbSet<KnowledgeQnAConflict> KnowledgeQnAConflict => Set<KnowledgeQnAConflict>();
     public DbSet<SessionQuestionReviewExclusion> SessionQuestionReviewExclusion => Set<SessionQuestionReviewExclusion>();
+    public DbSet<AuditLog> AuditLog => Set<AuditLog>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -219,5 +226,161 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             entity.HasIndex(x => new { x.CompanyId, x.LessonId });
             entity.HasQueryFilter(x => x.CompanyId == companyContext.CompanyId && !x.IsDelete);
         });
+
+        builder.Entity<AuditLog>(entity =>
+        {
+            entity.HasKey(x => x.Id);
+            // "บริษัทนี้เกิดอะไรบ้างช่วงนี้" - คิวรีหลักของ dashboard ในอนาคต และของ dev ที่เปิด SELECT
+            entity.HasIndex(x => new { x.CompanyId, x.OccurredAt });
+            // "แถวนี้ใครแตะบ้าง" - นี่คือคำถามที่ P1 ตอบไม่ได้ และเป็นเหตุผลที่โมดูลนี้มีอยู่
+            entity.HasIndex(x => new { x.EntityName, x.EntityId });
+            // "คนนี้ทำอะไรไปบ้าง" - คิวรีตอนสืบหาตัวการ
+            entity.HasIndex(x => x.ActorUserId);
+            // ⛔ ไม่มี HasQueryFilter โดยตั้งใจ (มติ OQ-2) - เหตุผลเต็มอยู่ที่ doc comment ของ entity
+            //    ห้าม "แก้" ด้วยการเติม filter: แถว CompanyId = null จะหายไปจากทุกคน
+        });
+    }
+
+    /// <summary>
+    /// สัญญา AU-1..AU-16 (design.md, Module A) - จุดเดียวที่สร้างแถว AuditLog ทั้งหมด เรียกจากทั้ง
+    /// SaveChanges(bool) และ SaveChangesAsync(bool, CancellationToken) เท่านั้น ห้ามมี logic ซ้ำสองชุด
+    /// (AU-1) · ห้ามครอบ try/catch กลืน exception ที่นี่หรือที่เรียก (AU-15, มติ Q-A3) - log เขียน
+    /// ไม่ได้ต้องทำให้ business write ล้มตามทั้ง transaction
+    /// </summary>
+    private List<AuditLog> BuildAuditLogRows()
+    {
+        // AU-2: ไม่มีคน = ไม่มีแถว ไม่มีข้อยกเว้น - ครอบคลุม R1.2 (ผู้เรียน), OQ-3 (worker/job),
+        // OQ-4 (login) พร้อมกันโดยไม่ต้องเขียนเงื่อนไขเพิ่ม
+        if (string.IsNullOrEmpty(currentUser.UserId))
+        {
+            return [];
+        }
+
+        // AU-3: .ToList() ทันที ก่อนสร้างแถวใดๆ - กัน Entries() ที่ lazy โดนแก้ระหว่างวนอยู่
+        var entries = ChangeTracker.Entries().ToList();
+        // AU-9: DateTime.UtcNow ครั้งเดียวต่อการเรียก SaveChanges หนึ่งครั้ง ใช้ค่าเดียวกันทุกแถว
+        var occurredAt = DateTime.UtcNow;
+        var rows = new List<AuditLog>();
+
+        foreach (var entry in entries)
+        {
+            // AU-4: กันวนซ้ำไม่รู้จบ
+            if (entry.Entity is AuditLog)
+            {
+                continue;
+            }
+
+            // AU-5: owned type (วันนี้คือ LessonConfig.SlideConfigs, OwnsMany().ToJson()) ไม่มี PK
+            // ของตัวเอง - นับที่ entity เจ้าของแทน ไม่ใช่นับแยกต่อรายการ
+            if (entry.Metadata.IsOwned())
+            {
+                continue;
+            }
+
+            string action;
+            if (entry.State == EntityState.Added)
+            {
+                action = AuditAction.Create;
+            }
+            else if (entry.State == EntityState.Deleted)
+            {
+                action = AuditAction.Delete;
+            }
+            else if (entry.State == EntityState.Modified)
+            {
+                // AU-6/AU-7/AU-8: soft-delete (IsDelete false->true) = delete · true->false
+                // (กู้คืน) และการแก้ฟิลด์อื่นๆ = update ตาม default ของ AU-8
+                action = IsSoftDelete(entry) ? AuditAction.Delete : AuditAction.Update;
+            }
+            else
+            {
+                continue;
+            }
+
+            // AU-13: หนึ่งแถวต่อหนึ่ง entity ต่อหนึ่ง SaveChanges ไม่ใช่ต่อ property ที่เปลี่ยน
+            rows.Add(new AuditLog
+            {
+                Id = IdGenerator.GenerateId("audit"),
+                CompanyId = ResolveCompanyId(entry),
+                ActorUserId = currentUser.UserId,
+                Action = action,
+                EntityName = entry.Metadata.ClrType.Name,
+                EntityId = ResolveEntityId(entry),
+                OccurredAt = occurredAt,
+            });
+        }
+
+        return rows;
+    }
+
+    /// <summary>AU-6/AU-7: `_set.Update(entity)` บน entity ที่ยัง detached จะตั้ง OriginalValues =
+    /// CurrentValues ทำให้ transition false->true มองไม่เห็น แต่ทุกเส้นทาง soft-delete ในโค้ดวันนี้
+    /// อ่านแถวมาก่อน (Get()/GetIncludingDeleted()) แล้วค่อยแก้ instance ที่ track อยู่ จึงไม่โดนข้อนี้
+    /// - ถ้ามีเส้นทางใหม่ที่ Update() entity แบบ detached ต้องตีกลับไปที่ system-analyst</summary>
+    private static bool IsSoftDelete(EntityEntry entry)
+    {
+        var property = entry.Properties.FirstOrDefault(p => p.Metadata.Name == nameof(IEntityMaster<string>.IsDelete));
+        return property is not null && property.OriginalValue is false && property.CurrentValue is true;
+    }
+
+    /// <summary>AU-11: ลำดับนี้เท่านั้น - ICompanyScoped -> CompanyId ของแถวนั้น · Company -> Id
+    /// ตัวเอง · นอกนั้น -> null (ระดับระบบ) · อ่านจาก CLR object (entry.Entity) ไม่ใช่
+    /// entry.Property() เพราะ object materialize แล้วเสมอทุก state รวมถึง Deleted · วันนี้ entity
+    /// ที่ตกมาที่ null มีตัวเดียวคือ AdminUser (มติ OQ-A1 2026-08-28 - ห้าม "ทำให้ฉลาดขึ้น" ด้วยการ
+    /// อ่าน AdminUser.CompanyId ของแถวนั้น)</summary>
+    private static string? ResolveCompanyId(EntityEntry entry) => entry.Entity switch
+    {
+        ICompanyScoped scoped => scoped.CompanyId,
+        Company company => company.Id,
+        _ => null,
+    };
+
+    /// <summary>AU-10: EntityId = ค่าของ primary key เป็น string เดี่ยว - ทุก entity ในโปรเจกต์นี้
+    /// มี PK เป็น string เดี่ยวที่ service สร้างเองด้วย IdGenerator ก่อน SaveChanges ถ้าเจอ entity ที่
+    /// PK ไม่ใช่ string เดี่ยว หรือค่าที่ได้เป็นค่าว่าง ต้อง throw ห้ามข้ามเงียบๆ</summary>
+    private static string ResolveEntityId(EntityEntry entry)
+    {
+        var keyProperties = entry.Metadata.FindPrimaryKey()?.Properties;
+        if (keyProperties is null || keyProperties.Count != 1 || keyProperties[0].ClrType != typeof(string))
+        {
+            throw new InvalidOperationException(
+                $"AuditLog: entity {entry.Metadata.ClrType.Name} ไม่มี primary key เป็น string เดี่ยว ไม่สามารถบันทึก audit log ได้");
+        }
+
+        var value = entry.Property(keyProperties[0].Name).CurrentValue as string;
+        if (string.IsNullOrEmpty(value))
+        {
+            throw new InvalidOperationException(
+                $"AuditLog: entity {entry.Metadata.ClrType.Name} มีค่า primary key ว่างเปล่า ไม่สามารถบันทึก audit log ได้");
+        }
+
+        return value;
+    }
+
+    // AU-1: override SaveChanges(bool) และ SaveChangesAsync(bool, CancellationToken) เท่านั้น -
+    // ไม่ใช่เวอร์ชันไม่มีพารามิเตอร์ - เพราะ DbContext ฐานส่ง call ไปที่เวอร์ชันมี bool เสมออยู่แล้ว
+    // สองตัวนี้คือจุดที่ทุกเส้นทางไหลผ่านจริง
+    public override int SaveChanges(bool acceptAllChangesOnSuccess)
+    {
+        // AU-14: AddRange แล้วปล่อยให้ base.SaveChanges เขียนทั้งหมดในครั้งเดียว - ห้ามเรียก
+        // SaveChanges ซ้อนภายใน (ทำให้มติ Q-A3 เป็นจริงโดยไม่ต้องเปิด transaction เอง)
+        var rows = BuildAuditLogRows();
+        if (rows.Count > 0)
+        {
+            Set<AuditLog>().AddRange(rows);
+        }
+
+        return base.SaveChanges(acceptAllChangesOnSuccess);
+    }
+
+    public override Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
+    {
+        var rows = BuildAuditLogRows();
+        if (rows.Count > 0)
+        {
+            Set<AuditLog>().AddRange(rows);
+        }
+
+        return base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
     }
 }

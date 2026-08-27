@@ -31,6 +31,7 @@ public class CompanyIsolationTests : IDisposable
     private const string CompanyB = "company-b";
 
     private readonly CompanyContext _companyContext = new();
+    private readonly CurrentUser _currentUser = new();
     private readonly ApplicationDbContext _db;
 
     public CompanyIsolationTests()
@@ -44,7 +45,10 @@ public class CompanyIsolationTests : IDisposable
             // the fail-closed behaviour under test, so the warning is expected here.
             .ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.InMemoryEventId.TransactionIgnoredWarning))
             .Options;
-        _db = new ApplicationDbContext(options, _companyContext);
+        // AU-2: ไม่ resolve _currentUser ในการทดสอบเหล่านี้ (UserId ยังเป็น null) โดยตั้งใจ - แถวที่
+        // seed ในไฟล์นี้จึงไม่สร้าง AuditLog แทรกมาปนกับ assertion ของ isolation ที่ทดสอบอยู่แล้ว
+        // การทดสอบ AuditLog เอง (ที่ resolve currentUser) อยู่ที่ AuditLogInterceptorTests
+        _db = new ApplicationDbContext(options, _companyContext, _currentUser);
     }
 
     public void Dispose() => _db.Dispose();

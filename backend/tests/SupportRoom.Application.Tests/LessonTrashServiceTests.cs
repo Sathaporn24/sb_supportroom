@@ -517,11 +517,11 @@ public class LessonTrashServiceTests
         var jobB = SeedPendingPurgeJobDirectly("job-b", TestFixtures.OtherCompanyId, "lesson-b");
         var originalNextAttemptAt = jobB.NextAttemptAt;
 
-        var acceleratedByA = _jobs.AccelerateLessonPurge(TestFixtures.CompanyId, "lesson-b", "job-b");
+        var acceleratedByA = _jobs.AccelerateLessonPurge(TestFixtures.CompanyId, "lesson-b", "job-b", "actor-a");
 
         Assert.False(acceleratedByA);
         Assert.Equal(originalNextAttemptAt, jobB.NextAttemptAt);
         // Owning company can still accelerate its own job.
-        Assert.True(_jobs.AccelerateLessonPurge(TestFixtures.OtherCompanyId, "lesson-b", "job-b"));
+        Assert.True(_jobs.AccelerateLessonPurge(TestFixtures.OtherCompanyId, "lesson-b", "job-b", "actor-b"));
     }
 }

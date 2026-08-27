@@ -18,8 +18,8 @@
 
 ## PostgreSQL inventory
 
-- 16 business tables
-- 253 business columns เมื่อนับ audit columns ที่ซ้ำในทุกตารางและ `SlideConfigs` JSONB
+- 17 business tables
+- 260 business columns เมื่อนับ audit columns ที่ซ้ำในทุกตารางและ `SlideConfigs` JSONB
 - PostgreSQL ที่ apply migration แล้วจะมี `__EFMigrationsHistory` เพิ่มอีก 1 internal table
 - ความสัมพันธ์ข้าม entity ส่วนใหญ่เป็น logical string IDs และไม่มี PostgreSQL foreign-key constraint
 
@@ -40,6 +40,10 @@
 
 ทุกตารางยกเว้น `Company` มี `CompanyId text` ด้วย โดย `AdminUser.CompanyId` nullable สำหรับ
 `owner`; ตารางอื่นเป็น non-null
+
+**`AuditLog` เป็นข้อยกเว้นเดียวของรูปแบบข้างบนทั้งหมด** — append-only, ไม่มี audit columns ชุดนี้
+เลย (ไม่มี `UpdateBy`/`UpdateDate`/`DeleteBy`/`IsDelete`/`DeletedAt`) มีแค่ `Id`/`CompanyId` +
+คอลัมน์เฉพาะของตัวเอง ดูรายละเอียดที่ `## บันทึกประวัติการกระทำ (Audit)` ด้านล่าง
 
 ในรายการด้านล่าง คำว่า “columns เฉพาะตาราง” หมายถึงคอลัมน์นอกเหนือจาก audit columns ด้านบน
 
@@ -278,6 +282,29 @@ Columns เฉพาะตาราง: `CompanyId text`, `SessionQuestionId tex
 
 Indexes: `(CompanyId, LessonId)`, unique `(CompanyId, SessionQuestionId)`
 
+## บันทึกประวัติการกระทำ (Audit)
+
+### `AuditLog` — 7 columns
+
+ตารางเดียวในระบบที่**ไม่**ใช้ audit columns มาตรฐานด้านบน — append-only ล้วน ไม่มี `Update`/`Delete`
+เกิดขึ้นกับแถวในตารางนี้เลย (audit-trail module, มติ Q-A1)
+
+Columns ทั้งหมด:
+
+- `Id text` PK
+- `CompanyId text?` — บริษัทของ**ข้อมูลที่ถูกกระทำ**, `null` = ระดับระบบ (ไม่ใช่บริษัทของคนที่ลงมือ)
+- `ActorUserId text` — `AdminUser.Id`, ไม่มีวันเป็น null
+- `Action text` — `create | update | delete`
+- `EntityName text` — ชื่อคลาส CLR ของ entity ที่ถูกกระทำ
+- `EntityId text` — primary key ของแถวที่ถูกกระทำ
+- `OccurredAt timestamptz`
+
+Indexes: `(CompanyId, OccurredAt)`, `(EntityName, EntityId)`, `ActorUserId` — **ไม่มี** unique
+constraint และ**ไม่มี** foreign key ไปยังตารางอื่นเลย (`ActorUserId`/`EntityName`/`EntityId` เป็น
+logical string id ตาม convention ของโปรเจกต์)
+
+ไม่เก็บ before/after diff และไม่มี `MetadataJson` (R2/มติ Q-A2) — ตอบได้แค่ "ใครแก้แถวไหนตอนไหน"
+
 ## Pinecone record shape
 
 Pinecone ไม่มี table/column แบบ relational แต่แต่ละ record มี:
@@ -307,15 +334,18 @@ columns เพิ่มใน provider นั้น PostgreSQL ใช้ `Docume
 
 - `Company`, `AdminUser` ไม่มี global query filter เพราะต้องอ่านก่อน resolve company
 - `BackgroundJob` มี `CompanyId` แต่ไม่มี global query filter เพราะ worker ต้อง claim งานข้ามบริษัท
+- `AuditLog` มี `CompanyId` แต่ไม่มี global query filter เพราะค่าเป็น `null` ได้ (แถวระดับระบบ) —
+  filter จะทำให้แถวเหล่านั้นหายไปจากทุกคนตลอดกาล (audit-trail module, มติ OQ-2) — ต่างจาก
+  `BackgroundJob` ตรงที่นี่ไม่ใช่ปัญหา bootstrap ชั่วคราว แต่เป็นการไม่มี filter ถาวรโดยเจตนา
 - อีก 13 tables มี company query filter
 - ตารางที่ใช้ soft-delete ใน normal UI เพิ่มเงื่อนไข `!IsDelete` ตาม configuration ของแต่ละ entity
-- query ของ `BackgroundJob`, `Company` และ `AdminUser` ต้องบังคับ authorization/scoping ที่ service
-  หรือ repository เอง
+- query ของ `BackgroundJob`, `Company`, `AdminUser` และ `AuditLog` ต้องบังคับ authorization/scoping
+  ที่ service หรือ repository เอง
 
 ## SQL creation and migration scripts
 
 - [`supportroom-schema.sql`](./supportroom-schema.sql) — DDL ของ current model แบบสะอาด สร้าง
-  16 business tables และ 33 indexes แต่ไม่สร้าง `__EFMigrationsHistory`; เหมาะกับการอ่าน schema,
+  17 business tables และ 36 indexes แต่ไม่สร้าง `__EFMigrationsHistory`; เหมาะกับการอ่าน schema,
   test database ชั่วคราว หรือกรณีที่ไม่ให้ EF migrations ดูแลฐานนั้นต่อ
 - [`supportroom-migrations-idempotent.sql`](./supportroom-migrations-idempotent.sql) — replay EF
   migrations ทั้งหมดแบบ idempotent รวม `__EFMigrationsHistory`, data backfills และ migration ล่าสุด;

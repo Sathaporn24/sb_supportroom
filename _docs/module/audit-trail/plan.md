@@ -36,26 +36,26 @@ Phase 2 ขึ้นกับ Phase 1 โดยตรง: ทั้งตาร�
 
 ### Entity / constants (DM-A1, DM-A2)
 
-- [ ] [backend] สร้าง `backend/src/SupportRoom.Domain/Entities/AuditLog.cs` ตาม DM-A1 เป๊ะ — 7
+- [x] [backend] สร้าง `backend/src/SupportRoom.Domain/Entities/AuditLog.cs` ตาม DM-A1 เป๊ะ — 7
       field เท่านั้น (`Id`, `CompanyId` nullable, `ActorUserId` required, `Action` required,
       `EntityName` required, `EntityId` required, `OccurredAt` required) · **ห้าม** implement
       `IEntityMaster` (มติ Q-A1) · **ห้าม** เติม `BeforeJson`/`AfterJson`/`MetadataJson`/
       `IpAddress`/`UserAgent`/`ActorRole`/`CorrelationId` แม้แต่ field เดียว
-- [ ] [backend] สร้าง `backend/src/SupportRoom.Domain/Enums/AuditAction.cs` ตาม DM-A2 — static
+- [x] [backend] สร้าง `backend/src/SupportRoom.Domain/Enums/AuditAction.cs` ตาม DM-A2 — static
       class + const string (`Create`/`Update`/`Delete`) ตาม convention ของโปรเจกต์ ห้ามใช้ C# enum
 
 ### `ApplicationDbContext` — schema + ctor (DM-A3, DM-A4)
 
-- [ ] [backend] เพิ่ม `builder.Entity<AuditLog>(...)` ใน `OnModelCreating` ตาม DM-A3 — `HasKey`,
+- [x] [backend] เพิ่ม `builder.Entity<AuditLog>(...)` ใน `OnModelCreating` ตาม DM-A3 — `HasKey`,
       3 index (`{CompanyId, OccurredAt}`, `{EntityName, EntityId}`, `ActorUserId`) · **ห้ามเติม
       `HasQueryFilter`** (มติ OQ-2 — ดู AR-1)
-- [ ] [backend] เพิ่ม `public DbSet<AuditLog> AuditLog => Set<AuditLog>();`
-- [ ] [backend] แก้ constructor ของ `ApplicationDbContext` เพิ่มพารามิเตอร์ `ICurrentUser currentUser`
+- [x] [backend] เพิ่ม `public DbSet<AuditLog> AuditLog => Set<AuditLog>();`
+- [x] [backend] แก้ constructor ของ `ApplicationDbContext` เพิ่มพารามิเตอร์ `ICurrentUser currentUser`
       ตาม DM-A4 (`ICurrentUser` ลงทะเบียนเป็น `AddScoped` อยู่แล้วที่ `ServiceConfiguration.cs:26`)
 
 ### `SaveChanges` interceptor (สัญญา AU-1 … AU-16 — อ่านให้ครบก่อนเขียน ไม่ใช่อ่านผ่าน)
 
-- [ ] [backend] เขียน private method ร่วม (เรียกจากทั้งสอง overload) ที่สร้างแถว `AuditLog` จาก
+- [x] [backend] เขียน private method ร่วม (เรียกจากทั้งสอง overload) ที่สร้างแถว `AuditLog` จาก
       `ChangeTracker.Entries()` ตามลำดับกติกา: AU-2 (คนแรก — `if (string.IsNullOrEmpty(currentUser.UserId)) return;`)
       → AU-3 (`.ToList()` ทันที ก่อนสร้างแถวใดๆ) → AU-4 (ข้าม `entry.Entity is AuditLog`) →
       AU-5 (ข้าม `entry.Metadata.IsOwned()`) → AU-6/AU-7 (map action พร้อมกติกา soft-delete) →
@@ -66,49 +66,49 @@ Phase 2 ขึ้นกับ Phase 1 โดยตรง: ทั้งตาร�
       อ่านจาก CLR object ห้ามอ่านจาก `entry.Property()`) → AU-12 (`EntityName` =
       `entry.Metadata.ClrType.Name` ห้ามพิมพ์ชื่อตารางมือ) → AU-13 (หนึ่งแถวต่อหนึ่ง entity ต่อหนึ่ง
       `SaveChanges` ไม่ใช่ต่อ property)
-- [ ] [backend] override `SaveChanges(bool acceptAllChangesOnSuccess)` — เรียก private method,
+- [x] [backend] override `SaveChanges(bool acceptAllChangesOnSuccess)` — เรียก private method,
       `Set<AuditLog>().AddRange(rows)`, แล้ว `base.SaveChanges(acceptAllChangesOnSuccess)` ครั้งเดียว
       (AU-1, AU-14 — ห้ามเรียก `SaveChanges` ซ้อนภายใน)
-- [ ] [backend] override `SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken)` —
+- [x] [backend] override `SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken)` —
       เรียก private method เดียวกัน (AU-1 — ต้อง override เวอร์ชันมี `bool` ไม่ใช่เวอร์ชันไม่มี
       พารามิเตอร์ ไม่งั้น call site ที่เรียก overload แบบมี `bool` จะหลุด log เงียบๆ)
-- [ ] [backend] ตรวจสอบว่า path การเขียน `AuditLog` **ไม่มี** `try/catch` ที่กลืน exception ที่ไหน
+- [x] [backend] ตรวจสอบว่า path การเขียน `AuditLog` **ไม่มี** `try/catch` ที่กลืน exception ที่ไหน
       เลย (AU-15 — ข้อยกเว้นที่เจ้าของโปรเจกต์เคาะแล้ว ขัดกับ convention "degrade แทน throw" ปกติ
       ของ `CLAUDE.md` โดยตั้งใจ: log เขียนไม่ได้ = business write ต้องล้มตามทั้ง transaction)
 
 ### Blast radius ของ Module A (ต้องแก้คู่กัน ไม่งั้น build พัง)
 
-- [ ] [backend] แก้ `backend/src/SupportRoom.Providers.Data/Data/DesignTimeDbContextFactory.cs:41`
+- [x] [backend] แก้ `backend/src/SupportRoom.Providers.Data/Data/DesignTimeDbContextFactory.cs:41`
       — เพิ่ม `new CurrentUser()` เป็นอาร์กิวเมนต์ที่สามของ `new ApplicationDbContext(...)`
-- [ ] [backend] แก้ `backend/tests/SupportRoom.Application.Tests/CompanyIsolationTests.cs:47` —
+- [x] [backend] แก้ `backend/tests/SupportRoom.Application.Tests/CompanyIsolationTests.cs:47` —
       เพิ่มอาร์กิวเมนต์ `_currentUser`/เทียบเท่าให้ตรง ctor ใหม่ ไม่งั้น test project compile ไม่ผ่าน
       ทั้งชุด
 
 ### Migration (MG-A1)
 
-- [ ] [backend] เขียน EF Core migration ชื่อ `AddAuditLog` — additive ล้วน (`CREATE TABLE
+- [x] [backend] เขียน EF Core migration ชื่อ `AddAuditLog` — additive ล้วน (`CREATE TABLE
       "AuditLog"` + 3 index) ไม่แตะตารางเดิม ไม่มี backfill · **สร้างไฟล์ migration ได้ แต่ห้ามรัน
       `dotnet ef database update` จนกว่าจะมีไฟเขียว C1 แยกต่างหาก** (migration นี้จะต่อท้ายคิว
       `20260813140603_SplitLinkAndAddAuth` ที่ยังไม่เคย apply — ดู Sequencing Notes)
 
 ### เอกสารที่ต้อง regenerate/แก้คู่กับ migration (Definition of Done ของ `CLAUDE.md`)
 
-- [ ] [backend] เพิ่ม `AuditLog` เข้า `backend/docs/ER_DIAGRAM_AND_WORKFLOW.md`
-- [ ] [backend] regenerate `backend/docs/DATABASE_SCHEMA_SUMMARY.md`,
+- [x] [backend] เพิ่ม `AuditLog` เข้า `backend/docs/ER_DIAGRAM_AND_WORKFLOW.md`
+- [x] [backend] regenerate `backend/docs/DATABASE_SCHEMA_SUMMARY.md`,
       `backend/docs/supportroom-schema.sql`, `backend/docs/supportroom.dbml`,
       `backend/docs/supportroom-migrations-idempotent.sql` ให้มี `AuditLog` (16 → 17 ตาราง)
 
 ### Tests (AU-20 — เฉพาะกติกาที่ EF InMemory พิสูจน์ได้จริง)
 
-- [ ] [backend] เทสต์ AU-2: ไม่มี `currentUser.UserId` → `SaveChanges` ไม่สร้างแถว `AuditLog`
+- [x] [backend] เทสต์ AU-2: ไม่มี `currentUser.UserId` → `SaveChanges` ไม่สร้างแถว `AuditLog`
       เลยแม้จะมี entity อื่นเปลี่ยนแปลงจริง
-- [ ] [backend] เทสต์ AU-4: `SaveChanges` ที่มีการเปลี่ยนแปลง entity ปกติ ต้องไม่สร้างแถว `AuditLog`
+- [x] [backend] เทสต์ AU-4: `SaveChanges` ที่มีการเปลี่ยนแปลง entity ปกติ ต้องไม่สร้างแถว `AuditLog`
       ซ้อนแถว `AuditLog` (กันวนซ้ำไม่รู้จบ)
-- [ ] [backend] เทสต์ AU-5: บันทึก `LessonConfig` ที่มี `SlideConfigs` (owned, `ToJson()`) หลายรายการ
+- [x] [backend] เทสต์ AU-5: บันทึก `LessonConfig` ที่มี `SlideConfigs` (owned, `ToJson()`) หลายรายการ
       → ต้องได้ **1 แถว** ไม่ใช่ N+1 แถวตามจำนวนสไลด์
-- [ ] [backend] เทสต์ AU-6 ครบสามทาง: `Added` → `create`, `Modified` (ไม่ใช่ soft-delete) →
+- [x] [backend] เทสต์ AU-6 ครบสามทาง: `Added` → `create`, `Modified` (ไม่ใช่ soft-delete) →
       `update`, `IsDelete: false→true` → `delete`
-- [ ] [backend] เทสต์ AU-9: หลาย entity เปลี่ยนแปลงพร้อมกันใน `SaveChanges` เดียว → ทุกแถวที่ได้มี
+- [x] [backend] เทสต์ AU-9: หลาย entity เปลี่ยนแปลงพร้อมกันใน `SaveChanges` เดียว → ทุกแถวที่ได้มี
       `OccurredAt` เท่ากันเป๊ะ
 
 ## Phase 2: Module B — เขียน log ด้วยมือที่ 5 จุด raw SQL 🔒 Security gate
@@ -118,30 +118,30 @@ merge ก่อน (ดู Sequencing Notes) ไม่ใช่ C1 อีกต�
 
 ### Signature change (DM-A5)
 
-- [ ] [backend] แก้ signature `IBackgroundJobRepository.AccelerateLessonPurge` เพิ่มพารามิเตอร์
+- [x] [backend] แก้ signature `IBackgroundJobRepository.AccelerateLessonPurge` เพิ่มพารามิเตอร์
       `string? actorUserId` ต่อท้าย (`bool AccelerateLessonPurge(string companyId, string lessonId,
       string purgeJobId, string? actorUserId)`)
 
 ### 5 จุด raw-SQL (สัญญา RS-0 … RS-8)
 
-- [ ] [backend] RS-1: `LessonConfigRepository.TryArchive` (`ILessonConfigRepository.cs:78-87`) —
+- [x] [backend] RS-1: `LessonConfigRepository.TryArchive` (`ILessonConfigRepository.cs:78-87`) —
       หลัง `archived == 1` และก่อน `transaction.Commit()` เขียน **1 แถว**: `delete` / `LessonConfig`
       / `lessonId` / `companyId` / `actorUserId` · **ห้าม**เขียนแถวซ้ำสำหรับ `BackgroundJob` ที่
       `Add` ต่อจากนั้น (บรรทัด 94-106) — เส้นนั้นผ่าน `Context.SaveChanges()` ปกติ interceptor
       ของ Phase 1 จับให้แล้ว
-- [ ] [backend] RS-2: cascade ปิด `TrainingLink` ใน `TryArchive` (`ILessonConfigRepository.cs:108-115`)
+- [x] [backend] RS-2: cascade ปิด `TrainingLink` ใน `TryArchive` (`ILessonConfigRepository.cs:108-115`)
       — `SELECT` id ก่อนด้วย `Where` เงื่อนไขเดียวกันเป๊ะ (`CompanyId == companyId && LessonId ==
       lessonId && !IsDelete`) แล้วค่อย `ExecuteUpdate` แล้วเขียน **1 แถวต่อ id ที่ปิดจริง**
       (`delete`/`TrainingLink`/id) · ห้ามเขียนแถวรวม · ไม่มีลิงก์เลย → 0 แถว
-- [ ] [backend] RS-3: `LessonConfigRepository.TryRestore` (`ILessonConfigRepository.cs:133-144`) —
+- [x] [backend] RS-3: `LessonConfigRepository.TryRestore` (`ILessonConfigRepository.cs:133-144`) —
       หลัง `rows == 1` เขียน **1 แถว**: `update`/`LessonConfig`/`lessonId` (ตาม AU-8) · เปิด
       transaction ใหม่ (วันนี้เป็น `ExecuteSqlRaw` เดี่ยวไม่มี transaction) — เมธอดนี้ไม่มี caller
       ใน production วันนี้แต่ยังต้องทำให้ครบตามสัญญา RS-3
-- [ ] [backend] RS-4: `LessonConfigRepository.TryRestoreAndCancelPurge`
+- [x] [backend] RS-4: `LessonConfigRepository.TryRestoreAndCancelPurge`
       (`ILessonConfigRepository.cs:146-189`) — หลัง `canceled == 1` และก่อน `transaction.Commit()`
       เขียน **2 แถว**: (`update`/`LessonConfig`/`lessonId`) และ (`update`/`BackgroundJob`/
       `purgeJobId`) · เส้นทาง rollback ทั้งสองเส้น (บรรทัด 161, 183) → 0 แถว
-- [ ] [backend] RS-5: `BackgroundJobRepository.AccelerateLessonPurge`
+- [x] [backend] RS-5: `BackgroundJobRepository.AccelerateLessonPurge`
       (`IBackgroundJobRepository.cs:100-110`) — เปิด `BeginTransaction` ครอบ (วันนี้เป็น
       `ExecuteSqlRaw` เดี่ยว) แล้วหลัง `rows == 1` เขียน **1 แถว**: `update`/`BackgroundJob`/
       `purgeJobId`/`companyId`/`actorUserId` · **ห้าม**เขียนแถวของ `LessonConfig` ที่นี่ — คำสั่งนี้
@@ -149,16 +149,16 @@ merge ก่อน (ดู Sequencing Notes) ไม่ใช่ C1 อีกต�
 
 ### Call site + fake (blast radius ของ Module B)
 
-- [ ] [backend] แก้ call site ที่ `backend/src/SupportRoom.Application/Services/ILessonConfigService.cs:502`
+- [x] [backend] แก้ call site ที่ `backend/src/SupportRoom.Application/Services/ILessonConfigService.cs:502`
       ให้ส่ง `CurrentUserId` เป็นอาร์กิวเมนต์ `actorUserId` ตาม signature ใหม่ของ
       `AccelerateLessonPurge`
-- [ ] [backend] แก้ `backend/tests/SupportRoom.Application.Tests/Fakes/ServiceTestFakes.cs` —
+- [x] [backend] แก้ `backend/tests/SupportRoom.Application.Tests/Fakes/ServiceTestFakes.cs` —
       fake ของ `IBackgroundJobRepository` ให้รับ signature ใหม่ของ `AccelerateLessonPurge` (DM-A5)
       และตรวจว่า fake ของ `ILessonConfigRepository` (`TryRestore` ที่บรรทัด 118) ยัง compile ผ่าน
 
 ### กติกาถาวรที่ต้องบันทึกลงเอกสารโปรเจกต์ (RS-8, ดู AR-4)
 
-- [ ] [backend] เพิ่มบรรทัดใหม่ใน `CLAUDE.md` §"Architecture Rules": ทุกครั้งที่มีใครเพิ่ม
+- [x] [backend] เพิ่มบรรทัดใหม่ใน `CLAUDE.md` §"Architecture Rules": ทุกครั้งที่มีใครเพิ่ม
       `ExecuteUpdate`/`ExecuteSqlRaw`/`ExecuteDelete` ใหม่ที่ไหนก็ตามในโปรเจกต์ ต้องเขียน
       `AuditLog` ในธุรกรรมเดียวกันด้วย หรือเขียนคอมเมนต์ระบุเหตุผลว่าทำไมไม่ต้อง (worker เท่านั้น/
       ไม่มีคนลงมือ) — ถ้าข้อนี้ไม่ถูกเขียนลง `CLAUDE.md` จริง ความรู้จะตายไปพร้อมโมดูลนี้ (AR-4)

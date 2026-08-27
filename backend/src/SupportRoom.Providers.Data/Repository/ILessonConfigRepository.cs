@@ -1,5 +1,7 @@
 using Microsoft.EntityFrameworkCore;
+using SupportRoom.Domain;
 using SupportRoom.Domain.Entities;
+using SupportRoom.Domain.Enums;
 using SupportRoom.Providers.Data.Common;
 using SupportRoom.Providers.Data.Data;
 
@@ -91,6 +93,22 @@ public sealed class LessonConfigRepository(ApplicationDbContext dbContext)
             return false;
         }
 
+        // RS-1: 1 แถว (delete/LessonConfig/lessonId) - ห้ามเขียนแถวซ้ำสำหรับ BackgroundJob ที่ Add
+        // ต่อจากนี้ มันผ่าน Context.SaveChanges() ปกติ interceptor ของ Module A จับให้แล้ว
+        if (!string.IsNullOrEmpty(actorUserId))
+        {
+            Context.Set<AuditLog>().Add(new AuditLog
+            {
+                Id = IdGenerator.GenerateId("audit"),
+                CompanyId = companyId,
+                ActorUserId = actorUserId,
+                Action = AuditAction.Delete,
+                EntityName = nameof(LessonConfig),
+                EntityId = lessonId,
+                OccurredAt = now,
+            });
+        }
+
         Context.BackgroundJob.Add(new BackgroundJob
         {
             Id = purgeJobId,
@@ -105,6 +123,15 @@ public sealed class LessonConfigRepository(ApplicationDbContext dbContext)
         });
         Context.SaveChanges();
 
+        // RS-2: ExecuteUpdate ไม่คืน id ที่แก้จริง ต้อง SELECT ก่อนด้วย Where ชุดเดียวกันเป๊ะ แล้วค่อย
+        // ExecuteUpdate แล้วเขียน 1 แถวต่อ id ที่ปิดจริง - ห้ามเขียนแถวรวม
+        var revokedLinkIds = !string.IsNullOrEmpty(actorUserId)
+            ? Context.TrainingLink
+                .Where(x => x.CompanyId == companyId && x.LessonId == lessonId && !x.IsDelete)
+                .Select(x => x.Id)
+                .ToList()
+            : [];
+
         Context.TrainingLink
             .Where(x => x.CompanyId == companyId && x.LessonId == lessonId && !x.IsDelete)
             .ExecuteUpdate(setters => setters
@@ -113,6 +140,24 @@ public sealed class LessonConfigRepository(ApplicationDbContext dbContext)
                 .SetProperty(x => x.DeleteBy, actorUserId)
                 .SetProperty(x => x.UpdateBy, actorUserId)
                 .SetProperty(x => x.UpdateDate, now));
+
+        if (!string.IsNullOrEmpty(actorUserId) && revokedLinkIds.Count > 0)
+        {
+            foreach (var linkId in revokedLinkIds)
+            {
+                Context.Set<AuditLog>().Add(new AuditLog
+                {
+                    Id = IdGenerator.GenerateId("audit"),
+                    CompanyId = companyId,
+                    ActorUserId = actorUserId,
+                    Action = AuditAction.Delete,
+                    EntityName = nameof(TrainingLink),
+                    EntityId = linkId,
+                    OccurredAt = now,
+                });
+            }
+            Context.SaveChanges();
+        }
 
         transaction.Commit();
         return true;
@@ -132,6 +177,11 @@ public sealed class LessonConfigRepository(ApplicationDbContext dbContext)
 
     public bool TryRestore(string companyId, string lessonId, string? actorUserId, DateTime now)
     {
+        // RS-3: ไม่มี caller ใน production วันนี้ (RestoreAsync เรียก TryRestoreAndCancelPurge แทน)
+        // แต่ยังต้องเปิด transaction เพิ่มและเขียน log ให้ครบตามสัญญา ไม่ให้เป็นช่องว่างเงียบ
+        // ถ้าวันหนึ่งมีคนต่อสายมัน
+        using var transaction = Context.Database.BeginTransaction();
+
         const string sql = """
             UPDATE "LessonConfig"
             SET "IsDelete" = FALSE, "DeletedAt" = NULL, "DeleteBy" = NULL,
@@ -140,7 +190,30 @@ public sealed class LessonConfigRepository(ApplicationDbContext dbContext)
             WHERE "Id" = {0} AND "CompanyId" = {1} AND "IsDelete" = TRUE AND "PurgeStartedAt" IS NULL
             """;
         var rows = Context.Database.ExecuteSqlRaw(sql, lessonId, companyId, actorUserId, now);
-        return rows == 1;
+        if (rows != 1)
+        {
+            transaction.Rollback();
+            return false;
+        }
+
+        // RS-3: 1 แถว update/LessonConfig/lessonId (การกู้คืน = update ตาม AU-8 ไม่ใช่ action ใหม่)
+        if (!string.IsNullOrEmpty(actorUserId))
+        {
+            Context.Set<AuditLog>().Add(new AuditLog
+            {
+                Id = IdGenerator.GenerateId("audit"),
+                CompanyId = companyId,
+                ActorUserId = actorUserId,
+                Action = AuditAction.Update,
+                EntityName = nameof(LessonConfig),
+                EntityId = lessonId,
+                OccurredAt = now,
+            });
+            Context.SaveChanges();
+        }
+
+        transaction.Commit();
+        return true;
     }
 
     public bool TryRestoreAndCancelPurge(string companyId, string lessonId, string purgeJobId, string? actorUserId, DateTime now)
@@ -182,6 +255,34 @@ public sealed class LessonConfigRepository(ApplicationDbContext dbContext)
         {
             transaction.Rollback();
             return false;
+        }
+
+        // RS-4: 2 แถวเท่านั้น เขียนหลัง canceled == 1 และก่อน commit เท่านั้น -
+        // (update/LessonConfig/lessonId) และ (update/BackgroundJob/purgeJobId)
+        if (!string.IsNullOrEmpty(actorUserId))
+        {
+            Context.Set<AuditLog>().AddRange(
+                new AuditLog
+                {
+                    Id = IdGenerator.GenerateId("audit"),
+                    CompanyId = companyId,
+                    ActorUserId = actorUserId,
+                    Action = AuditAction.Update,
+                    EntityName = nameof(LessonConfig),
+                    EntityId = lessonId,
+                    OccurredAt = now,
+                },
+                new AuditLog
+                {
+                    Id = IdGenerator.GenerateId("audit"),
+                    CompanyId = companyId,
+                    ActorUserId = actorUserId,
+                    Action = AuditAction.Update,
+                    EntityName = nameof(BackgroundJob),
+                    EntityId = purgeJobId,
+                    OccurredAt = now,
+                });
+            Context.SaveChanges();
         }
 
         transaction.Commit();
