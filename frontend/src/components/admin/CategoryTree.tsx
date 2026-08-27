@@ -1,6 +1,7 @@
 "use client";
 
-import { LinkIcon, LockIcon, PencilIcon, PlusIcon, Trash2Icon } from "lucide-react";
+import { useState } from "react";
+import { LinkIcon, LockIcon, PencilIcon, PlusIcon, SearchIcon, Trash2Icon } from "lucide-react";
 import { AdminLink } from "@/components/admin/AdminLink";
 import type { AdminRole, KnowledgeCategory, LessonConfig } from "@/types/domain";
 import {
@@ -12,11 +13,16 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
+import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+
+function matchesLessonSearch(lesson: LessonConfig, query: string): boolean {
+  return lesson.title.toLowerCase().includes(query.toLowerCase());
+}
 
 const SKELETON_PARENT_COUNT = 3;
 const SKELETON_CHILD_COUNT = 2;
@@ -68,6 +74,9 @@ export function CategoryTree({
   onCreateLink,
   onArchiveLesson,
 }: Props) {
+  const [search, setSearch] = useState("");
+  const query = search.trim();
+
   const parents = categories
     .filter((category) => category.level === 1)
     .sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name, "th"));
@@ -83,13 +92,47 @@ export function CategoryTree({
     );
   }
 
+  const parentBlocks = parents
+    .map((parent) => {
+      const children = categories
+        .filter((category) => category.level === 2 && category.parentId === parent.id)
+        .sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name, "th"));
+
+      const childEntries = children.map((child) => {
+        const childLessons = lessons
+          .filter((lesson) => lesson.categoryId === child.id)
+          .sort((a, b) => a.title.localeCompare(b.title, "th"));
+        const filteredLessons = query
+          ? childLessons.filter((lesson) => matchesLessonSearch(lesson, query))
+          : childLessons;
+        return { child, childLessons, filteredLessons };
+      });
+
+      const visibleChildEntries = query
+        ? childEntries.filter((entry) => entry.filteredLessons.length > 0)
+        : childEntries;
+
+      return { parent, children, childEntries, visibleChildEntries };
+    })
+    .filter((block) => !query || block.visibleChildEntries.length > 0);
+
+  if (query && parentBlocks.length === 0) {
+    return (
+      <div className="flex flex-col gap-[49px]">
+        <SearchBox value={search} onChange={setSearch} />
+        <Empty className="border">
+          <EmptyHeader>
+            <EmptyTitle>ไม่พบบทเรียนที่ตรงกับคำค้นหา</EmptyTitle>
+          </EmptyHeader>
+        </Empty>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col gap-[49px]">
-      {parents.map((parent) => {
-        const children = categories
-          .filter((category) => category.level === 2 && category.parentId === parent.id)
-          .sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name, "th"));
-
+      <SearchBox value={search} onChange={setSearch} />
+      {parentBlocks.map(({ parent, children, visibleChildEntries }) => {
         return (
           <div key={parent.id} className="flex flex-col gap-4">
             <div className="flex flex-row flex-wrap items-center justify-between gap-3">
@@ -124,12 +167,14 @@ export function CategoryTree({
                 </EmptyHeader>
               </Empty>
             ) : (
-              <Accordion multiple defaultValue={[children[0].id]}>
-                {children.map((child) => {
-                  const childLessons = lessons
-                    .filter((lesson) => lesson.categoryId === child.id)
-                    .sort((a, b) => a.title.localeCompare(b.title, "th"));
-
+              <Accordion
+                key={query}
+                multiple
+                defaultValue={
+                  query ? visibleChildEntries.map((entry) => entry.child.id) : [children[0].id]
+                }
+              >
+                {visibleChildEntries.map(({ child, childLessons, filteredLessons }) => {
                   return (
                     <AccordionItem key={child.id} value={child.id} className="border-b">
                       <AccordionTrigger
@@ -143,7 +188,7 @@ export function CategoryTree({
                       </AccordionTrigger>
                       <AccordionContent className="bg-card p-0">
                         <LessonTable
-                          lessons={childLessons}
+                          lessons={query ? filteredLessons : childLessons}
                           busyLessonId={busyLessonId}
                           role={role}
                           onToggleLesson={onToggleLesson}
@@ -159,6 +204,23 @@ export function CategoryTree({
           </div>
         );
       })}
+    </div>
+  );
+}
+
+function SearchBox({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+  return (
+    <div className="flex justify-end">
+      <div className="relative max-w-xs">
+        <SearchIcon className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
+        <Input
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          placeholder="ค้นหาบทเรียน..."
+          className="pl-8"
+          data-testid="category-tree-search-input"
+        />
+      </div>
     </div>
   );
 }
