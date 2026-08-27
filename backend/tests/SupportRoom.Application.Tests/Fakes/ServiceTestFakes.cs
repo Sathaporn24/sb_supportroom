@@ -41,6 +41,8 @@ internal sealed class FakeUnitOfWork : IUnitOfWork
 internal sealed class FakeLessonConfigRepository : ILessonConfigRepository
 {
     public readonly List<LessonConfig> Items = [];
+    public FakeTrainingLinkRepository? TrainingLinks { get; set; }
+    public FakeBackgroundJobRepository? BackgroundJobs { get; set; }
 
     // R9 - mirrors the real HasQueryFilter (CompanyId + !IsDelete): a trashed lesson must not be
     // reachable through the normal query surface, only through GetTrash/GetIncludingDeleted below.
@@ -62,6 +64,44 @@ internal sealed class FakeLessonConfigRepository : ILessonConfigRepository
 
     public LessonConfig? GetIncludingDeleted(string companyId, string lessonId)
         => Items.FirstOrDefault(x => x.CompanyId == companyId && x.Id == lessonId);
+
+    public bool TryArchive(string companyId, string lessonId, string? actorUserId, string purgeJobId, DateTime now, DateTime scheduledPurgeAt)
+    {
+        var entity = Items.FirstOrDefault(x => x.Id == lessonId && x.CompanyId == companyId && !x.IsDelete);
+        if (entity is null)
+        {
+            return false;
+        }
+
+        entity.IsDelete = true;
+        entity.DeletedAt = now;
+        entity.DeleteBy = actorUserId;
+        entity.PurgeJobId = purgeJobId;
+        entity.PurgeStartedAt = null;
+        entity.UpdateBy = actorUserId;
+        entity.UpdateDate = now;
+        BackgroundJobs?.Add(new BackgroundJob
+        {
+            Id = purgeJobId,
+            CompanyId = companyId,
+            CreateBy = actorUserId,
+            CreateDate = now,
+            JobType = BackgroundJobType.LessonPurge,
+            TargetId = lessonId,
+            Status = BackgroundJobStatus.Pending,
+            AttemptCount = 0,
+            NextAttemptAt = scheduledPurgeAt,
+        });
+        foreach (var link in TrainingLinks?.Items.Where(x => x.CompanyId == companyId && x.LessonId == lessonId && !x.IsDelete).ToList() ?? [])
+        {
+            link.IsDelete = true;
+            link.DeletedAt = now;
+            link.DeleteBy = actorUserId;
+            link.UpdateBy = actorUserId;
+            link.UpdateDate = now;
+        }
+        return true;
+    }
 
     public bool TryClaimPurge(string companyId, string lessonId, string purgeJobId, DateTime now)
     {
@@ -90,6 +130,31 @@ internal sealed class FakeLessonConfigRepository : ILessonConfigRepository
         entity.PurgeStartedAt = null;
         entity.UpdateBy = actorUserId;
         entity.UpdateDate = now;
+        return true;
+    }
+
+    public bool TryRestoreAndCancelPurge(string companyId, string lessonId, string purgeJobId, string? actorUserId, DateTime now)
+    {
+        var entity = Items.FirstOrDefault(x => x.Id == lessonId && x.CompanyId == companyId
+            && x.IsDelete && x.PurgeStartedAt == null && x.PurgeJobId == purgeJobId);
+        var job = BackgroundJobs?.Items.FirstOrDefault(x => x.Id == purgeJobId && x.CompanyId == companyId
+            && x.JobType == BackgroundJobType.LessonPurge && x.TargetId == lessonId && x.Status == BackgroundJobStatus.Pending);
+        if (entity is null || (BackgroundJobs is not null && job is null))
+        {
+            return false;
+        }
+
+        entity.IsDelete = false;
+        entity.DeletedAt = null;
+        entity.DeleteBy = null;
+        entity.PurgeJobId = null;
+        entity.PurgeStartedAt = null;
+        entity.UpdateBy = actorUserId;
+        entity.UpdateDate = now;
+        if (job is not null)
+        {
+            job.Status = BackgroundJobStatus.Canceled;
+        }
         return true;
     }
 }
@@ -325,6 +390,7 @@ internal sealed class FakeKnowledgeQnARepository : IKnowledgeQnARepository
 internal sealed class FakeKnowledgeQnASourceRepository : IKnowledgeQnASourceRepository
 {
     public readonly List<KnowledgeQnASource> Items = [];
+    public Action<KnowledgeQnASource>? OnDelete { get; set; }
 
     public IQueryable<KnowledgeQnASource> GetAll() => Items.AsQueryable().Where(x => !x.IsDelete);
     public IQueryable<KnowledgeQnASource> FindBy(Expression<Func<KnowledgeQnASource, bool>> predicate) => GetAll().Where(predicate);
@@ -332,7 +398,11 @@ internal sealed class FakeKnowledgeQnASourceRepository : IKnowledgeQnASourceRepo
     public Task<KnowledgeQnASource?> GetAsync(string id) => Task.FromResult(Get(id));
     public void Add(KnowledgeQnASource entity) => Items.Add(entity);
     public void Update(KnowledgeQnASource entity) { }
-    public void Delete(KnowledgeQnASource entity) => Items.Remove(entity);
+    public void Delete(KnowledgeQnASource entity)
+    {
+        OnDelete?.Invoke(entity);
+        Items.Remove(entity);
+    }
 
     public IQueryable<KnowledgeQnASource> GetBySessionQuestionIds(IReadOnlyList<string> sessionQuestionIds)
         => GetAll().Where(x => sessionQuestionIds.Contains(x.SessionQuestionId));
@@ -570,6 +640,65 @@ internal sealed class FakeKnowledgeIndexProvider : IKnowledgeIndexProvider
     public Task UpdateMetadataAsync(string namespaceKey, string id, string text, IReadOnlyDictionary<string, string>? metadata) => throw new NotSupportedException("not exercised in unit tests");
 }
 
+/// <summary>R9/Module L purge worker tests - records calls instead of throwing, so
+/// LessonPurgeWorkerTests can assert on what the worker tried to delete without a real Pinecone.
+/// Can also be told to throw once, to exercise the LT-14 retry path on external-delete failure.</summary>
+internal sealed class RecordingKnowledgeIndexProvider : IKnowledgeIndexProvider
+{
+    public List<string> DeletedNamespaces { get; } = [];
+    public List<(string NamespaceKey, string Id)> DeletedVectors { get; } = [];
+    public bool ThrowOnNextDelete { get; set; }
+
+    public Task UpsertAsync(string namespaceKey, IReadOnlyList<KnowledgeChunk> chunks) => throw new NotSupportedException("not exercised in unit tests");
+    public Task<IReadOnlyList<ScoredChunk>> QueryAsync(string namespaceKey, float[] queryVector, int topK) => throw new NotSupportedException("not exercised in unit tests");
+
+    public Task DeleteNamespaceAsync(string namespaceKey)
+    {
+        MaybeThrow();
+        DeletedNamespaces.Add(namespaceKey);
+        return Task.CompletedTask;
+    }
+
+    public Task DeleteVectorsAsync(string namespaceKey, IReadOnlyList<string> ids)
+    {
+        MaybeThrow();
+        foreach (var id in ids)
+        {
+            DeletedVectors.Add((namespaceKey, id));
+        }
+        return Task.CompletedTask;
+    }
+
+    public Task UpdateMetadataAsync(string namespaceKey, string id, string text, IReadOnlyDictionary<string, string>? metadata) => throw new NotSupportedException("not exercised in unit tests");
+
+    private void MaybeThrow()
+    {
+        if (!ThrowOnNextDelete)
+        {
+            return;
+        }
+        ThrowOnNextDelete = false;
+        throw new InvalidOperationException("simulated external delete failure");
+    }
+}
+
+/// <summary>R9/Module L purge worker tests - records deletes instead of throwing (see
+/// RecordingKnowledgeIndexProvider above for why the shared FakeDocumentStorageProvider is not
+/// reused here).</summary>
+internal sealed class RecordingDocumentStorageProvider : IDocumentStorageProvider
+{
+    public List<string> DeletedKeys { get; } = [];
+    public string BucketName => "fake-bucket";
+    public Task UploadAsync(string key, Stream content, string contentType) => throw new NotSupportedException("not exercised in unit tests");
+    public Task<Stream> DownloadAsync(string key) => throw new NotSupportedException("not exercised in unit tests");
+    public Task DeleteAsync(string key)
+    {
+        DeletedKeys.Add(key);
+        return Task.CompletedTask;
+    }
+    public Task<string> GetPresignedUrlAsync(string key) => throw new NotSupportedException("not exercised in unit tests");
+}
+
 internal sealed class FakeSlidesProvider : ISlidesProvider
 {
     public Task<ResolvedPresentation> ResolvePresentationAsync(ResolvePresentationInput input) => throw new NotSupportedException("not exercised in unit tests");
@@ -599,13 +728,16 @@ internal sealed class FakeServiceProvider : IServiceProvider
 {
     private readonly Dictionary<Type, object> _services = new();
 
-    public FakeServiceProvider()
+    /// <param name="companyId">ServiceBase resolves ICompanyContext in its constructor, so every
+    /// service under test needs one present - pre-resolved to TestFixtures.CompanyId by default so
+    /// entities created during a test carry the same company most fixtures seed. Pass the other
+    /// company explicitly for a test that builds a service scoped to it (e.g. LT-23 two-company
+    /// tests) - CurrentCompanyId reads from THIS context, not from the role/company passed to
+    /// IAuthorizationGuard/ICurrentUser, so those two must be kept in sync by the caller.</param>
+    public FakeServiceProvider(string companyId = TestFixtures.CompanyId)
     {
-        // ServiceBase resolves ICompanyContext in its constructor, so every service under test
-        // needs one present - pre-resolved to TestFixtures.CompanyId so entities created during
-        // a test carry the same company the fixtures seed.
         var companyContext = new CompanyContext();
-        companyContext.Resolve(TestFixtures.CompanyId);
+        companyContext.Resolve(companyId);
         _services[typeof(ICompanyContext)] = companyContext;
     }
 

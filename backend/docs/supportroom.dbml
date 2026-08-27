@@ -1,0 +1,419 @@
+Project SupportRoom {
+  database_type: 'PostgreSQL'
+  Note: 'Current EF Core business schema. Refs below document logical domain relationships; the current migrations do not create PostgreSQL FK constraints for them.'
+}
+
+Table Company {
+  Id text [pk, not null, note: 'Company slug used in admin URL']
+  Name text [not null]
+  IsActive boolean [not null]
+  DefaultIntroWaitMs integer [not null]
+  DefaultBreathPauseMs integer [not null]
+  DefaultFinalQuestionWaitMs integer [not null]
+  CreateBy text
+  CreateDate timestamptz [not null]
+  UpdateBy text
+  UpdateDate timestamptz
+  DeleteBy text
+  IsDelete boolean [not null]
+  DeletedAt timestamptz
+
+  indexes {
+    IsActive
+  }
+}
+
+Table AdminUser {
+  Id text [pk, not null]
+  CompanyId text [note: 'Null only for owner']
+  Role text [not null, note: 'owner | admin | cs']
+  Email text [not null]
+  PasswordHash text
+  DisplayName text [not null]
+  IsActive boolean [not null]
+  LastLoginAt timestamptz
+  MustChangePassword boolean [not null]
+  CreateBy text
+  CreateDate timestamptz [not null]
+  UpdateBy text
+  UpdateDate timestamptz
+  DeleteBy text
+  IsDelete boolean [not null]
+  DeletedAt timestamptz
+
+  indexes {
+    CompanyId
+    Email [unique]
+  }
+}
+
+Table KnowledgeCategory {
+  Id text [pk, not null]
+  CompanyId text [not null]
+  ParentId text
+  Level integer [not null]
+  Name text [not null]
+  Description text
+  SortOrder integer [not null]
+  IsSystemDefault boolean [not null]
+  CreateBy text
+  CreateDate timestamptz [not null]
+  UpdateBy text
+  UpdateDate timestamptz
+  DeleteBy text
+  IsDelete boolean [not null]
+  DeletedAt timestamptz
+
+  indexes {
+    CompanyId
+    (CompanyId, ParentId, SortOrder)
+  }
+}
+
+Table LessonConfig {
+  Id text [pk, not null]
+  CompanyId text [not null]
+  Slug text [not null]
+  CategoryId text [not null]
+  Title text [not null]
+  Description text
+  SlidesSourceUrl text [not null]
+  PresentationId text
+  SlidesEmbedUrl text
+  ContentSourceType text [not null, note: 'google_slides | pdf']
+  PdfDocumentResourceId text
+  SlideConfigs jsonb [note: 'Array of slideObjectId, slideIndex, videoDurationMs']
+  IsActive boolean [not null]
+  PurgeJobId text [note: 'Logical pointer to current lesson purge job']
+  PurgeStartedAt timestamptz
+  CreateBy text
+  CreateDate timestamptz [not null]
+  UpdateBy text
+  UpdateDate timestamptz
+  DeleteBy text
+  IsDelete boolean [not null]
+  DeletedAt timestamptz
+
+  indexes {
+    CategoryId
+    (CompanyId, Slug) [unique]
+    (CompanyId, IsDelete, DeletedAt)
+  }
+}
+
+Table LessonSlideNarration {
+  Id text [pk, not null]
+  CompanyId text [not null]
+  LessonId text [not null]
+  SlideObjectId text [not null]
+  NarrationText text [not null]
+  CreateBy text
+  CreateDate timestamptz [not null]
+  UpdateBy text
+  UpdateDate timestamptz
+  DeleteBy text
+  IsDelete boolean [not null]
+  DeletedAt timestamptz
+
+  indexes {
+    CompanyId
+    (LessonId, SlideObjectId)
+  }
+}
+
+Table LessonExcludedSlide {
+  Id text [pk, not null]
+  CompanyId text [not null]
+  LessonId text [not null]
+  SlideObjectId text [not null]
+  CreateBy text
+  CreateDate timestamptz [not null]
+  UpdateBy text
+  UpdateDate timestamptz
+  DeleteBy text
+  IsDelete boolean [not null]
+  DeletedAt timestamptz
+
+  indexes {
+    CompanyId
+    (LessonId, SlideObjectId)
+  }
+}
+
+Table DocumentResource {
+  Id text [pk, not null]
+  CompanyId text [not null]
+  ScopeType text [not null, note: 'lesson | category | company']
+  ScopeId text [note: 'Null for company scope; polymorphic for lesson/category']
+  FileName text [not null]
+  ContentType text [not null]
+  SizeBytes bigint [not null]
+  ObsBucket text [not null]
+  ObsKey text [not null]
+  IndexingStatus text [not null, note: 'pending | indexed | failed']
+  IndexedChunkCount integer [not null]
+  FailureReason text
+  ContentHash text
+  CreateBy text
+  CreateDate timestamptz [not null]
+  UpdateBy text
+  UpdateDate timestamptz
+  DeleteBy text
+  IsDelete boolean [not null]
+  DeletedAt timestamptz
+
+  indexes {
+    (CompanyId, ScopeType, ScopeId)
+    (CompanyId, ContentHash)
+  }
+}
+
+Table DocumentChunk {
+  Id text [pk, not null]
+  CompanyId text [not null]
+  DocumentId text [not null]
+  ChunkKey text [not null]
+  VectorId text [not null, note: 'External Pinecone vector id']
+  NamespaceKey text [not null, note: 'Actual Pinecone namespace used at indexing time']
+  SeqNo integer [not null]
+  Text text [not null]
+  CharCount integer [not null]
+  HasSuspectCharacters boolean [not null]
+  CreateBy text
+  CreateDate timestamptz [not null]
+  UpdateBy text
+  UpdateDate timestamptz
+  DeleteBy text
+  IsDelete boolean [not null]
+  DeletedAt timestamptz
+
+  indexes {
+    CompanyId
+    (DocumentId, SeqNo)
+  }
+}
+
+Table BackgroundJob {
+  Id text [pk, not null]
+  CompanyId text [not null]
+  JobType text [not null]
+  TargetId text [not null, note: 'Polymorphic document, lesson or Q&A id']
+  PayloadJson text
+  Status text [not null, note: 'pending | running | succeeded | failed | canceled']
+  AttemptCount integer [not null]
+  NextAttemptAt timestamptz [not null]
+  StartedAt timestamptz
+  FinishedAt timestamptz
+  LastErrorCode text
+  LastErrorDetail text
+  CreateBy text
+  CreateDate timestamptz [not null]
+  UpdateBy text
+  UpdateDate timestamptz
+  DeleteBy text
+  IsDelete boolean [not null]
+  DeletedAt timestamptz
+
+  indexes {
+    (Status, NextAttemptAt)
+    (CompanyId, JobType, TargetId)
+  }
+}
+
+Table KnowledgeQnA {
+  Id text [pk, not null]
+  CompanyId text [not null]
+  Question text [not null]
+  Answer text [not null]
+  ScopeType text [not null, note: 'lesson | category | company']
+  ScopeId text
+  VectorId text [not null, note: 'External Pinecone vector id']
+  IndexedNamespaceKey text
+  IndexingStatus text [not null, note: 'pending | indexed | failed']
+  FailureReason text
+  CreateBy text
+  CreateDate timestamptz [not null]
+  UpdateBy text
+  UpdateDate timestamptz
+  DeleteBy text
+  IsDelete boolean [not null]
+  DeletedAt timestamptz
+
+  indexes {
+    (CompanyId, ScopeType, ScopeId)
+  }
+}
+
+Table KnowledgeQnASource {
+  Id text [pk, not null]
+  CompanyId text [not null]
+  QnAId text [not null]
+  SessionQuestionId text [not null]
+  CreateBy text
+  CreateDate timestamptz [not null]
+  UpdateBy text
+  UpdateDate timestamptz
+  DeleteBy text
+  IsDelete boolean [not null]
+  DeletedAt timestamptz
+
+  indexes {
+    QnAId
+    (CompanyId, SessionQuestionId)
+  }
+}
+
+Table KnowledgeQnAConflict {
+  Id text [pk, not null]
+  CompanyId text [not null]
+  QnAId text [not null]
+  SessionQuestionId text
+  ConflictingSourceLabel text [not null]
+  ModelNote text
+  ResolvedAt timestamptz
+  ResolvedBy text
+  CreateBy text
+  CreateDate timestamptz [not null]
+  UpdateBy text
+  UpdateDate timestamptz
+  DeleteBy text
+  IsDelete boolean [not null]
+  DeletedAt timestamptz
+
+  indexes {
+    QnAId
+    (CompanyId, ResolvedAt)
+  }
+}
+
+Table TrainingLink {
+  Id text [pk, not null]
+  CompanyId text [not null]
+  Token text [not null]
+  LessonId text [not null]
+  LessonSlug text [not null]
+  RecipientOrgName text
+  ExpiresAt timestamptz [not null]
+  MaxAttendees integer
+  CreateBy text
+  CreateDate timestamptz [not null]
+  UpdateBy text
+  UpdateDate timestamptz
+  DeleteBy text
+  IsDelete boolean [not null]
+  DeletedAt timestamptz
+
+  indexes {
+    CompanyId
+    Token [unique]
+  }
+}
+
+Table LearningSession {
+  Id text [pk, not null]
+  CompanyId text [not null]
+  TrainingLinkId text [not null]
+  LearnerKey text [not null]
+  RecipientName text [not null]
+  Status text [not null, note: 'IN_PROGRESS | ENDED']
+  StartedAt timestamptz [not null]
+  EndedAt timestamptz
+  LastActivityAt timestamptz [not null]
+  LastSlideObjectId text
+  LastSlideIndex integer
+  TotalSlideCount integer
+  CompletedAllSlides boolean [not null]
+  CreateBy text
+  CreateDate timestamptz [not null]
+  UpdateBy text
+  UpdateDate timestamptz
+  DeleteBy text
+  IsDelete boolean [not null]
+  DeletedAt timestamptz
+
+  indexes {
+    CompanyId
+    (TrainingLinkId, LearnerKey)
+  }
+}
+
+Table SessionQuestion {
+  Id text [pk, not null]
+  CompanyId text [not null]
+  SessionId text [not null]
+  SlideObjectId text
+  Transcript text
+  Answer text
+  AnswerStatus text [not null]
+  Source text [not null, note: 'voice | text']
+  ReviewResult text [note: 'correct | incorrect']
+  ReviewNote text
+  ReviewedAt timestamptz
+  CreateBy text
+  CreateDate timestamptz [not null]
+  UpdateBy text
+  UpdateDate timestamptz
+  DeleteBy text
+  IsDelete boolean [not null]
+  DeletedAt timestamptz
+
+  indexes {
+    CompanyId
+    SessionId
+    (CompanyId, AnswerStatus)
+    (CompanyId, ReviewResult)
+  }
+}
+
+Table SessionQuestionReviewExclusion {
+  Id text [pk, not null]
+  CompanyId text [not null]
+  SessionQuestionId text [not null]
+  LessonId text [not null, note: 'Points to a lesson that may already be hard-deleted']
+  Reason text [not null]
+  CreateBy text
+  CreateDate timestamptz [not null]
+  UpdateBy text
+  UpdateDate timestamptz
+  DeleteBy text
+  IsDelete boolean [not null]
+  DeletedAt timestamptz
+
+  indexes {
+    (CompanyId, LessonId)
+    (CompanyId, SessionQuestionId) [unique]
+  }
+}
+
+// Logical domain relationships. The EF model currently stores string ids without FK constraints.
+Ref: AdminUser.CompanyId > Company.Id
+Ref: KnowledgeCategory.CompanyId > Company.Id
+Ref: KnowledgeCategory.ParentId > KnowledgeCategory.Id
+Ref: LessonConfig.CompanyId > Company.Id
+Ref: LessonConfig.CategoryId > KnowledgeCategory.Id
+Ref: LessonConfig.PdfDocumentResourceId > DocumentResource.Id
+Ref: LessonConfig.PurgeJobId > BackgroundJob.Id
+Ref: LessonSlideNarration.CompanyId > Company.Id
+Ref: LessonSlideNarration.LessonId > LessonConfig.Id
+Ref: LessonExcludedSlide.CompanyId > Company.Id
+Ref: LessonExcludedSlide.LessonId > LessonConfig.Id
+Ref: DocumentResource.CompanyId > Company.Id
+Ref: DocumentChunk.CompanyId > Company.Id
+Ref: DocumentChunk.DocumentId > DocumentResource.Id
+Ref: BackgroundJob.CompanyId > Company.Id
+Ref: KnowledgeQnA.CompanyId > Company.Id
+Ref: KnowledgeQnASource.CompanyId > Company.Id
+Ref: KnowledgeQnASource.QnAId > KnowledgeQnA.Id
+Ref: KnowledgeQnASource.SessionQuestionId > SessionQuestion.Id
+Ref: KnowledgeQnAConflict.CompanyId > Company.Id
+Ref: KnowledgeQnAConflict.QnAId > KnowledgeQnA.Id
+Ref: KnowledgeQnAConflict.SessionQuestionId > SessionQuestion.Id
+Ref: KnowledgeQnAConflict.ResolvedBy > AdminUser.Id
+Ref: TrainingLink.CompanyId > Company.Id
+Ref: TrainingLink.LessonId > LessonConfig.Id
+Ref: LearningSession.CompanyId > Company.Id
+Ref: LearningSession.TrainingLinkId > TrainingLink.Id
+Ref: SessionQuestion.CompanyId > Company.Id
+Ref: SessionQuestion.SessionId > LearningSession.Id
+Ref: SessionQuestionReviewExclusion.CompanyId > Company.Id
+Ref: SessionQuestionReviewExclusion.SessionQuestionId > SessionQuestion.Id

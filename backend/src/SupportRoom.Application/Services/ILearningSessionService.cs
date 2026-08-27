@@ -43,6 +43,11 @@ public interface ILearningSessionService
     /// through here rather than accepting a session id from the caller.</summary>
     LearningSession GetEntityByLearnerKey(string token, string learnerKey);
 
+    /// <summary>LT-5/LT-6 gate for learner operations that load teaching content, mutate progress,
+    /// or spend TTS/question quota. A revoked link requires this link's exact learnerKey and an
+    /// IN_PROGRESS session; recap/history callers deliberately use GetEntityByLearnerKey instead.</summary>
+    LearningSession GetInProgressEntityByLearnerKey(string token, string learnerKey);
+
     LearningSessionViewModel GetById(string learningSessionId);
 
     /// <summary>Everyone who has opened one link. CS-facing.</summary>
@@ -110,7 +115,9 @@ public sealed class LearningSessionService(IUnitOfWork unitOfWork, IServiceProvi
         // Resolves the company as a side effect, exactly like every other recipient-side entry
         // point. Expiry is deliberately NOT enforced here: someone who started in time still has
         // to be able to see that they have a run waiting and finish it.
-        var link = linkService.GetEntityByToken(token);
+        // LT-5/LT-6: a revoked link may only reveal a resume state to its own still-running
+        // learner. This must happen before building any public-link or lesson metadata.
+        var link = linkService.GetEntityByTokenForContentAccess(token, learnerKey);
         var linkExpired = link.ExpiresAt <= DateTime.UtcNow;
 
         // No key means a browser that has never been here (cleared storage, another device). There
@@ -145,7 +152,7 @@ public sealed class LearningSessionService(IUnitOfWork unitOfWork, IServiceProvi
 
     public LearningSessionViewModel UpdateProgress(string token, UpdateLearningProgressDto input)
     {
-        var entity = GetEntityByLearnerKey(token, input.LearnerKey);
+        var entity = GetInProgressEntityByLearnerKey(token, input.LearnerKey);
 
         if (entity.Status == SessionStatus.Ended)
         {
@@ -217,6 +224,13 @@ public sealed class LearningSessionService(IUnitOfWork unitOfWork, IServiceProvi
     public LearningSession GetEntityByLearnerKey(string token, string learnerKey)
     {
         var link = ServiceProvider.GetRequiredService<ITrainingLinkService>().GetEntityByToken(token);
+        return _repository.GetActiveByLearnerKey(link.Id, learnerKey)
+            ?? throw GeneralException.NotFound("การเรียนของผู้ใช้นี้");
+    }
+
+    public LearningSession GetInProgressEntityByLearnerKey(string token, string learnerKey)
+    {
+        var link = ServiceProvider.GetRequiredService<ITrainingLinkService>().GetEntityByTokenForContentAccess(token, learnerKey);
         return _repository.GetActiveByLearnerKey(link.Id, learnerKey)
             ?? throw GeneralException.NotFound("การเรียนของผู้ใช้นี้");
     }

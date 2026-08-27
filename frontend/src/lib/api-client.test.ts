@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { askTextQuestion, askVoiceQuestion } from "@/lib/api-client";
+import { askTextQuestion, askVoiceQuestion, requestLessonPermanentDelete } from "@/lib/api-client";
 
 describe("question request timeout", () => {
   afterEach(() => {
@@ -44,5 +44,28 @@ describe("question request timeout", () => {
     await rejection;
     expect(fetchMock).toHaveBeenCalledOnce();
     expect(fetchMock.mock.calls[0]?.[1]?.signal?.aborted).toBe(true);
+  });
+});
+
+describe("lesson permanent-delete request", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("treats the backend's empty 202 response as a successful queued request", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 202 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      requestLessonPermanentDelete("lesson-1", { confirmationTitle: "บทเรียนทดสอบ" }),
+    ).resolves.toBeUndefined();
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/lessons/lesson-1/permanent-delete",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ confirmationTitle: "บทเรียนทดสอบ" }),
+      }),
+    );
   });
 });

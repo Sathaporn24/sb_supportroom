@@ -17,6 +17,16 @@ import type {
 import { formatDateTimeTh } from "@/utils/format";
 import { AdminLink } from "@/components/admin/AdminLink";
 import { DocumentDuplicateDialog } from "@/components/admin/DocumentDuplicateDialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -175,6 +185,9 @@ export function DocumentUploadList({ filter, categories, lessons }: Props) {
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  // CD-2/CD-4 - yes/no confirm for deleting a document row, replacing window.confirm. Holds the
+  // id itself, not a closure of handleDelete.
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const [uploadScope, setUploadScope] = useState<DocumentScope>({ scopeType: "company" });
@@ -240,11 +253,10 @@ export function DocumentUploadList({ filter, categories, lessons }: Props) {
     setDuplicates(null);
   }
 
-  async function handleDelete(id: string) {
-    const confirmed = window.confirm("ต้องการลบเอกสารนี้ใช่หรือไม่?");
-    if (!confirmed) {
-      return;
-    }
+  async function confirmDelete() {
+    const id = pendingDeleteId;
+    if (!id) return;
+    setPendingDeleteId(null);
     setDeletingId(id);
     try {
       await api.deleteDocument(id);
@@ -405,7 +417,7 @@ export function DocumentUploadList({ filter, categories, lessons }: Props) {
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => handleDelete(doc.id)}
+                          onClick={() => setPendingDeleteId(doc.id)}
                           disabled={deletingId === doc.id}
                           data-testid={`document-row-${doc.id}-delete-button`}
                         >
@@ -471,6 +483,26 @@ export function DocumentUploadList({ filter, categories, lessons }: Props) {
         onCancel={handleCancelDuplicate}
         onUploadAnyway={handleUploadAnyway}
       />
+
+      {/* CD-5 point 2 - replaces window.confirm for deleting a document. */}
+      <AlertDialog open={pendingDeleteId !== null} onOpenChange={(next) => !next && setPendingDeleteId(null)}>
+        <AlertDialogContent data-testid="document-delete-dialog">
+          <AlertDialogHeader>
+            <AlertDialogTitle>ลบเอกสาร</AlertDialogTitle>
+            <AlertDialogDescription>ต้องการลบเอกสารนี้ใช่หรือไม่?</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid="document-delete-cancel-button">ยกเลิก</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              onClick={() => void confirmDelete()}
+              data-testid="document-delete-confirm-button"
+            >
+              ลบเอกสาร
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

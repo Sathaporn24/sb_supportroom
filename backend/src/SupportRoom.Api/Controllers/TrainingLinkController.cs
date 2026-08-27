@@ -58,6 +58,12 @@ public sealed class TrainingLinkController : ControllerBase
     public ActionResult GetByToken([FromRoute] string token)
     {
         var entity = _service.GetEntityByToken(token);
+        if (entity.IsDelete)
+        {
+            // LT-5: this is the anonymous pre-join screen. A revoked link must not disclose the
+            // old lesson title or organization metadata to someone holding only its token.
+            throw GeneralException.NotFound("ลิงก์ หรือลิงก์หมดอายุ");
+        }
         var link = _service.GetPublicByToken(token);
         return Ok(new { link, lessonTitle = GetLessonTitle(entity.LessonId) });
     }

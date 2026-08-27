@@ -223,4 +223,95 @@ public class RevokedLinkPolicyTests
 
         Assert.Equal(SessionStatus.InProgress, result.Status);
     }
+
+    // ---- GetResumeState (LT-5/LT-6) - P12-04: this endpoint must go through the same strict
+    // gate as content access, not the plain GetEntityByToken. ---------------------------------
+
+    [Fact]
+    public void GetResumeState_RevokedLink_NoLearnerKey_ThrowsNotFound()
+    {
+        // Token-only resume on a revoked link must be indistinguishable from a bad token - it
+        // must not return the link/lesson metadata a token-only caller is not entitled to see.
+        SeedLink(revoked: true);
+
+        var ex = Assert.Throws<HttpStatusCodeException>(
+            () => _learningSessionService.GetResumeState("tok-1", null));
+        Assert.Equal(404, (int)ex.StatusCode);
+    }
+
+    [Fact]
+    public void GetResumeState_RevokedLink_LearnerKeyWithNoSession_ThrowsNotFound()
+    {
+        SeedLink(revoked: true);
+
+        var ex = Assert.Throws<HttpStatusCodeException>(
+            () => _learningSessionService.GetResumeState("tok-1", "learner-abc"));
+        Assert.Equal(404, (int)ex.StatusCode);
+    }
+
+    [Fact]
+    public void GetResumeState_RevokedLink_MatchingInProgressSession_Succeeds()
+    {
+        var link = SeedLink(revoked: true);
+        _sessions.Items.Add(new LearningSession
+        {
+            Id = "session-1",
+            CompanyId = TestFixtures.CompanyId,
+            TrainingLinkId = link.Id,
+            LearnerKey = "learner-abc",
+            RecipientName = "Somchai",
+            Status = SessionStatus.InProgress,
+            StartedAt = DateTime.UtcNow,
+            LastActivityAt = DateTime.UtcNow,
+        });
+
+        var state = _learningSessionService.GetResumeState("tok-1", "learner-abc");
+
+        Assert.NotNull(state.Resumable);
+        Assert.Equal("session-1", state.Resumable!.Id);
+    }
+
+    [Fact]
+    public void GetResumeState_ActiveLink_NoLearnerKey_StillWorks()
+    {
+        SeedLink(revoked: false);
+
+        var state = _learningSessionService.GetResumeState("tok-1", null);
+
+        Assert.Null(state.Resumable);
+    }
+
+    // ---- UpdateProgress (LT-5/LT-6) - P12-04: progress writes must be gated the same way. ----
+
+    [Fact]
+    public void UpdateProgress_RevokedLink_NoInProgressSessionForLearnerKey_ThrowsNotFound()
+    {
+        SeedLink(revoked: true);
+
+        var ex = Assert.Throws<HttpStatusCodeException>(() => _learningSessionService.UpdateProgress(
+            "tok-1", new UpdateLearningProgressDto { LearnerKey = "learner-abc", LastSlideIndex = 2 }));
+        Assert.Equal(404, (int)ex.StatusCode);
+    }
+
+    [Fact]
+    public void UpdateProgress_RevokedLink_MatchingInProgressSession_Succeeds()
+    {
+        var link = SeedLink(revoked: true);
+        _sessions.Items.Add(new LearningSession
+        {
+            Id = "session-1",
+            CompanyId = TestFixtures.CompanyId,
+            TrainingLinkId = link.Id,
+            LearnerKey = "learner-abc",
+            RecipientName = "Somchai",
+            Status = SessionStatus.InProgress,
+            StartedAt = DateTime.UtcNow,
+            LastActivityAt = DateTime.UtcNow,
+        });
+
+        var result = _learningSessionService.UpdateProgress(
+            "tok-1", new UpdateLearningProgressDto { LearnerKey = "learner-abc", LastSlideIndex = 2 });
+
+        Assert.Equal(2, result.LastSlideIndex);
+    }
 }

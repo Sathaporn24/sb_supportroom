@@ -28,6 +28,8 @@ public class LessonTrashServiceTests
     public LessonTrashServiceTests()
     {
         MapsterConfig.Apply();
+        _lessons.TrainingLinks = _links;
+        _lessons.BackgroundJobs = _jobs;
         _unitOfWork.Register<ILessonConfigRepository>(_lessons);
         _unitOfWork.Register<IDocumentResourceRepository>(new FakeDocumentResourceRepository());
         _unitOfWork.Register<IKnowledgeCategoryRepository>(new FakeKnowledgeCategoryRepository());
@@ -42,7 +44,7 @@ public class LessonTrashServiceTests
     private LessonConfigService BuildService(string role, string companyId, string userId = "user-test")
     {
         var (guard, currentUser) = TestFixtures.AdminContext(role, companyId, userId);
-        var serviceProvider = new FakeServiceProvider();
+        var serviceProvider = new FakeServiceProvider(companyId);
         return new LessonConfigService(
             _unitOfWork,
             serviceProvider,
@@ -112,6 +114,17 @@ public class LessonTrashServiceTests
 
         var csService = BuildService(AdminRole.Cs, TestFixtures.CompanyId);
         var ex = await Assert.ThrowsAsync<HttpStatusCodeException>(() => csService.RestoreAsync(lesson.Id));
+        Assert.Equal(403, (int)ex.StatusCode);
+    }
+
+    [Fact]
+    public void GetTrash_Cs_IsForbidden()
+    {
+        // P12-03 regression - GET /api/lessons/trash must enforce the same LT-2 role guard as
+        // every other Module L endpoint; there is no reason for the read path alone to skip it.
+        var service = BuildService(AdminRole.Cs, TestFixtures.CompanyId);
+
+        var ex = Assert.Throws<HttpStatusCodeException>(() => service.GetTrash());
         Assert.Equal(403, (int)ex.StatusCode);
     }
 
@@ -401,5 +414,114 @@ public class LessonTrashServiceTests
         var item = service.GetTrash().Single();
 
         Assert.Equal(LessonPurgeState.Purging, item.PurgeState);
+    }
+
+    // ---- P12-08 - LT-23 tenant isolation on the four raw-SQL-guarded repository methods -----
+    //
+    // These bypass LessonConfigService entirely and call the repository methods directly: the
+    // service's own CurrentCompanyId/EnsureCanAccessCompany checks already stop a cross-company
+    // call before it ever reaches these methods, so a service-level test alone would never
+    // exercise the CompanyId predicate baked into TryClaimPurge/TryRestoreAndCancelPurge/
+    // CancelPendingLessonPurge/AccelerateLessonPurge themselves. The fakes mirror the real
+    // WHERE-clause guard exactly (same ILessonConfigRepository/IBackgroundJobRepository
+    // contract) - see CompanyIsolationTests.cs's note on why the real Postgres-specific
+    // ExecuteSqlRaw calls behind them cannot run against EF Core InMemory.
+
+    private LessonConfig SeedTrashedLessonDirectly(string id, string companyId, string jobId, DateTime? purgeStartedAt = null)
+    {
+        var lesson = new LessonConfig
+        {
+            Id = id,
+            CompanyId = companyId,
+            Slug = $"{id}-slug",
+            CategoryId = "kbcat-child",
+            Title = $"บทเรียนของ {companyId}",
+            SlidesSourceUrl = "",
+            ContentSourceType = LessonContentSourceType.GoogleSlides,
+            SlideConfigs = [],
+            IsActive = true,
+            IsDelete = true,
+            DeletedAt = DateTime.UtcNow.AddDays(-1),
+            PurgeJobId = jobId,
+            PurgeStartedAt = purgeStartedAt,
+            CreateDate = DateTime.UtcNow.AddDays(-1),
+        };
+        _lessons.Items.Add(lesson);
+        return lesson;
+    }
+
+    private BackgroundJob SeedPendingPurgeJobDirectly(string id, string companyId, string lessonId)
+    {
+        var job = new BackgroundJob
+        {
+            Id = id,
+            CompanyId = companyId,
+            JobType = BackgroundJobType.LessonPurge,
+            TargetId = lessonId,
+            Status = BackgroundJobStatus.Pending,
+            AttemptCount = 0,
+            NextAttemptAt = DateTime.UtcNow.AddDays(59),
+            CreateDate = DateTime.UtcNow.AddDays(-1),
+        };
+        _jobs.Items.Add(job);
+        return job;
+    }
+
+    [Fact]
+    public void TryClaimPurge_CompanyACannotClaimCompanyBsPendingPurgeJob()
+    {
+        var lessonB = SeedTrashedLessonDirectly("lesson-b", TestFixtures.OtherCompanyId, "job-b");
+
+        var claimedByA = _lessons.TryClaimPurge(TestFixtures.CompanyId, "lesson-b", "job-b", DateTime.UtcNow);
+
+        Assert.False(claimedByA);
+        Assert.Null(lessonB.PurgeStartedAt);
+        // The correct company can still claim its own job - proves the guard is scoped by
+        // CompanyId specifically, not just always failing.
+        Assert.True(_lessons.TryClaimPurge(TestFixtures.OtherCompanyId, "lesson-b", "job-b", DateTime.UtcNow));
+    }
+
+    [Fact]
+    public void TryRestoreAndCancelPurge_CompanyACannotRestoreOrCancelCompanyBsJob()
+    {
+        var lessonB = SeedTrashedLessonDirectly("lesson-b", TestFixtures.OtherCompanyId, "job-b");
+        var jobB = SeedPendingPurgeJobDirectly("job-b", TestFixtures.OtherCompanyId, "lesson-b");
+
+        var restoredByA = _lessons.TryRestoreAndCancelPurge(
+            TestFixtures.CompanyId, "lesson-b", "job-b", "user-a", DateTime.UtcNow);
+
+        Assert.False(restoredByA);
+        Assert.True(lessonB.IsDelete);
+        Assert.Equal("job-b", lessonB.PurgeJobId);
+        Assert.Equal(BackgroundJobStatus.Pending, jobB.Status);
+    }
+
+    [Fact]
+    public void CancelPendingLessonPurge_CompanyACannotCancelCompanyBsJob()
+    {
+        SeedTrashedLessonDirectly("lesson-b", TestFixtures.OtherCompanyId, "job-b");
+        var jobB = SeedPendingPurgeJobDirectly("job-b", TestFixtures.OtherCompanyId, "lesson-b");
+
+        var canceledByA = _jobs.CancelPendingLessonPurge(TestFixtures.CompanyId, "lesson-b", "job-b");
+
+        Assert.False(canceledByA);
+        Assert.Equal(BackgroundJobStatus.Pending, jobB.Status);
+        // Owning company can still cancel its own job.
+        Assert.True(_jobs.CancelPendingLessonPurge(TestFixtures.OtherCompanyId, "lesson-b", "job-b"));
+    }
+
+    [Fact]
+    public void AccelerateLessonPurge_CompanyACannotAccelerateCompanyBsJob()
+    {
+        SeedTrashedLessonDirectly("lesson-b", TestFixtures.OtherCompanyId, "job-b");
+        var jobB = SeedPendingPurgeJobDirectly("job-b", TestFixtures.OtherCompanyId, "lesson-b");
+        var originalNextAttemptAt = jobB.NextAttemptAt;
+
+        var acceleratedByA = _jobs.AccelerateLessonPurge(TestFixtures.CompanyId, "lesson-b", "job-b");
+
+        Assert.False(acceleratedByA);
+        Assert.Equal(originalNextAttemptAt, jobB.NextAttemptAt);
+        // Owning company can still accelerate its own job.
+        Assert.True(_jobs.AccelerateLessonPurge(TestFixtures.OtherCompanyId, "lesson-b", "job-b"));
     }
 }

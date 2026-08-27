@@ -79,6 +79,10 @@ public static class LessonTrashPolicy
     /// <summary>LT-12 - how far the worker pushes NextAttemptAt out when it finds an active
     /// session instead of claiming the purge.</summary>
     public const int ActiveSessionDeferralHours = 1;
+
+    /// <summary>LT-14 - once the normal three DI-9 retries are exhausted, lesson_purge remains
+    /// pending forever and retries at this fixed cadence. This is not configurable per company.</summary>
+    public const int PostMaxAttemptRetryHours = 24;
 }
 
 public sealed class JwtSettings

@@ -68,6 +68,12 @@ public static class BackgroundJobBackoff
         2 => TimeSpan.FromMinutes(5),
         _ => TimeSpan.FromMinutes(15),
     };
+
+    /// <summary>LT-14 - unlike every other job type, `lesson_purge` must never become permanently
+    /// `failed`: after the third attempt it stays `pending` and is retried once a day, forever,
+    /// until it succeeds or the lesson is restored (which cancels the job). No email/notification;
+    /// silence and an ever-growing AttemptCount are the only visible trace.</summary>
+    public static readonly TimeSpan LessonPurgeRetryInterval = TimeSpan.FromHours(24);
 }
 
 public interface IBackgroundJobProcessor
@@ -783,9 +789,29 @@ public sealed class BackgroundJobProcessor(
         job.LastErrorDetail = Truncate(ex.ToString(), MaxErrorDetailLength);
         job.FinishedAt = DateTime.UtcNow;
 
-        if (job.AttemptCount >= BackgroundJobBackoff.MaxAttempts)
+        if (job.JobType == BackgroundJobType.LessonPurge
+            && job.AttemptCount >= BackgroundJobBackoff.MaxAttempts)
         {
-            job.Status = BackgroundJobStatus.Failed;
+            // LT-14: permanent purge is intentionally never terminally failed. The first three
+            // attempts use the normal DI-9 backoff; every failure after that remains visible as
+            // pending and is retried once per day until its idempotent cleanup can finish.
+            job.Status = BackgroundJobStatus.Pending;
+            job.StartedAt = null;
+            job.NextAttemptAt = DateTime.UtcNow.AddHours(LessonTrashPolicy.PostMaxAttemptRetryHours);
+        }
+        else if (job.AttemptCount >= BackgroundJobBackoff.MaxAttempts)
+        {
+            if (job.JobType == BackgroundJobType.LessonPurge)
+            {
+                // LT-14 - never terminal for this job type: keep retrying once a day, forever.
+                job.Status = BackgroundJobStatus.Pending;
+                job.StartedAt = null;
+                job.NextAttemptAt = DateTime.UtcNow.Add(BackgroundJobBackoff.LessonPurgeRetryInterval);
+            }
+            else
+            {
+                job.Status = BackgroundJobStatus.Failed;
+            }
         }
         else
         {

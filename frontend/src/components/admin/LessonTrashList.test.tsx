@@ -49,6 +49,21 @@ describe("LessonTrashList - LT-2/LT-7 role and action visibility", () => {
     expect(screen.getByTestId("lesson-trash-row-lesson-1-permanent-delete-button")).toBeTruthy();
   });
 
+  it("renders no active-lesson or bulk controls in the read-only trash view", async () => {
+    listTrashedLessons.mockResolvedValue({ lessons: [TRASH_ITEM] });
+    render(createElement(LessonTrashList, { role: "owner", refreshToken: 0, onLessonRestored: vi.fn() }));
+
+    await waitFor(() => expect(screen.getByTestId("lesson-trash-row-lesson-1-restore-button")).toBeTruthy());
+
+    expect(screen.queryByRole("button", { name: "แก้ไข" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "อัปโหลด" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "ลบไฟล์" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "ย้าย" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "สร้างลิงก์" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "ลบที่เลือก" })).toBeNull();
+    expect(screen.queryByText("เอกสารประกอบ")).toBeNull();
+  });
+
   it("shows neither action for cs", async () => {
     listTrashedLessons.mockResolvedValue({ lessons: [TRASH_ITEM] });
     render(createElement(LessonTrashList, { role: "cs", refreshToken: 0, onLessonRestored: vi.fn() }));

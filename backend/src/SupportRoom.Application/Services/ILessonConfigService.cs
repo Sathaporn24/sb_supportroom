@@ -361,48 +361,20 @@ public sealed class LessonConfigService(
     public Task<LessonConfigViewModel> ArchiveAsync(string id)
     {
         EnsureCanArchiveOrRestore();
-
-        // The active-only query filter means a lesson already in the trash simply is not found
-        // here - a repeated archive call 404s rather than creating a second job (LT-1).
-        var lesson = _repository.Get(id) ?? throw GeneralException.NotFound("บทเรียน");
-
         var now = DateTime.UtcNow;
         var jobId = IdGenerator.GenerateId("job");
-        var jobRepository = UnitOfWork.GetRepository<IBackgroundJobRepository>();
-        jobRepository.Add(new BackgroundJob
+        var scheduledPurgeAt = now.AddDays(LessonTrashPolicy.RetentionDays);
+        if (!_repository.TryArchive(CurrentCompanyId, id, CurrentUserId, jobId, now, scheduledPurgeAt))
         {
-            Id = jobId,
-            CompanyId = CurrentCompanyId,
-            CreateBy = CurrentUserId,
-            CreateDate = now,
-            JobType = BackgroundJobType.LessonPurge,
-            TargetId = lesson.Id,
-            Status = BackgroundJobStatus.Pending,
-            AttemptCount = 0,
-            NextAttemptAt = now.AddDays(LessonTrashPolicy.RetentionDays),
-        });
-
-        // LT-3 - trash the lesson and revoke every one of its links in the same transaction.
-        // Nothing else (document/Q&A/vector/narration/session/question) is touched here.
-        lesson.IsDelete = true;
-        lesson.DeletedAt = now;
-        lesson.DeleteBy = CurrentUserId;
-        lesson.PurgeJobId = jobId;
-        lesson.PurgeStartedAt = null;
-        _repository.Update(lesson);
-
-        var linkRepository = UnitOfWork.GetRepository<ITrainingLinkRepository>();
-        foreach (var link in linkRepository.GetByLessonId(lesson.Id).Where(l => !l.IsDelete).ToList())
-        {
-            link.IsDelete = true;
-            link.DeletedAt = now;
-            link.DeleteBy = CurrentUserId;
-            linkRepository.Update(link);
+            // LT-1/LT-3: an archive generation is only created by the request whose conditional
+            // update wins. A stale/repeated request must never manufacture a second purge job.
+            throw GeneralException.NotFound("บทเรียน");
         }
 
-        UnitOfWork.Commit();
+        var lesson = _repository.GetIncludingDeleted(CurrentCompanyId, id)
+            ?? throw GeneralException.NotFound("บทเรียน");
 
-        Logger.LogInformation("Lesson archived: {LessonId} purgeJob={JobId} scheduledPurgeAt={ScheduledPurgeAt}", lesson.Id, jobId, lesson.DeletedAt.Value.AddDays(LessonTrashPolicy.RetentionDays));
+        Logger.LogInformation("Lesson archived: {LessonId} purgeJob={JobId} scheduledPurgeAt={ScheduledPurgeAt}", lesson.Id, jobId, scheduledPurgeAt);
 
         return Task.FromResult(lesson.Adapt<LessonConfigViewModel>());
     }
@@ -420,8 +392,12 @@ public sealed class LessonConfigService(
         }
 
         var purgeJobId = lesson.PurgeJobId;
+        if (string.IsNullOrEmpty(purgeJobId))
+        {
+            throw GeneralException.ConfigError("ไม่พบงานลบถาวรของบทเรียนนี้");
+        }
         var now = DateTime.UtcNow;
-        var restored = _repository.TryRestore(CurrentCompanyId, id, CurrentUserId, now);
+        var restored = _repository.TryRestoreAndCancelPurge(CurrentCompanyId, id, purgeJobId, CurrentUserId, now);
         if (!restored)
         {
             // LT-4 - the worker won the claim race first (PurgeStartedAt is already set).
@@ -440,16 +416,6 @@ public sealed class LessonConfigService(
         lesson.UpdateBy = CurrentUserId;
         lesson.UpdateDate = now;
 
-        if (!string.IsNullOrEmpty(purgeJobId))
-        {
-            var jobRepository = UnitOfWork.GetRepository<IBackgroundJobRepository>();
-            // Best-effort bookkeeping only - TryRestore above already cleared LessonConfig's own
-            // PurgeJobId, so even if this never runs (a crash between the two calls), the worker's
-            // own LT-11 generation check treats a mismatched/cleared PurgeJobId as no-op-succeeded
-            // the next time this job (if it ever runs again) is claimed.
-            jobRepository.CancelPendingLessonPurge(CurrentCompanyId, id, purgeJobId);
-        }
-
         Logger.LogInformation("Lesson restored: {LessonId}", id);
 
         return Task.FromResult(lesson.Adapt<LessonConfigViewModel>());
@@ -457,6 +423,7 @@ public sealed class LessonConfigService(
 
     public IReadOnlyList<LessonTrashItemViewModel> GetTrash()
     {
+        EnsureCanArchiveOrRestore();
         var now = DateTime.UtcNow;
         return _repository.GetTrash(CurrentCompanyId)
             .OrderBy(x => x.DeletedAt)
