@@ -24,6 +24,11 @@ public interface ILessonConfigRepository : IRepositoryBase<LessonConfig, string>
     /// of the filter too, so CompanyId is reapplied explicitly in the same predicate).</summary>
     LessonConfig? GetIncludingDeleted(string companyId, string lessonId);
 
+    /// <summary>LT-3 - creates this trash generation exactly once. The conditional lesson update,
+    /// purge-job insert, and link revocation share one database transaction so concurrent archive
+    /// requests cannot leave a second job behind.</summary>
+    bool TryArchive(string companyId, string lessonId, string? actorUserId, string purgeJobId, DateTime now, DateTime scheduledPurgeAt);
+
     /// <summary>R9/LT-13 - the worker's conditional claim: flips PurgeStartedAt only if this row is
     /// still exactly `(CompanyId, Id, IsDelete=true, PurgeJobId=purgeJobId, PurgeStartedAt=null)`,
     /// atomically at the database level (same FOR-UPDATE-style reasoning as
@@ -38,6 +43,11 @@ public interface ILessonConfigRepository : IRepositoryBase<LessonConfig, string>
     /// caller can turn that into 409 "เริ่มลบถาวรแล้ว" (LT-4) without a lost-update window between
     /// reading the row and writing it back.</summary>
     bool TryRestore(string companyId, string lessonId, string? actorUserId, DateTime now);
+
+    /// <summary>LT-4 - restores the exact trash generation and cancels its matching pending job
+    /// in the same transaction. A failed conditional update means purge claimed or another
+    /// restore/archive transition won first.</summary>
+    bool TryRestoreAndCancelPurge(string companyId, string lessonId, string purgeJobId, string? actorUserId, DateTime now);
 }
 
 public sealed class LessonConfigRepository(ApplicationDbContext dbContext)
@@ -60,6 +70,53 @@ public sealed class LessonConfigRepository(ApplicationDbContext dbContext)
 
     public LessonConfig? GetIncludingDeleted(string companyId, string lessonId)
         => Context.LessonConfig.IgnoreQueryFilters().SingleOrDefault(x => x.CompanyId == companyId && x.Id == lessonId);
+
+    public bool TryArchive(string companyId, string lessonId, string? actorUserId, string purgeJobId, DateTime now, DateTime scheduledPurgeAt)
+    {
+        using var transaction = Context.Database.BeginTransaction();
+
+        var archived = Context.LessonConfig.IgnoreQueryFilters()
+            .Where(x => x.CompanyId == companyId && x.Id == lessonId && !x.IsDelete)
+            .ExecuteUpdate(setters => setters
+                .SetProperty(x => x.IsDelete, true)
+                .SetProperty(x => x.DeletedAt, now)
+                .SetProperty(x => x.DeleteBy, actorUserId)
+                .SetProperty(x => x.PurgeJobId, purgeJobId)
+                .SetProperty(x => x.PurgeStartedAt, (DateTime?)null)
+                .SetProperty(x => x.UpdateBy, actorUserId)
+                .SetProperty(x => x.UpdateDate, now));
+        if (archived != 1)
+        {
+            transaction.Rollback();
+            return false;
+        }
+
+        Context.BackgroundJob.Add(new BackgroundJob
+        {
+            Id = purgeJobId,
+            CompanyId = companyId,
+            CreateBy = actorUserId,
+            CreateDate = now,
+            JobType = SupportRoom.Domain.Enums.BackgroundJobType.LessonPurge,
+            TargetId = lessonId,
+            Status = SupportRoom.Domain.Enums.BackgroundJobStatus.Pending,
+            AttemptCount = 0,
+            NextAttemptAt = scheduledPurgeAt,
+        });
+        Context.SaveChanges();
+
+        Context.TrainingLink
+            .Where(x => x.CompanyId == companyId && x.LessonId == lessonId && !x.IsDelete)
+            .ExecuteUpdate(setters => setters
+                .SetProperty(x => x.IsDelete, true)
+                .SetProperty(x => x.DeletedAt, now)
+                .SetProperty(x => x.DeleteBy, actorUserId)
+                .SetProperty(x => x.UpdateBy, actorUserId)
+                .SetProperty(x => x.UpdateDate, now));
+
+        transaction.Commit();
+        return true;
+    }
 
     public bool TryClaimPurge(string companyId, string lessonId, string purgeJobId, DateTime now)
     {
@@ -84,5 +141,50 @@ public sealed class LessonConfigRepository(ApplicationDbContext dbContext)
             """;
         var rows = Context.Database.ExecuteSqlRaw(sql, lessonId, companyId, actorUserId, now);
         return rows == 1;
+    }
+
+    public bool TryRestoreAndCancelPurge(string companyId, string lessonId, string purgeJobId, string? actorUserId, DateTime now)
+    {
+        using var transaction = Context.Database.BeginTransaction();
+
+        const string restoreSql = """
+            UPDATE "LessonConfig"
+            SET "IsDelete" = FALSE, "DeletedAt" = NULL, "DeleteBy" = NULL,
+                "PurgeJobId" = NULL, "PurgeStartedAt" = NULL,
+                "UpdateBy" = {3}, "UpdateDate" = {4}
+            WHERE "Id" = {0} AND "CompanyId" = {1} AND "IsDelete" = TRUE
+                  AND "PurgeStartedAt" IS NULL AND "PurgeJobId" = {2}
+            """;
+        var restored = Context.Database.ExecuteSqlRaw(restoreSql, lessonId, companyId, purgeJobId, actorUserId, now);
+        if (restored != 1)
+        {
+            transaction.Rollback();
+            return false;
+        }
+
+        const string cancelSql = """
+            UPDATE "BackgroundJob"
+            SET "Status" = {0}, "UpdateBy" = {5}, "UpdateDate" = {6}
+            WHERE "Id" = {1} AND "CompanyId" = {2} AND "JobType" = {3}
+                  AND "TargetId" = {4} AND "Status" = {7}
+            """;
+        var canceled = Context.Database.ExecuteSqlRaw(
+            cancelSql,
+            SupportRoom.Domain.Enums.BackgroundJobStatus.Canceled,
+            purgeJobId,
+            companyId,
+            SupportRoom.Domain.Enums.BackgroundJobType.LessonPurge,
+            lessonId,
+            actorUserId,
+            now,
+            SupportRoom.Domain.Enums.BackgroundJobStatus.Pending);
+        if (canceled != 1)
+        {
+            transaction.Rollback();
+            return false;
+        }
+
+        transaction.Commit();
+        return true;
     }
 }

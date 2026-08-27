@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { CheckCircle2Icon, CircleIcon, XCircleIcon } from "lucide-react";
 import * as api from "@/lib/api-client";
 import { ApiClientError } from "@/lib/api-client";
 import type { LessonConfigInput, PdfPreviewSessionResponse } from "@/types/domain";
@@ -19,10 +20,35 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Progress, ProgressLabel } from "@/components/ui/progress";
 import { Spinner } from "@/components/ui/spinner";
+import { cn } from "@/lib/utils";
+
+type ChecklistItemStatus = "pending" | "active" | "success" | "failed";
+
+/** NR-22 - one status icon set shared by all 4 checklist rows, built only from lucide-react +
+ * shadcn semantic tokens per R10.4 §⚙️ (no new icon/animation dependency). */
+function ChecklistItem({ label, status, testId }: { label: string; status: ChecklistItemStatus; testId: string }) {
+  return (
+    <div className="flex items-center gap-2 text-sm" data-testid={testId} data-status={status}>
+      {status === "success" && <CheckCircle2Icon className="size-4 shrink-0 text-primary" />}
+      {status === "failed" && <XCircleIcon className="size-4 shrink-0 text-destructive" />}
+      {status === "active" && <Spinner className="size-4 shrink-0 text-primary" />}
+      {status === "pending" && <CircleIcon className="size-4 shrink-0 text-muted-foreground" />}
+      <span className={cn(status === "pending" ? "text-muted-foreground" : "text-foreground")}>{label}</span>
+    </div>
+  );
+}
 
 type FormSnapshot = {
   slug: string;
@@ -69,6 +95,12 @@ export function PdfLessonContentPhase({ previewSession: initialSession, file: in
   const [excludedSlideObjectIds, setExcludedSlideObjectIds] = useState<Set<string>>(new Set());
   const [warningDialogOpen, setWarningDialogOpen] = useState(false);
 
+  // NR-20 - the commit modal's own state, set true only at the start of commit() and never
+  // computed from commitStarted/lessonId/committing (a step-1 failure never sets lessonId, so
+  // deriving `open` from it would leave the modal never opening at all). The only code path that
+  // sets this back to false is the "กลับไปแก้ข้อมูลบทเรียน" button NR-24 allows for a step-1 failure.
+  const [commitModalOpen, setCommitModalOpen] = useState(false);
+
   const [committing, setCommitting] = useState(false);
   const [stepError, setStepError] = useState<StepError | null>(null);
   const [lessonId, setLessonId] = useState<string | null>(null);
@@ -110,6 +142,10 @@ export function PdfLessonContentPhase({ previewSession: initialSession, file: in
     };
   }
 
+  // NR-21(ก) - navigation out of this phase is no longer a side effect of a successful flush, in
+  // either of this function's two call sites (commit()'s success path and
+  // handleRetryFailedNarrations()). The only thing that changes pages now is the CS clicking the
+  // confirm button the commit modal shows in its `succeeded` state (NR-24).
   async function flushNarrations(lessonIdValue: string, ids: string[]) {
     const results: Record<string, "success" | "failed"> = {};
     for (const id of ids) {
@@ -120,12 +156,7 @@ export function PdfLessonContentPhase({ previewSession: initialSession, file: in
         results[id] = "failed";
       }
     }
-    const merged = { ...narrationResults, ...results };
-    setNarrationResults(merged);
-    const stillFailing = Object.values(merged).some((r) => r === "failed");
-    if (!stillFailing && lessonSlugRef.current) {
-      router.push(`/admin/lessons/${encodeURIComponent(lessonSlugRef.current)}`);
-    }
+    setNarrationResults((current) => ({ ...current, ...results }));
   }
 
   // P11-02 fix - step 3 already commits excludedSlideObjectIds; a page edited and then excluded
@@ -141,6 +172,7 @@ export function PdfLessonContentPhase({ previewSession: initialSession, file: in
    * skipped if its ref already holds a result, which is what makes NR-13's per-step retries work
    * without redoing (or re-uploading) anything that already succeeded. */
   async function commit() {
+    setCommitModalOpen(true);
     setCommitting(true);
     setStepError(null);
 
@@ -258,6 +290,56 @@ export function PdfLessonContentPhase({ previewSession: initialSession, file: in
   const completedSteps =
     (lessonId ? 1 : 0) + (documentId ? 1 : 0) + (documentLinked ? 1 : 0) + successNarrationCount;
 
+  // NR-20 - stepError only ever gets set for steps 1-3 (commit() returns before step 4 runs), so
+  // a leftover failed narration only ever shows up once stepError is null - the two never compete
+  // for which "failed step" is current.
+  const failedStep: 1 | 2 | 3 | 4 | null =
+    stepError?.step ?? (failedNarrationIds.length > 0 ? 4 : null);
+  const modalStatus: "running" | "succeeded" | "failed" = committing
+    ? "running"
+    : failedStep !== null
+      ? "failed"
+      : "succeeded";
+
+  const narrationTotal = touchedAndNotExcludedIds.size;
+  const step1Status: ChecklistItemStatus = lessonId
+    ? "success"
+    : stepError?.step === 1
+      ? "failed"
+      : committing
+        ? "active"
+        : "pending";
+  const step2Status: ChecklistItemStatus = documentId
+    ? "success"
+    : stepError?.step === 2
+      ? "failed"
+      : Boolean(lessonId) && committing
+        ? "active"
+        : "pending";
+  const step3Status: ChecklistItemStatus = documentLinked
+    ? "success"
+    : stepError?.step === 3
+      ? "failed"
+      : Boolean(documentId) && committing
+        ? "active"
+        : "pending";
+  const step4Status: ChecklistItemStatus = failedNarrationIds.length > 0
+    ? "failed"
+    : documentLinked && successNarrationCount === narrationTotal
+      ? "success"
+      : documentLinked && committing
+        ? "active"
+        : "pending";
+
+  function handleBackToEditingFromFailedCreate() {
+    setCommitModalOpen(false);
+  }
+
+  function handleConfirmSuccess() {
+    if (!lessonSlugRef.current) return;
+    router.push("/admin/lessons");
+  }
+
   return (
     <main className="flex w-full flex-col gap-6 p-6">
       <div>
@@ -283,16 +365,6 @@ export function PdfLessonContentPhase({ previewSession: initialSession, file: in
           <AlertDescription>
             ทุกหน้าไม่มีข้อความให้ดึงเลย — AI จะไม่มีอะไรพูดถ้าไม่พิมพ์บทพูดเองทุกหน้าในนี้
           </AlertDescription>
-        </Alert>
-      )}
-
-      {/* NR-13 - when step 1 (create lesson) fails, lessonId never gets set so commitStarted stays
-          false and the view falls back to the slide-list branch below - the error has to surface
-          here too, not just in the commitStarted progress panel, or it's silently swallowed. */}
-      {!commitStarted && stepError && (
-        <Alert variant="destructive" data-testid="pdf-content-phase-step1-error">
-          <AlertTitle>สร้างบทเรียนไม่สำเร็จ</AlertTitle>
-          <AlertDescription>{stepError.message}</AlertDescription>
         </Alert>
       )}
 
@@ -363,70 +435,7 @@ export function PdfLessonContentPhase({ previewSession: initialSession, file: in
             });
           })()}
         </div>
-      ) : (
-        <div className="flex flex-col gap-3 rounded-lg border p-4">
-          <Progress value={(completedSteps / totalSteps) * 100} data-testid="pdf-content-phase-progress">
-            <div className="flex w-full items-center justify-between">
-              <ProgressLabel>กำลังสร้างบทเรียน</ProgressLabel>
-              <span className="text-sm text-muted-foreground tabular-nums">
-                {completedSteps}/{totalSteps}
-              </span>
-            </div>
-          </Progress>
-
-          {stepError && (
-            <div className="flex flex-col gap-2 rounded-md border border-destructive/40 bg-destructive/5 p-3">
-              {stepError.step === 1 && <p className="text-sm text-destructive">สร้างบทเรียนไม่สำเร็จ: {stepError.message}</p>}
-              {stepError.step === 2 && (
-                <p className="text-sm text-destructive">
-                  บทเรียนถูกสร้างแล้ว แต่อัปไฟล์ไม่สำเร็จ: {stepError.message}
-                </p>
-              )}
-              {stepError.step === 3 && (
-                <p className="text-sm text-destructive">
-                  อัปโหลดไฟล์สำเร็จแล้ว แต่ผูกไฟล์กับบทเรียนไม่สำเร็จ: {stepError.message}
-                </p>
-              )}
-              <Button
-                size="sm"
-                className="w-fit"
-                disabled={committing}
-                onClick={() => void commit()}
-                data-testid="pdf-content-phase-retry-button"
-              >
-                {committing ? <Spinner /> : stepError.step === 2 ? "ลองอัปโหลดไฟล์อีกครั้ง" : "ลองอีกครั้ง"}
-              </Button>
-            </div>
-          )}
-
-          {!stepError && documentLinked && failedNarrationIds.length > 0 && (
-            <div className="flex flex-col gap-2 rounded-md border border-destructive/40 bg-destructive/5 p-3">
-              <p className="text-sm text-destructive">
-                บันทึกบทพูดสำเร็จ {successNarrationCount}/{touchedAndNotExcludedIds.size} หน้า — เหลือ {failedNarrationIds.length} หน้าที่ยังไม่สำเร็จ
-              </p>
-              <Button
-                size="sm"
-                className="w-fit"
-                disabled={committing}
-                onClick={() => void handleRetryFailedNarrations()}
-                data-testid="pdf-content-phase-retry-narrations-button"
-              >
-                {committing ? <Spinner /> : "ลองใหม่เฉพาะหน้าที่เหลือ"}
-              </Button>
-            </div>
-          )}
-
-          {lessonSlug && (
-            <AdminLink
-              href={`/admin/lessons/${encodeURIComponent(lessonSlug)}/narrations`}
-              className="text-xs text-primary hover:underline"
-              data-testid="pdf-content-phase-narrations-link"
-            >
-              ไปหน้าแก้บทพูดต่อหน้า →
-            </AdminLink>
-          )}
-        </div>
-      )}
+      ) : null}
 
       {!commitStarted && (
         <div className="flex justify-end">
@@ -442,6 +451,151 @@ export function PdfLessonContentPhase({ previewSession: initialSession, file: in
           </Button>
         </div>
       )}
+
+      {/* NR-20..NR-24 - the commit modal. `open` is driven only by commitModalOpen (NR-20), never
+          by commitStarted/lessonId/committing. onOpenChange never lets Esc/outside-click close it
+          (NR-23(ก)) - every exit is one of the buttons NR-24 lists below, rendered per modalStatus. */}
+      <Dialog open={commitModalOpen} onOpenChange={() => {}}>
+        <DialogContent showCloseButton={false} className="max-w-lg" data-testid="pdf-content-phase-commit-dialog">
+          <DialogHeader>
+            <DialogTitle>
+              {modalStatus === "running"
+                ? "กำลังสร้างบทเรียน"
+                : modalStatus === "succeeded"
+                  ? "สร้างบทเรียนสำเร็จ"
+                  : "ดำเนินการไม่สำเร็จบางขั้นตอน"}
+            </DialogTitle>
+            <DialogDescription>
+              {modalStatus === "running" && "กรุณารอจนกว่าจะเสร็จ ห้ามปิดหน้าต่างนี้"}
+              {modalStatus === "succeeded" && "บทเรียนพร้อมใช้งานแล้ว"}
+              {modalStatus === "failed" && "ตรวจสอบรายการด้านล่างและลองอีกครั้งได้เลย"}
+            </DialogDescription>
+          </DialogHeader>
+
+          <Progress value={(completedSteps / totalSteps) * 100} data-testid="pdf-content-phase-progress">
+            <div className="flex w-full items-center justify-between">
+              <ProgressLabel>ความคืบหน้า</ProgressLabel>
+              <span className="text-sm text-muted-foreground tabular-nums">
+                {completedSteps}/{totalSteps}
+              </span>
+            </div>
+          </Progress>
+
+          <div className="flex flex-col gap-2 rounded-md border p-3">
+            <ChecklistItem label="สร้างบทเรียน" status={step1Status} testId="pdf-content-phase-checklist-step-1" />
+            <ChecklistItem label="อัปโหลดไฟล์ PDF" status={step2Status} testId="pdf-content-phase-checklist-step-2" />
+            <ChecklistItem label="ผูกไฟล์กับบทเรียน" status={step3Status} testId="pdf-content-phase-checklist-step-3" />
+            <ChecklistItem
+              label={`บันทึกบทพูด (สำเร็จ ${successNarrationCount}/${narrationTotal} หน้า)`}
+              status={step4Status}
+              testId="pdf-content-phase-checklist-step-4"
+            />
+          </div>
+
+          {stepError && (
+            <p className="text-sm text-destructive" data-testid="pdf-content-phase-step-error-message">
+              {stepError.step === 1 && `สร้างบทเรียนไม่สำเร็จ: ${stepError.message}`}
+              {stepError.step === 2 && `บทเรียนถูกสร้างแล้ว แต่อัปไฟล์ไม่สำเร็จ: ${stepError.message}`}
+              {stepError.step === 3 && `อัปโหลดไฟล์สำเร็จแล้ว แต่ผูกไฟล์กับบทเรียนไม่สำเร็จ: ${stepError.message}`}
+            </p>
+          )}
+
+          {!stepError && failedNarrationIds.length > 0 && (
+            <p className="text-sm text-destructive" data-testid="pdf-content-phase-narration-error-message">
+              บันทึกบทพูดสำเร็จ {successNarrationCount}/{narrationTotal} หน้า — เหลือ {failedNarrationIds.length} หน้าที่ยังไม่สำเร็จ
+            </p>
+          )}
+
+          {/* NR-24 - the button table is fixed per status: `running` shows nothing at all,
+              `succeeded` shows exactly one confirm button, `failed` shows the per-step retry plus
+              an exit link (and, only for a step-1 failure, a way back into this same phase). */}
+          {modalStatus !== "running" && (
+            <DialogFooter>
+              {modalStatus === "succeeded" && (
+                <Button onClick={handleConfirmSuccess} data-testid="pdf-content-phase-commit-confirm-button">
+                  ไปที่หน้ารายการบทเรียน
+                </Button>
+              )}
+
+              {modalStatus === "failed" && failedStep === 1 && (
+                <>
+                  <Button
+                    variant="outline"
+                    onClick={handleBackToEditingFromFailedCreate}
+                    data-testid="pdf-content-phase-commit-back-button"
+                  >
+                    กลับไปแก้ข้อมูลบทเรียน
+                  </Button>
+                  <Button
+                    disabled={committing}
+                    onClick={() => void commit()}
+                    data-testid="pdf-content-phase-retry-button"
+                  >
+                    {committing ? <Spinner /> : "ลองอีกครั้ง"}
+                  </Button>
+                </>
+              )}
+
+              {modalStatus === "failed" && failedStep === 2 && lessonSlug && (
+                <>
+                  <AdminLink
+                    href={`/admin/lessons/${encodeURIComponent(lessonSlug)}/narrations`}
+                    className={buttonVariants({ variant: "outline" })}
+                    data-testid="pdf-content-phase-narrations-link"
+                  >
+                    ไปหน้าแก้บทพูดต่อหน้า →
+                  </AdminLink>
+                  <Button
+                    disabled={committing}
+                    onClick={() => void commit()}
+                    data-testid="pdf-content-phase-retry-button"
+                  >
+                    {committing ? <Spinner /> : "ลองอัปโหลดไฟล์อีกครั้ง"}
+                  </Button>
+                </>
+              )}
+
+              {modalStatus === "failed" && failedStep === 3 && lessonSlug && (
+                <>
+                  <AdminLink
+                    href={`/admin/lessons/${encodeURIComponent(lessonSlug)}/narrations`}
+                    className={buttonVariants({ variant: "outline" })}
+                    data-testid="pdf-content-phase-narrations-link"
+                  >
+                    ไปหน้าแก้บทพูดต่อหน้า →
+                  </AdminLink>
+                  <Button
+                    disabled={committing}
+                    onClick={() => void commit()}
+                    data-testid="pdf-content-phase-retry-button"
+                  >
+                    {committing ? <Spinner /> : "ลองอีกครั้ง"}
+                  </Button>
+                </>
+              )}
+
+              {modalStatus === "failed" && failedStep === 4 && lessonSlug && (
+                <>
+                  <AdminLink
+                    href={`/admin/lessons/${encodeURIComponent(lessonSlug)}/narrations`}
+                    className={buttonVariants({ variant: "outline" })}
+                    data-testid="pdf-content-phase-narrations-link"
+                  >
+                    ไปหน้าแก้บทพูดต่อหน้า →
+                  </AdminLink>
+                  <Button
+                    disabled={committing}
+                    onClick={() => void handleRetryFailedNarrations()}
+                    data-testid="pdf-content-phase-retry-narrations-button"
+                  >
+                    {committing ? <Spinner /> : "ลองใหม่เฉพาะหน้าที่เหลือ"}
+                  </Button>
+                </>
+              )}
+            </DialogFooter>
+          )}
+        </DialogContent>
+      </Dialog>
 
       <AlertDialog open={warningDialogOpen} onOpenChange={setWarningDialogOpen}>
         <AlertDialogContent data-testid="pdf-content-phase-warning-dialog">

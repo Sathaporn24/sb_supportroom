@@ -36,14 +36,17 @@ public sealed class LearningSessionController : ControllerBase
         [FromServices] ILessonConfigService lessonConfigService,
         [FromServices] ITrainingLinkService trainingLinkService)
     {
+        // LT-5/LT-6: resolve through the strict gate before returning any link/lesson metadata.
+        // A revoked token without the bound IN_PROGRESS learner session must be indistinguishable
+        // from an unknown token, rather than exposing the trashed lesson title.
+        var link = trainingLinkService.GetEntityByTokenForContentAccess(token, learnerKey);
         var state = _service.GetResumeState(token, learnerKey);
-        var lessonId = trainingLinkService.GetEntityByToken(token).LessonId;
         return Ok(new
         {
             link = state.Link,
             // Bundled so the join screen makes one request instead of two - it cannot render
             // anything without the lesson title anyway.
-            lessonTitle = GetLessonTitle(lessonConfigService, lessonId),
+            lessonTitle = GetLessonTitle(lessonConfigService, link.LessonId),
             resumable = state.Resumable,
             lastEnded = state.LastEnded,
             linkExpired = state.LinkExpired,

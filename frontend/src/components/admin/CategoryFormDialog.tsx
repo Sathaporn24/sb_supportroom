@@ -5,6 +5,16 @@ import { PlusIcon, Trash2Icon } from "lucide-react";
 import * as api from "@/lib/api-client";
 import { ApiClientError } from "@/lib/api-client";
 import type { KnowledgeCategory } from "@/types/domain";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -81,6 +91,9 @@ export function CategoryFormDialog({
   const [persistedParent, setPersistedParent] = useState<KnowledgeCategory | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  // CD-2/CD-4 - yes/no confirm for deleting an already-persisted subcategory row, replacing
+  // window.confirm. Holds the row itself (not a closure) so the confirm button can act on it.
+  const [pendingRemoval, setPendingRemoval] = useState<SubcategoryRow | null>(null);
 
   const isEditing = Boolean(editingParent);
 
@@ -118,7 +131,7 @@ export function CategoryFormDialog({
     setError(null);
   }
 
-  async function removeRow(row: SubcategoryRow) {
+  function requestRemoveRow(row: SubcategoryRow) {
     if (!row.category) {
       setRows((current) => {
         const next = current.filter((item) => item.key !== row.key);
@@ -126,10 +139,13 @@ export function CategoryFormDialog({
       });
       return;
     }
+    setPendingRemoval(row);
+  }
 
-    const confirmed = window.confirm(`ต้องการลบหมวดหมู่ย่อย "${row.category.name}" ใช่หรือไม่?`);
-    if (!confirmed) return;
-
+  async function confirmRemoveRow() {
+    const row = pendingRemoval;
+    if (!row?.category) return;
+    setPendingRemoval(null);
     setSaving(true);
     setError(null);
     try {
@@ -293,7 +309,7 @@ export function CategoryFormDialog({
                       size="icon"
                       disabled={saving}
                       aria-label={`ลบช่องหมวดหมู่ย่อยที่ ${index + 1}`}
-                      onClick={() => void removeRow(row)}
+                      onClick={() => requestRemoveRow(row)}
                       data-testid={`category-form-subcategory-row-${row.key}-delete-button`}
                     >
                       <Trash2Icon />
@@ -343,6 +359,32 @@ export function CategoryFormDialog({
             </Button>
           )}
         </DialogFooter>
+
+        {/* CD-5 point 1 - replaces window.confirm for deleting a subcategory row. CD-7: a nested
+            dialog inside CategoryFormDialog's own Dialog - cancelling or confirming must return to
+            this same form without resetting it or closing the parent dialog. */}
+        <AlertDialog open={pendingRemoval !== null} onOpenChange={(next) => !next && setPendingRemoval(null)}>
+          <AlertDialogContent data-testid="category-form-remove-subcategory-dialog">
+            <AlertDialogHeader>
+              <AlertDialogTitle>ลบหมวดหมู่ย่อย</AlertDialogTitle>
+              <AlertDialogDescription>
+                ต้องการลบหมวดหมู่ย่อย &quot;{pendingRemoval?.category?.name}&quot; ใช่หรือไม่?
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel data-testid="category-form-remove-subcategory-cancel-button">
+                ยกเลิก
+              </AlertDialogCancel>
+              <AlertDialogAction
+                variant="destructive"
+                onClick={() => void confirmRemoveRow()}
+                data-testid="category-form-remove-subcategory-confirm-button"
+              >
+                ลบหมวดหมู่ย่อย
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </DialogContent>
     </Dialog>
   );

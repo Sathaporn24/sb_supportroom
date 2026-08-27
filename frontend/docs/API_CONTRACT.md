@@ -20,7 +20,7 @@ Error กลาง:
 | POST | `/api/lessons` | create/update lesson ตาม slug |
 | GET | `/api/lessons/{slug}` | lesson + resolved teaching content (back office, JWT) |
 | GET | `/api/lessons/by-link/{token}?learnerKey=` | learner-safe lesson timing + resolved teaching content; ไม่มี source/provider/document IDs · **R9/LT-5/LT-6**: `learnerKey` ต้อง query ทุกครั้ง (ไม่บังคับ 400 แต่จำเป็นสำหรับ revoked link) — link ปกติไม่กระทบ; link ที่ถูก revoke (บทเรียนอยู่ถัง) อ่านได้เฉพาะเมื่อ `(token, learnerKey)` ผูกกับ session เดิมของ link นั้นที่ `IN_PROGRESS` เท่านั้น มิฉะนั้น `NOT_FOUND` เหมือน token ผิด |
-| GET | `/api/lessons/trash` | (R9/Module L) รายการบทเรียนในถังของบริษัทปัจจุบัน — คืน `{ lessons: LessonTrashItem[] }` ดู Key Payloads |
+| GET | `/api/lessons/trash` | (R9/Module L/LT-2) รายการบทเรียนในถังของบริษัทปัจจุบัน — `owner`/`admin` เท่านั้น, `cs` = 403; คืน `{ lessons: LessonTrashItem[] }` ดู Key Payloads |
 | POST | `/api/lessons/{id}/trash` | (R9/LT-1..LT-3) ย้ายบทเรียน active เข้าถัง — `owner`/`admin` เท่านั้น, `cs` = 403; idempotent (เรียกซ้ำ = `NOT_FOUND` เพราะออกจากรายการ active แล้ว) |
 | POST | `/api/lessons/{id}/restore` | (R9/LT-1/LT-4) กู้คืนจากถัง — ต้องยังไม่เริ่ม purge (`PurgeStartedAt=null`) มิฉะนั้น `409 CONFLICT`; ไม่คืนลิงก์เดิม (ยัง revoked) |
 | POST | `/api/lessons/{id}/permanent-delete` | (R9/LT-2/LT-10) body `{ confirmationTitle }` — `owner` เท่านั้น; เทียบ `confirmationTitle` แบบ trim + ordinal-exact กับชื่อบทเรียนจริง ไม่ตรง = `400 VALIDATION_ERROR`; ตรง = เร่งงานลบถาวรที่มีอยู่แล้วให้รันทันทีและคืน `202 Accepted` (ไม่ลบ inline, ไม่สร้างงานที่สอง) |
@@ -34,13 +34,14 @@ Error กลาง:
 | GET | `/api/slides/content?presentationId=` | slide order และ speaker notes |
 | GET | `/api/training-links` | รายการลิงก์ + จำนวนผู้เข้าเรียนต่อลิงก์ |
 | POST | `/api/training-links` | สร้างลิงก์ (ไม่มีชื่อผู้รับแล้ว) |
-| GET | `/api/training-links/{token}` | public link metadata ขั้นต่ำ + lesson title (หน้า join/room) |
+| GET | `/api/training-links/{token}` | public link metadata ขั้นต่ำ + lesson title (หน้า join/room); R9: link ที่ถูก revoke คืน `NOT_FOUND` โดยไม่เปิดเผย metadata |
 | GET | `/api/training-links/by-token/{token}` | full link metadata สำหรับ back office (JWT + company scope) |
 | GET | `/api/training-links/{id}/by-id` | ลิงก์ตาม internal ID |
 | GET | `/api/training-links/{id}/learning-sessions` | ทุกคนที่เปิดลิงก์นี้ (CS) |
-| POST | `/api/learning-sessions/{token}/join` | เข้าเรียน — idempotent ต่อ learnerKey |
-| POST | `/api/learning-sessions/{token}/restart` | เรียนอีกครั้ง (รอบใหม่) |
-| PATCH | `/api/learning-sessions/{token}/progress` | อัปเดตสไลด์ล่าสุด + LastActivityAt |
+| GET | `/api/learning-sessions/{token}/resume?learnerKey=` | (R9/LT-5/LT-6) resume state ก่อนเข้าห้อง — ผ่านเกตเดียวกับ `by-link`: link ที่ถูก revoke อ่านได้เฉพาะเมื่อ `(token, learnerKey)` ผูกกับ session `IN_PROGRESS` ของ link นั้น มิฉะนั้น `NOT_FOUND` เหมือน token ผิด (ไม่มี `learnerKey` = ไม่มีอะไรให้ resume แต่ไม่ error) |
+| POST | `/api/learning-sessions/{token}/join` | เข้าเรียน — idempotent ต่อ learnerKey; **R9/LT-5**: join ใหม่ (ไม่มี session เดิม) บน link ที่ revoke แล้วปฏิเสธเสมอ; resume session เดิม (แม้ link revoke แล้ว) ไม่ถูกบล็อกที่นี่ |
+| POST | `/api/learning-sessions/{token}/restart` | เรียนอีกครั้ง (รอบใหม่) — **R9/LT-5**: เท่ากับ join ใหม่เสมอ ปฏิเสธถ้า link revoke แล้วไม่ว่าจะเคยมี session เก่าหรือไม่ |
+| PATCH | `/api/learning-sessions/{token}/progress` | อัปเดตสไลด์ล่าสุด + LastActivityAt — **R9/LT-5/LT-6**: ผ่านเกต `IN_PROGRESS`+`learnerKey` เดียวกับเนื้อหา ก่อนเขียน progress ของ link ที่ revoke แล้ว |
 | PATCH | `/api/learning-sessions/{token}/end` | จบการเรียน |
 | GET | `/api/learning-sessions/{token}/summary?learnerKey=` | สรุปของผู้เรียนเอง; ไม่มี review fields/UnansweredPoints |
 | GET | `/api/learning-sessions/{id}/summary/by-id` | สรุปของการเรียนใดก็ได้ (CS) |

@@ -51,7 +51,7 @@ public sealed class VoiceQuestionService(
     private async Task<ResolvedContext> ResolveContextAsync(string token, string learnerKey)
     {
         var learningSessionService = ServiceProvider.GetRequiredService<ILearningSessionService>();
-        var session = learningSessionService.GetEntityByLearnerKey(token, learnerKey);
+        var session = learningSessionService.GetInProgressEntityByLearnerKey(token, learnerKey);
         if (session.Status == SessionStatus.Ended)
         {
             throw GeneralException.ValidationError("การเรียนนี้จบแล้ว กรุณากดเรียนอีกครั้งก่อนถามคำถามใหม่");

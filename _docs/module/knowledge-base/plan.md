@@ -506,37 +506,169 @@ LT-24 ก่อน apply. ห้ามเพิ่ม company retention setting,
 ต้อง bind กับ `learnerKey` + session `IN_PROGRESS`; stale job/restore-purge race; dependency id มาจาก
 DB; และ shared-PDF guard ก่อน external delete.
 
-- [ ] [backend] แก้ entity `LessonConfig` ตาม DM-2 — เปลี่ยน `DeleteBy`/`IsDelete`/`DeletedAt` จาก `init` เป็น `set`; เพิ่ม nullable `PurgeJobId`/`PurgeStartedAt` เท่านั้น พร้อมรักษา active/trash/purging/purged state invariant; ห้ามเพิ่ม enum หรือ state column ซ้ำ
-- [ ] [backend] สร้าง entity `SessionQuestionReviewExclusion` ตาม DM-18 ใน `SupportRoom.Domain/Entities` — audit/soft-delete fields มาตรฐาน, `SessionQuestionId`, `LessonId`, `Reason`; ห้ามเพิ่ม FK จริงหรือฟิลด์ retention เพิ่ม
-- [ ] [backend] เพิ่ม constants ตาม DM-11: `BackgroundJobType.LessonPurge = "lesson_purge"`, `BackgroundJobStatus.Canceled = "canceled"`, และ `QuestionReviewExclusionReason.LessonPermanentlyDeleted = "lesson_permanently_deleted"` — ใช้ `static class`/`const string` ตาม convention เดิม
-- [ ] [backend] แก้ `ApplicationDbContext.OnModelCreating` ตาม DM-15 — `DbSet<SessionQuestionReviewExclusion>`, LessonConfig index `(CompanyId, IsDelete, DeletedAt)` และ query filter `CompanyId == current && !IsDelete`; exclusion unique index `(CompanyId, SessionQuestionId)` + index `(CompanyId, LessonId)` + query filter; ห้ามเติม filter ให้ `TrainingLink`/`LearningSession`/`SessionQuestion`
-- [ ] [backend] สร้าง EF Core migration `AddLessonTrashLifecycle` (MG-L1) — additive columns/index/table ตาม DM-2/DM-18 เท่านั้น, `Down()` drop schema; ก่อน generate/apply เขียนและรัน preflight LT-24 ยืนยันว่าไม่มี `LessonConfig.IsDelete=true`, ถ้าพบต้องหยุดและรายงานรายแถวโดยไม่สร้าง purge job ย้อนหลัง
-- [ ] [backend] เพิ่ม repository methods ตาม DM-16 สำหรับ lesson trash/purge: `GetTrash(companyId)`, `GetForTrashAction(companyId, id)`, conditional archive/restore/claim, `GetPurgeDependencies(companyId, lessonId)` และ hard-finalization; ทุก method ที่ใช้ `IgnoreQueryFilters()` ต้อง re-apply `CompanyId` ใน query/update เดียวกันตาม LT-23
-- [ ] [backend] สร้าง repository สำหรับ `SessionQuestionReviewExclusion` — batch insert แบบ idempotent จาก snapshot question ids, query exclusion ids สำหรับ queue, และ registration ใน UnitOfWork; unique index ต้องทำให้ retry สร้างซ้ำเป็น no-op
-- [ ] [backend] implement archive service ตาม LT-1..LT-3 — `owner`/`admin` + selected company context เท่านั้น, transaction เดียวสร้าง `lesson_purge` job (`NextAttemptAt = now + 60 days`) แล้ว mark LessonConfig trash และ revoke TrainingLink ทุกใบ; ไม่แตะ document/Q&A/vector/narration/session/question ในขั้นนี้ และเรียกซ้ำต้องไม่สร้าง job ซ้ำ
-- [ ] [backend] implement restore service ตาม LT-1/LT-2/LT-4/LT-21 — conditional เฉพาะ trash ที่ `PurgeStartedAt=null`, clear deletion/purge fields, cancel เฉพาะ job id ที่ตรง และคง TrainingLink ทุกใบ revoked; worker claim แล้วต้องตอบ 409, ไม่ re-index และไม่ restore link
-- [ ] [backend] เพิ่ม endpoints/DTO/ViewModel camelCase ตาม LT-9/LT-22: `GET /api/lessons/trash`, `POST /api/lessons/{id}/trash`, `POST /api/lessons/{id}/restore`, `POST /api/lessons/{id}/permanent-delete` body `{ confirmationTitle }`; destructive actionsใช้ id ไม่ใช้ slug และ `cs` ต้อง 403 server-side ทุกเส้น
-- [ ] [backend] implement trash-list projection ตาม LT-7/LT-9 — normal list/get/save ไม่เห็น trashed lesson; trash endpoint คืน `deletedAt`, `scheduledPurgeAt`, `remainingDays`, `urgency`, `purgeState` และข้อความ/สถานะ purging ที่ไม่มี action; time calculation ใช้ UTC และ threshold >14d neutral, >7d yellow, >24h red, ≤24h red-with-today
-- [ ] [backend] implement manual permanent-delete ตาม LT-2/LT-10 — owner only, server trim + ordinal-exact compare `confirmationTitle` กับ `lesson.Title.Trim()`; ถูกต้องแล้วเร่ง job เดิมเป็น `NextAttemptAt=now` และตอบ 202, ห้าม delete inline หรือสร้าง job ใบที่สอง; active session ยังคงรอ worker ตาม LT-12
-- [ ] [backend] amend public learner authorization ตาม LT-5/LT-6 — new join/restart ต้องปฏิเสธ revoked `TrainingLink`; resume/progress/question/TTS/content/PDF page ต้องรับ `learnerKey` และ allow trashed lesson ได้เฉพาะ token+learnerKey ที่ผูก session เดิมของ link และ `IN_PROGRESS`; ห้ามใช้ raw `GetByToken` เป็น authorization หรือเปิดทาง token อย่างเดียว
-- [ ] [backend] amend active Q&A review queue ตาม LT-8/LT-16 — derive candidates ผ่าน session/link/lesson แล้วซ่อน lesson ที่ trash; restore กลับตาม QQ-1 โดยไม่เขียน tombstone; ก่อนตรวจ `KnowledgeQnASource` ต้องตัด `SessionQuestionReviewExclusion` เพื่อ permanent suppress หลัง purge
-- [ ] [backend] extend durable worker/processor สำหรับ `lesson_purge` ตาม LT-11..LT-14 — resolve `job.CompanyId` ก่อนทุก query, stale/missing/restored/generation-mismatch job no-op succeeded; ถ้ายังมี `LearningSession.IN_PROGRESS` ให้เลื่อน 1 ชั่วโมงโดยไม่ claim; claim ด้วย conditional update ตั้ง `PurgeStartedAt`; retry 3 ครั้งแรกตาม DI-9 แล้วคง pending/retry ทุก 24 ชั่วโมงไม่มีกำหนด (ไม่มี email/notification) และ requeue running job เดิมหลัง restart
-- [ ] [backend] implement purge dependency snapshot + permanent question exclusions ตาม LT-15/LT-16/LT-20 — snapshot links/sessions/questions, narration, `LessonExcludedSlide`, lesson-scope document/chunks, Q&A/source/conflict และ primary PDF จาก DB ภายใต้ company เดียว; insert exclusion ของทุก question ก่อนลบ Q&A/source; ห้ามวนเรียก `IKnowledgeQnAService.DeleteAsync`
-- [ ] [backend] implement external-delete/finalization ordering ตาม LT-17..LT-19 — delete lesson namespace ก่อน, delete document/Q&A vectors ด้วย stored namespace keys, then storage bytes; preserve shared `PdfDocumentResourceId` ถ้ายังมี lesson อื่นในบริษัทอ้าง; external missing resource = success; DB transaction สุดท้าย hard-delete narration/exclusions/page exclusions/Q&A/source/conflict/documents-chunks ที่ไม่ preserve/LessonConfig เท่านั้น และ retain TrainingLink/session/question/exclusion/job history
-- [ ] [backend] amend history/report projections ตาม LT-19 — rows ที่ยังอ้าง lesson hard-deleted แสดง fallback “บทเรียนที่ถูกลบ” โดยไม่ dereference parent ที่ไม่มีแล้ว
-- [ ] [backend] unit/integration tests — role matrix + archive/restore state machine: `cs` 403, admin/owner archive/restore, only owner manual delete, conditional restore loses to claimed purge, link remains revoked, and repeated actions/job generation are idempotent
+- [x] [backend] แก้ entity `LessonConfig` ตาม DM-2 — เปลี่ยน `DeleteBy`/`IsDelete`/`DeletedAt` จาก `init` เป็น `set`; เพิ่ม nullable `PurgeJobId`/`PurgeStartedAt` เท่านั้น พร้อมรักษา active/trash/purging/purged state invariant; ห้ามเพิ่ม enum หรือ state column ซ้ำ
+- [x] [backend] สร้าง entity `SessionQuestionReviewExclusion` ตาม DM-18 ใน `SupportRoom.Domain/Entities` — audit/soft-delete fields มาตรฐาน, `SessionQuestionId`, `LessonId`, `Reason`; ห้ามเพิ่ม FK จริงหรือฟิลด์ retention เพิ่ม
+- [x] [backend] เพิ่ม constants ตาม DM-11: `BackgroundJobType.LessonPurge = "lesson_purge"`, `BackgroundJobStatus.Canceled = "canceled"`, และ `QuestionReviewExclusionReason.LessonPermanentlyDeleted = "lesson_permanently_deleted"` — ใช้ `static class`/`const string` ตาม convention เดิม
+- [x] [backend] แก้ `ApplicationDbContext.OnModelCreating` ตาม DM-15 — `DbSet<SessionQuestionReviewExclusion>`, LessonConfig index `(CompanyId, IsDelete, DeletedAt)` และ query filter `CompanyId == current && !IsDelete`; exclusion unique index `(CompanyId, SessionQuestionId)` + index `(CompanyId, LessonId)` + query filter; ห้ามเติม filter ให้ `TrainingLink`/`LearningSession`/`SessionQuestion`
+- [x] [backend] สร้าง EF Core migration `AddLessonTrashLifecycle` (MG-L1) — additive columns/index/table ตาม DM-2/DM-18 เท่านั้น, `Down()` drop schema; ก่อน generate/apply เขียนและรัน preflight LT-24 ยืนยันว่าไม่มี `LessonConfig.IsDelete=true`, ถ้าพบต้องหยุดและรายงานรายแถวโดยไม่สร้าง purge job ย้อนหลัง
+- [x] [backend] เพิ่ม repository methods ตาม DM-16 สำหรับ lesson trash/purge: `GetTrash(companyId)`, `GetForTrashAction(companyId, id)`, conditional archive/restore/claim, `GetPurgeDependencies(companyId, lessonId)` และ hard-finalization; ทุก method ที่ใช้ `IgnoreQueryFilters()` ต้อง re-apply `CompanyId` ใน query/update เดียวกันตาม LT-23
+- [x] [backend] สร้าง repository สำหรับ `SessionQuestionReviewExclusion` — batch insert แบบ idempotent จาก snapshot question ids, query exclusion ids สำหรับ queue, และ registration ใน UnitOfWork; unique index ต้องทำให้ retry สร้างซ้ำเป็น no-op
+- [x] [backend] implement archive service ตาม LT-1..LT-3 — `owner`/`admin` + selected company context เท่านั้น, transaction เดียวสร้าง `lesson_purge` job (`NextAttemptAt = now + 60 days`) แล้ว mark LessonConfig trash และ revoke TrainingLink ทุกใบ; ไม่แตะ document/Q&A/vector/narration/session/question ในขั้นนี้ และเรียกซ้ำต้องไม่สร้าง job ซ้ำ
+- [x] [backend] implement restore service ตาม LT-1/LT-2/LT-4/LT-21 — conditional เฉพาะ trash ที่ `PurgeStartedAt=null`, clear deletion/purge fields, cancel เฉพาะ job id ที่ตรง และคง TrainingLink ทุกใบ revoked; worker claim แล้วต้องตอบ 409, ไม่ re-index และไม่ restore link
+- [x] [backend] เพิ่ม endpoints/DTO/ViewModel camelCase ตาม LT-9/LT-22: `GET /api/lessons/trash`, `POST /api/lessons/{id}/trash`, `POST /api/lessons/{id}/restore`, `POST /api/lessons/{id}/permanent-delete` body `{ confirmationTitle }`; destructive actionsใช้ id ไม่ใช้ slug และ `cs` ต้อง 403 server-side ทุกเส้น
+- [x] [backend] implement trash-list projection ตาม LT-7/LT-9 — normal list/get/save ไม่เห็น trashed lesson; trash endpoint คืน `deletedAt`, `scheduledPurgeAt`, `remainingDays`, `urgency`, `purgeState` และข้อความ/สถานะ purging ที่ไม่มี action; time calculation ใช้ UTC และ threshold >14d neutral, >7d yellow, >24h red, ≤24h red-with-today
+- [x] [backend] implement manual permanent-delete ตาม LT-2/LT-10 — owner only, server trim + ordinal-exact compare `confirmationTitle` กับ `lesson.Title.Trim()`; ถูกต้องแล้วเร่ง job เดิมเป็น `NextAttemptAt=now` และตอบ 202, ห้าม delete inline หรือสร้าง job ใบที่สอง; active session ยังคงรอ worker ตาม LT-12
+- [x] [backend] amend public learner authorization ตาม LT-5/LT-6 — new join/restart ต้องปฏิเสธ revoked `TrainingLink`; resume/progress/question/TTS/content/PDF page ต้องรับ `learnerKey` และ allow trashed lesson ได้เฉพาะ token+learnerKey ที่ผูก session เดิมของ link และ `IN_PROGRESS`; ห้ามใช้ raw `GetByToken` เป็น authorization หรือเปิดทาง token อย่างเดียว
+- [x] [backend] amend active Q&A review queue ตาม LT-8/LT-16 — derive candidates ผ่าน session/link/lesson แล้วซ่อน lesson ที่ trash; restore กลับตาม QQ-1 โดยไม่เขียน tombstone; ก่อนตรวจ `KnowledgeQnASource` ต้องตัด `SessionQuestionReviewExclusion` เพื่อ permanent suppress หลัง purge
+- [x] [backend] extend durable worker/processor สำหรับ `lesson_purge` ตาม LT-11..LT-14 — resolve `job.CompanyId` ก่อนทุก query, stale/missing/restored/generation-mismatch job no-op succeeded; ถ้ายังมี `LearningSession.IN_PROGRESS` ให้เลื่อน 1 ชั่วโมงโดยไม่ claim; claim ด้วย conditional update ตั้ง `PurgeStartedAt`; retry 3 ครั้งแรกตาม DI-9 แล้วคง pending/retry ทุก 24 ชั่วโมงไม่มีกำหนด (ไม่มี email/notification) และ requeue running job เดิมหลัง restart
+- [x] [backend] implement purge dependency snapshot + permanent question exclusions ตาม LT-15/LT-16/LT-20 — snapshot links/sessions/questions, narration, `LessonExcludedSlide`, lesson-scope document/chunks, Q&A/source/conflict และ primary PDF จาก DB ภายใต้ company เดียว; insert exclusion ของทุก question ก่อนลบ Q&A/source; ห้ามวนเรียก `IKnowledgeQnAService.DeleteAsync`
+- [x] [backend] implement external-delete/finalization ordering ตาม LT-17..LT-19 — delete lesson namespace ก่อน, delete document/Q&A vectors ด้วย stored namespace keys, then storage bytes; preserve shared `PdfDocumentResourceId` ถ้ายังมี lesson อื่นในบริษัทอ้าง; external missing resource = success; DB transaction สุดท้าย hard-delete narration/exclusions/page exclusions/Q&A/source/conflict/documents-chunks ที่ไม่ preserve/LessonConfig เท่านั้น และ retain TrainingLink/session/question/exclusion/job history
+- [x] [backend] amend history/report projections ตาม LT-19 — rows ที่ยังอ้าง lesson hard-deleted แสดง fallback “บทเรียนที่ถูกลบ” โดยไม่ dereference parent ที่ไม่มีแล้ว
+- [x] [backend] unit/integration tests — role matrix + archive/restore state machine: `cs` 403, admin/owner archive/restore, only owner manual delete, conditional restore loses to claimed purge, link remains revoked, and repeated actions/job generation are idempotent
 - [ ] [backend] unit/integration tests — tenant isolation LT-23: company A ใช้ lesson/link/job id ของ B กับ every trash/restore/manual-purge/purge-repository path ได้ not found/forbidden และข้อมูล B ไม่เปลี่ยน; cover every `IgnoreQueryFilters()` path explicitly
-- [ ] [backend] unit/integration tests — public policy LT-5/LT-6: new join/restart revoked link fails; token-only content/PDF/resume fails; matching token+learnerKey+IN_PROGRESS continues; wrong learnerKey/ENDED session cannot read/start asking
-- [ ] [backend] unit tests — worker timing/reliability: 60-day schedule, active session reschedules hourly without `PurgeStartedAt`, conditional claim race, stale generation no-op, post-third-failure daily retry, idempotent external missing deletes, and shared-PDF guard preserves every resource/vector/byte when another lesson references it
+- [x] [backend] unit/integration tests — public policy LT-5/LT-6: new join/restart revoked link fails; token-only content/PDF/resume fails; matching token+learnerKey+IN_PROGRESS continues; wrong learnerKey/ENDED session cannot read/start asking
+- [x] [backend] unit tests — worker timing/reliability: 60-day schedule, active session reschedules hourly without `PurgeStartedAt`, conditional claim race, stale generation no-op, post-third-failure daily retry, idempotent external missing deletes, and shared-PDF guard preserves every resource/vector/byte when another lesson references it
 - [ ] [backend] unit/integration tests — queue/purge data: trash hides questions then restore returns eligible ones; purge exclusion suppresses permanently before Q&A-source test; finalization retains TrainingLink/session/question/exclusion/job history while removing every scoped dependent including `LessonExcludedSlide`
-- [ ] [backend] update `frontend/docs/API_CONTRACT.md` and relevant backend workflow/API documentation for four lesson lifecycle endpoints, trash view model, learnerKey additions, role matrix, and irreversible-purge/retry semantics
-- [ ] [frontend] extend `src/types/domain.ts` and `src/lib/api-client.ts` in lockstep — trash lesson/list types (`deletedAt`, `scheduledPurgeAt`, `remainingDays`, `urgency`, `purgeState`), `archiveLesson`, `restoreLesson`, `requestLessonPermanentDelete`, plus required `learnerKey` on all affected public content/progress/question/TTS/PDF calls; no new endpoint beyond LT-22
-- [ ] [frontend] amend lesson-management page with an active/trash tab under the existing lesson screen (LT-7) — normal tab never renders trashed lessons; trash tab is read-only and renders no edit/upload/move/link action, no document/file table and no bulk action
-- [ ] [frontend] implement trash-row countdown/purge-state UI (LT-9) — show exact remaining status only in trash: neutral >14 days, yellow ≤14/>7, red ≤7, special “จะถูกลบถาวรภายในวันนี้” at ≤24h; `purging` shows “กำลังลบถาวร” and all actions disabled; no email/notification UI
-- [ ] [frontend] implement archive/restore controls according to LT-2/LT-3/LT-4 — show only to owner/admin, require refresh of active/trash lists after success, and never offer link restoration or edit controls for a trashed lesson; frontend visibility is secondary to server authorization
-- [ ] [frontend] implement owner-only permanent-delete confirmation dialog (LT-2/LT-10) — require exact lesson title input, submit `{ confirmationTitle }`, handle 202 as queued/not immediate deletion, and keep action absent for admin/cs; active-session delay/purging state must not imply completion
-- [ ] [frontend] amend public learner client callers/UI for required `learnerKey` wire contract — preserve an already running session’s content/progress/question/TTS/PDF flow, but present server rejection for revoked link new join/restart without exposing trashed lesson metadata
-- [ ] [frontend] frontend tests — countdown threshold mapping/boundaries and role/action visibility; confirm trash view has no edit/upload/delete-file/move/bulk controls and permanent-delete dialog sends title confirmation only for owner
+- [x] [backend] update `frontend/docs/API_CONTRACT.md` and relevant backend workflow/API documentation for four lesson lifecycle endpoints, trash view model, learnerKey additions, role matrix, and irreversible-purge/retry semantics
+- [x] [frontend] extend `src/types/domain.ts` and `src/lib/api-client.ts` in lockstep — trash lesson/list types (`deletedAt`, `scheduledPurgeAt`, `remainingDays`, `urgency`, `purgeState`), `archiveLesson`, `restoreLesson`, `requestLessonPermanentDelete`, plus required `learnerKey` on all affected public content/progress/question/TTS/PDF calls; no new endpoint beyond LT-22
+- [x] [frontend] amend lesson-management page with an active/trash tab under the existing lesson screen (LT-7) — normal tab never renders trashed lessons; trash tab is read-only and renders no edit/upload/move/link action, no document/file table and no bulk action
+- [x] [frontend] implement trash-row countdown/purge-state UI (LT-9) — show exact remaining status only in trash: neutral >14 days, yellow ≤14/>7, red ≤7, special “จะถูกลบถาวรภายในวันนี้” at ≤24h; `purging` shows “กำลังลบถาวร” and all actions disabled; no email/notification UI
+- [x] [frontend] implement archive/restore controls according to LT-2/LT-3/LT-4 — show only to owner/admin, require refresh of active/trash lists after success, and never offer link restoration or edit controls for a trashed lesson; frontend visibility is secondary to server authorization
+- [x] [frontend] implement owner-only permanent-delete confirmation dialog (LT-2/LT-10) — require exact lesson title input, submit `{ confirmationTitle }`, handle 202 as queued/not immediate deletion, and keep action absent for admin/cs; active-session delay/purging state must not imply completion
+- [x] [frontend] amend public learner client callers/UI for required `learnerKey` wire contract — preserve an already running session’s content/progress/question/TTS/PDF flow, but present server rejection for revoked link new join/restart without exposing trashed lesson metadata
+- [x] [frontend] frontend tests — countdown threshold mapping/boundaries and role/action visibility; confirm trash view has no edit/upload/delete-file/move/bulk controls and permanent-delete dialog sends title confirmation only for owner
+
+## Phase 13: Create-lesson commit modal & confirm-dialog replacements (R10) — Module M
+
+**เพิ่ม 2026-08-26 (CR-5)** — frontend ล้วน ไม่มี migration · ไม่มีฟิลด์ใหม่ · ไม่มี entity ใหม่ ·
+ไม่มี endpoint ใหม่ · **ไม่มีงาน `[backend]` แม้ task เดียว**
+
+**ขึ้นกับ:** Phase 10 (Module J — `PdfLessonContentPhase.tsx`/`commit()`/`flushNarrations()`/
+`handleRetryFailedNarrations()` ที่ NR-20..NR-24 แก้อยู่คือโค้ดของเฟสนี้ที่ส่งมอบแล้ว), Phase 11
+(Module K — `excludedSlideObjectIds` ที่ปุ่มลองซ้ำขั้น 3 ต้องส่งไปด้วย implement แล้ว), Phase 12
+(Module L — **เฉพาะจุดที่ 5 ของตาราง CD-5**, `handleArchiveLesson` เป็นโค้ดของ Module L) — ทั้งสาม
+มีโค้ดอยู่แล้ว
+
+**⛔ ห้ามทำขนานกับ Phase 12 (Module L) — ข้อบังคับ ไม่ใช่คำแนะนำ (R-35)**: `plan.md` Phase 12
+ยังไม่มี checkbox ใดถูก `qa-engineer` ติ๊กเลย แต่โค้ดของ Module L มีอยู่จริงแล้วบางส่วน
+(`LessonTrashList.tsx`, `LessonPermanentDeleteDialog.tsx`, `handleArchiveLesson` ใน
+`admin/lessons/page.tsx`) — งาน implement แล้วแต่ยังไม่ผ่าน QA formal อย่างเป็นทางการ · จุดที่ 5
+ของ CD-5 (แทนที่ `window.confirm` ใน `handleArchiveLesson`) แก้ไฟล์เดียวกันบริเวณเดียวกันกับที่
+Module L เพิ่ง implement — ทำขนานกันฝ่ายหนึ่งจะเขียนทับอีกฝ่ายโดย typecheck/build ผ่านหมด (เหตุผล
+เดียวกับ R-24/Phase 9↔10 คำต่อคำ) **ห้าม dispatch งานตัวที่ 5 ในกลุ่ม CD ของ Phase นี้ (ซึ่งแก้
+`handleArchiveLesson`) จนกว่า Phase 12 จะปิดรอบ QA (checkbox ติ๊กครบ)** — งานอื่นทั้งหมดของ Phase 13
+(กลุ่ม NR-20..NR-24 และอีก 4 จุดของ CD ที่ไม่แตะ `admin/lessons/page.tsx`'s `handleArchiveLesson`)
+ไม่ติดเงื่อนไขนี้ ทำได้ก่อน — แต่ 3 จุดจาก 5 ของ CD (จุด 3/`handleResetDemoData`, จุด 4/
+`handleDeleteParent`, จุด 5/`handleArchiveLesson`) อยู่ใน **ไฟล์เดียวกัน** (`admin/lessons/page.tsx`)
+ดังนั้นเพื่อไม่ให้เกิด merge conflict ระหว่างงานคนละ task ในไฟล์เดียวกัน แนะนำมอบหมายจุด 3/4 ให้เสร็จ
+และ merge ก่อน แล้วค่อยเพิ่มจุด 5 ทีหลังเมื่อ Phase 12 ปิด QA (ไม่ใช่ hard blocker แบบ Phase 12 แต่
+เป็นการลดความเสี่ยง merge เปล่าๆ)
+
+**ไม่ติด 🔒 Security gate** — ตาม `design.md` §Module M งานทั้งชุดไม่แตะ endpoint, ไม่แตะสิทธิ์,
+ไม่แตะ input ที่ผู้ใช้ส่งเข้าระบบ, ไม่แตะ preview session/company isolation ของ Module J และ R10.9
+บังคับให้เงื่อนไข/สิทธิ์/ผลลัพธ์ของทั้ง 5 จุด CD คงเดิมทุกตัวอักษร — แต่ gate ของ Phase 10/Phase 12
+ไม่ถูกยกเลิกหรือแทนที่ด้วยข้อนี้ ทั้งสองยังต้องถูก `security` audit ตามเดิม (แยกจากงานนี้)
+**เงื่อนไขที่ `qa-engineer` เพิ่ม gate เองได้ตาม `conventions.md` §4 ถ้าพบระหว่างตรวจ**:
+implementation ไปแตะสิทธิ์/บทบาทของจุดใดใน 5 จุด CD · กล่องยืนยันเริ่มแสดงข้อมูลที่มาจาก server ที่
+จุดนั้นไม่เคยแสดง · หรือมีการเพิ่ม/ลดขั้นยืนยันจากที่ R10.9 กำหนด
+
+**R-34 (แจ้งเตือน ไม่ใช่ task)**: Phase 10 ปิดรอบ FULL แล้วแต่ยังไม่ deploy — งานของ Phase 13 แก้
+โค้ดในเฟสนั้นต่อ (`PdfLessonContentPhase.tsx`) ทำให้ file manifest ของรอบ FULL ก่อนหน้าไม่ตรงอีก
+ต่อไป ไฟล์นี้ต้องกลับเข้า watchlist ของรอบ QA ถัดไป — แนะนำให้ `devops` deploy Phase 10 พร้อมกับ
+หรือหลัง Phase 13 ไม่ใช่ก่อน
+
+**O-19/R-36 (นอกขอบเขต Phase 13 — บันทึกไว้กันสับสน)**: อาการ "ไม่พบบทเรียนนี้ค่ะ" จะหยุดปรากฏใน
+flow สร้างบทเรียนหลังรอบนี้ **โดยไม่มีใครแก้ต้นเหตุ** — ห้ามถือว่า Phase 13 แก้บั๊กนี้แล้ว เป็นรายการ
+ตรวจแยกของ `qa-engineer` หลัง Phase 13 ลงตัว (เส้นทางที่เกี่ยว: `admin/lessons/[slug]/page.tsx` กับ
+การ encode slug ภาษาไทย — Phase 13 ไม่แตะทั้งสองอย่าง)
+
+### กลุ่ม A — modal ยืนยันการสร้างบทเรียน PDF (NR-20..NR-24, `PdfLessonContentPhase.tsx`)
+
+- [x] [frontend] implement NR-20 — เปลี่ยนตัวแปรที่คุม `open` ของกล่องเป็น state เฉพาะของกล่องเอง
+  (เช่น `commitModalOpen`) ที่ถูกเซ็ต `true` พร้อมกับการเริ่ม `commit()` — **ห้ามคำนวณ `open` จาก
+  `commitStarted`/`lessonId`/`committing` เด็ดขาด** (R-33: `commitStarted` คือ `lessonId !== null`
+  ซึ่งล้มขั้น 1 ไม่มีวันเป็นจริง กล่องจะไม่เปิดเลยตอนล้มขั้น 1 ถ้าผูกผิดตัวแปร) — ไม่มี code path ใด
+  เซ็ต `open` กลับเป็น `false` นอกจากปุ่มที่ NR-24 อนุญาต; สามสถานะเท่านั้น: `running`/`succeeded`/`failed`
+  ตามนิยามใน NR-20 (ไม่มีสถานะที่สี่ "ปิดไปเฉยๆ ทั้งที่ยังมีงานค้าง")
+- [x] [frontend] implement NR-21(ก) — ลบ `router.push` ที่ถูกยิงจากผลของ API ใดๆ ในเส้นทางนี้ทั้งหมด
+  ที่ **`flushNarrations()` (จุดเรียกที่ 1: จาก `commit()`)** — การเปลี่ยนหน้าต้องเกิดได้ทางเดียวคือ
+  event คลิกของ CS บนปุ่มยืนยันในสถานะ `succeeded` (ตาม NR-24) ไม่ใช่ผลข้างเคียงของการ flush สำเร็จ
+- [x] [frontend] implement NR-21(ก) จุดเรียกที่ 2 — แก้ **`handleRetryFailedNarrations()`** ให้ไม่ยิง
+  `router.push` อัตโนมัติเช่นกัน (เรียก `flushNarrations()` เดียวกัน ต้องแก้คู่กับจุดเรียกที่ 1 ไม่งั้น
+  การลองซ้ำที่สำเร็จจะยังพา CS ออกจากหน้าไปเองโดยไม่มี error/log — R-32) — **เขียนเป็น task แยกจาก
+  จุดเรียกที่ 1 โดยเจตนา เพื่อให้ตรวจแยกกันได้ว่าทั้งสองจุดถูกแก้จริง**
+- [x] [frontend] implement NR-21(ข) — เปลี่ยนปลายทางของ `router.push` (ที่ย้ายมาอยู่ในปุ่มยืนยันของ
+  สถานะ `succeeded` แล้วจากสองงานข้างบน) เป็น **`/admin/lessons`** ไม่ใช่ `/admin/lessons/{slug}` —
+  คง `lessonSlug`/`lessonSlugRef` ไว้ (ยังใช้กับลิงก์ทางออกของ NR-13/NR-24 ที่ยังเป็น
+  `/admin/lessons/{slug}/narrations`)
+- [x] [frontend] implement NR-22 — สร้าง checklist 4 รายการในกล่อง: (1) สร้างบทเรียน (2) อัปโหลดไฟล์
+  PDF (3) ผูกไฟล์กับบทเรียน (4) รายการรวมของบทพูด ("สำเร็จ k / N หน้า") — สถานะต่อรายการ 4 แบบ (รอ/
+  กำลังทำ/สำเร็จ/ล้มเหลว), **ห้ามติ๊กก่อน API ตอบสำเร็จ**, คำนวณจาก state/ref ชุดเดียวที่มีอยู่แล้ว
+  (`lessonId`, `documentId`, `documentLinked`, `narrationResults`, `stepError`) **ห้ามสร้างตัวนับที่สอง
+  ขนานกับ `completedSteps`/`totalSteps` เดิม** ซึ่งยังต้องคงอยู่คู่กัน (checklist เป็นของที่เพิ่ม ไม่ใช่
+  ของที่มาแทน) — ไอคอนจาก `lucide-react` + semantic token ของ shadcn เท่านั้น ห้ามเพิ่ม dependency ใหม่
+- [x] [frontend] implement NR-23 — ล็อกกล่องสามชั้น: (ก) `onOpenChange` ปฏิเสธการปิดที่ไม่ได้มาจากปุ่ม
+  ใน NR-24 โดยลอกรูปที่มีอยู่แล้วจาก `LessonPermanentDeleteDialog.tsx:70`
+  (`onOpenChange={(next) => !next && !submitting && onClose()}`) — ห้ามคิดกลไกใหม่ (ข) ส่ง
+  `showCloseButton={false}` อย่างชัดเจนให้ `DialogContent` (default คือ `true`) (ค) ทุกทางออกที่ CS
+  มองเห็นต้องเป็นปุ่ม/ลิงก์ในกล่องเท่านั้นตาม NR-24 — ครอบทุกสถานะ (`running`/`succeeded`/`failed`)
+  ไม่ใช่เฉพาะ `running`; Esc และคลิกนอกกล่องปิดไม่ได้เลยไม่ว่าสถานะไหน
+- [x] [frontend] implement NR-24 — ตารางปุ่มต่อสถานะ ตายตัว: `running` → ไม่มีปุ่มใดเลย (ห้ามมี X/
+  ยกเลิก/ปิด) · `succeeded` → ปุ่มยืนยันปุ่มเดียวที่พาไป `/admin/lessons` ตาม NR-21(ข) ห้ามมีทางปิดอื่น
+  · `failed` ขั้น 1 → "ลองอีกครั้ง" (เรียก `commit()` ซ้ำ) + "กลับไปแก้ข้อมูลบทเรียน" (ปิดกล่องคืน CS
+  สู่เฟสเดิมโดย draft/ไฟล์/รายการหน้าที่ตัดต้องยังอยู่ครบตาม NR-13) — ห้ามมีลิงก์ไปหน้าแก้บทพูดในสถานะ
+  นี้ (`lessonSlug` เป็น `null`) · `failed` ขั้น 2 → "ลองอัปโหลดไฟล์อีกครั้ง" + ลิงก์ทางออก · `failed`
+  ขั้น 3 → "ลองอีกครั้ง" (ต้องส่ง `excludedSlideObjectIds` ไปด้วยทุกครั้งตาม NR-13) + ลิงก์ทางออก ·
+  `failed` ขั้น 4 → "ลองใหม่เฉพาะหน้าที่เหลือ" + ลิงก์ทางออก · ลิงก์ทางออกทุกกรณีคือ
+  `/admin/lessons/{slug}/narrations` เหมือนเดิมทุกตัวอักษร เป็นการ **navigate ออกไป ไม่ใช่การ dismiss
+  กล่อง** · ข้อความบอกสถานะของแต่ละความล้มเหลวคงเดิมทุกตัวอักษรตาม NR-13
+
+### กลุ่ม B — แทนที่ `window.confirm` ด้วย `AlertDialog` ของระบบ (CD-1..CD-10, 5 จุด)
+
+- [x] [frontend] วางสถาปัตยกรรมร่วมของทั้ง 5 จุด (CD-2/CD-3/CD-4) — เลือกระหว่างสกัดเป็นคอมโพเนนต์ร่วม
+  (เช่น `ConfirmDialog` ใน `components/shared/` หรือ `components/admin/` **ห้ามวางใน
+  `components/ui/`**) กับทำ inline รายจุด ก่อนเริ่มแก้ทั้ง 5 จุด — ใช้ `AlertDialog` ที่โปรเจกต์มีอยู่
+  แล้วเท่านั้น (`ui/alert-dialog.tsx`) **ห้ามติดตั้ง primitive ใหม่จาก shadcn CLI และห้ามใช้ pattern
+  ของ `LessonPermanentDeleteDialog` (พิมพ์ยืนยัน) กับจุดใดใน 5 จุดนี้** (ทั้ง 5 เป็น yes/no ล้วน) —
+  ถ้าสกัดเป็นตัวร่วม ต้องรับเฉพาะ title/description/ปุ่มยืนยัน (label+variant)/`onConfirm`/`onCancel`
+  ห้ามมี business logic ห้ามรู้จัก entity ใด ห้ามยิง API เอง (CD-3(ข)) — แต่ละจุดต้องแยกฟังก์ชันเดิม
+  ออกเป็นตัวเปิดกล่อง (เก็บ payload ลง state) กับตัวทำงานจริงที่ถูกเรียกจากปุ่มยืนยัน **ห้ามห่อกล่องด้วย
+  `Promise`/`resolve` ใน `ref`** (CD-4) — payload ที่เก็บลง state ต้องเป็น id/object ที่กดมา ไม่ใช่
+  closure ของ handler
+- [x] [frontend] CD-5 จุดที่ 1 — `components/admin/CategoryFormDialog.tsx:130` แทนที่
+  `window.confirm` ของการลบหมวดหมู่ย่อยด้วย `AlertDialog` inline — หัวเรื่อง "ลบหมวดหมู่ย่อย",
+  ข้อความ `ต้องการลบหมวดหมู่ย่อย "{row.category.name}" ใช่หรือไม่?` (คำต่อคำ ห้ามแก้แม้ช่องว่างเดียว),
+  ปุ่มยืนยัน "ลบหมวดหมู่ย่อย" (`variant="destructive"`), `AlertDialogCancel` ค่า default — **เป็นกล่อง
+  ซ้อนกล่อง** (`CategoryFormDialog` เป็น dialog ของฟอร์มหมวดอยู่แล้ว) กดยกเลิกหรือยืนยันจนจบต้องกลับมา
+  ที่ฟอร์มเดิมโดยฟอร์มไม่ถูกรีเซ็ตและ dialog แม่ไม่ปิด (CD-7) — สิทธิ์/เงื่อนไข/เส้นทาง error หลัง API
+  ล้มเหลวต้องไปที่เดิมทุกอย่าง (CD-8)
+- [x] [frontend] CD-5 จุดที่ 2 — `components/admin/DocumentUploadList.tsx:244` แทนที่
+  `window.confirm` ของการลบเอกสารด้วย `AlertDialog` inline — หัวเรื่อง "ลบเอกสาร", ข้อความ
+  `ต้องการลบเอกสารนี้ใช่หรือไม่?` (คำต่อคำ), ปุ่มยืนยัน "ลบเอกสาร" (`variant="destructive"`) —
+  **ห้ามแตะ exports `statusLabels`/`failureReasonLabels`/`scopeLabel`/`statusVariant` ของไฟล์นี้เลย**
+  (ใช้ร่วมโดย `DocumentLibraryFilterBar.tsx`/`KnowledgeQnATable.tsx`/`KnowledgeQnAAnswerDialog.tsx` —
+  CD-10, เข้า shared-code watchlist ของ `qa-engineer` รอบนี้ด้วย) — error หลัง API ล้มเหลวไปที่เดิม
+  (CD-8)
+- [x] [frontend] CD-5 จุดที่ 3 — `app/admin/lessons/page.tsx:94` (`handleResetDemoData`) แทนที่
+  `window.confirm` ด้วย `AlertDialog` — หัวเรื่อง "รีเซ็ตข้อมูล Demo", ข้อความ
+  `ต้องการรีเซ็ตข้อมูล Demo ทั้งหมดกลับเป็นค่าเริ่มต้นใช่หรือไม่?` (คำต่อคำ), ปุ่มยืนยัน "รีเซ็ตข้อมูล"
+  (`variant="destructive"`)
+- [x] [frontend] CD-5 จุดที่ 4 — `app/admin/lessons/page.tsx:116` (`handleDeleteParent`) แทนที่
+  `window.confirm` ด้วย `AlertDialog` — หัวเรื่อง "ลบหมวดหมู่", ข้อความ
+  `ต้องการลบหมวดหมู่ "{parent.name}" ใช่หรือไม่?` (คำต่อคำ), ปุ่มยืนยัน "ลบหมวดหมู่"
+  (`variant="destructive"`) — error หลัง API ล้มเหลวไปที่เดิม (`admin/lessons/page.tsx:122-125`
+  ตาม CD-8)
+- [x] [frontend] CD-5 จุดที่ 5 — `app/admin/lessons/page.tsx:144` (`handleArchiveLesson`, **โค้ดของ
+  Module L — ⛔ ห้าม dispatch จนกว่า Phase 12 จะปิดรอบ QA เต็ม checkbox**) แทนที่ `window.confirm`
+  ด้วย `AlertDialog` — หัวเรื่อง "ย้ายบทเรียนไปถังขยะ", ข้อความ
+  `ต้องการย้ายบทเรียน "{lesson.title}" ไปถังขยะใช่หรือไม่? ลิงก์การสอนทั้งหมดของบทเรียนนี้จะถูกยกเลิก
+  ทันที` (คำต่อคำ), ปุ่มยืนยัน "ย้ายไปถังขยะ" (`variant="destructive"`) — **ต้องคง `setBusyLessonId`
+  และ `setTrashRefreshToken` ครบตาม LT-3** ไม่งั้นรายการถังขยะไม่รีเฟรช (CD-8)
+- [x] [frontend] ยืนยันหลังแก้ครบ 5 จุด — ไม่มี `window.confirm`/`window.alert`/`window.prompt`
+  หลงเหลืออยู่ในโค้ดที่แตะ และไม่มีกล่องที่ถูกแตะนอกเหนือ 5 จุดนี้ (CD-1) — **ห้ามแตะ
+  `LessonPermanentDeleteDialog`, `lesson-editor-pdf-replace-dialog` (NR-3), `pdf-content-phase-warning-dialog`
+  (NR-15), `CategoryMovePreviewDialog` ในรอบนี้เลย** (CD-9) — เจอ `window.confirm`/`alert`/`prompt`
+  จุดที่หกระหว่างทำงาน **ให้หยุดแล้วตีกลับไปที่ `system-analyst` ไม่ใช่เติมเอง**
 
 ## Sequencing Notes
 
@@ -702,6 +834,28 @@ DB; และ shared-PDF guard ก่อน external delete.
 - **R9 retention is fixed at 60 days in this phase** — O-18 explicitly defers per-company retention;
   do not add `Company` field, settings UI, DTO, endpoint, validation range, snapshot/recalculation rule,
   email, notification or cleanup/backfill as a “preparation” task.
+- **Phase 13 (Module M) ห้ามทำขนานกับ Phase 12 (Module L) — R-35** · จุดที่ 5 ของ CD-5 (แทนที่
+  `window.confirm` ใน `handleArchiveLesson`) แก้ไฟล์/บริเวณเดียวกับที่ Module L implement ไปแล้วแต่
+  ยังไม่ผ่าน QA (`plan.md` Phase 12 ยัง `[ ]` ทุกช่อง) — **ห้าม dispatch task ของจุดที่ 5 จนกว่า
+  Phase 12 จะปิดรอบ QA (checkbox ติ๊กครบ)**; งานอื่นทั้งหมดของ Phase 13 (กลุ่ม NR-20..NR-24 และ CD
+  จุดที่ 1/2/3/4) ไม่ติดเงื่อนไขนี้ ทำได้ก่อน
+- **Phase 13 ขึ้นกับ Phase 10 (Module J) และ Phase 11 (Module K) เชิงโค้ด — ทั้งสองมีโค้ดอยู่แล้ว**
+  (`PdfLessonContentPhase.tsx`/`commit()`/`flushNarrations()`/`handleRetryFailedNarrations()` จาก
+  Phase 10, `excludedSlideObjectIds` ที่ปุ่มลองซ้ำขั้น 3 ต้องส่งจาก Phase 11) — ไม่มีเงื่อนไขเวลาแบบ
+  Phase 10↔11 (ทั้งสองปิดแล้ว) แต่ **R-34**: Phase 13 แก้โค้ดในไฟล์ที่ Phase 10 เพิ่งปิดรอบ FULL
+  (Round 8) ทำให้ file manifest ของรอบนั้นไม่ตรงอีกต่อไป — `PdfLessonContentPhase.tsx` กลับเข้า
+  watchlist ของรอบ QA ถัดไป; แนะนำให้ `devops` deploy Phase 10 พร้อมกับหรือหลัง Phase 13 ไม่ใช่ก่อน
+- **NR-21 ของ Phase 13 ต้องแก้สองจุดเรียกแยกกัน ไม่ใช่จุดเดียว (R-32)** — `router.push` อยู่ใน
+  `flushNarrations()` ซึ่งถูกเรียกทั้งจาก `commit()` และจาก `handleRetryFailedNarrations()`; แก้แค่จุด
+  แรกจะทำให้การลองซ้ำที่สำเร็จยังพา CS ออกจากหน้าไปเองโดยไม่มี error — เขียนไว้เป็น task แยกสองบรรทัด
+  ใน Phase 13 โดยเจตนา
+- **Phase 13 ไม่ติด 🔒 Security gate ตาม `design.md` §Module M** แต่ `qa-engineer` เพิ่มได้เองถ้าพบ
+  ระหว่างตรวจว่า implementation แตะสิทธิ์/บทบาทของจุดใดใน 5 จุด CD, กล่องเริ่มแสดงข้อมูลจาก server ที่
+  ไม่เคยแสดงมาก่อน, หรือมีการเพิ่ม/ลดขั้นยืนยันจากที่ R10.9 กำหนด — gate ของ Phase 10/12 เองไม่ถูก
+  ยกเลิกหรือแทนที่ด้วย Phase 13
+- **O-19/R-36 — Phase 13 ไม่แก้อาการ "ไม่พบบทเรียนนี้ค่ะ"** แม้ NR-21(ข) จะเปลี่ยนปลายทางไปที่
+  `/admin/lessons` ซึ่งเป็นหน้าที่อาการเคยเกิด — ห้ามถือว่ารอบนี้แก้บั๊กนั้นแล้ว เป็นรายการตรวจแยกของ
+  `qa-engineer` หลัง Phase 13 ลงตัว
 
 ## Unresolved Open Questions
 
@@ -723,6 +877,16 @@ preserve จนไม่มี lesson อื่นอ้าง, active session �
 ไม่มีคำถามค้างที่บล็อกการเขียน Phase 12; O-18 เป็น deferred scope ไม่ใช่ open question.
 
 ## Change Log
+
+- 2026-08-26 (project-manager) — เพิ่ม **Phase 13: Create-lesson commit modal & confirm-dialog
+  replacements (R10) — Module M** จาก `design.md` amendment (CR-5, NR-20..NR-24, CD-1..CD-10,
+  R-32..R-36, O-19) · frontend ล้วน 15 tasks แบ่งกลุ่ม A (modal state machine NR-20/21×2 จุดเรียก/
+  22/23/24 แยกเป็น task ของตัวเอง) และกลุ่ม B (สถาปัตยกรรมร่วม + 5 จุด CD-5 + task ยืนยันปิดท้าย) ·
+  ไม่มี migration/entity/endpoint/backend task ใดเลย · ไม่ติด 🔒 Security gate ตาม `design.md`
+  §Module M แต่เขียนเงื่อนไขที่ `qa-engineer` เพิ่มเองได้ไว้ใน Sequencing Notes · เพิ่มข้อบังคับ
+  "ห้ามทำขนานกับ Phase 12" (R-35, จุดที่ 5 ของ CD-5 คือ `handleArchiveLesson` ซึ่งเป็นโค้ดของ
+  Module L ที่ยังไม่ผ่าน QA) และ "ต้องแก้สองจุดเรียกของ `router.push`" (R-32) เป็น Sequencing Notes
+  แยกจากหัว phase — ไม่แตะ checkbox ของ Phase 1–12 ใดเลย
 
 - 2026-08-26 (QA Round 11 TARGETED) — re-check P11-01 ครั้งที่ 2 จากโค้ดจริงทั้งสอง entry point
   ตาม stop condition ก่อนขยายเป็น FULL · `ApplyExcludedSlidesAsync` ปิดฝั่ง `SaveAsync` แล้ว:

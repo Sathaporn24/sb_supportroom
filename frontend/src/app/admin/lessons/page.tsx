@@ -10,6 +10,16 @@ import { LessonTrashList } from "@/components/admin/LessonTrashList";
 import { OnboardingChecklist } from "@/components/admin/OnboardingChecklist";
 import { TrainingLinksTable } from "@/components/admin/TrainingLinksTable";
 import { useAdminSession } from "@/components/admin/AdminSessionProvider";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
@@ -58,6 +68,12 @@ export default function LessonsPage() {
   const [editingParent, setEditingParent] = useState<KnowledgeCategory | null>(null);
   const [selectedLesson, setSelectedLesson] = useState<LessonConfig | null>(null);
   const [resetting, setResetting] = useState(false);
+  // CD-2/CD-4 - yes/no confirms replacing window.confirm. `pendingResetDemoData` has no payload
+  // (the action needs none); `pendingDeleteParent`/`pendingArchiveLesson` hold the row itself,
+  // not a closure.
+  const [pendingResetDemoData, setPendingResetDemoData] = useState(false);
+  const [pendingDeleteParent, setPendingDeleteParent] = useState<KnowledgeCategory | null>(null);
+  const [pendingArchiveLesson, setPendingArchiveLesson] = useState<LessonConfig | null>(null);
 
   const reload = useCallback(async () => {
     if (!companyId) return;
@@ -90,9 +106,8 @@ export default function LessonsPage() {
     router.replace(query ? `/admin/lessons?${query}` : "/admin/lessons", { scroll: false });
   }
 
-  async function handleResetDemoData() {
-    const confirmed = window.confirm("ต้องการรีเซ็ตข้อมูล Demo ทั้งหมดกลับเป็นค่าเริ่มต้นใช่หรือไม่?");
-    if (!confirmed) return;
+  async function confirmResetDemoData() {
+    setPendingResetDemoData(false);
     setResetting(true);
     try {
       await api.resetDemoData();
@@ -112,9 +127,10 @@ export default function LessonsPage() {
     setCategoryDialogOpen(true);
   }
 
-  async function handleDeleteParent(parent: KnowledgeCategory) {
-    const confirmed = window.confirm(`ต้องการลบหมวดหมู่ "${parent.name}" ใช่หรือไม่?`);
-    if (!confirmed) return;
+  async function confirmDeleteParent() {
+    const parent = pendingDeleteParent;
+    if (!parent) return;
+    setPendingDeleteParent(null);
     setError(null);
     try {
       await api.deleteKnowledgeCategory(parent.id);
@@ -140,11 +156,10 @@ export default function LessonsPage() {
 
   /** LT-3 - archiving revokes every TrainingLink of this lesson immediately; the confirmation
    * copy says so, since it's the one irreversible-ish part of an otherwise reversible action. */
-  async function handleArchiveLesson(lesson: LessonConfig) {
-    const confirmed = window.confirm(
-      `ต้องการย้ายบทเรียน "${lesson.title}" ไปถังขยะใช่หรือไม่? ลิงก์การสอนทั้งหมดของบทเรียนนี้จะถูกยกเลิกทันที`,
-    );
-    if (!confirmed) return;
+  async function confirmArchiveLesson() {
+    const lesson = pendingArchiveLesson;
+    if (!lesson) return;
+    setPendingArchiveLesson(null);
     setBusyLessonId(lesson.id);
     setError(null);
     try {
@@ -172,7 +187,7 @@ export default function LessonsPage() {
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => void handleResetDemoData()}
+              onClick={() => setPendingResetDemoData(true)}
               disabled={resetting}
               data-testid="lessons-reset-demo-button"
             >
@@ -226,10 +241,10 @@ export default function LessonsPage() {
                 busyLessonId={busyLessonId}
                 role={user?.role ?? "cs"}
                 onEditParent={openEditCategoryDialog}
-                onDeleteParent={(parent) => void handleDeleteParent(parent)}
+                onDeleteParent={(parent) => setPendingDeleteParent(parent)}
                 onToggleLesson={(lesson, checked) => void handleToggleLesson(lesson, checked)}
                 onCreateLink={setSelectedLesson}
-                onArchiveLesson={(lesson) => void handleArchiveLesson(lesson)}
+                onArchiveLesson={(lesson) => setPendingArchiveLesson(lesson)}
               />
             )}
           </TabsContent>
@@ -272,6 +287,76 @@ export default function LessonsPage() {
           void reload();
         }}
       />
+
+      {/* CD-5 point 3 - replaces window.confirm for resetting demo data. */}
+      <AlertDialog open={pendingResetDemoData} onOpenChange={setPendingResetDemoData}>
+        <AlertDialogContent data-testid="lessons-reset-demo-dialog">
+          <AlertDialogHeader>
+            <AlertDialogTitle>รีเซ็ตข้อมูล Demo</AlertDialogTitle>
+            <AlertDialogDescription>
+              ต้องการรีเซ็ตข้อมูล Demo ทั้งหมดกลับเป็นค่าเริ่มต้นใช่หรือไม่?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid="lessons-reset-demo-cancel-button">ยกเลิก</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              onClick={() => void confirmResetDemoData()}
+              data-testid="lessons-reset-demo-confirm-button"
+            >
+              รีเซ็ตข้อมูล
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* CD-5 point 4 - replaces window.confirm for deleting a parent category. */}
+      <AlertDialog open={pendingDeleteParent !== null} onOpenChange={(next) => !next && setPendingDeleteParent(null)}>
+        <AlertDialogContent data-testid="lessons-delete-category-dialog">
+          <AlertDialogHeader>
+            <AlertDialogTitle>ลบหมวดหมู่</AlertDialogTitle>
+            <AlertDialogDescription>
+              ต้องการลบหมวดหมู่ &quot;{pendingDeleteParent?.name}&quot; ใช่หรือไม่?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid="lessons-delete-category-cancel-button">ยกเลิก</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              onClick={() => void confirmDeleteParent()}
+              data-testid="lessons-delete-category-confirm-button"
+            >
+              ลบหมวดหมู่
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* CD-5 point 5 - replaces window.confirm for archiving a lesson (moving it to trash). */}
+      <AlertDialog
+        open={pendingArchiveLesson !== null}
+        onOpenChange={(next) => !next && setPendingArchiveLesson(null)}
+      >
+        <AlertDialogContent data-testid="lessons-archive-lesson-dialog">
+          <AlertDialogHeader>
+            <AlertDialogTitle>ย้ายบทเรียนไปถังขยะ</AlertDialogTitle>
+            <AlertDialogDescription>
+              ต้องการย้ายบทเรียน &quot;{pendingArchiveLesson?.title}&quot; ไปถังขยะใช่หรือไม่?
+              ลิงก์การสอนทั้งหมดของบทเรียนนี้จะถูกยกเลิกทันที
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid="lessons-archive-lesson-cancel-button">ยกเลิก</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              onClick={() => void confirmArchiveLesson()}
+              data-testid="lessons-archive-lesson-confirm-button"
+            >
+              ย้ายไปถังขยะ
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </main>
   );
 }

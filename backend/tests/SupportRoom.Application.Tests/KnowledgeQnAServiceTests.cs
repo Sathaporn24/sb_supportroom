@@ -5,6 +5,7 @@ using SupportRoom.Application.Exceptions;
 using SupportRoom.Application.Services;
 using SupportRoom.Application.Tests.Fakes;
 using SupportRoom.Application.ViewModel;
+using SupportRoom.Domain.Configuration;
 using SupportRoom.Domain.Entities;
 using SupportRoom.Domain.Enums;
 using SupportRoom.Providers.Data.Repository;
@@ -27,11 +28,12 @@ public class KnowledgeQnAServiceTests
     private readonly FakeTrainingLinkRepository _links = new();
     private readonly FakeBackgroundJobRepository _jobs = new();
     private readonly FakeUnitOfWork _unitOfWork = new();
+    private readonly FakeLessonConfigRepository _lessonConfigs = new();
     private readonly KnowledgeQnAService _service;
 
     public KnowledgeQnAServiceTests()
     {
-        var lessonConfigRepository = new FakeLessonConfigRepository();
+        var lessonConfigRepository = _lessonConfigs;
         var categoryRepository = new FakeKnowledgeCategoryRepository();
 
         _unitOfWork
@@ -206,6 +208,46 @@ public class KnowledgeQnAServiceTests
         Assert.Equal(2, queue.Count);
         Assert.Contains(queue, x => x.LessonSlug == "lesson-a");
         Assert.Contains(queue, x => x.LessonSlug == "lesson-b");
+    }
+
+    // R9/LT-8/QQ-1 - trashing a lesson hides its questions from the active review queue, and
+    // restoring the lesson brings them back. Distinct from the permanent-exclusion case (a
+    // purged lesson's questions stay excluded forever via SessionQuestionReviewExclusion, even
+    // after the lesson row itself is gone) - this is the reversible trash/restore half of the
+    // contract, checked against GetTrash specifically the same way GetQueue itself does.
+    [Fact]
+    public void GetQueue_TrashedLessonHidesItsQuestions_RestoreBringsThemBack()
+    {
+        SeedLink("session-1");
+        SeedQuestion("q-1", AnswerStatus.NotFound);
+        Assert.Single(_service.GetQueue()); // sanity - visible before the lesson is trashed
+
+        _lessonConfigs.Items.Add(new LessonConfig
+        {
+            Id = "lesson-1",
+            CompanyId = TestFixtures.CompanyId,
+            Slug = "lesson-slug",
+            CategoryId = "kbcat-child",
+            Title = "บทเรียนทดสอบ",
+            SlidesSourceUrl = "",
+            ContentSourceType = LessonContentSourceType.GoogleSlides,
+            SlideConfigs = [],
+            IsActive = true,
+            IsDelete = true,
+            DeletedAt = DateTime.UtcNow,
+            PurgeJobId = "job-1",
+            CreateDate = DateTime.UtcNow,
+        });
+
+        Assert.Empty(_service.GetQueue());
+
+        // Restore: flips IsDelete back off, the same field GetTrash checks - LT-4's own restore
+        // path clears the other purge-related fields too, but GetQueue's filter only reads IsDelete.
+        _lessonConfigs.Items.Single(l => l.Id == "lesson-1").IsDelete = false;
+
+        var queueAfterRestore = _service.GetQueue();
+        Assert.Single(queueAfterRestore);
+        Assert.Equal("q-1", queueAfterRestore[0].Id);
     }
 
     private static KnowledgeQnA SeedExistingQnA(string id, string companyId, string question)

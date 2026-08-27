@@ -124,10 +124,11 @@ async function request<T>(input: string, init?: RequestInit, authenticate = true
     throw new Error(`Request failed: ${response.status}`);
   }
 
-  // 204 No Content has no body to parse - changePassword returns one.
-  if (response.status === 204) return undefined as T;
-
-  return response.json() as Promise<T>;
+  // Some successful endpoints intentionally return no body. In particular, LT-10 returns an
+  // empty 202 after the durable purge job is accelerated; parsing it as JSON would turn that
+  // accepted request into a false UI error.
+  const body = await response.text();
+  return (body ? JSON.parse(body) : undefined) as T;
 }
 
 /** Public learner calls must never inherit an admin JWT or ?company= from the same browser.
@@ -172,14 +173,14 @@ export function listTrashedLessons(): Promise<{ lessons: LessonTrashItem[] }> {
 
 /** LT-2/LT-3 - owner or admin only (server-enforced); revokes every TrainingLink on this lesson
  * immediately and schedules the 60-day purge job. Idempotent at the already-trashed state. */
-export function archiveLesson(id: string): Promise<{ status: string }> {
+export function archiveLesson(id: string): Promise<{ lesson: LessonConfig }> {
   return request(apiUrl(`/api/lessons/${encodeURIComponent(id)}/trash`), { method: "POST" });
 }
 
 /** LT-2/LT-4 - owner or admin only; cancels the pending purge job and returns the lesson to
  * active. Revoked TrainingLinks are never restored (LT-4) - a fresh link is required. 409 once
  * the worker has already claimed the purge (LT-13). */
-export function restoreLesson(id: string): Promise<{ status: string }> {
+export function restoreLesson(id: string): Promise<{ lesson: LessonConfig }> {
   return request(apiUrl(`/api/lessons/${encodeURIComponent(id)}/restore`), { method: "POST" });
 }
 
@@ -189,7 +190,7 @@ export function restoreLesson(id: string): Promise<{ status: string }> {
 export function requestLessonPermanentDelete(
   id: string,
   input: RequestLessonPermanentDeleteInput,
-): Promise<{ status: string }> {
+): Promise<void> {
   return request(apiUrl(`/api/lessons/${encodeURIComponent(id)}/permanent-delete`), {
     method: "POST",
     headers: jsonHeaders,

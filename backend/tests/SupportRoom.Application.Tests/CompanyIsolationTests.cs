@@ -366,6 +366,65 @@ public class CompanyIsolationTests : IDisposable
         Assert.Equal(CompanyA, row.CompanyId);
     }
 
+    // ---- R9/LT-23 - Module L's IgnoreQueryFilters() repository methods, against a real
+    // DbContext (the fakes used elsewhere in this project do not execute HasQueryFilter at all,
+    // so only these prove the CompanyId predicate is actually re-applied). ---------------------
+
+    private static LessonConfig TrashedLesson(string companyId, string id, string? purgeJobId = null) => new()
+    {
+        Id = id,
+        CompanyId = companyId,
+        Slug = $"{id}-slug",
+        CategoryId = "kbcat-child",
+        Title = $"บทเรียนของ {companyId}",
+        SlidesSourceUrl = "",
+        ContentSourceType = "google_slides",
+        SlideConfigs = [],
+        IsActive = true,
+        IsDelete = true,
+        DeletedAt = DateTime.UtcNow,
+        PurgeJobId = purgeJobId,
+        CreateDate = DateTime.UtcNow,
+    };
+
+    [Fact]
+    public void LessonConfigRepository_GetTrash_OnlyReturnsTheCallersCompanysTrashedLessons()
+    {
+        _db.LessonConfig.AddRange(TrashedLesson(CompanyA, "trash-a"), TrashedLesson(CompanyB, "trash-b"));
+        _db.SaveChanges();
+        _companyContext.Resolve(CompanyA);
+
+        var repository = new LessonConfigRepository(_db);
+        var result = repository.GetTrash(CompanyA).ToList();
+
+        var row = Assert.Single(result);
+        Assert.Equal("trash-a", row.Id);
+    }
+
+    [Fact]
+    public void LessonConfigRepository_GetIncludingDeleted_CompanyACannotReadCompanyBsTrashedLessonById()
+    {
+        _db.LessonConfig.Add(TrashedLesson(CompanyB, "trash-b"));
+        _db.SaveChanges();
+        _companyContext.Resolve(CompanyA);
+
+        var repository = new LessonConfigRepository(_db);
+
+        Assert.Null(repository.GetIncludingDeleted(CompanyA, "trash-b"));
+        Assert.NotNull(repository.GetIncludingDeleted(CompanyB, "trash-b"));
+    }
+
+    // P12-08 - TryClaimPurge/TryArchive/TryRestore*, CancelPendingLessonPurge and
+    // AccelerateLessonPurge are all raw ExecuteSqlRaw/ExecuteUpdate against Postgres-specific SQL
+    // (see their own doc comments) - EF Core InMemory throws InvalidOperationException on any of
+    // them ("Relational-specific methods can only be used when the context is using a relational
+    // database provider"). This project has no Postgres-backed test harness (see
+    // IBackgroundJobRepository.ClaimNext/RequeueOrphanedRunning, which document the identical gap
+    // and are excluded from FakeBackgroundJobRepository for the same reason), so their CompanyId
+    // guard is provable only by code inspection today: every one of them puts `CompanyId = {n}` in
+    // the same WHERE clause as the id/jobId match. GetTrash/GetIncludingDeleted below are the
+    // Module L methods this harness CAN actually execute, since they compile to plain LINQ.
+
     [Fact]
     public void EveryEntityIsCompanyScoped()
     {
