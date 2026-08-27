@@ -224,7 +224,7 @@ internal sealed class FakeBackgroundJobRepository : IBackgroundJobRepository
         return true;
     }
 
-    public bool AccelerateLessonPurge(string companyId, string lessonId, string purgeJobId)
+    public bool AccelerateLessonPurge(string companyId, string lessonId, string purgeJobId, string? actorUserId)
     {
         var job = Items.FirstOrDefault(x => x.Id == purgeJobId && x.CompanyId == companyId
             && x.JobType == BackgroundJobType.LessonPurge && x.TargetId == lessonId && x.Status == BackgroundJobStatus.Pending);

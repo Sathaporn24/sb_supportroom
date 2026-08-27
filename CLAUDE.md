@@ -46,6 +46,11 @@ Push-to-Talk ถามได้ตลอด → AI ตอบโดยอ้า�
 6. Database schema เปลี่ยนผ่าน EF Core migration ใหม่ ห้ามแก้ migration ที่ deploy แล้ว
 7. Frontend/backend wire contract ใช้ camelCase และต้องอัปเดต TypeScript types กับ ViewModels คู่กัน
 8. ห้าม persist สำเนา Google Slides/PDF teaching content ลง LessonConfig; เก็บเฉพาะ metadata
+9. ทุกครั้งที่มีใครเพิ่ม `ExecuteUpdate`/`ExecuteSqlRaw`/`ExecuteDelete` ใหม่ที่ไหนก็ตามในโปรเจกต์
+   ต้องเขียน `AuditLog` ในธุรกรรมเดียวกันด้วย (ดูรูปแบบที่ `ILessonConfigRepository.TryArchive` /
+   `IBackgroundJobRepository.AccelerateLessonPurge`, module `audit-trail` §RS-0..RS-8) **หรือ**
+   เขียนคอมเมนต์ระบุเหตุผลว่าทำไมไม่ต้อง (worker เท่านั้น/ไม่มีคนลงมือ — ดู `RS-6`) — จุดเหล่านี้ข้าม
+   `ChangeTracker` ทั้งหมด `SaveChanges` interceptor จึงมองไม่เห็นแม้แต่แถวเดียว
 
 ## UI Component System (frontend)
 

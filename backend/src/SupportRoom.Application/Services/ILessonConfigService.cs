@@ -499,7 +499,7 @@ public sealed class LessonConfigService(
         // second job. If the worker has already claimed it in the instant since the check above,
         // this simply has no effect (the job is no longer Pending) - the deletion proceeds via the
         // claim that already won, not this one.
-        jobRepository.AccelerateLessonPurge(CurrentCompanyId, id, lesson.PurgeJobId);
+        jobRepository.AccelerateLessonPurge(CurrentCompanyId, id, lesson.PurgeJobId, CurrentUserId);
         UnitOfWork.Commit();
 
         Logger.LogInformation("Lesson permanent delete requested: {LessonId} job={JobId}", id, lesson.PurgeJobId);

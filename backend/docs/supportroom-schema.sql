@@ -19,6 +19,18 @@
 );
 
 
+CREATE TABLE "AuditLog" (
+    "Id" text NOT NULL,
+    "CompanyId" text,
+    "ActorUserId" text NOT NULL,
+    "Action" text NOT NULL,
+    "EntityName" text NOT NULL,
+    "EntityId" text NOT NULL,
+    "OccurredAt" timestamp with time zone NOT NULL,
+    CONSTRAINT "PK_AuditLog" PRIMARY KEY ("Id")
+);
+
+
 CREATE TABLE "BackgroundJob" (
     "Id" text NOT NULL,
     "CompanyId" text NOT NULL,
@@ -335,6 +347,15 @@ CREATE INDEX "IX_AdminUser_CompanyId" ON "AdminUser" ("CompanyId");
 
 
 CREATE UNIQUE INDEX "IX_AdminUser_Email" ON "AdminUser" ("Email");
+
+
+CREATE INDEX "IX_AuditLog_ActorUserId" ON "AuditLog" ("ActorUserId");
+
+
+CREATE INDEX "IX_AuditLog_CompanyId_OccurredAt" ON "AuditLog" ("CompanyId", "OccurredAt");
+
+
+CREATE INDEX "IX_AuditLog_EntityName_EntityId" ON "AuditLog" ("EntityName", "EntityId");
 
 
 CREATE INDEX "IX_BackgroundJob_CompanyId_JobType_TargetId" ON "BackgroundJob" ("CompanyId", "JobType", "TargetId");

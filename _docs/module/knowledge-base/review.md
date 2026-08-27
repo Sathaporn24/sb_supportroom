@@ -10,10 +10,85 @@
 | `RenderPdfPreviewPageAsync` does not wrap `PdfSlidesRenderer.RenderPagePng` in the Phase 10-specific 4xx conversion path. | Phase 10 (`review/phase-10.md`) | security | No | 0 |
 | EX-8 hard-floor exclusion count can transiently overcount by one before an un-reconciled legacy duplicate is committed; safe-direction and self-healing. | Phase 11 (`review/phase-11.md`) | backend-engineer | No | 0 |
 | CD-5 points 2/3 have no error-surfacing path on API failure; prior-round observation, not proven as a Phase 13 regression. | Phase 13 (`review/phase-13.md`) | frontend-engineer | No | 0 |
-| Phase 12 Round 18 FULL found that tasks 528 and 531 were closed too early in Round 16: the PostgreSQL-specific tenant guards are only tested through hand-written fakes, and purge finalization still has no test that seeds/removes the complete dependent graph. Production code inspection found no cross-company leak, but the two required coverage tasks are not complete. | Phase 12 (`review/phase-12.md`) | project owner (re-check ceiling reached; decide whether to route the two narrow test gaps back to backend-engineer) | Yes | 2 |
-| Phase 13 is now 14/14 ✅ Verified (Round 17, closing the phase) but its most recent round was TARGETED, not FULL — per this module's QA convention, deploy eligibility requires one more FULL round before `devops` regardless of the all-✅ result. Phase 13 carries no Security gate, so that is not a separate blocker here. | Phase 13 (`review.md` current round) | qa-engineer (one more FULL round) | Yes, for devops handoff | 0 |
+| Phase 12 is 31/31 functionally verified after Round 19 TARGETED closed tasks 528/531 on top of Round 18 FULL. Its `🔒 Security gate` remains open and blocks devops. | Phase 12 (`review/phase-12.md`) | security | Yes, for devops handoff | 0 |
 
 ## Verification Summary (current round)
+
+**Round 20 — Mode: FULL — Phase 13 / Module M. All 14 tasks were re-inspected from scratch against NR-20..NR-24 and CD-1..CD-10, including the protected-dialog/shared-export watchlist and project-wide browser-dialog sweep.**
+
+**Result: 14/14 ✅ Verified, 0 Partial, 0 Failed. Phase 13 is QA-closed on a FULL round and carries no Security gate.** No checkbox change was needed because Round 17 already checked all 14; this round establishes final FULL eligibility.
+
+Evidence:
+
+- NR-20: `commitModalOpen` is independent state; only `commit()` opens it and the permitted step-1 “กลับไปแก้ข้อมูลบทเรียน” action closes it. It is never derived from `lessonId`, `commitStarted`, or `committing`.
+- NR-21: `flushNarrations()` and `handleRetryFailedNarrations()` contain no navigation. The only `router.push` in the component is `handleConfirmSuccess()` → `/admin/lessons`, called by the succeeded-state button.
+- NR-22: the modal renders exactly four checklist rows from the existing lesson/document/link/narration state and preserves the existing `completedSteps`/`totalSteps` progress calculation.
+- NR-23/NR-24: `onOpenChange={() => {}}`, `showCloseButton={false}`, no buttons while running, exactly one succeeded action, and the required per-step failed actions/links are all present; step-3 retry still rebuilds the save input with `excludedSlideObjectIds`.
+- CD-1..CD-8: all five replacements use inline `AlertDialog`, visible payload state rather than promise/ref closures, exact confirmed copy, default cancel, and `variant="destructive"`. Existing permission, busy, refresh, and error paths remain where they were.
+- CD-9/CD-10: `LessonPermanentDeleteDialog`, `lesson-editor-pdf-replace-dialog`, `pdf-content-phase-warning-dialog`, and `CategoryMovePreviewDialog` match the earlier manifest; the four shared `DocumentUploadList` exports and their three consumers remain intact. Project-wide search finds no live `window.confirm`/`window.alert`/`window.prompt` call—only comments describing replacements.
+
+Automated checks:
+
+- Frontend typecheck ✅.
+- Frontend lint ✅.
+- Frontend tests ✅ 82/82, 12 files.
+- Frontend production build ✅ compiled and generated 24 routes.
+- Backend blast-radius checks were already run immediately before this phase: Release build 0/0, non-integration 351/351, EF model clean.
+
+### Verified file manifest — Round 20 FULL
+
+| File | Bytes | Lines |
+|---|---:|---:|
+| `frontend/src/components/admin/PdfLessonContentPhase.tsx` | 28417 | 628 |
+| `frontend/src/components/admin/CategoryFormDialog.tsx` | 14762 | 391 |
+| `frontend/src/components/admin/DocumentUploadList.tsx` | 23029 | 508 |
+| `frontend/src/app/admin/lessons/page.tsx` | 15846 | 362 |
+| `frontend/src/components/admin/LessonPermanentDeleteDialog.tsx` | 4774 | 122 |
+| `frontend/src/components/admin/CategoryMovePreviewDialog.tsx` | 5327 | 138 |
+| `frontend/src/components/admin/LessonForm.tsx` | 38315 | 881 |
+| `frontend/src/components/admin/DocumentLibraryFilterBar.tsx` | 7816 | 182 |
+| `frontend/src/components/admin/KnowledgeQnATable.tsx` | 9622 | 215 |
+| `frontend/src/components/admin/KnowledgeQnAAnswerDialog.tsx` | 15703 | 359 |
+
+## Review Outcome — Phase 13 (Round 20)
+
+**Phase 13 is fully QA-closed: 14/14 ✅ on a FULL round.** It has no Security gate. The module still cannot proceed wholesale to devops because Phase 12 and other gated phases await the separately authorized security audit.
+
+## Change Log (Round 20)
+
+- 2026-08-27 — Round 20 FULL, Phase 13 / Module M: 14/14 verified from scratch; no issues, no checkbox changes, no application-code changes. Phase 13 is final-FULL QA eligible.
+
+---
+
+## Prior review — Round 19 / Phase 12
+
+**Round 19 — Mode: TARGETED — Phase 12 / Module L, owner-authorized re-check of tasks 528 and 531 after Round 18 FULL.** Scope was limited to the two new tests, their test infrastructure, production paths they exercise, and the backend verification blast radius. Production behavior was unchanged.
+
+**Result: both gaps are genuinely closed. Phase 12 is 31/31 ✅ Verified, 0 Partial, 0 Failed.** Tasks 528 and 531 changed back to `[x]` in `plan.md`. The functional phase is closed; the independent `🔒 Security gate` remains open.
+
+1. **Task 528 ✅:** `ModuleLRepositoryIsolationTests.CompanyACannotReadOrMutateCompanyBsTrashJobsOrPurgeDependencies` runs against PostgreSQL using the real `ApplicationDbContext`, `LessonConfigRepository`, `BackgroundJobRepository`, and all Module L dependency repositories. It executes the production `TryArchive`, `TryClaimPurge`, `TryRestore`, `TryRestoreAndCancelPurge`, `CancelPendingLessonPurge`, and `AccelerateLessonPurge` paths with company A targeting company B; every call affects zero rows. It also executes every relevant `IgnoreQueryFilters()` read path and then reopens the graph under company B to prove no state changed. Fixture IDs/company IDs are GUID-scoped and cleanup deletes only those exact fixture companies.
+2. **Task 531 ✅:** `ProcessAsync_CompleteDependencyGraph_RemovesOnlyPurgeDependentsAndRetainsLearnerHistory` seeds link/session/question, narration, `LessonExcludedSlide`, document/chunk, Q&A/source/conflict and the purge job. Its source-repository deletion callback asserts the permanent question exclusion already exists at the exact moment source deletion begins. Final assertions prove every purge-dependent row/vector/storage key is gone while link/session/question/exclusion/job history remains.
+
+Automated checks run by QA:
+
+- Backend Release build ✅ 0 warnings, 0 errors.
+- Targeted `LessonPurgeWorkerTests` ✅ 17/17.
+- PostgreSQL production-repository integration test ✅ 1/1.
+- Backend non-integration suite ✅ 351/351 (10 API + 41 Providers + 300 Application).
+- EF pending-model check ✅ clean.
+- FULL suite remains characterized as 11 unrelated external-provider/config failures; the integration project itself is 12/12 and no new Module L test fails.
+
+## Review Outcome — Phase 12 (Round 19)
+
+**Phase 12 closes functionally at 31/31 ✅.** No application-code defect was found by this re-check. Security audit remains mandatory before devops. Per the project owner's authorized sequence, QA proceeds next to one FULL Phase 13 round; it does not dispatch devops.
+
+## Change Log (Round 19)
+
+- 2026-08-27 — Round 19 TARGETED, Phase 12 / Module L: owner authorized another re-check beyond the prior ceiling; production PostgreSQL tenant-isolation coverage and complete purge-graph coverage both passed. Tasks 528/531 checked; Phase 12 now 31/31. Security gate remains open.
+
+---
+
+## Prior review — Round 18 / Phase 12
 
 **Round 18 — Mode: FULL — Phase 12 / Module L, final whole-phase re-check after Round 16's TARGETED closure. All 31 tasks were re-read against R9, DM-2/DM-11/DM-15/DM-16/DM-18, MG-L1, and LT-1..LT-24; production code, tests, migration, API/client types, UI, and documentation were inspected again rather than carried forward from the prior manifest.**
 

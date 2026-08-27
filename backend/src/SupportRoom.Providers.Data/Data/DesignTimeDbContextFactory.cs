@@ -38,7 +38,7 @@ public sealed class DesignTimeDbContextFactory : IDesignTimeDbContextFactory<App
             .UseNpgsql(connectionString)
             .Options;
 
-        return new ApplicationDbContext(options, new CompanyContext());
+        return new ApplicationDbContext(options, new CompanyContext(), new CurrentUser());
     }
 
     /// <summary>Walks up to the folder holding SupportRoom.slnx rather than assuming how deep the

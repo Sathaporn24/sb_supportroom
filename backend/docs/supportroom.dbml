@@ -385,6 +385,25 @@ Table SessionQuestionReviewExclusion {
   }
 }
 
+// Append-only, no audit columns of its own (Q-A1) - see audit-trail module design.md DM-A1.
+// No Refs below on purpose: EntityId/EntityName/ActorUserId are polymorphic across every other
+// table in this schema, not a pointer to one specific table.
+Table AuditLog {
+  Id text [pk, not null]
+  CompanyId text [note: 'CompanyId of the row acted upon, not the actor. Null = system-level (OQ-2/OQ-A1)']
+  ActorUserId text [not null, note: 'AdminUser.Id - never null (no actor, no row)']
+  Action text [not null, note: 'create | update | delete']
+  EntityName text [not null, note: 'CLR type name of the entity acted upon']
+  EntityId text [not null, note: 'Primary key of the row acted upon']
+  OccurredAt timestamptz [not null]
+
+  indexes {
+    (CompanyId, OccurredAt)
+    (EntityName, EntityId)
+    ActorUserId
+  }
+}
+
 // Logical domain relationships. The EF model currently stores string ids without FK constraints.
 Ref: AdminUser.CompanyId > Company.Id
 Ref: KnowledgeCategory.CompanyId > Company.Id

@@ -56,7 +56,7 @@ public sealed class ModuleLRepositoryIsolationTests
             Assert.False(lessons.TryRestore(companyA, trashLessonId, "qa-actor", DateTime.UtcNow));
             Assert.False(lessons.TryRestoreAndCancelPurge(companyA, trashLessonId, purgeJobId, "qa-actor", DateTime.UtcNow));
             Assert.False(jobs.CancelPendingLessonPurge(companyA, trashLessonId, purgeJobId));
-            Assert.False(jobs.AccelerateLessonPurge(companyA, trashLessonId, purgeJobId));
+            Assert.False(jobs.AccelerateLessonPurge(companyA, trashLessonId, purgeJobId, "qa-actor"));
 
             // Every Module L IgnoreQueryFilters dependency path must also return no B rows.
             Assert.Empty(await lessons.GetTrash(companyA).ToListAsync());
@@ -164,7 +164,9 @@ public sealed class ModuleLRepositoryIsolationTests
     };
 
     private static ApplicationDbContext CreateContext(string connectionString, CompanyContext companyContext)
-        => new(new DbContextOptionsBuilder<ApplicationDbContext>().UseNpgsql(connectionString).Options, companyContext);
+        // AU-2: currentUser ยังไม่ resolve โดยตั้งใจ - fixture ของ Module L ไม่ต้องการให้เกิดแถว
+        // AuditLog ปนกับข้อมูลที่ทดสอบ isolation อยู่แล้ว
+        => new(new DbContextOptionsBuilder<ApplicationDbContext>().UseNpgsql(connectionString).Options, companyContext, new CurrentUser());
 
     private static string GetConnectionString()
     {

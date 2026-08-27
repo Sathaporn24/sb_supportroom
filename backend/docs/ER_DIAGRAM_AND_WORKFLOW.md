@@ -14,7 +14,7 @@
 ```mermaid
 flowchart LR
     Browser[Next.js frontend] --> API[ASP.NET Core API]
-    API --> PG[(PostgreSQL<br/>16 business tables)]
+    API --> PG[(PostgreSQL<br/>17 business tables)]
     API --> Storage[(Local disk / Huawei OBS<br/>document bytes)]
     API --> Providers[Google Slides / Gemini / OpenAI-compatible]
     API --> Pinecone[(Pinecone vector index)]
@@ -38,8 +38,9 @@ flowchart LR
 | Documents/jobs | `DocumentResource`, `DocumentChunk`, `BackgroundJob` |
 | Knowledge Q&A | `KnowledgeQnA`, `KnowledgeQnASource`, `KnowledgeQnAConflict` |
 | Learning | `TrainingLink`, `LearningSession`, `SessionQuestion`, `SessionQuestionReviewExclusion` |
+| Audit | `AuditLog` |
 
-รวม 16 business tables ไม่รวม `__EFMigrationsHistory` ของ EF Core
+รวม 17 business tables ไม่รวม `__EFMigrationsHistory` ของ EF Core
 
 ## ER Diagram
 
@@ -236,7 +237,21 @@ erDiagram
         text LessonId
         text Reason
     }
+
+    AUDIT_LOG {
+        text Id PK
+        text CompanyId "nullable, no FK - CompanyId ของแถวที่ถูกกระทำ"
+        text ActorUserId "AdminUser.Id ของคนที่ลงมือ - logical id เท่านั้น"
+        text Action "create | update | delete"
+        text EntityName "ClrType.Name ของ entity ที่ถูกกระทำ"
+        text EntityId "primary key ของแถวที่ถูกกระทำ - logical id เท่านั้น"
+        timestamptz OccurredAt
+    }
 ```
+
+`AUDIT_LOG` ไม่มีเส้นความสัมพันธ์ในไดอะแกรมข้างบนโดยตั้งใจ - มันบันทึกการกระทำกับ**ทุก**ตารางใน
+รายการนี้ (ยกเว้นตัวเอง) ผ่าน `ActorUserId`/`EntityName`/`EntityId` ที่เป็น logical string id ล้วน
+ไม่ใช่ FK จริง (audit-trail module, DM-A1)
 
 ทุก business table มี audit columns `Id`, `CreateBy`, `CreateDate`, `UpdateBy`, `UpdateDate`,
 `DeleteBy`, `IsDelete`, `DeletedAt`; diagram ตัด audit columns ส่วนใหญ่ออกเพื่อให้อ่านได้
@@ -275,10 +290,13 @@ Polymorphic fields:
 - `Company` ไม่มี filter เพราะเป็น tenant registry
 - `AdminUser` ไม่มี filter เพราะ login ค้น email ก่อนรู้ company และ owner มี `CompanyId = null`
 - `BackgroundJob` ไม่มี filter เพราะ worker ต้อง claim งานข้ามบริษัทก่อน resolve context จาก row
+- `AuditLog` ไม่มี filter เพราะ `CompanyId` เป็น `null` ได้ (แถวระดับระบบ) และ filter จะทำให้แถว
+  เหล่านั้นหายไปจากทุกคนตลอดกาล (audit-trail module, มติ OQ-2) - ต่างจากอีกสามตัวที่ไม่มี filter
+  ด้วยเหตุผลเรื่อง bootstrap/worker, `AuditLog` เป็นตารางที่ไม่มี filter โดยเจตนาถาวร
 - entities ที่ต้องหายจาก normal UI เพิ่มเงื่อนไข `!IsDelete` ใน filter ของตัวเอง
 
-ดังนั้น query ของ `Company`, `AdminUser` และ `BackgroundJob` ต้อง scope/authorize อย่างชัดเจนที่
-repository หรือ service ทุกครั้ง
+ดังนั้น query ของ `Company`, `AdminUser`, `BackgroundJob` และ `AuditLog` ต้อง scope/authorize
+อย่างชัดเจนที่ repository หรือ service ทุกครั้ง
 
 ## Data Ownership
 
@@ -394,6 +412,15 @@ stateDiagram-v2
 - เมื่อ `PurgeStartedAt` ถูกตั้งแล้ว restore ต้องถูกปฏิเสธ
 - purge สร้าง `SessionQuestionReviewExclusion` ก่อนลบ Q&A sources เพื่อไม่ให้คำถามเก่ากลับเข้า queue
 - `SessionQuestion` และประวัติการเรียนยังคงอยู่แม้ lesson ถูกลบถาวร
+- **`Active → Trash` และ `Trash → Active` เขียนแถว `AuditLog` ด้วยมือในธุรกรรมเดียวกัน** (audit-trail
+  module, RS-1/RS-2/RS-3/RS-4) เพราะทั้งสองใช้ `ExecuteUpdate`/`ExecuteSqlRaw` ซึ่งไม่ผ่าน EF change
+  tracker — interceptor ปกติของ `SaveChanges` มองไม่เห็น: archive เขียน 1 แถว `delete`/`LessonConfig`
+  บวก 1 แถวต่อ `TrainingLink` ที่ถูกปิดจริง (cascade), restore เขียน 1 แถว `update`/`LessonConfig`
+  (บวกอีก 1 แถว `update`/`BackgroundJob` ถ้ายกเลิก purge job พร้อมกัน) — ดู
+  `_docs/module/audit-trail/design.md` §RS-0..RS-8 สำหรับสัญญาเต็ม
+- **การเร่งลบถาวร (`AccelerateLessonPurge`, admin สั่งลบทันทีไม่ต้องรอ 60 วัน) เขียน 1 แถว
+  `update`/`BackgroundJob` ด้วยเหตุผลเดียวกัน** (RS-5) — purge ที่ worker ทำเองตามกำหนดเวลาปกติ
+  (`TryClaimPurge`/`ClaimNext`) **ไม่เขียน log** เพราะไม่มีคนลงมือ (มติ OQ-3 ของ audit-trail module)
 
 ### Role matrix (LT-2)
 

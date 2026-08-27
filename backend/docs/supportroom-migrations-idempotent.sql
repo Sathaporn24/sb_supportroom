@@ -1541,3 +1541,51 @@ BEGIN
 END $EF$;
 COMMIT;
 
+START TRANSACTION;
+
+DO $EF$
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM "__EFMigrationsHistory" WHERE "MigrationId" = '20260827181826_AddAuditLog') THEN
+    CREATE TABLE "AuditLog" (
+        "Id" text NOT NULL,
+        "CompanyId" text,
+        "ActorUserId" text NOT NULL,
+        "Action" text NOT NULL,
+        "EntityName" text NOT NULL,
+        "EntityId" text NOT NULL,
+        "OccurredAt" timestamp with time zone NOT NULL,
+        CONSTRAINT "PK_AuditLog" PRIMARY KEY ("Id")
+    );
+    END IF;
+END $EF$;
+
+DO $EF$
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM "__EFMigrationsHistory" WHERE "MigrationId" = '20260827181826_AddAuditLog') THEN
+    CREATE INDEX "IX_AuditLog_ActorUserId" ON "AuditLog" ("ActorUserId");
+    END IF;
+END $EF$;
+
+DO $EF$
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM "__EFMigrationsHistory" WHERE "MigrationId" = '20260827181826_AddAuditLog') THEN
+    CREATE INDEX "IX_AuditLog_CompanyId_OccurredAt" ON "AuditLog" ("CompanyId", "OccurredAt");
+    END IF;
+END $EF$;
+
+DO $EF$
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM "__EFMigrationsHistory" WHERE "MigrationId" = '20260827181826_AddAuditLog') THEN
+    CREATE INDEX "IX_AuditLog_EntityName_EntityId" ON "AuditLog" ("EntityName", "EntityId");
+    END IF;
+END $EF$;
+
+DO $EF$
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM "__EFMigrationsHistory" WHERE "MigrationId" = '20260827181826_AddAuditLog') THEN
+    INSERT INTO "__EFMigrationsHistory" ("MigrationId", "ProductVersion")
+    VALUES ('20260827181826_AddAuditLog', '10.0.10');
+    END IF;
+END $EF$;
+COMMIT;
+

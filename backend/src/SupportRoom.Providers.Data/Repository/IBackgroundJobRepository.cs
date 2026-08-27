@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using SupportRoom.Domain;
 using SupportRoom.Domain.Entities;
 using SupportRoom.Domain.Enums;
 using SupportRoom.Providers.Data.Common;
@@ -45,8 +46,12 @@ public interface IBackgroundJobRepository : IRepositoryBase<BackgroundJob, strin
     /// <summary>R9/LT-10 - manual permanent-delete's "accelerate the existing job" step: pulls
     /// NextAttemptAt to now so the worker picks it up on its next poll instead of creating a
     /// second job. Same company+target+job id guard as CancelPendingLessonPurge, for the same
-    /// reason. Only affects a job still Pending.</summary>
-    bool AccelerateLessonPurge(string companyId, string lessonId, string purgeJobId);
+    /// reason. Only affects a job still Pending.
+    ///
+    /// RS-5 (design.md, Module B) - `actorUserId` exists purely so this raw-SQL write can create
+    /// its own AuditLog row: ExecuteSqlRaw bypasses ChangeTracker entirely, so the SaveChanges
+    /// interceptor (AU-*) never sees this write. Null actor -> no row (mirrors AU-2/OQ-3).</summary>
+    bool AccelerateLessonPurge(string companyId, string lessonId, string purgeJobId, string? actorUserId);
 }
 
 public sealed class BackgroundJobRepository(ApplicationDbContext dbContext)
@@ -97,15 +102,42 @@ public sealed class BackgroundJobRepository(ApplicationDbContext dbContext)
         return rows == 1;
     }
 
-    public bool AccelerateLessonPurge(string companyId, string lessonId, string purgeJobId)
+    public bool AccelerateLessonPurge(string companyId, string lessonId, string purgeJobId, string? actorUserId)
     {
+        using var transaction = Context.Database.BeginTransaction();
+
         const string sql = """
             UPDATE "BackgroundJob"
             SET "NextAttemptAt" = {0}
             WHERE "Id" = {1} AND "CompanyId" = {2} AND "JobType" = {3} AND "TargetId" = {4} AND "Status" = {5}
             """;
+        var now = DateTime.UtcNow;
         var rows = Context.Database.ExecuteSqlRaw(
-            sql, DateTime.UtcNow, purgeJobId, companyId, BackgroundJobType.LessonPurge, lessonId, BackgroundJobStatus.Pending);
-        return rows == 1;
+            sql, now, purgeJobId, companyId, BackgroundJobType.LessonPurge, lessonId, BackgroundJobStatus.Pending);
+        if (rows != 1)
+        {
+            transaction.Rollback();
+            return false;
+        }
+
+        // RS-5: 1 แถวเท่านั้น (update/BackgroundJob/purgeJobId) - ห้ามเขียนแถวของ LessonConfig
+        // ที่นี่ คำสั่งนี้แตะแค่แถว job · null actorUserId = ไม่เขียนแถว (มติ OQ-3)
+        if (!string.IsNullOrEmpty(actorUserId))
+        {
+            Context.Set<AuditLog>().Add(new AuditLog
+            {
+                Id = IdGenerator.GenerateId("audit"),
+                CompanyId = companyId,
+                ActorUserId = actorUserId,
+                Action = AuditAction.Update,
+                EntityName = nameof(BackgroundJob),
+                EntityId = purgeJobId,
+                OccurredAt = now,
+            });
+            Context.SaveChanges();
+        }
+
+        transaction.Commit();
+        return true;
     }
 }
