@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { InfoIcon, XIcon } from "lucide-react";
+import { InfoIcon } from "lucide-react";
 import * as api from "@/lib/api-client";
 import { ApiClientError } from "@/lib/api-client";
 import type {
@@ -16,6 +16,8 @@ import type {
 import { AdminLink } from "@/components/admin/AdminLink";
 import { CategoryMovePreviewDialog } from "@/components/admin/CategoryMovePreviewDialog";
 import { PdfLessonContentPhase } from "@/components/admin/PdfLessonContentPhase";
+import { AttachedFilePreview } from "@/components/shared/AttachedFilePreview";
+import { FileDropzone } from "@/components/shared/FileDropzone";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -120,7 +122,6 @@ export function LessonForm(props: LessonFormProps) {
   const [slugTouched, setSlugTouched] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [pdfFileName, setPdfFileName] = useState<string | null>(null);
-  const pdfInputRef = useRef<HTMLInputElement>(null);
   const [saving, setSaving] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
@@ -323,9 +324,6 @@ export function LessonForm(props: LessonFormProps) {
     setPdfFileName(null);
     setPreviewSession(null);
     setPreviewFile(null);
-    if (pdfInputRef.current) {
-      pdfInputRef.current.value = "";
-    }
   }
 
   /** NR-9/R4.6.9 - Google Slides keeps saving immediately, unchanged. PDF opens the
@@ -497,45 +495,41 @@ export function LessonForm(props: LessonFormProps) {
     </div>
   );
 
+  // KL-7/NR-18 - page 1 of whatever is currently attached: a preview-session page pre-save
+  // (create mode) or the persisted document's own page render post-save (edit mode). Only ever
+  // set once pdfFileName is, so the two states can't disagree about whether there's a thumbnail.
+  const pdfThumbnailSrc = !pdfFileName
+    ? null
+    : isEdit
+      ? form.pdfDocumentResourceId
+        ? api.getLessonPdfPageUrl(form.pdfDocumentResourceId, 1)
+        : null
+      : previewSession
+        ? api.getPdfPreviewPageUrl(previewSession.previewId, 1)
+        : null;
+
   const pdfField = (
     <div className="flex flex-col gap-2">
       <Label htmlFor="pdf-file">
         ไฟล์ PDF ({isEdit ? form.slideConfigs.length : (previewSession?.pageCount ?? 0)} หน้าที่อ่านได้แล้ว)
       </Label>
       {pdfFileName ? (
-        <div className="flex h-8 w-full min-w-0 items-center justify-between gap-2 rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm">
-          <span className="truncate">{pdfFileName}</span>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-xs"
-            aria-label="ล้างไฟล์ที่แนบ"
-            onClick={handleClearPdf}
-            data-testid={tid("pdf-clear-button")}
-          >
-            <XIcon />
-          </Button>
-        </div>
+        <AttachedFilePreview
+          imageSrc={pdfThumbnailSrc}
+          fileName={pdfFileName}
+          onRemove={handleClearPdf}
+          testIdPrefix={tid("pdf")}
+        />
       ) : (
-        <Input
-          id="pdf-file"
-          ref={pdfInputRef}
-          type="file"
+        <FileDropzone
           accept="application/pdf"
           disabled={uploading}
-          onChange={(e) => {
-            const file = e.target.files?.[0];
-            if (file) void (isEdit ? handlePdfFileSelected(file) : handlePdfPreviewSelected(file));
-            e.target.value = "";
-          }}
-          className="h-auto py-1.5"
-          data-testid={tid("pdf-file-input")}
+          busy={uploading}
+          busyLabel={isEdit ? "กำลังอัปโหลด..." : "กำลังอ่านไฟล์ PDF..."}
+          onFileSelected={(file) => void (isEdit ? handlePdfFileSelected(file) : handlePdfPreviewSelected(file))}
+          testIdPrefix={tid("pdf")}
+          hint="รองรับไฟล์ PDF เท่านั้น"
         />
-      )}
-      {uploading && (
-        <p className="flex items-center gap-2 text-xs text-muted-foreground">
-          <Spinner /> กำลังอัปโหลด...
-        </p>
       )}
       {isEdit && (
         <>

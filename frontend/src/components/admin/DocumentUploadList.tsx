@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type ChangeEvent } from "react";
+import { useEffect, useState } from "react";
 import * as api from "@/lib/api-client";
 import { ApiClientError } from "@/lib/api-client";
 import type {
@@ -17,6 +17,7 @@ import type {
 import { formatDateTimeTh } from "@/utils/format";
 import { AdminLink } from "@/components/admin/AdminLink";
 import { DocumentDuplicateDialog } from "@/components/admin/DocumentDuplicateDialog";
+import { FileDropzone } from "@/components/shared/FileDropzone";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -188,7 +189,6 @@ export function DocumentUploadList({ filter, categories, lessons }: Props) {
   // CD-2/CD-4 - yes/no confirm for deleting a document row, replacing window.confirm. Holds the
   // id itself, not a closure of handleDelete.
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
 
   const [uploadScope, setUploadScope] = useState<DocumentScope>({ scopeType: "company" });
   const [movingDoc, setMovingDoc] = useState<DocumentResource | null>(null);
@@ -231,16 +231,11 @@ export function DocumentUploadList({ filter, categories, lessons }: Props) {
     }
   }
 
-  async function handleFileSelected(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
-    event.target.value = "";
-    if (!file) {
-      return;
-    }
-    // KL-21 - checkDuplicate=true only here, the library page's own upload form; LessonForm's
-    // PDF upload (UC-5) calls api.uploadDocument directly and never sets it, so a lesson can
-    // always reuse an existing file.
-    await performUpload(file, uploadScope, true);
+  // KL-21 - checkDuplicate=true only here, the library page's own upload form; LessonForm's
+  // PDF upload (UC-5) calls api.uploadDocument directly and never sets it, so a lesson can
+  // always reuse an existing file.
+  function handleFileSelected(file: File) {
+    void performUpload(file, uploadScope, true);
   }
 
   function handleUploadAnyway() {
@@ -296,44 +291,29 @@ export function DocumentUploadList({ filter, categories, lessons }: Props) {
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <p className="text-xs text-muted-foreground">
-          รองรับ .pptx, .pdf, .docx, .xlsx — ใช้เอกสารเดิมที่มีอยู่แล้วได้เลย ไม่ต้องทำใหม่
-        </p>
-        <div className="flex flex-col items-end gap-2">
-          <div className="w-64">
-            <CompanyOrCategoryScopeFields
-              scopeType={uploadScope.scopeType as "company" | "category"}
-              scopeId={uploadScope.scopeId}
-              categories={categories}
-              onChange={setUploadScope}
-              testidPrefix="documents-upload-scope"
-            />
-          </div>
-          <input
-            ref={inputRef}
-            type="file"
-            accept=".pptx,.pdf,.docx,.xlsx"
-            className="hidden"
-            onChange={handleFileSelected}
-            data-testid="documents-upload-file-input"
+      <div className="flex flex-col gap-3">
+        <div className="w-64">
+          <CompanyOrCategoryScopeFields
+            scopeType={uploadScope.scopeType as "company" | "category"}
+            scopeId={uploadScope.scopeId}
+            categories={categories}
+            onChange={setUploadScope}
+            testidPrefix="documents-upload-scope"
           />
-          <Button
-            data-testid="documents-upload-button"
-            variant="secondary"
-            onClick={() => inputRef.current?.click()}
-            disabled={uploading || !canUpload}
-          >
-            {uploading ? (
-              <>
-                <Spinner data-icon="inline-start" />
-                กำลังอัปโหลด...
-              </>
-            ) : (
-              "อัปโหลดเอกสาร"
-            )}
-          </Button>
         </div>
+        <FileDropzone
+          accept=".pptx,.pdf,.docx,.xlsx"
+          disabled={!canUpload}
+          busy={uploading}
+          busyLabel="กำลังอัปโหลด..."
+          onFileSelected={handleFileSelected}
+          testIdPrefix="documents-upload"
+          hint={
+            canUpload
+              ? "รองรับ .pptx, .pdf, .docx, .xlsx — ใช้เอกสารเดิมที่มีอยู่แล้วได้เลย ไม่ต้องทำใหม่"
+              : "เลือกขอบเขตด้านบนก่อนอัปโหลด"
+          }
+        />
       </div>
 
       {error && <p className="text-xs text-destructive">{error}</p>}

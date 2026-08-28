@@ -35,7 +35,7 @@ function ChecklistStep({ done, title, description, action }: ChecklistStepProps)
         ) : (
           <AdminLink
             href={action.href}
-            className={buttonVariants({ variant: "outline", size: "sm" })}
+            className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
             data-testid={action.testId}
           >
             {action.label}

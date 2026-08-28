@@ -34,6 +34,17 @@ const buttonVariants = cva(
         "icon-lg": "size-9",
       },
     },
+    compoundVariants: [
+      /* Figma icon-button component, added 2026-08-28 (edit/delete/move buttons across
+         CategoryTree/documents/etc - variant="outline" rendered icon-only): a border a touch
+         darker than plain --border, and a quieter icon color than the outline variant's default
+         --foreground. One place to change instead of hardcoding it per button instance. */
+      {
+        variant: "outline",
+        size: ["icon", "icon-xs", "icon-sm", "icon-lg"],
+        class: "border-icon-button-border text-icon-button-foreground",
+      },
+    ],
     defaultVariants: {
       variant: "default",
       size: "default",

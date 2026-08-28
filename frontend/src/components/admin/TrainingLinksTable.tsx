@@ -13,6 +13,7 @@ import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/u
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Pagination, PaginationContent, PaginationItem } from "@/components/ui/pagination";
 import { CopyLinkButton } from "@/components/admin/CopyLinkButton";
+import { cn } from "@/lib/utils";
 
 const statusVariant = {
   ACTIVE: "default",
@@ -58,12 +59,12 @@ export function TrainingLinksTable({ links, origin }: { links: TrainingLink[]; o
   return (
     <div className="flex flex-col gap-3">
       <div className="relative max-w-xs">
-        <SearchIcon className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
+        <SearchIcon className="pointer-events-none absolute top-1/2 left-3 size-5 -translate-y-1/2 text-primary" />
         <Input
           value={search}
           onChange={(event) => handleSearchChange(event.target.value)}
           placeholder="ค้นหาบทเรียนหรือหน่วยงาน..."
-          className="pl-8"
+          className="h-9 bg-card pl-9 shadow-xs"
           data-testid="training-links-table-search-input"
         />
       </div>
@@ -119,7 +120,7 @@ export function TrainingLinksTable({ links, origin }: { links: TrainingLink[]; o
                       />
                       <AdminLink
                         href={`/admin/links/${link.token}`}
-                        className={buttonVariants({ variant: "outline", size: "sm" })}
+                        className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
                         data-testid={`training-link-row-${link.token}-view-learners-link`}
                       >
                         ดูผู้เข้าเรียน

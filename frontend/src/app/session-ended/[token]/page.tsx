@@ -19,6 +19,17 @@ export default function SessionEndedPage() {
   const params = useParams<{ token: string }>();
   const router = useRouter();
   const [questions, setQuestions] = useState<LearnerSessionQuestion[] | null>(null);
+  // No backend action behind "ยืนยัน" - it only ends the flow client-side. window.close() is a
+  // best-effort freebie for the (rare) case this tab was opened by a script; most learners reach
+  // this page via a link/QR code in a browser they navigated normally, where browsers refuse to
+  // let a page close itself - confirmed always shows the closing message so the button never looks
+  // like it silently did nothing.
+  const [confirmed, setConfirmed] = useState(false);
+
+  function handleConfirm() {
+    setConfirmed(true);
+    window.close();
+  }
 
   useEffect(() => {
     const learnerKey = peekLearnerKey();
@@ -80,13 +91,29 @@ export default function SessionEndedPage() {
             </div>
           )}
 
-          <Button
-            className="h-11 w-full"
-            data-testid="session-ended-restart-button"
-            onClick={() => router.push(`/join/${params.token}`)}
-          >
-            เรียนอีกครั้ง
-          </Button>
+          {confirmed ? (
+            <p className="text-center text-sm text-muted-foreground" data-testid="session-ended-confirmed-message">
+              ยืนยันแล้วค่ะ ปิดหน้าต่างนี้ได้เลย
+            </p>
+          ) : (
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                className="h-11 flex-1"
+                data-testid="session-ended-restart-button"
+                onClick={() => router.push(`/join/${params.token}`)}
+              >
+                เรียนอีกครั้ง
+              </Button>
+              <Button
+                className="h-11 flex-1"
+                data-testid="session-ended-confirm-button"
+                onClick={handleConfirm}
+              >
+                ยืนยัน
+              </Button>
+            </div>
+          )}
         </CardContent>
       </Card>
     </main>
