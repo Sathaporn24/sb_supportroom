@@ -10,9 +10,10 @@
 }
 
 :root {
-  /* Page shell background, updated 2026-08-25 to the Figma redesign's exact #fcfcfc (previously
-     #fafafa) - still deliberately not pure white so cards below still read as a layer on top. */
-  --background: oklch(0.9911 0 0);
+  /* Page shell background, updated 2026-08-28 (corrected same day - the pure-white value was
+     swapped onto --tree-row instead, see below) back to #fafafa, still deliberately not pure
+     white so cards below still read as a layer on top. Was #fcfcfc from 2026-08-25 before that. */
+  --background: oklch(0.985 0 0);
   --foreground: oklch(0.145 0 0);
   /* Cards are plain white in the Figma redesign, updated 2026-08-25 (previously a gray/purple-
      tinted oklch(0.9173 0.0067 286.266)) - matches --popover, which was already pure white. */
@@ -57,8 +58,18 @@
   --tree-subcategory: oklch(0.908 0.067 68.256);
   --tree-subcategory-foreground: oklch(0.145 0 0);
   --tree-header: oklch(0.965 0.025 69.443);
+  /* Idle (not-expanded) row background in CategoryTree, added 2026-08-28 - pure white, brighter
+     than the page's #fafafa --background, so a collapsed subcategory row reads as a faint layer
+     on top of the page (same relationship --card has to --background). */
+  --tree-row: oklch(1 0 0);
   --info: oklch(0.507 0.178 257.519);
   --info-foreground: oklch(0.985 0 0);
+  /* Icon-only outline buttons (edit/delete/move - variant="outline" + size="icon-*"), added
+     2026-08-28 to match the Figma icon-button component: a border a touch darker than the
+     ordinary --border, and a lighter/quieter icon color than the plain --foreground the outline
+     variant otherwise inherits. Applied via a compound variant in ui/button.tsx, not per-instance. */
+  --icon-button-border: oklch(0.865 0 0);
+  --icon-button-foreground: oklch(0.652 0 0);
 }
 
 .dark {
@@ -97,8 +108,15 @@
   --tree-subcategory: oklch(0.35 0.06 55);
   --tree-subcategory-foreground: oklch(0.985 0 0);
   --tree-header: oklch(0.269 0.02 55);
+  /* Same relationship as light mode: --tree-row reads as a faint layer above --background, so a
+     touch lighter than dark --background (0.145). Unverified visually - this app has no theme
+     switcher wired up yet (see CLAUDE.md). */
+  --tree-row: oklch(0.16 0 0);
   --info: oklch(0.6 0.16 257.519);
   --info-foreground: oklch(0.985 0 0);
+  /* Unverified visually, same caveat as --tree-row above. */
+  --icon-button-border: oklch(0.32 0 0);
+  --icon-button-foreground: oklch(0.75 0 0);
 }
 
 /* Must stay at top level: nesting this inside @layer base stops the dark-mode
@@ -138,8 +156,11 @@
   --color-tree-subcategory: var(--tree-subcategory);
   --color-tree-subcategory-foreground: var(--tree-subcategory-foreground);
   --color-tree-header: var(--tree-header);
+  --color-tree-row: var(--tree-row);
   --color-info: var(--info);
   --color-info-foreground: var(--info-foreground);
+  --color-icon-button-border: var(--icon-button-border);
+  --color-icon-button-foreground: var(--icon-button-foreground);
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);

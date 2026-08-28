@@ -18,6 +18,7 @@ import { Label } from "@/components/ui/label";
 import { Spinner } from "@/components/ui/spinner";
 import { ApiClientError, createCompany } from "@/lib/api-client";
 import { getCompanyCreateFieldErrors, type CompanyCreateFieldErrors } from "@/lib/company-provisioning";
+import { cn } from "@/lib/utils";
 
 type CreatedCompanySummary = {
   id: string;
@@ -116,7 +117,7 @@ export default function NewCompanyPage() {
             <AdminLink
               href="/admin/settings?tab=companies"
               data-testid="companies-new-back-link"
-              className={buttonVariants()}
+              className={cn(buttonVariants())}
             >
               กลับไปรายการบริษัท
             </AdminLink>
@@ -267,7 +268,7 @@ export default function NewCompanyPage() {
           <AdminLink
             href="/admin/settings?tab=companies"
             data-testid="companies-new-cancel-link"
-            className={buttonVariants({ variant: "outline" })}
+            className={cn(buttonVariants({ variant: "outline" }))}
           >
             ยกเลิก
           </AdminLink>

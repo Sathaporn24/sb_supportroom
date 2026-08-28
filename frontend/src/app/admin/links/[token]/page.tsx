@@ -13,6 +13,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { TableSkeleton } from "@/components/shared/TableSkeleton";
+import { cn } from "@/lib/utils";
 
 const STAT_FIELD_COUNT = 6;
 
@@ -177,7 +178,7 @@ export default function TrainingLinkDetailPage() {
                     <TableCell className="px-4 py-3">
                       <AdminLink
                         href={`/admin/learning-sessions/${session.id}`}
-                        className={buttonVariants({ variant: "outline", size: "sm" })}
+                        className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
                         data-testid={`link-detail-session-row-${session.id}-view-summary-link`}
                       >
                         ดูสรุป

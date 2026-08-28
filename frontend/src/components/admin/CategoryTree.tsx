@@ -178,7 +178,7 @@ export function CategoryTree({
                   return (
                     <AccordionItem key={child.id} value={child.id} className="border-b">
                       <AccordionTrigger
-                        className="min-h-[60px] items-center rounded-none border-0 px-6 py-3.5 text-base font-semibold aria-expanded:bg-tree-subcategory aria-expanded:text-tree-subcategory-foreground"
+                        className="min-h-[60px] items-center rounded-none border-0 bg-tree-row px-6 py-3.5 text-base font-semibold aria-expanded:bg-tree-subcategory aria-expanded:text-tree-subcategory-foreground"
                         data-testid={`category-subrow-${child.id}-trigger`}
                       >
                         <span className="flex min-w-0 items-center gap-2">
@@ -212,12 +212,12 @@ function SearchBox({ value, onChange }: { value: string; onChange: (value: strin
   return (
     <div className="flex justify-end">
       <div className="relative max-w-xs">
-        <SearchIcon className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
+        <SearchIcon className="pointer-events-none absolute top-1/2 left-3 size-5 -translate-y-1/2 text-primary" />
         <Input
           value={value}
           onChange={(event) => onChange(event.target.value)}
           placeholder="ค้นหาบทเรียน..."
-          className="pl-8"
+          className="h-9 bg-card pl-9 shadow-xs"
           data-testid="category-tree-search-input"
         />
       </div>
@@ -295,7 +295,7 @@ function LessonTable({
                   <AdminLink
                     href={`/admin/lessons/${encodeURIComponent(lesson.slug)}`}
                     aria-label={`แก้ไขบทเรียน ${lesson.title}`}
-                    className={buttonVariants({ variant: "outline", size: "icon-sm" })}
+                    className={cn(buttonVariants({ variant: "outline", size: "icon-sm" }))}
                     data-testid={`lesson-row-${lesson.slug}-edit-link`}
                   >
                     <PencilIcon />

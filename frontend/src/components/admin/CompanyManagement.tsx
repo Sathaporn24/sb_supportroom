@@ -18,6 +18,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
 import { Spinner } from "@/components/ui/spinner";
+import { cn } from "@/lib/utils";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { TableSkeleton } from "@/components/shared/TableSkeleton";
 import { ApiClientError, listAllCompanies, updateCompany } from "@/lib/api-client";
@@ -74,7 +75,7 @@ export function CompanyManagement() {
         <AdminLink
           href="/admin/companies/new"
           data-testid="companies-create-new-link"
-          className={buttonVariants()}
+          className={cn(buttonVariants())}
         >
           <PlusIcon data-icon="inline-start" />
           สร้างบริษัทใหม่

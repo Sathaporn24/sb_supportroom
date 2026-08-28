@@ -1,12 +1,10 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { useEffect, useState } from "react";
-import { fetchAuthenticatedImageUrl } from "@/lib/api-client";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Skeleton } from "@/components/ui/skeleton";
+import { PdfPageThumbnail } from "@/components/shared/PdfPageThumbnail";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 
@@ -65,34 +63,6 @@ export function SlideNarrationEditorCard({
   excludeToggleDisabled,
   toggleInFlight,
 }: SlideNarrationEditorCardProps) {
-  const [displaySrc, setDisplaySrc] = useState<string | null>(null);
-  const [imageFailed, setImageFailed] = useState(false);
-
-  useEffect(() => {
-    let objectUrl: string | null = null;
-    let cancelled = false;
-    setDisplaySrc(null);
-    setImageFailed(false);
-
-    fetchAuthenticatedImageUrl(imageSrc)
-      .then((url) => {
-        if (cancelled) {
-          URL.revokeObjectURL(url);
-          return;
-        }
-        objectUrl = url;
-        setDisplaySrc(url);
-      })
-      .catch(() => {
-        if (!cancelled) setImageFailed(true);
-      });
-
-    return () => {
-      cancelled = true;
-      if (objectUrl) URL.revokeObjectURL(objectUrl);
-    };
-  }, [imageSrc]);
-
   return (
     <Card size="sm" className={cn(isExcluded && "opacity-60")}>
       <CardHeader>
@@ -103,20 +73,7 @@ export function SlideNarrationEditorCard({
         </CardTitle>
       </CardHeader>
       <CardContent className="flex flex-col gap-3 sm:flex-row">
-        <div className="flex aspect-video w-full shrink-0 items-center justify-center overflow-hidden rounded-lg border bg-muted sm:w-[45%]">
-          {imageFailed ? (
-            <p className="p-2 text-center text-xs text-muted-foreground">โหลดภาพสไลด์ไม่สำเร็จ</p>
-          ) : displaySrc ? (
-            // eslint-disable-next-line @next/next/no-img-element -- backend-rendered PNG via an authenticated blob URL, not a next/image-optimizable static asset
-            <img
-              src={displaySrc}
-              alt={pageLabel}
-              className="max-h-full max-w-full object-contain"
-            />
-          ) : (
-            <Skeleton className="h-full w-full" />
-          )}
-        </div>
+        <PdfPageThumbnail imageSrc={imageSrc} alt={pageLabel} className="w-full shrink-0 sm:w-[45%]" />
         <div className="flex flex-1 flex-col gap-2">
           <Textarea
             value={value}

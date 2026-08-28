@@ -540,7 +540,7 @@ export function PdfLessonContentPhase({ previewSession: initialSession, file: in
                 <>
                   <AdminLink
                     href={`/admin/lessons/${encodeURIComponent(lessonSlug)}/narrations`}
-                    className={buttonVariants({ variant: "outline" })}
+                    className={cn(buttonVariants({ variant: "outline" }))}
                     data-testid="pdf-content-phase-narrations-link"
                   >
                     ไปหน้าแก้บทพูดต่อหน้า →
@@ -559,7 +559,7 @@ export function PdfLessonContentPhase({ previewSession: initialSession, file: in
                 <>
                   <AdminLink
                     href={`/admin/lessons/${encodeURIComponent(lessonSlug)}/narrations`}
-                    className={buttonVariants({ variant: "outline" })}
+                    className={cn(buttonVariants({ variant: "outline" }))}
                     data-testid="pdf-content-phase-narrations-link"
                   >
                     ไปหน้าแก้บทพูดต่อหน้า →
@@ -578,7 +578,7 @@ export function PdfLessonContentPhase({ previewSession: initialSession, file: in
                 <>
                   <AdminLink
                     href={`/admin/lessons/${encodeURIComponent(lessonSlug)}/narrations`}
-                    className={buttonVariants({ variant: "outline" })}
+                    className={cn(buttonVariants({ variant: "outline" }))}
                     data-testid="pdf-content-phase-narrations-link"
                   >
                     ไปหน้าแก้บทพูดต่อหน้า →
